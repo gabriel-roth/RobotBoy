@@ -1,0 +1,9 @@
+build/
+*.o
+*.d
+*.a
+*.so
+*.dylib
+metamodule/*.mmplugin
+metamodule/metamodule-plugins/
+.DS_Store

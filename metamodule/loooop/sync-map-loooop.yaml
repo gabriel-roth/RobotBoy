@@ -1,0 +1,29 @@
+# mm_sync exceptions for Loooop_info.hh — everything not listed here
+# auto-derives from the SVG component id (SPEED1_PARAM -> Speed1Knob, etc.).
+# Renamed enums: EnumName: SVG_ID. Menu-only alt-params: EnumName: null.
+AudioInL: AUDIO_L_INPUT
+AudioInR: AUDIO_R_INPUT
+RecTrigIn: RECORD_TRIG_INPUT
+DryWetKnob: DRYWET_PARAM
+DryWetCvIn: DRYWET_CV_INPUT
+Head1OutL: HEAD1_L_OUTPUT
+Head1OutR: HEAD1_R_OUTPUT
+Head2OutL: HEAD2_L_OUTPUT
+Head2OutR: HEAD2_R_OUTPUT
+Head3OutL: HEAD3_L_OUTPUT
+Head3OutR: HEAD3_R_OUTPUT
+Head4OutL: HEAD4_L_OUTPUT
+Head4OutR: HEAD4_R_OUTPUT
+MixOutL: MIX_L_OUTPUT
+MixOutR: MIX_R_OUTPUT
+Display: {id: SCREEN, mm_aspect: "16:9"}
+OverdubSwitch: null
+CrossfadeSwitch: null
+TrigMode1Alt: null
+TrigMode2Alt: null
+TrigMode3Alt: null
+TrigMode4Alt: null
+SpeedVoct1Alt: null
+SpeedVoct2Alt: null
+SpeedVoct3Alt: null
+SpeedVoct4Alt: null
