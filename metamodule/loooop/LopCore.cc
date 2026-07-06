@@ -1,8 +1,8 @@
 #include "Lop_info.hh"
 #include "CoreModules/SmartCoreProcessor.hh"
 #include "CoreModules/register_module.hh"
-#include "../src/dsp/LoopEngine.hpp"
-#include "../src/display/LoopWaveformRenderer.hpp"
+#include "dsp/LoopEngine.hpp"
+#include "display/LoopWaveformRenderer.hpp"
 #include <algorithm>
 #include <cmath>
 #include <span>
@@ -133,7 +133,7 @@ private:
 };
 
 void register_lop_modules() {
-    register_module<LopCore, LopInfo>("Loooop");
+    register_module<LopCore, LopInfo>("Foobar");
 }
 
 } // namespace MetaModule

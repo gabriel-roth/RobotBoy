@@ -9,7 +9,7 @@
  * the voice count changes, and provides a processVoice() helper used by tests.
  */
 
-#include "../MF20Filter.hpp"
+#include "MF20Filter.hpp"
 #include "dsp_utils.hpp"
 #include <algorithm>
 #include <cmath>

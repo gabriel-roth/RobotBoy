@@ -1,8 +1,8 @@
 #include "Loooop_info.hh"
 #include "CoreModules/SmartCoreProcessor.hh"
 #include "CoreModules/register_module.hh"
-#include "../src/dsp/LoopEngine.hpp"
-#include "../src/display/LoopWaveformRenderer.hpp"
+#include "dsp/LoopEngine.hpp"
+#include "display/LoopWaveformRenderer.hpp"
 #include <algorithm>
 #include <cmath>
 #include <span>
@@ -169,14 +169,15 @@ private:
     bool dispDirty_ = false;
 };
 
-static void register_loooop_modules() {
-    register_module<LoooopCore, LoooopInfo>("Loooop");
+void register_loooop_modules() {
+    register_module<LoooopCore, LoooopInfo>("Foobar");
 }
 
 void register_lop_modules();
 
 } // namespace MetaModule
 
+#ifndef FOOBAR_COMBINED
 #ifdef METAMODULE_BUILTIN
 // Simulator built-in build: ext-plugins.cmake generates a call to
 // init_<libname>(rack::plugin::Plugin*) and the build fails to link without it.
@@ -194,3 +195,6 @@ extern "C" void init() {
     MetaModule::register_lop_modules();
 }
 #endif
+#endif // FOOBAR_COMBINED
+// Combined Foobar build: metamodule/register.cc owns the single init() and calls
+// register_loooop_modules()/register_lop_modules() directly.

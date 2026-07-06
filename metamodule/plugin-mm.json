@@ -1,0 +1,12 @@
+{
+  "MetaModuleBrandName": "Foobar",
+  "MetaModuleBrandSlug": "Foobar",
+  "MetaModulePluginMaintainer": "Gabriel Roth",
+  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20 filter, and Particules granular texture synth.",
+  "MetaModuleIncludedModules": [
+    { "slug": "Loooop", "name": "Loooop", "displayName": "Loooop" },
+    { "slug": "Lop", "name": "Löp", "displayName": "Löp" },
+    { "slug": "MF20Filter", "name": "MF-20", "displayName": "MF-20" },
+    { "slug": "Particules", "name": "Particules", "displayName": "Particules" }
+  ]
+}

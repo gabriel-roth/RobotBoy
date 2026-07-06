@@ -1,5 +1,5 @@
 #include "plugin.hpp"
-#include "../MF20Filter.hpp"
+#include "MF20Filter.hpp"
 #include "dsp_utils.hpp"
 #include "engine.hpp"
 

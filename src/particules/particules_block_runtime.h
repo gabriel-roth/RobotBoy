@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../nosuch_texture/beads_dsp/include/beads/types.h"
+#include "beads/types.h"
 
 #include <algorithm>
 #include <array>

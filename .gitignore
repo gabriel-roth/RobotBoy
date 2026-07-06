@@ -7,3 +7,4 @@ build/
 metamodule/*.mmplugin
 metamodule/metamodule-plugins/
 .DS_Store
+metamodule/.cache/
