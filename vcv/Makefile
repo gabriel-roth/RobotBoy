@@ -1,5 +1,14 @@
 RACK_DIR ?= $(HOME)/Dev/Rack-SDK
 
+# The canonical plugin.json and panel SVGs live at the repo root and are shared
+# with the MetaModule build. Sync them into vcv/ HERE, at parse time (via
+# $(shell ...)), because plugin.mk reads plugin.json for SLUG the moment it's
+# included below — a normal target would run too late. These copies are
+# git-ignored and regenerated on every invocation, so they can't drift from the
+# canonical root files. Symlinks won't do: this platform's rsync silently skips
+# symlinked distributables during `make dist`.
+_sync := $(shell cp ../plugin.json plugin.json && rm -rf res && cp -R ../res res)
+
 FLAGS += -I../src -I../src/loooop -I../src/mf20 -I../src/particules \
          -I../src/vendor/beads_dsp/include
 
