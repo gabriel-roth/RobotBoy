@@ -34,6 +34,22 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 Only include paths were changed (pointing at the new `src/` locations);
 test logic and assertions are untouched.
 
+## Test lanes
+
+This repo has two independent test lanes:
+
+- **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
+  and the small Particules pitch-map), plain-assert style. Runs anywhere, no
+  build system needed.
+- **Lane 2 — `tests/beads/run.sh`** — the vendored beads_dsp Catch2 suite
+  (CMake + CTest). Covers the granular / delay / reverb / quality / pitch DSP
+  that powers Particules. Catch2 is vendored (amalgamated, v3.5.2), so the lane
+  builds and runs fully offline. Run it with:
+
+  ```
+  ./tests/beads/run.sh
+  ```
+
 ## What was intentionally skipped, and why
 
 - **`~/Dev/Loooop/test/`** (singular, not `tests/`): Python scripts
