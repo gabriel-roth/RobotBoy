@@ -1,0 +1,2 @@
+../src/loooop/dsp/LoopEngine.cpp
+../src/loooop/display/LoopWaveformRenderer.cpp
