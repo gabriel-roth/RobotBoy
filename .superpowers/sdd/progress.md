@@ -25,3 +25,6 @@ FINAL WHOLE-BRANCH REVIEW (opus): READY TO MERGE. No Critical/Important cross-cu
 POST-REVIEW FIXES (user-requested):
 - M2 done (commit 165bd8c): added metamodule/loooop/brand.hh with #define FOOBAR_BRAND; Loooop_info.hh/Lop_info.hh png_filename + both cores' register_module now derive from it. Rename sites reduced from ~5 to 2 (macro + plugin.json). MM rebuilds clean, asset nesting unchanged (Foobar/Loooop/*.png).
 - M1 done (commit 28cedec): vcv/Makefile copies ../plugin.json + ../res into vcv/ at parse time (before plugin.mk reads SLUG); vcv/plugin.json + vcv/res/ now git-ignored + untracked (were drift-prone hard links). VCV clean-rebuilds, 4 Model symbols present, copies now independent (link count 1).
+
+=== BEADS TEST LANE sub-project (branch beads-test-lane) ===
+Task 1: complete (commit a23ea3e, review clean/Approved). Lane 2 stood up: tests/beads/ with vendored Catch2 v3.5.2 amalgamated + 2 shims, 16 upstream tests VERBATIM (0 diff), CMakeLists+run.sh. ctest green: 136 cases / 562,211 assertions, exit 0, offline, no test edits. Verified only tests/beads/ changed; lane 1 untouched. MINOR (final-review triage): (a) CMakeLists GLOB_RECURSE vs vcv/Makefile depth-1 wildcard — equivalent today, latent divergence; (b) redundant PRIVATE include dirs on beads_tests (inherited PUBLIC from lib).
