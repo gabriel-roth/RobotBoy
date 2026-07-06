@@ -171,7 +171,12 @@ struct LoooopWidget : ModuleWidget {
         addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
         addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        // Top knob row: Speed / Pos / Jitter per head, with a CV jack under each.
+        // Per-head knobs and their CV jacks. On the panel each head is a
+        // block: Size/Position/Speed on the upper knob row, Jitter/Pan/Level on
+        // the lower, with a CV jack directly under each knob. These calls are
+        // grouped by control type across heads, not by head — addParam/addInput
+        // order is cosmetic and doesn't affect param ids. This block adds the
+        // Speed/Position/Jitter knobs and CV jacks.
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 46.35)), module, Loooop::SPEED1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.88, 46.35)), module, Loooop::POSITION1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.293, 75.05)), module, Loooop::JITTER1_PARAM));
@@ -197,7 +202,8 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(168.16, 58.7)), module, Loooop::POSITION4_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 87.4)), module, Loooop::JITTER4_CV_INPUT));
 
-        // Lower knob row: Size / Level per head + centered global Dry/Wet, CV under each.
+        // The remaining per-head knobs and CV jacks (Size/Level, then Pan)
+        // plus the centered global Dry/Wet knob and its CV.
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.293, 46.35)), module, Loooop::SIZE1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 75.05)), module, Loooop::LEVEL1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 46.35)), module, Loooop::SIZE2_PARAM));
