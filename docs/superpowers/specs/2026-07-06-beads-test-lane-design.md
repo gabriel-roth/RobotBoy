@@ -100,7 +100,11 @@ amalgamated `.cpp` provides `main()`, replacing `Catch2::Catch2WithMain`.
 - `target_include_directories(beads_tests PRIVATE tests/beads/catch2,
   src/vendor/beads_dsp/{include,src}, src/particules)`.
 - `target_link_libraries(beads_tests PRIVATE foobar_beads_dsp)`.
-- `include(CTest); include(Catch); catch_discover_tests(beads_tests)`.
+- CTest registration via a single `add_test(NAME beads_tests COMMAND beads_tests)`.
+  (Upstream uses `catch_discover_tests`, but that needs the Catch2 CMake package,
+  which the amalgamated distribution omits; the binary reports per-assertion
+  results and returns non-zero on any failure, so a single CTest entry is the
+  equivalent minimal integration.)
 - `test_main.cpp` (an empty no-op upstream) is dropped.
 
 ### Running
