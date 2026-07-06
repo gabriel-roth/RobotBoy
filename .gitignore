@@ -18,3 +18,6 @@ vcv/res/
 
 # git worktrees for isolated feature work
 .worktrees/
+
+# reference manual, not part of the repo
+Mutable-Beads-manual.pdf
