@@ -7,12 +7,14 @@
 #include <vector>
 
 struct Lop : Module {
-    enum ParamId { SPEED_PARAM, POSITION_PARAM, SIZE_PARAM, JITTER_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM,
-                   TRIG_MODE_PARAM, SPEED_VOCT_PARAM, CROSSFADE_PARAM, PARAMS_LEN };
-    enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT,
-                   SPEED_CV_INPUT, POSITION_CV_INPUT, SIZE_CV_INPUT, JITTER_CV_INPUT,
-                   DRYWET_CV_INPUT, TRIG_INPUT, JUMP_INPUT, INPUTS_LEN };
+    // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
+    // lacks) so the two modules' MetaModule menus read the same and patch ids
+    // line up with metamodule/loooop/Lop_info.hh.
+    enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
+                   TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, PARAMS_LEN };
+    enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
+                   AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
     enum LightId { RECORD_LIGHT, LIGHTS_LEN };
 

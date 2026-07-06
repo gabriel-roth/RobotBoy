@@ -9,7 +9,7 @@ endif()
 include(${METAMODULE_SDK_DIR}/plugin.cmake)
 
 set(SRC "${CMAKE_CURRENT_LIST_DIR}/..")
-project(Foobar VERSION 2.0.0 LANGUAGES C CXX ASM)
+project(Foobar VERSION 2.0.1 LANGUAGES C CXX ASM)
 
 add_library(Foobar STATIC)
 target_sources(Foobar PRIVATE

@@ -7,28 +7,25 @@
 #include <string>
 
 struct Loooop : Module {
-    enum ParamId { SPEED1_PARAM, SPEED2_PARAM, SPEED3_PARAM, SPEED4_PARAM,
-                   POSITION1_PARAM, POSITION2_PARAM, POSITION3_PARAM, POSITION4_PARAM,
-                   SIZE1_PARAM, SIZE2_PARAM, SIZE3_PARAM, SIZE4_PARAM,
-                   LEVEL1_PARAM, LEVEL2_PARAM, LEVEL3_PARAM, LEVEL4_PARAM,
-                   JITTER1_PARAM, JITTER2_PARAM, JITTER3_PARAM, JITTER4_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM,
-                   TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
-                   SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
-                   CROSSFADE_PARAM,
-                   PAN1_PARAM, PAN2_PARAM, PAN3_PARAM, PAN4_PARAM,
+    // Params and inputs are grouped PER HEAD so the MetaModule mapping menu
+    // lists everything for one head together; this mirrors the Elem order in
+    // metamodule/loooop/Loooop_info.hh so patch ids line up between the two
+    // builds. Each head is a contiguous block of HEAD_PARAMS params /
+    // HEAD_INPUTS inputs — index a head with `X1_PARAM + HEAD_PARAMS * h`.
+    enum ParamId { SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM,
+                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM,
+                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM,
+                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM,
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM,
                    PARAMS_LEN };
-    enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT,
-                   SPEED1_CV_INPUT, SPEED2_CV_INPUT, SPEED3_CV_INPUT, SPEED4_CV_INPUT,
-                   POSITION1_CV_INPUT, POSITION2_CV_INPUT, POSITION3_CV_INPUT, POSITION4_CV_INPUT,
-                   SIZE1_CV_INPUT, SIZE2_CV_INPUT, SIZE3_CV_INPUT, SIZE4_CV_INPUT,
-                   LEVEL1_CV_INPUT, LEVEL2_CV_INPUT, LEVEL3_CV_INPUT, LEVEL4_CV_INPUT,
-                   JITTER1_CV_INPUT, JITTER2_CV_INPUT, JITTER3_CV_INPUT, JITTER4_CV_INPUT,
-                   DRYWET_CV_INPUT,
-                   TRIG1_INPUT, TRIG2_INPUT, TRIG3_INPUT, TRIG4_INPUT,
-                   JUMP1_INPUT, JUMP2_INPUT, JUMP3_INPUT, JUMP4_INPUT,
-                   PAN1_CV_INPUT, PAN2_CV_INPUT, PAN3_CV_INPUT, PAN4_CV_INPUT,
+    enum InputId { SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
+                   SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
+                   SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
+                   SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
+                   AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    INPUTS_LEN };
+    static constexpr int HEAD_PARAMS = 8;   // per-head param stride: Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct
+    static constexpr int HEAD_INPUTS = 8;   // per-head input stride: SizeCV,PosCV,SpeedCV,JitterCV,PanCV,LevelCV,Trig,Jump
     enum OutputId { HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
                     HEAD3_L_OUTPUT, HEAD3_R_OUTPUT, HEAD4_L_OUTPUT, HEAD4_R_OUTPUT,
                     MIX_L_OUTPUT, MIX_R_OUTPUT, OUTPUTS_LEN };
@@ -42,26 +39,26 @@ struct Loooop : Module {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             const std::string n = std::to_string(h + 1);
-            configParam(SPEED1_PARAM + h, -2.f, 2.f, 1.f, "Head " + n + " speed");
-            configParam(POSITION1_PARAM + h, 0.f, 1.f, 0.5f, "Head " + n + " position");
-            configParam(SIZE1_PARAM + h, 0.f, 1.f, 1.f, "Head " + n + " size");
+            configParam(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, "Head " + n + " speed");
+            configParam(POSITION1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.5f, "Head " + n + " position");
+            configParam(SIZE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 1.f, "Head " + n + " size");
             // Level defaults to 0.25: four phase-locked heads at defaults sum to
             // unity, matching the old single-head loudness.
-            configParam(LEVEL1_PARAM + h, 0.f, 1.f, 0.25f, "Head " + n + " level");
-            configParam(JITTER1_PARAM + h, 0.f, 1.f, 0.f, "Head " + n + " jitter");
-            configSwitch(TRIG_MODE1_PARAM + h, 0.f, 1.f, 0.f, "Head " + n + " trigger",
+            configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, "Head " + n + " level");
+            configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " jitter");
+            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " trigger",
                 {"Loop start", "One-shot"});
-            configSwitch(SPEED_VOCT1_PARAM + h, 0.f, 1.f, 0.f, "Head " + n + " speed CV V/Oct",
+            configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " speed CV V/Oct",
                 {"Off", "On"});
-            configInput(SPEED1_CV_INPUT + h, "Head " + n + " speed CV");
-            configInput(POSITION1_CV_INPUT + h, "Head " + n + " position CV");
-            configInput(SIZE1_CV_INPUT + h, "Head " + n + " size CV");
-            configInput(LEVEL1_CV_INPUT + h, "Head " + n + " level CV");
-            configInput(JITTER1_CV_INPUT + h, "Head " + n + " jitter CV");
-            configParam(PAN1_PARAM + h, -1.f, 1.f, 0.f, "Head " + n + " pan");
-            configInput(PAN1_CV_INPUT + h, "Head " + n + " pan CV");
-            configInput(TRIG1_INPUT + h, "Head " + n + " trigger");
-            configInput(JUMP1_INPUT + h, "Head " + n + " jump");
+            configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " speed CV");
+            configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " position CV");
+            configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " size CV");
+            configInput(LEVEL1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " level CV");
+            configInput(JITTER1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " jitter CV");
+            configParam(PAN1_PARAM + HEAD_PARAMS * h, -1.f, 1.f, 0.f, "Head " + n + " pan");
+            configInput(PAN1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " pan CV");
+            configInput(TRIG1_INPUT + HEAD_INPUTS * h, "Head " + n + " trigger");
+            configInput(JUMP1_INPUT + HEAD_INPUTS * h, "Head " + n + " jump");
             configOutput(HEAD1_L_OUTPUT + 2 * h, "Head " + n + " left");
             configOutput(HEAD1_L_OUTPUT + 2 * h + 1, "Head " + n + " right");
         }
@@ -100,27 +97,27 @@ struct Loooop : Module {
 
         // CV: 10 V spans each param's full range, summed with the knob, clamped.
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            float spKnob = params[SPEED1_PARAM + h].getValue();
-            float spCv = inputs[SPEED1_CV_INPUT + h].getVoltage();
-            engine.setSpeed(h, params[SPEED_VOCT1_PARAM + h].getValue() > 0.5f
+            float spKnob = params[SPEED1_PARAM + HEAD_PARAMS * h].getValue();
+            float spCv = inputs[SPEED1_CV_INPUT + HEAD_INPUTS * h].getVoltage();
+            engine.setSpeed(h, params[SPEED_VOCT1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f
                 ? clamp(spKnob * std::exp2(clamp(spCv, -5.f, 5.f)), -16.f, 16.f)
                 : clamp(spKnob + spCv * 0.4f, -2.f, 2.f));
-            engine.setPosition(h, clamp(params[POSITION1_PARAM + h].getValue()
-                + inputs[POSITION1_CV_INPUT + h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setSize(h, clamp(params[SIZE1_PARAM + h].getValue()
-                + inputs[SIZE1_CV_INPUT + h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setLevel(h, clamp(params[LEVEL1_PARAM + h].getValue()
-                + inputs[LEVEL1_CV_INPUT + h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setJitter(h, clamp(params[JITTER1_PARAM + h].getValue()
-                + inputs[JITTER1_CV_INPUT + h].getVoltage() * 0.1f, 0.f, 1.f));
+            engine.setPosition(h, clamp(params[POSITION1_PARAM + HEAD_PARAMS * h].getValue()
+                + inputs[POSITION1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
+            engine.setSize(h, clamp(params[SIZE1_PARAM + HEAD_PARAMS * h].getValue()
+                + inputs[SIZE1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
+            engine.setLevel(h, clamp(params[LEVEL1_PARAM + HEAD_PARAMS * h].getValue()
+                + inputs[LEVEL1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
+            engine.setJitter(h, clamp(params[JITTER1_PARAM + HEAD_PARAMS * h].getValue()
+                + inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
 
-            bool oneShot = params[TRIG_MODE1_PARAM + h].getValue() > 0.5f;
+            bool oneShot = params[TRIG_MODE1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f;
             engine.setOneShot(h, oneShot);
-            if (headTrig[h].process(inputs[TRIG1_INPUT + h].getVoltage(), 0.1f, 2.f)) {
+            if (headTrig[h].process(inputs[TRIG1_INPUT + HEAD_INPUTS * h].getVoltage(), 0.1f, 2.f)) {
                 if (oneShot) engine.triggerOneShot(h);
                 else engine.restartHead(h);
             }
-            float jv = inputs[JUMP1_INPUT + h].getVoltage();
+            float jv = inputs[JUMP1_INPUT + HEAD_INPUTS * h].getVoltage();
             if (std::fabs(jv - lastJumpV[h]) > 0.05f) {
                 engine.jumpHead(h, clamp(jv / 10.f, 0.f, 1.f));
                 lastJumpV[h] = jv;
@@ -141,8 +138,8 @@ struct Loooop : Module {
             outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
             // Pan is a balance on each head's contribution to the mix only;
             // the individual head outputs above are unaffected. Center = unity.
-            float pan = clamp(params[PAN1_PARAM + h].getValue()
-                + inputs[PAN1_CV_INPUT + h].getVoltage() * 0.2f, -1.f, 1.f);
+            float pan = clamp(params[PAN1_PARAM + HEAD_PARAMS * h].getValue()
+                + inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.2f, -1.f, 1.f);
             float gL = pan <= 0.f ? 1.f : 1.f - pan;
             float gR = pan >= 0.f ? 1.f : 1.f + pan;
             wetL += hs[h].l * gL; wetR += hs[h].r * gR;
@@ -273,13 +270,13 @@ struct LoooopWidget : ModuleWidget {
                 [m, h](Menu* sub) {
                     sub->addChild(createIndexSubmenuItem("Trigger", kTrigModes,
                         [m, h] { return (int)std::round(
-                            m->params[Loooop::TRIG_MODE1_PARAM + h].getValue()); },
+                            m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue()); },
                         [m, h](int v) {
-                            m->paramQuantities[Loooop::TRIG_MODE1_PARAM + h]->setValue((float)v); }));
+                            m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue((float)v); }));
                     sub->addChild(createBoolMenuItem("Speed CV is V/Oct", "",
-                        [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + h].getValue() > 0.5f; },
+                        [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
                         [m, h](bool v) {
-                            m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
+                            m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
                 }));
         }
     }
