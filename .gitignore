@@ -1,9 +1,12 @@
 build/
+dist/
+dep/
 *.o
 *.d
 *.a
 *.so
 *.dylib
+*.vcvplugin
 metamodule/*.mmplugin
 metamodule/metamodule-plugins/
 .DS_Store

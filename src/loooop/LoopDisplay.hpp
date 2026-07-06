@@ -1,7 +1,7 @@
 #pragma once
 #include "plugin.hpp"
-#include "../../src/dsp/LoopEngine.hpp"
-#include "../../src/display/LoopWaveformRenderer.hpp"
+#include "dsp/LoopEngine.hpp"
+#include "display/LoopWaveformRenderer.hpp"
 #include <cmath>
 #include <vector>
 

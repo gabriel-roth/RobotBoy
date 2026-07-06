@@ -1,6 +1,6 @@
 #include "plugin.hpp"
 #include "LoopDisplay.hpp"
-#include "../../src/dsp/LoopEngine.hpp"
+#include "dsp/LoopEngine.hpp"
 #include <array>
 #include <cmath>
 #include <string>
