@@ -24,6 +24,8 @@ public:
     void SetDecay(float decay);         // 0-1, mapped to feedback gain
     void SetDiffusion(float diff);      // 0-1
     void SetLpCutoff(float cutoff);     // Normalized frequency for feedback LP
+    void SetMakeupGain(float gain);     // Wet-path level trim; compensates the
+                                        // reverb tail being quieter than the dry
     void Process(float left_in, float right_in,
                  float* left_out, float* right_out);
 
@@ -36,6 +38,10 @@ private:
     float decay_ = 0.5f;
     float diffusion_ = 0.7f;
     float lp_ = 0.7f;
+    float makeup_gain_ = 1.0f;   // Linear gain applied to the wet output
+    // Equal-power crossfade gains, precomputed from amount_ in SetAmount.
+    float dry_xfade_ = 1.0f;
+    float wet_xfade_ = 0.0f;
 
     // LFO for chorus-like modulation in the tank
     float lfo_phase_ = 0.0f;

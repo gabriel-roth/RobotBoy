@@ -61,6 +61,15 @@ void Reverb::Init(float* buffer, size_t buffer_size, float sample_rate) {
 
 void Reverb::SetAmount(float amount) {
     amount_ = Clamp(amount, 0.0f, 1.0f);
+    // Equal-power dry/wet gains so the sweep holds a constant level instead of
+    // dipping ~3 dB through the middle. CosLookup phase 0..0.25 = quarter cycle.
+    float phase = amount_ * 0.25f;
+    dry_xfade_ = CosLookup(phase);
+    wet_xfade_ = CosLookup(phase - 0.25f);   // sin = cos(x - pi/2)
+}
+
+void Reverb::SetMakeupGain(float gain) {
+    makeup_gain_ = Clamp(gain, 0.0f, 8.0f);
 }
 
 void Reverb::SetDecay(float decay) {
@@ -194,11 +203,15 @@ void Reverb::Process(float left_in, float right_in,
     // ------------------------------------------------------------------
     // Output: tap from multiple points for decorrelated stereo
     // ------------------------------------------------------------------
-    float wet_l = dl1_out * 0.6f + dr2_out * 0.4f;
-    float wet_r = dr1_out * 0.6f + dl2_out * 0.4f;
+    // Makeup gain lifts the wet tail toward the dry level (it is intrinsically
+    // quieter: energy spread across the decay tail and low-passed).
+    float wet_l = (dl1_out * 0.6f + dr2_out * 0.4f) * makeup_gain_;
+    float wet_r = (dr1_out * 0.6f + dl2_out * 0.4f) * makeup_gain_;
 
-    *left_out  = left_in  + amount_ * (wet_l - left_in);
-    *right_out = right_in + amount_ * (wet_r - right_in);
+    // Equal-power crossfade: full wet still fully replaces the dry (dreamy
+    // wash), but the makeup keeps that wash as loud as the grains it replaced.
+    *left_out  = left_in  * dry_xfade_ + wet_l * wet_xfade_;
+    *right_out = right_in * dry_xfade_ + wet_r * wet_xfade_;
 }
 
 } // namespace beads

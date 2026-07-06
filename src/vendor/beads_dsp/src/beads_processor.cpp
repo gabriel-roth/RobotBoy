@@ -134,6 +134,10 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
     impl_->reverb.SetAmount(params.reverb);
     impl_->reverb.SetDecay(0.3f + params.reverb * 0.65f);
     impl_->reverb.SetDiffusion(0.7f);
+    // Fixed wet makeup: +4 dB, compensating the reverb tail being quieter than
+    // the dry (its energy is spread across the decay tail and low-passed).
+    static constexpr float kReverbMakeupGain = 1.5849f;  // 10^(4/20)
+    impl_->reverb.SetMakeupGain(kReverbMakeupGain);
 
     // Quality mode affects reverb LP: Tape=warmest, HiFi=brightest
     float reverb_lp;

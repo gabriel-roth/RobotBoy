@@ -162,3 +162,51 @@ TEST_CASE("QualityProcessor: Tape mode pitch modulation", "[quality]") {
     REQUIRE(mod > 0.95f);
     REQUIRE(mod < 1.05f);
 }
+
+TEST_CASE("Reverb: makeup gain scales the wet tail", "[reverb]") {
+    auto tail_energy = [](float makeup) {
+        std::vector<float> mem(kReverbBufferSize, 0.0f);
+        Reverb rev;
+        rev.Init(mem.data(), kReverbBufferSize, kSampleRate);
+        rev.SetAmount(1.0f);
+        rev.SetDecay(0.5f);
+        rev.SetMakeupGain(makeup);
+        float l, r, e = 0.0f;
+        rev.Process(1.0f, 1.0f, &l, &r);              // impulse
+        for (int i = 0; i < 8000; ++i) {
+            rev.Process(0.0f, 0.0f, &l, &r);
+            e += l * l + r * r;
+        }
+        return e;
+    };
+    // Tail energy scales with gain^2, so doubling makeup ~= 4x energy.
+    REQUIRE(tail_energy(2.0f) > tail_energy(1.0f) * 3.0f);
+}
+
+TEST_CASE("Reverb: equal-power crossfade keeps dry level up at mid mix", "[reverb]") {
+    std::vector<float> mem(kReverbBufferSize, 0.0f);
+    Reverb rev;
+    rev.Init(mem.data(), kReverbBufferSize, kSampleRate);
+    rev.SetAmount(0.5f);
+    rev.SetDecay(0.5f);
+    rev.SetMakeupGain(1.0f);
+
+    float l, r;
+    rev.Process(1.0f, 1.0f, &l, &r);   // first sample: tank empty, wet ~ 0
+    // Equal-power dry gain at 50% is cos(pi/4) ~= 0.707 (a linear blend gives 0.5).
+    REQUIRE(l == Approx(0.70710678f).margin(0.02f));
+}
+
+TEST_CASE("Reverb: amount 0 is exact dry passthrough", "[reverb]") {
+    std::vector<float> mem(kReverbBufferSize, 0.0f);
+    Reverb rev;
+    rev.Init(mem.data(), kReverbBufferSize, kSampleRate);
+    rev.SetAmount(0.0f);
+    rev.SetDecay(0.5f);
+    rev.SetMakeupGain(2.0f);   // makeup must not leak through when fully dry
+
+    float l, r;
+    rev.Process(0.5f, -0.3f, &l, &r);
+    REQUIRE(l == Approx(0.5f));
+    REQUIRE(r == Approx(-0.3f));
+}
