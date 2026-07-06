@@ -9,7 +9,13 @@ struct LoooopInfo : ModuleInfoBase {
     static constexpr std::string_view slug{"Loooop"};
     static constexpr std::string_view description{"Stereo RAM looper, four interpolating playheads. Inspired by Cutlasses Gloop."};
     static constexpr uint32_t width_hp = 38;
-    static constexpr std::string_view png_filename{"Loooop/Loooop.png"};
+    // NOTE: the leading "Foobar/" mirrors the top-level directory the SDK's
+    // create_plugin() always wraps assets in (both the real .mmplugin tar and
+    // the simulator's built-in-plugin hack namespace assets under the brand
+    // slug from plugin.json — confirmed by inspecting `tar tf Foobar.mmplugin`
+    // and by a "Could not read image" runtime failure in the sim without this
+    // prefix). Revisit when Task 5 renames the brand slug.
+    static constexpr std::string_view png_filename{"Foobar/Loooop/Loooop.png"};
 
     using enum Coords;
 
