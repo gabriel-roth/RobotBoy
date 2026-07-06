@@ -170,7 +170,7 @@ private:
 };
 
 void register_loooop_modules() {
-    register_module<LoooopCore, LoooopInfo>("Foobar");
+    register_module<LoooopCore, LoooopInfo>(FOOBAR_BRAND);
 }
 
 void register_lop_modules();

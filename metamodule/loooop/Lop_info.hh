@@ -1,5 +1,6 @@
 #pragma once
 #include "QlpElements.hh"
+#include "brand.hh"
 #include <array>
 
 namespace MetaModule
@@ -13,8 +14,8 @@ struct LopInfo : ModuleInfoBase {
     static constexpr std::string_view slug{"Lop"};
     static constexpr std::string_view description{"Stereo RAM looper, one interpolating playhead. Lightweight Loooop."};
     static constexpr uint32_t width_hp = 12;
-    // NOTE: leading "Foobar/" — see Loooop_info.hh's png_filename comment.
-    static constexpr std::string_view png_filename{"Foobar/Loooop/Lop.png"};
+    // Brand-prefixed asset path — see Loooop_info.hh's png_filename comment.
+    static constexpr std::string_view png_filename{FOOBAR_BRAND "/Loooop/Lop.png"};
 
     using enum Coords;
 

@@ -133,7 +133,7 @@ private:
 };
 
 void register_lop_modules() {
-    register_module<LopCore, LopInfo>("Foobar");
+    register_module<LopCore, LopInfo>(FOOBAR_BRAND);
 }
 
 } // namespace MetaModule
