@@ -21,3 +21,7 @@ ALL 6 TASKS COMPLETE. Open MINOR items for final-review triage:
 - M5: full interactive GUI (VCV) instantiate-and-click not done in sandbox (display asleep); worth a human check before release.
 
 FINAL WHOLE-BRANCH REVIEW (opus): READY TO MERGE. No Critical/Important cross-cutting defects. Traced all 3 build modes symbol-by-symbol (single init per mode, no double-registration), guard scheme coherent, brand/asset/slug agree, build files correct (VCV compiles Loooop.cpp; MM uses native cores — no double-compile), VCV↔MM param-index parity holds. New Minor: duplicate top-level assets (unused); latent guard hazard if a future sim used libname "Loooop" (benign today). Pre-PUBLIC-RELEASE (not merge blockers): M1 vcv/ hardlink drift guard; M2 png_filename "Foobar/" coupling must change on brand rename (recommend a single brand constant). M3/M5 human smoke-test nice-to-have.
+
+POST-REVIEW FIXES (user-requested):
+- M2 done (commit 165bd8c): added metamodule/loooop/brand.hh with #define FOOBAR_BRAND; Loooop_info.hh/Lop_info.hh png_filename + both cores' register_module now derive from it. Rename sites reduced from ~5 to 2 (macro + plugin.json). MM rebuilds clean, asset nesting unchanged (Foobar/Loooop/*.png).
+- M1 done (commit 28cedec): vcv/Makefile copies ../plugin.json + ../res into vcv/ at parse time (before plugin.mk reads SLUG); vcv/plugin.json + vcv/res/ now git-ignored + untracked (were drift-prone hard links). VCV clean-rebuilds, 4 Model symbols present, copies now independent (link count 1).
