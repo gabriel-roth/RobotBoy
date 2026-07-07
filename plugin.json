@@ -7,8 +7,8 @@
   "author": "Gabriel Roth",
   "modules": [
     { "slug": "Loooop", "name": "Loooop", "description": "Stereo RAM looper with four independent interpolating playheads.", "tags": ["Sampler", "Looper"] },
-    { "slug": "Lop", "name": "Löp", "description": "Stereo RAM looper with a single interpolating playhead.", "tags": ["Sampler", "Looper"] },
+    { "slug": "Lop", "name": "Löp", "description": "Lop: Stereo RAM looper with a single interpolating playhead.", "tags": ["Sampler", "Looper"] },
     { "slug": "MF20Filter", "name": "MF-20", "description": "Korg MS-20 OTA filter emulation (TPT/ZDF).", "tags": ["Filter"] },
-    { "slug": "Particules", "name": "Particules", "description": "Granular texture synthesizer.", "tags": ["Granular", "Reverb", "Sampler"] }
+    { "slug": "Particules", "name": "Particules", "description": "Granular texture synthesizer.", "tags": ["Granular", "Reverb", "Sampler", "Effect"] }
   ]
 }
