@@ -119,7 +119,7 @@ You can find a few extra options by right-clicking the panel in VCV Rack or scro
 
 **Löp** is Loooop with a **single playhead** instead of four, for when you just want a stereo loop and don't need the multi-head layering. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do.
 
-<img src="screenshots/Löp.png" alt="Löp module" height="500">
+<img src="screenshots/Lop.png" alt="Löp module" height="500">
 
 ---
 

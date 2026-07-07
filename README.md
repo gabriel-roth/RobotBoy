@@ -19,7 +19,7 @@ A stereo RAM looper: capture a loop, then play it back through four independent 
 
 ## Löp
 
-<img src="screenshots/Löp.png" alt="Löp module" height="300">
+<img src="screenshots/Lop.png" alt="Löp module" height="300">
 
 The single-playhead version of Loooop, for when you just want one stereo loop. → [**Full documentation**](Loooop.md#löp)
 
