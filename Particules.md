@@ -2,6 +2,8 @@
 
 **Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. The result ranges from lush self-generating clouds to tightly clocked, rhythmic slicing. It's inspired by Mutable Instruments Beads (by way of [No Such Texture](https://github.com/thorinside/nosuch_texture)); thanks to Émilie Gillet for the original design and Neal Sanche for the port.
 
+<img src="screenshots/Particules.png" alt="Particules module" height="500">
+
 ---
 
 ## How it works

@@ -13,25 +13,25 @@
 
 ## Loooop
 
-<img src="images/loooop.png" alt="Loooop panel" height="300">
+<img src="screenshots/Loooop.png" alt="Loooop module" height="300">
 
 A stereo RAM looper: capture a loop, then play it back through four independent playheads, each with its own speed, position, window size, level, jitter, and pan. → [**Full documentation**](Loooop.md)
 
 ## Löp
 
-<img src="images/lop.png" alt="Löp panel" height="300">
+<img src="screenshots/Löp.png" alt="Löp module" height="300">
 
 The single-playhead version of Loooop, for when you just want one stereo loop. → [**Full documentation**](Loooop.md#löp)
 
 ## MF-20
 
-<img src="images/mf20.png" alt="MF-20 panel" height="300">
+<img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
 
 A Korg MS-20 filter emulation with switchable OTA and Korg35 revisions, a shared **Total** cutoff bus, and a Drive stage. Polyphonic. → [**Full documentation**](MF20.md)
 
 ## Particules
 
-<img src="images/particules.png" alt="Particules panel" height="300">
+<img src="screenshots/Particules.png" alt="Particules module" height="300">
 
 A granular texture processor based on Mutable Instruments Beads (via No Such Texture): grains with time, position, size, shape, pitch, and density, each with an attenurandomizer, plus reverb and FREEZE. → [**Full documentation**](Particules.md)
 

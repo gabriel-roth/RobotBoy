@@ -4,6 +4,8 @@
 
 Think of it less as a "record and repeat" pedal and more as a multi-head tape playground: one recorded phrase can become four different loops running at four different speeds and lengths, all layered into a single stereo mix.
 
+<img src="screenshots/Loooop.png" alt="Loooop module" height="500">
+
 A smaller single-playhead version, **Löp**, is described [at the end](#löp).
 
 ---
@@ -116,6 +118,8 @@ You can find a few extra options by right-clicking the panel in VCV Rack or scro
 ## Löp
 
 **Löp** is Loooop with a **single playhead** instead of four, for when you just want a stereo loop and don't need the multi-head layering. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do.
+
+<img src="screenshots/Löp.png" alt="Löp module" height="500">
 
 ---
 
