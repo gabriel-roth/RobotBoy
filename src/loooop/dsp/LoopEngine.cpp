@@ -119,8 +119,10 @@ void LoopEngine::jumpHead(int head, float t01) {
 
 void LoopEngine::windowBounds(const PlayHead& h, double& winStart, double& winLen) const {
     const double L = static_cast<double>(loopLen_);
+    const double minWinLen = std::ceil(
+        static_cast<double>(sampleRate_) / static_cast<double>(MAX_MINIMUM_LOOP_HZ));
     winLen = static_cast<double>(h.size) * L;
-    if (winLen < 1.0) winLen = 1.0;
+    if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
     double centre = static_cast<double>(clamp01(h.centre + h.jitterOff)) * L;
     winStart = centre - winLen / 2.0;

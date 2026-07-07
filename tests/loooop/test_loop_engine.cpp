@@ -458,7 +458,49 @@ static void test_crossfade_declicks_seam() {
     check(onDelta < offDelta * 0.2f,     "crossfade: on far smoother than off");
 }
 
+static void test_minimum_audible_window() {
+    LoopEngine at48k(1);
+    at48k.reset(48000.f, 1.f);
+    at48k.setCrossfade(false);
+    at48k.toggleRecord();
+    for (int i = 0; i < 16; ++i) at48k.process(static_cast<float>(i + 1));
+    at48k.toggleRecord();
+    at48k.setSize(0, 0.f);
+    float first = at48k.process(0.f);
+    auto snap48 = at48k.displaySnapshot();
+    float second = at48k.process(0.f);
+    float win48 = (snap48.winEnd01[0] - snap48.winStart01[0]) * 16.f;
+    check(near(win48, 3.f), "min_size: 48k window is 3 samples");
+    check(!near(first, second), "min_size: playhead advances and output changes");
+
+    LoopEngine at96k(1);
+    at96k.reset(96000.f, 1.f);
+    at96k.setCrossfade(false);
+    at96k.toggleRecord();
+    for (int i = 0; i < 16; ++i) at96k.process(static_cast<float>(i + 1));
+    at96k.toggleRecord();
+    at96k.setSize(0, 0.f);
+    at96k.process(0.f);
+    auto snap96 = at96k.displaySnapshot();
+    float win96 = (snap96.winEnd01[0] - snap96.winStart01[0]) * 16.f;
+    check(near(win96, 5.f), "min_size: 96k window is 5 samples");
+
+    LoopEngine shortLoop(1);
+    shortLoop.reset(96000.f, 1.f);
+    shortLoop.setCrossfade(false);
+    shortLoop.toggleRecord();
+    shortLoop.process(1.f);
+    shortLoop.process(2.f);
+    shortLoop.toggleRecord();
+    shortLoop.setSize(0, 0.f);
+    shortLoop.process(0.f);
+    auto shortSnap = shortLoop.displaySnapshot();
+    float shortWin = shortSnap.winEnd01[0] - shortSnap.winStart01[0];
+    check(near(shortWin, 1.f), "min_size: short loop uses full available length");
+}
+
 int main() {
+    test_minimum_audible_window();
     test_crossfade_declicks_seam();
     test_single_head_engine();
     test_jitter_off_stable();

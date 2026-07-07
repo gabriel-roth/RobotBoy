@@ -68,6 +68,8 @@ public:
     DisplaySnapshot displaySnapshot() const;
 
 private:
+    static constexpr float MAX_MINIMUM_LOOP_HZ = 20000.f;
+
     struct PlayHead {
         double pos = 0.0;
         float speed = 1.f, level = 1.f, centre = 0.5f, size = 1.f;
