@@ -4,7 +4,7 @@
 
 **Goal:** Make Size 0 produce the shortest potentially audible moving loop instead of a stationary one-sample window.
 
-**Architecture:** Keep the public 0–1 Size mapping unchanged and enforce a sample-rate-derived lower bound inside the shared `LoopEngine::windowBounds()` method. Use a 20 kHz maximum repeat frequency at 1× playback, calculated as `ceil(sampleRate / 20000)`, capped by the recorded loop length.
+**Architecture:** Keep the public 0–1 Size mapping unchanged and enforce a sample-rate-derived lower bound inside the shared `LoopEngine::windowBounds()` method. Use a 1 ms minimum duration, calculated as `ceil(sampleRate × 1 / 1000)`, capped by the recorded loop length.
 
 **Tech Stack:** C++20, repository-native test harness, VCV Rack SDK, 4ms MetaModule SDK, GNU Make, CMake.
 
@@ -26,27 +26,27 @@ static void test_minimum_audible_window() {
     at48k.reset(48000.f, 1.f);
     at48k.setCrossfade(false);
     at48k.toggleRecord();
-    for (int i = 0; i < 16; ++i) at48k.process(static_cast<float>(i + 1));
+    for (int i = 0; i < 256; ++i) at48k.process(static_cast<float>(i + 1));
     at48k.toggleRecord();
     at48k.setSize(0, 0.f);
     float first = at48k.process(0.f);
     auto snap48 = at48k.displaySnapshot();
     float second = at48k.process(0.f);
-    float win48 = (snap48.winEnd01[0] - snap48.winStart01[0]) * 16.f;
-    check(near(win48, 3.f), "min_size: 48k window is 3 samples");
+    float win48 = (snap48.winEnd01[0] - snap48.winStart01[0]) * 256.f;
+    check(near(win48, 48.f), "min_size: 48k window is 1 ms");
     check(!near(first, second), "min_size: playhead advances and output changes");
 
     LoopEngine at96k(1);
     at96k.reset(96000.f, 1.f);
     at96k.setCrossfade(false);
     at96k.toggleRecord();
-    for (int i = 0; i < 16; ++i) at96k.process(static_cast<float>(i + 1));
+    for (int i = 0; i < 256; ++i) at96k.process(static_cast<float>(i + 1));
     at96k.toggleRecord();
     at96k.setSize(0, 0.f);
     at96k.process(0.f);
     auto snap96 = at96k.displaySnapshot();
-    float win96 = (snap96.winEnd01[0] - snap96.winStart01[0]) * 16.f;
-    check(near(win96, 5.f), "min_size: 96k window is 5 samples");
+    float win96 = (snap96.winEnd01[0] - snap96.winStart01[0]) * 256.f;
+    check(near(win96, 96.f), "min_size: 96k window is 1 ms");
 
     LoopEngine shortLoop(1);
     shortLoop.reset(96000.f, 1.f);
@@ -83,7 +83,7 @@ Expected: the new 48 kHz and 96 kHz window-size assertions fail because the curr
 Add a private engine constant:
 
 ```cpp
-static constexpr float MAX_MINIMUM_LOOP_HZ = 20000.f;
+static constexpr double MINIMUM_LOOP_MILLISECONDS = 1.0;
 ```
 
 - [ ] **Step 2: Replace the one-sample floor**
@@ -92,7 +92,7 @@ In `windowBounds()`, calculate:
 
 ```cpp
 const double minWinLen = std::ceil(
-    static_cast<double>(sampleRate_) / static_cast<double>(MAX_MINIMUM_LOOP_HZ));
+    static_cast<double>(sampleRate_) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 winLen = static_cast<double>(h.size) * L;
 if (winLen < minWinLen) winLen = minWinLen;
 if (winLen > L) winLen = L;
@@ -102,7 +102,7 @@ if (winLen > L) winLen = L;
 
 Run: `./tests/run.sh`
 
-Expected: all repository-native tests pass, including 3 samples at 48 kHz, 5 at 96 kHz, advancing output, and the short-loop cap.
+Expected: all repository-native tests pass, including 48 samples at 48 kHz, 96 at 96 kHz, advancing output, and the short-loop cap.
 
 - [ ] **Step 4: Commit implementation and test**
 

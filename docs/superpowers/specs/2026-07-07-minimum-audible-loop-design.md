@@ -6,13 +6,13 @@ Prevent Loooop and Löp from producing a stationary, effectively silent one-samp
 
 ## Behavior
 
-At Size 0, the shared loop engine will enforce a sample-rate-dependent minimum window length corresponding to a 20 kHz repeat frequency at 1× playback speed:
+At Size 0, the shared loop engine will enforce a sample-rate-dependent minimum window length of 1 ms:
 
 ```text
-minimum samples = ceil(sample rate / 20,000)
+minimum samples = ceil(sample rate × 1 / 1000)
 ```
 
-This yields three samples at 44.1/48 kHz and five samples at 96 kHz. The result remains an extremely short loop, but the playhead moves and its repeat frequency is potentially audible. If the recorded loop itself is shorter than the calculated minimum, the window is capped to the recorded loop length.
+This yields 45 samples at 44.1 kHz, 48 at 48 kHz, and 96 at 96 kHz. At 1× playback, the loop repeats at approximately 1 kHz, making ordinary recorded material substantially more audible than the previous near-Nyquist minimum. If the recorded loop itself is shorter than the calculated minimum, the window is capped to the recorded loop length.
 
 ## Implementation
 

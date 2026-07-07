@@ -463,27 +463,27 @@ static void test_minimum_audible_window() {
     at48k.reset(48000.f, 1.f);
     at48k.setCrossfade(false);
     at48k.toggleRecord();
-    for (int i = 0; i < 16; ++i) at48k.process(static_cast<float>(i + 1));
+    for (int i = 0; i < 256; ++i) at48k.process(static_cast<float>(i + 1));
     at48k.toggleRecord();
     at48k.setSize(0, 0.f);
     float first = at48k.process(0.f);
     auto snap48 = at48k.displaySnapshot();
     float second = at48k.process(0.f);
-    float win48 = (snap48.winEnd01[0] - snap48.winStart01[0]) * 16.f;
-    check(near(win48, 3.f), "min_size: 48k window is 3 samples");
+    float win48 = (snap48.winEnd01[0] - snap48.winStart01[0]) * 256.f;
+    check(near(win48, 48.f), "min_size: 48k window is 1 ms");
     check(!near(first, second), "min_size: playhead advances and output changes");
 
     LoopEngine at96k(1);
     at96k.reset(96000.f, 1.f);
     at96k.setCrossfade(false);
     at96k.toggleRecord();
-    for (int i = 0; i < 16; ++i) at96k.process(static_cast<float>(i + 1));
+    for (int i = 0; i < 256; ++i) at96k.process(static_cast<float>(i + 1));
     at96k.toggleRecord();
     at96k.setSize(0, 0.f);
     at96k.process(0.f);
     auto snap96 = at96k.displaySnapshot();
-    float win96 = (snap96.winEnd01[0] - snap96.winStart01[0]) * 16.f;
-    check(near(win96, 5.f), "min_size: 96k window is 5 samples");
+    float win96 = (snap96.winEnd01[0] - snap96.winStart01[0]) * 256.f;
+    check(near(win96, 96.f), "min_size: 96k window is 1 ms");
 
     LoopEngine shortLoop(1);
     shortLoop.reset(96000.f, 1.f);
