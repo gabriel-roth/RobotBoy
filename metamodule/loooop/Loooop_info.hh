@@ -13,11 +13,11 @@ struct LoooopInfo : ModuleInfoBase {
     // The leading brand slug mirrors the top-level directory the SDK's
     // create_plugin() always wraps assets in (both the real .mmplugin tar and
     // the simulator's built-in-plugin hack namespace assets under the brand
-    // slug from plugin.json — confirmed by inspecting `tar tf Foobar.mmplugin`
+    // slug from plugin.json — confirmed by inspecting `tar tf RobotBoy.mmplugin`
     // and by a "Could not read image" runtime failure in the sim without this
-    // prefix). Derived from FOOBAR_BRAND (see brand.hh) so it can't drift on a
+    // prefix). Derived from ROBOTBOY_BRAND (see brand.hh) so it can't drift on a
     // brand rename.
-    static constexpr std::string_view png_filename{FOOBAR_BRAND "/Loooop/Loooop.png"};
+    static constexpr std::string_view png_filename{ROBOTBOY_BRAND "/Loooop/Loooop.png"};
 
     using enum Coords;
 

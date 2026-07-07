@@ -6,7 +6,7 @@ for d in mf20 loooop particules; do
   [ -d "$d" ] || continue
   for t in "$d"/test_*.cpp; do
     [ -e "$t" ] || continue
-    out="/tmp/foobar_$(basename "$t" .cpp)"
+    out="/tmp/robotboy_$(basename "$t" .cpp)"
     echo "== building $t =="
     # Some tests need non-header-only .cpp sources from src/ linked in
     # alongside the test file (e.g. LoopEngine.cpp). If a sibling

@@ -1,4 +1,4 @@
-# Foobar regression tests
+# Robot Boy regression tests
 
 Offline, host-free C++ tests for the DSP/rendering code in `src/`. No Rack
 engine, no MetaModule runtime — just plain `g++` executables exercising the

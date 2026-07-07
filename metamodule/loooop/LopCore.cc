@@ -133,7 +133,7 @@ private:
 };
 
 void register_lop_modules() {
-    register_module<LopCore, LopInfo>(FOOBAR_BRAND);
+    register_module<LopCore, LopInfo>(ROBOTBOY_BRAND);
 }
 
 } // namespace MetaModule

@@ -1,6 +1,6 @@
-# Foobar
+# Robot Boy
 
-**Foobar** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It collects several modules into one package:
+**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It collects several modules into one package:
 
 | Module | What it is | Docs |
 |--------|------------|------|

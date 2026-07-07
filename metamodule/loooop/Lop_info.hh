@@ -15,7 +15,7 @@ struct LopInfo : ModuleInfoBase {
     static constexpr std::string_view description{"Stereo RAM looper, one interpolating playhead. Lightweight Loooop."};
     static constexpr uint32_t width_hp = 12;
     // Brand-prefixed asset path — see Loooop_info.hh's png_filename comment.
-    static constexpr std::string_view png_filename{FOOBAR_BRAND "/Loooop/Lop.png"};
+    static constexpr std::string_view png_filename{ROBOTBOY_BRAND "/Loooop/Lop.png"};
 
     using enum Coords;
 

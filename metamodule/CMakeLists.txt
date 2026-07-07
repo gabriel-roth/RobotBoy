@@ -9,10 +9,10 @@ endif()
 include(${METAMODULE_SDK_DIR}/plugin.cmake)
 
 set(SRC "${CMAKE_CURRENT_LIST_DIR}/..")
-project(Foobar VERSION 2.0.1 LANGUAGES C CXX ASM)
+project(RobotBoy VERSION 2.0.1 LANGUAGES C CXX ASM)
 
-add_library(Foobar STATIC)
-target_sources(Foobar PRIVATE
+add_library(RobotBoy STATIC)
+target_sources(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/register.cc
     # VCV-adapter modules
     ${SRC}/src/plugin.cpp
@@ -39,7 +39,7 @@ target_sources(Foobar PRIVATE
     ${SRC}/src/vendor/beads_dsp/src/random/random.cpp
     ${SRC}/src/vendor/beads_dsp/src/wavetable/wavetable_oscillator.cpp
 )
-target_include_directories(Foobar PRIVATE
+target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
     ${SRC}/src/loooop
     ${SRC}/src/mf20
@@ -47,12 +47,12 @@ target_include_directories(Foobar PRIVATE
     ${SRC}/src/vendor/beads_dsp/include
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
-target_compile_definitions(Foobar PRIVATE METAMODULE_BUILTIN FOOBAR_COMBINED)
-target_compile_options(Foobar PRIVATE -std=c++20)
+target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
+target_compile_options(RobotBoy PRIVATE -std=c++20)
 
 create_plugin(
-    SOURCE_LIB    Foobar
-    PLUGIN_NAME   Foobar
+    SOURCE_LIB    RobotBoy
+    PLUGIN_NAME   RobotBoy
     PLUGIN_JSON   ${SRC}/plugin.json
     SOURCE_ASSETS ${CMAKE_CURRENT_LIST_DIR}/assets
     DESTINATION   ${CMAKE_CURRENT_LIST_DIR}/metamodule-plugins

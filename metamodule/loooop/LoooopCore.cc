@@ -170,14 +170,14 @@ private:
 };
 
 void register_loooop_modules() {
-    register_module<LoooopCore, LoooopInfo>(FOOBAR_BRAND);
+    register_module<LoooopCore, LoooopInfo>(ROBOTBOY_BRAND);
 }
 
 void register_lop_modules();
 
 } // namespace MetaModule
 
-#ifndef FOOBAR_COMBINED
+#ifndef ROBOTBOY_COMBINED
 #ifdef METAMODULE_BUILTIN
 // Simulator built-in build: ext-plugins.cmake generates a call to
 // init_<libname>(rack::plugin::Plugin*) and the build fails to link without it.
@@ -195,6 +195,6 @@ extern "C" void init() {
     MetaModule::register_lop_modules();
 }
 #endif
-#endif // FOOBAR_COMBINED
-// Combined Foobar build: metamodule/register.cc owns the single init() and calls
+#endif // ROBOTBOY_COMBINED
+// Combined RobotBoy build: metamodule/register.cc owns the single init() and calls
 // register_loooop_modules()/register_lop_modules() directly.
