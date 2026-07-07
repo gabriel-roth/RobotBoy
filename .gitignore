@@ -7,6 +7,7 @@ dep/
 *.so
 *.dylib
 *.vcvplugin
+/*-test.vcv
 metamodule/*.mmplugin
 metamodule/metamodule-plugins/
 .DS_Store
