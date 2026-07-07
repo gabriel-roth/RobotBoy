@@ -1,6 +1,6 @@
 # Particules
 
-**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. The result ranges from lush self-generating clouds to tightly clocked, rhythmic slicing. It's inspired by Mutable Instruments Beads (by way of [No Such Texture](https://github.com/thorinside/nosuch_texture)); thanks to Émilie Gillet for the original design and Neal Sanche for the port.
+**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. The result ranges from lush self-generating clouds to tightly clocked, rhythmic slicing. It's inspired by Mutable Instruments Beads (by way of [No Such Texture](https://github.com/thorinside/nosuch_texture)); credit to Émilie Gillet for the design and Neal Sanche for the core DSP.
 
 <img src="screenshots/Particules.png" alt="Particules module" height="500">
 
@@ -10,20 +10,18 @@
 
 Picture a tape loop onto which your input is being recorded over and over. Every time a grain is requested, a little playback head drops onto the tape, reads a short slice, applies an envelope, and lifts off again. Move that head closer to or further from the record head and the slice plays back at a different point in time; retune it and it plays at a different pitch. Run dozens of these heads at once and you get a texture.
 
-Particules is doing exactly that in RAM. You control **how often** grains are born (Density), **where** on the tape they read from (Time), **how long** and in **which direction** they play (Size), the **envelope** on each one (Shape), and their **pitch**. Four of those controls have their own *attenurandomizer* for adding CV modulation or randomness. Feedback, reverb, and a dry/wet blend finish the signal.
+You control **how often** grains are born (Density), **where** on the tape they read from (Time), **how long** and in **which direction** they play (Size), the **envelope** on each one (Shape), and their **pitch**. Four of those controls have their own *attenurandomizer* for adding CV modulation or randomness. Feedback sends some of the processed output back into the recording buffer. A reverb is available at the end of the chain.
 
-> Grain parameters are sampled **once, when each grain is born**, and held for that grain's whole life. So turning the Pitch knob doesn't bend the notes already sounding — it lays down a *trail* of new grains at the new pitch. This is why Particules sounds like a cloud rather than a single voice.
+> Grain parameters are sampled **once, when each grain is born**, and held for that grain's whole life. So turning the Pitch knob doesn't bend the notes that are already sounding — it affects subsequent grains. This is why Particules sounds like a cloud rather than a single voice.
 
 ---
 
 ## Quick start
 
 1. **Patch audio** into **In L** (bottom left). Patch **In R** too for stereo; leave it out and the left channel feeds both sides. Particules recalibrates its input gain automatically whenever you patch or unpatch.
-2. **Turn Density** away from center. At 12 o'clock no grains are made. Turn it clockwise for a cloud with a randomly wandering grain rate, or counter-clockwise for a steady rate — the further you go, the denser the grains.
+2. **Turn Density** away from center. At 12 o'clock no grains are created. Turn it clockwise for a cloud with randomly distributed grains, or counter-clockwise for a steady pulse of grains. The further you go from center, the more grains are created.
 3. **Take your output** from **Out L / Out R** (bottom right). If you only patch Out L, you get a mono sum of both channels.
 4. **Turn up Dry/Wet** toward wet to hear more of the grains and less of your dry input.
-
-That's a working texture. Everything below is about shaping it.
 
 ---
 
@@ -31,7 +29,7 @@ That's a working texture. Everything below is about shaping it.
 
 ### Grain generation
 
-*Density:* How often grains are born. **Straight up (12 o'clock) = silence.** Clockwise generates grains at a *randomly modulated* rate; counter-clockwise generates them at a *constant* rate. The further from center, the shorter the gap between grains, up to a continuous stream. (When a clock is patched into **Seed**, Density changes job — see [Seed](#seed-clocking-grains).)
+*Density:* How often grains are born. **Straight up (12 o'clock) = silence.** Clockwise generates grains at a *randomly modulated* rate; counter-clockwise generates them at a *constant* rate. The further from center, the shorter the gap between grains, up to a continuous stream. (When a clock is patched into **Seed**, Density works differently — see [Seed](#seed-clocking-grains).)
 
 *Seed input:* The clock/trigger/gate input for grains (bottom right, labeled SEED). Its behavior depends on whether a cable is patched and on the **Seed CV mode** menu setting — see below.
 
@@ -43,7 +41,7 @@ That's a working texture. Everything below is about shaping it.
 
 *Pitch:* Transposition of each grain, roughly −24 to +24 semitones, with gentle notches at useful intervals so it settles onto pitches.
 
-*Size:* Grain duration and direction. Near the 11 o'clock area a very short (\~30 ms) grain plays. Turn clockwise to lengthen grains up to several seconds; turn counter-clockwise for *reversed* grains up to several seconds. **Fully clockwise (∞) turns Particules into a delay / beat-slicer** — see [Delay mode](#delay-mode).
+*Size:* Grain duration and direction. Near the 11 o'clock area a very short (\~30 ms) grain plays. Turn clockwise to lengthen grains up to several seconds; turn counter-clockwise for *reversed* grains up to several seconds.
 
 *Shape:* The amplitude envelope of each grain. Fully counter-clockwise gives clicky, near-rectangular envelopes; fully clockwise gives slow, soft attacks (reversed-sounding swells). The envelope shape is independent of playback direction.
 
@@ -60,7 +58,7 @@ This is the main tool for turning a static drone into a living, evolving one —
 
 ### Mixing
 
-*Feedback:* Feeds the processed output back into the recording chain. Each quality setting limits feedback differently — from a clean brickwall to grungy tape saturation.
+*Feedback:* Feeds the processed output back into the recording chain. Each quality setting (see below) limits feedback differently — from a clean brickwall to grungy tape saturation.
 
 *Dry/Wet:* Balance between your untouched input (dry) and the granular output (wet).
 
@@ -120,17 +118,6 @@ The **Seed** input, together with the **Seed CV mode** menu option, decides how 
 
 ---
 
-## Delay mode
-
-Turn **Size fully clockwise (∞)** and Particules stops making a swarm and instead keeps a single grain reading forever — it becomes a delay / beat-slicer.
-
-- The **base delay time** (slice length) is set by **Density**, or by tapping / clocking the **Seed** input. With a clock, Density chooses a subdivision of the clock interval.
-- **Time** then selects the actual delay time as a multiple of that base, or — with **Freeze** engaged — which frozen slice gets looped.
-- **Shape** applies a tempo-synced envelope to the repeats; leave it fully counter-clockwise for a plain delay.
-- **Pitch** applies a rotary-head pitch-shift to the delayed signal (bypassed at 12 o'clock).
-
----
-
 ## Right-click options
 
 Right-click the panel in VCV Rack, or open Options on MetaModule:
@@ -151,7 +138,3 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Speech / phoneme sequencing:** patch a sequencer's CV into **Time** and its gate into **Seed** to step through slices of a recorded phrase.
 - **Living drone:** hold a sustained note, freeze the buffer, then add a little **Size** and **Pitch** attenurandomizer for a texture that never quite repeats.
 - **Rhythmic slicer:** turn **Size** fully clockwise, clock **Seed** from your sequencer, and use **Density** to pick the subdivision.
-
----
-
-*Released under the MIT license.*
