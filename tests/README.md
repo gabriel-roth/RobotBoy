@@ -69,7 +69,7 @@ This repo has two independent test lanes:
   treatment — a reasonable candidate to add in a future pass, deliberately
   left out here to stay in scope.
 - **`~/Dev/particules/nosuch_texture/tests/`**: a much larger Catch2 suite
-  (`test_grain.cpp`, `test_delay.cpp`, `test_reverb.cpp`,
+  (`test_grain.cpp`, `test_reverb.cpp`,
   `test_pitch_quantizer.cpp`, `test_auto_gain.cpp`, `test_buffer.cpp`, etc.)
   covering the `beads_dsp` engine that's vendored into
   `src/vendor/beads_dsp/`. It's real DSP coverage and squarely the kind of

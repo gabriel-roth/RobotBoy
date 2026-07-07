@@ -57,7 +57,6 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
     impl_->params = BeadsParameters{};
     impl_->feedback_sample = {0.0f, 0.0f};
     impl_->prev_freeze = false;
-    impl_->delay_mode = false;
 
     // Allocate recording buffer (fixed frame budget; duration varies with sample rate)
     size_t recording_bytes =
@@ -96,7 +95,6 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
     // Initialize sub-processors
     impl_->grain_engine.Init(sample_rate, &impl_->recording_buffer);
     impl_->grain_engine.SetDTCCache(dtc_cache);
-    impl_->delay_engine.Init(sample_rate, &impl_->recording_buffer);
     impl_->saturation.Init();
     impl_->quality_processor.Init(sample_rate);
     impl_->auto_gain.Init(sample_rate);
@@ -121,13 +119,6 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
             DecimationFactorForQuality(params.quality_mode));
         impl_->recording_buffer.Clear();
         impl_->quality_xfade_counter = Impl::kQualityXfadeSamples;
-    }
-
-    bool new_delay_mode = params.delay_mode;
-    if (new_delay_mode != impl_->delay_mode) {
-        impl_->prev_delay_mode = impl_->delay_mode;
-        impl_->delay_mode = new_delay_mode;
-        impl_->mode_xfade_counter = Impl::kModeXfadeSamples;
     }
 
     // Configure reverb from parameters
@@ -181,11 +172,8 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
         // Save pre-processing frame for dry output path so DRY/WET=0 matches bypass.
         if (i < kMaxBlockSize) s.dry_input_buf[i] = in;
 
-        // 1. Auto-gain — skipped in delay mode so the buffer records at the
-        // natural input level and echoes play back at the same level as the dry.
-        if (!s.params.delay_mode) {
-            in = s.auto_gain.Process(in, s.params.manual_gain_db, s.params.auto_gain);
-        }
+        // 1. Auto-gain
+        in = s.auto_gain.Process(in, s.params.manual_gain_db, s.params.auto_gain);
 
         // 2. Quality input processing
         in = s.quality_processor.ProcessInput(in, s.params.quality_mode);
@@ -196,20 +184,13 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
             s.feedback_hp_l.ProcessHP(s.feedback_sample.l),
             s.feedback_hp_r.ProcessHP(s.feedback_sample.r)
         };
-        if (s.params.delay_mode) {
-            // Delay mode: additive mix. Auto-gain is disabled in delay mode so
-            // LimitFeedback does not systematically clip away the feedback.
-            float feedback_gain = s.smoothed_feedback * s.smoothed_feedback;
-            in += fb * feedback_gain;
-        } else {
-            // Grain mode: scale source down by (feedback × 0.5) to leave headroom
-            // for additive feedback.
-            float source_scale = 1.0f - s.smoothed_feedback * 0.5f;
-            in.l *= source_scale;
-            in.r *= source_scale;
-            StereoFrame mixed = in + fb * (s.smoothed_feedback * s.smoothed_feedback);
-            in = s.saturation.LimitFeedback(mixed, s.params.quality_mode);
-        }
+        // Scale source down by (feedback × 0.5) to leave headroom for
+        // additive feedback.
+        float source_scale = 1.0f - s.smoothed_feedback * 0.5f;
+        in.l *= source_scale;
+        in.r *= source_scale;
+        StereoFrame mixed = in + fb * (s.smoothed_feedback * s.smoothed_feedback);
+        in = s.saturation.LimitFeedback(mixed, s.params.quality_mode);
 
         // 4. Record to buffer (unless frozen)
         if (!s.params.freeze) {
@@ -226,11 +207,8 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
     // Process in blocks of kMaxBlockSize.
     // wet lives in Impl (DRAM) to keep audio-thread stack usage low.
     StereoFrame* wet = s.wet_buf;
-    StereoFrame* wet_alt = s.wet_alt_buf;
     size_t remaining = num_frames;
     size_t offset = 0;
-
-    bool crossfading_modes = (s.mode_xfade_counter > 0);
 
     while (remaining > 0) {
         size_t block = std::min(remaining, kMaxBlockSize);
@@ -239,18 +217,7 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
         // The modulation is very slow (0.5Hz wow) so one value per block is fine.
         float pitch_mod = s.quality_processor.GetPitchModulation(s.params.quality_mode, block);
         s.grain_engine.SetPitchModulation(pitch_mod);
-        s.delay_engine.SetPitchModulation(pitch_mod);
-
-        if (crossfading_modes) {
-            s.delay_engine.Process(s.params, s.delay_mode ? wet : wet_alt, block);
-            s.grain_engine.Process(s.params, s.delay_mode ? wet_alt : wet, block);
-        } else {
-            if (s.delay_mode) {
-                s.delay_engine.Process(s.params, wet, block);
-            } else {
-                s.grain_engine.Process(s.params, wet, block);
-            }
-        }
+        s.grain_engine.Process(s.params, wet, block);
 
         // Advance dry/wet smoothing and compute equal-power gains once per
         // block.  The OnePole with 0.002 coefficient changes < 0.13% across
@@ -267,20 +234,7 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
 
         // Per-sample output processing for this block
         for (size_t i = 0; i < block; ++i) {
-            StereoFrame wet_frame;
-
-            if (s.mode_xfade_counter > 0) {
-                float xfade = static_cast<float>(s.mode_xfade_counter)
-                            / static_cast<float>(Impl::kModeXfadeSamples);
-                wet_frame.l = wet_alt[i].l * xfade + wet[i].l * (1.0f - xfade);
-                wet_frame.r = wet_alt[i].r * xfade + wet[i].r * (1.0f - xfade);
-                s.mode_xfade_counter--;
-                if (s.mode_xfade_counter == 0) {
-                    crossfading_modes = false;
-                }
-            } else {
-                wet_frame = wet[i];
-            }
+            StereoFrame wet_frame = wet[i];
 
             // Quality mode transition: V-shaped duck on wet signal
             if (s.quality_xfade_counter > 0) {
@@ -330,20 +284,12 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
     }
 }
 
-bool BeadsProcessor::IsDelayMode() const {
-    return impl_ ? impl_->delay_mode : false;
-}
-
 int BeadsProcessor::ActiveGrainCount() const {
     return impl_ ? impl_->grain_engine.ActiveGrainCount() : 0;
 }
 
 bool BeadsProcessor::GrainTriggeredThisBlock() const {
     return impl_ ? impl_->grain_engine.GrainTriggeredThisBlock() : false;
-}
-
-bool BeadsProcessor::DelayTriggeredThisBlock() const {
-    return impl_ ? impl_->delay_engine.TriggerOutput() : false;
 }
 
 float BeadsProcessor::InputLevel() const {

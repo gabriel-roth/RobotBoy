@@ -38,10 +38,8 @@ public:
     void SetParameters(const BeadsParameters& params);
     void Process(const StereoFrame* input, StereoFrame* output, size_t num_frames);
 
-    bool IsDelayMode() const;
     int ActiveGrainCount() const;
     bool GrainTriggeredThisBlock() const;
-    bool DelayTriggeredThisBlock() const;
     float InputLevel() const;
     float AutoGainDb() const;
     void TriggerAutoGainCalibration();

@@ -80,7 +80,6 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     // Boundary at kSizeBoundary (-0.2 = 11 o'clock). At the boundary abs_size=0 → 30ms.
     // CW (> -0.2): forward, [-0.2, 1.0] normalized to [0, 1].
     // CCW (< -0.2): reverse, [-1.0, -0.2) normalized to [0, 1].
-    // (At SIZE >= 1.0 the processor switches to delay mode.)
     float mod_size = ar_size_.Process(params.size, params.size_ar,
                                        params.size_cv, params.size_cv_connected);
     bool reverse = (mod_size < kSizeBoundary);

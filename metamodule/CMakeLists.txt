@@ -26,7 +26,6 @@ target_sources(RobotBoy PRIVATE
     # beads DSP (Particules)
     ${SRC}/src/vendor/beads_dsp/src/beads_processor.cpp
     ${SRC}/src/vendor/beads_dsp/src/buffer/recording_buffer.cpp
-    ${SRC}/src/vendor/beads_dsp/src/delay/delay_engine.cpp
     ${SRC}/src/vendor/beads_dsp/src/fx/reverb.cpp
     ${SRC}/src/vendor/beads_dsp/src/fx/saturation.cpp
     ${SRC}/src/vendor/beads_dsp/src/grain/grain_engine.cpp

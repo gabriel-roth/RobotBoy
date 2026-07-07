@@ -36,14 +36,6 @@ struct BeadsParameters {
     bool shape_cv_connected = false;
     bool pitch_cv_connected = false;
 
-    // Slow random LFOs for delay/wavetable mode — replaces per-grain random noise.
-    // Set by host; range [-1, 1]. The peaked vs. uniform distribution character is
-    // baked in at target-generation time; ApplyLfoAr applies the formula.
-    float time_lfo  = 0.0f;
-    float size_lfo  = 0.0f;
-    float shape_lfo = 0.0f;
-    float pitch_lfo = 0.0f;  // Normalized [-1,1]; same scale as grain-mode random source
-
     // Gate/clock/freeze
     bool gate = false;
     bool freeze = false;
@@ -60,9 +52,6 @@ struct BeadsParameters {
     float manual_gain_db = NAN;  // NaN = auto-gain
     bool auto_gain = true;       // true = calibrate-and-lock auto-gain
     bool stereo_input = true;
-
-    // Mode overrides
-    bool delay_mode = false;     // true = use delay engine regardless of SIZE
 
     // Pitch lock quantization (applied as the final step after AR and CV)
     // 0 = off, 1 = octaves only, 2 = octaves + perfect 5ths
@@ -86,25 +75,6 @@ inline float QuantizePitchLock(float semitones, int mode) {
         return nearest;
     }
     return semitones;
-}
-
-// Apply AR + slow LFO modulation for delay/wavetable mode.
-// Encodes the four-way Beads attenurandomizer logic:
-//   CW  + CV:    base + ar * cv                  (deterministic CV attenuation)
-//   CCW + CV:    base + lfo * (-ar) * |cv|        (LFO gated by CV level)
-//   CW  + no CV: base + lfo * ar                  (LFO, depth scaled by ar)
-//   CCW + no CV: base + lfo * (-ar)               (peaked LFO, depth scaled by ar)
-inline float ApplyLfoAr(float base, float ar, float cv, bool cv_connected, float lfo) {
-    if (ar == 0.0f) return base;
-    if (cv_connected) {
-        return ar > 0.0f
-            ? base + ar * cv
-            : base + lfo * (-ar) * std::fabs(cv);
-    } else {
-        return ar > 0.0f
-            ? base + lfo * ar
-            : base + lfo * (-ar);
-    }
 }
 
 } // namespace beads
