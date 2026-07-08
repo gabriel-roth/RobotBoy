@@ -74,10 +74,12 @@ private:
         double pos = 0.0;
         float speed = 1.f, level = 1.f, centre = 0.5f, size = 1.f;
         bool oneShot = false, playing = true;
-        float jitter = 0.f, jitterOff = 0.f;
+        float jitter = 0.f, jitterOff = 0.f, jitterNext = 0.f;
     };
 
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
+    void windowBounds(const PlayHead& h, float jitterOff,
+                      double& winStart, double& winLen) const;
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf) const;
     float readRaw(double p, const std::vector<float>& buf) const;
     void readHead(const PlayHead& h, float& outL, float& outR) const;
@@ -85,6 +87,7 @@ private:
     // window's output-period; 0 disables (window too short, or crossfade off).
     int fadeLen(const PlayHead& h, double winLen) const;
     void rollJitter(PlayHead& h);
+    void commitJitter(PlayHead& h);
     void advanceHead(PlayHead& h, int idx);
     void writePeak(std::size_t idx, float l, float r);
 

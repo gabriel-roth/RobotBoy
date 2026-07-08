@@ -499,6 +499,35 @@ static void test_minimum_audible_window() {
     check(near(shortWin, 1.f), "min_size: short loop uses full available length");
 }
 
+static void test_jitter_crossfade_continuity() {
+    LoopEngine e;
+    e.reset(48000.f, 2.f);
+    soloHead0(e);
+    e.toggleRecord();
+    const int N = 24000;                       // 0.5 s loop
+    for (int i = 0; i < N; ++i)
+        e.process((float)std::sin(2.0 * M_PI * 100.0 * i / 48000.0));
+    e.toggleRecord();
+    e.setJitter(0, 1.f);
+    e.setSize(0, 0.25f);                       // 6000-sample window, ~240-sample fade
+    e.setCrossfade(true);
+    float prev = e.process(0.f);
+    float maxDelta = 0.f;
+    for (int i = 0; i < 96000; ++i) {          // 2 s -> ~16 jittered wraps
+        float cur = e.process(0.f);
+        float d = std::fabs(cur - prev);
+        if (d > maxDelta) maxDelta = d;
+        prev = cur;
+    }
+    // Continuous playback slope of a 100 Hz unit sine at 48 kHz is ~0.013
+    // per sample; the smoothstep fade over ~240 samples adds at most ~0.013
+    // per sample even between uncorrelated windows. The jitter bug produced
+    // full-scale steps (~2.0) at every wrap.
+    char msg[64];
+    std::snprintf(msg, sizeof(msg), "jitter_crossfade: maxDelta=%.4f < 0.1", maxDelta);
+    check(maxDelta < 0.1f, msg);
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -530,6 +559,7 @@ int main() {
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
     test_overdub_gate();
+    test_jitter_crossfade_continuity();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

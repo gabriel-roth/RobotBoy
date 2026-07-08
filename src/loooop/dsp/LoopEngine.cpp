@@ -75,19 +75,39 @@ void LoopEngine::setPosition(int head, float c01){ if (head >= 0 && head < numHe
 void LoopEngine::setSize(int head, float s01)    { if (head >= 0 && head < numHeads_) heads_[head].size = clamp01(s01); }
 void LoopEngine::setLevel(int head, float g)     { if (head >= 0 && head < numHeads_) heads_[head].level = clamp01(g); }
 
-void LoopEngine::setJitter(int head, float j01) { if (head >= 0 && head < numHeads_) heads_[head].jitter = clamp01(j01); }
+void LoopEngine::setJitter(int head, float j01) {
+    if (head < 0 || head >= numHeads_) return;
+    PlayHead& h = heads_[head];
+    float j = clamp01(j01);
+    if (j > 0.f && h.jitter == 0.f) {
+        h.jitter = j;
+        rollJitter(h);          // first wrap after enabling is already random
+    } else {
+        h.jitter = j;
+        if (j == 0.f) h.jitterNext = 0.f;
+    }
+}
 
 // xorshift32: deterministic (seeded in reset), audio-thread safe. Offset up to
 // +/- half the loop at jitter 1; jitter 0 always yields exactly 0.
+// Rolls the NEXT window's offset; commitJitter() makes it current at the
+// wrap. The seam crossfade previews the next window during the fade, so the
+// offset must be decided before the fade begins, not at the wrap itself.
 void LoopEngine::rollJitter(PlayHead& h) {
     rng_ ^= rng_ << 13; rng_ ^= rng_ >> 17; rng_ ^= rng_ << 5;
-    h.jitterOff = h.jitter * ((rng_ >> 8) * (1.f / 16777216.f) - 0.5f);
+    h.jitterNext = h.jitter * ((rng_ >> 8) * (1.f / 16777216.f) - 0.5f);
+}
+
+void LoopEngine::commitJitter(PlayHead& h) {
+    h.jitterOff = h.jitterNext;
+    rollJitter(h);              // pre-roll for the following wrap
 }
 
 void LoopEngine::restartHead(int head) {
     if (head < 0 || head >= numHeads_ || loopLen_ == 0) return;
     PlayHead& h = heads_[head];
-    rollJitter(h);
+    rollJitter(h);       // fresh window now…
+    commitJitter(h);     // …made current, with the next one pre-rolled
     double winStart, winLen;
     windowBounds(h, winStart, winLen);
     h.pos = h.speed < 0.f ? winStart + winLen - 1.0 : winStart;
@@ -118,13 +138,18 @@ void LoopEngine::jumpHead(int head, float t01) {
 }
 
 void LoopEngine::windowBounds(const PlayHead& h, double& winStart, double& winLen) const {
+    windowBounds(h, h.jitterOff, winStart, winLen);
+}
+
+void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
+                              double& winStart, double& winLen) const {
     const double L = static_cast<double>(loopLen_);
     const double minWinLen = std::ceil(
         static_cast<double>(sampleRate_) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     winLen = static_cast<double>(h.size) * L;
     if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
-    double centre = static_cast<double>(clamp01(h.centre + h.jitterOff)) * L;
+    double centre = static_cast<double>(clamp01(h.centre + jitterOff)) * L;
     winStart = centre - winLen / 2.0;
     if (winStart < 0.0) winStart = 0.0;
     if (winStart + winLen > L) winStart = L - winLen;
@@ -190,9 +215,13 @@ void LoopEngine::readHead(const PlayHead& h, float& outL, float& outR) const {
     if (prog < 0.0) prog = 0.0;
     if (prog > 1.0) prog = 1.0;
     const double headAdvance = (static_cast<double>(F) - outToSeam) * sp;
+    // Preview from the NEXT window (jitterNext) — that is where advanceHead()
+    // will resume at the wrap.
+    double ns, nl;
+    windowBounds(h, h.jitterNext, ns, nl);
     const double headPos = (h.speed >= 0.f)
-        ? winStart + headAdvance
-        : winStart + winLen - 1.0 - headAdvance;
+        ? ns + headAdvance
+        : ns + nl - 1.0 - headAdvance;
     // Smoothstep (Hermite) crossfade: zero slope at both fade boundaries, so the
     // gains don't step at the edges. An equal-power (sqrt) curve has an infinite
     // derivative at the seam and leaves an audible ~0.05 residual click; this
@@ -215,7 +244,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx) {
         else {
             const int F = fadeLen(h, winLen);
             const double overshoot = h.pos - winEnd;
-            rollJitter(h);
+            commitJitter(h);
             if (F < 1) {
                 h.pos -= winLen;                    // no crossfade: exact wrap
             } else {                                // resume past the previewed head
@@ -229,7 +258,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx) {
         else {
             const int F = fadeLen(h, winLen);
             const double overshoot = winStart - h.pos;
-            rollJitter(h);
+            commitJitter(h);
             if (F < 1) {
                 h.pos += winLen;                    // no crossfade: exact wrap
             } else {
