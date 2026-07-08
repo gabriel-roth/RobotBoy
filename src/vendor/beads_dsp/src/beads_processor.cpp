@@ -149,13 +149,24 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
         }
         return;
     }
+    // Chunk the full pipeline so every per-block buffer (dry_input_buf,
+    // wet_buf) is indexed only by the intra-block offset. This is what makes
+    // the types.h promise of arbitrary num_frames true.
+    size_t offset = 0;
+    while (offset < num_frames) {
+        size_t block = std::min(num_frames - offset, kMaxBlockSize);
+        ProcessBlock(input + offset, output + offset, block);
+        offset += block;
+    }
+}
+
+void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
+                                   size_t num_frames) {
     auto& s = *impl_;  // shorthand
 
     // Drain any deferred buffer clear (post-quality-change) incrementally.
-    // Clears 1/128 of the full buffer per block so the 1.5MB memset is spread
-    // over ~128 blocks (~170ms at 48kHz/64-sample blocks). Each block clears
-    // ~3000 floats = 12KB, which takes ~0.24ms at 50MB/s DRAM throughput —
-    // safe for MetaModule's tight timing budget.
+    // Runs once per <=64-frame block on every host, so the clear rate and the
+    // quality-transition duck stay aligned at any caller block size.
     static constexpr size_t kClearChunkFloats = (kDefaultBufferFrames / 128) * 2;
     s.recording_buffer.TickClear(kClearChunkFloats);
 
@@ -170,7 +181,7 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
         StereoFrame in = input[i];
 
         // Save pre-processing frame for dry output path so DRY/WET=0 matches bypass.
-        if (i < kMaxBlockSize) s.dry_input_buf[i] = in;
+        s.dry_input_buf[i] = in;
 
         // 1. Auto-gain
         in = s.auto_gain.Process(in, s.params.manual_gain_db, s.params.auto_gain);
@@ -199,88 +210,75 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
         if (s.recording_buffer.crossfading()) {
             s.recording_buffer.ProcessFreezeCrossfade();
         }
-
-        output[i] = {0.0f, 0.0f};
     }
 
     // --- Block-based wet signal generation + output processing (steps 5-10) ---
-    // Process in blocks of kMaxBlockSize.
     // wet lives in Impl (DRAM) to keep audio-thread stack usage low.
     StereoFrame* wet = s.wet_buf;
-    size_t remaining = num_frames;
-    size_t offset = 0;
 
-    while (remaining > 0) {
-        size_t block = std::min(remaining, kMaxBlockSize);
+    // Tape mode wow/flutter: compute pitch modulation for this block.
+    // The modulation is very slow (0.5Hz wow) so one value per block is fine.
+    float pitch_mod = s.quality_processor.GetPitchModulation(s.params.quality_mode, num_frames);
+    s.grain_engine.SetPitchModulation(pitch_mod);
+    s.grain_engine.Process(s.params, wet, num_frames);
 
-        // Tape mode wow/flutter: compute pitch modulation for this block.
-        // The modulation is very slow (0.5Hz wow) so one value per block is fine.
-        float pitch_mod = s.quality_processor.GetPitchModulation(s.params.quality_mode, block);
-        s.grain_engine.SetPitchModulation(pitch_mod);
-        s.grain_engine.Process(s.params, wet, block);
+    // Advance dry/wet smoothing and compute equal-power gains once per
+    // block.  The OnePole with 0.002 coefficient changes < 0.13% across
+    // 64 samples, so per-block cos/sin is inaudible vs per-sample.
+    // Closed-form equivalent of running OnePole block times: avoids
+    // the O(N) loop and gives the correct end-state in one step.
+    {
+        float a = 1.0f - std::pow(1.0f - 0.002f, static_cast<float>(num_frames));
+        s.smoothed_dry_wet += a * (s.params.dry_wet - s.smoothed_dry_wet);
+    }
+    float dw_phase = s.smoothed_dry_wet * 0.25f;
+    float dry_gain = CosLookup(dw_phase);
+    float wet_gain = CosLookup(dw_phase - 0.25f);
 
-        // Advance dry/wet smoothing and compute equal-power gains once per
-        // block.  The OnePole with 0.002 coefficient changes < 0.13% across
-        // 64 samples, so per-block cos/sin is inaudible vs per-sample.
-        // Closed-form equivalent of running OnePole block times: avoids
-        // the O(N) loop and gives the correct end-state in one step.
-        {
-            float a = 1.0f - std::pow(1.0f - 0.002f, static_cast<float>(block));
-            s.smoothed_dry_wet += a * (s.params.dry_wet - s.smoothed_dry_wet);
-        }
-        float dw_phase = s.smoothed_dry_wet * 0.25f;
-        float dry_gain = CosLookup(dw_phase);
-        float wet_gain = CosLookup(dw_phase - 0.25f);
+    // Per-sample output processing for this block
+    for (size_t i = 0; i < num_frames; ++i) {
+        StereoFrame wet_frame = wet[i];
 
-        // Per-sample output processing for this block
-        for (size_t i = 0; i < block; ++i) {
-            StereoFrame wet_frame = wet[i];
-
-            // Quality mode transition: V-shaped duck on wet signal
-            if (s.quality_xfade_counter > 0) {
-                float phase = 1.0f - static_cast<float>(s.quality_xfade_counter)
-                            / static_cast<float>(Impl::kQualityXfadeSamples);
-                // phase: 0 at start → 1 at end
-                float duck;
-                if (phase < 0.5f) {
-                    duck = 1.0f - phase * 2.0f;   // 1 → 0
-                } else {
-                    duck = (phase - 0.5f) * 2.0f;  // 0 → 1
-                }
-                wet_frame *= duck;
-                s.quality_xfade_counter--;
-            }
-
-            // 6. Quality output processing
-            wet_frame = s.quality_processor.ProcessOutput(wet_frame, s.params.quality_mode);
-
-            // 7. Capture feedback sample (before reverb)
-            // Guard against NaN/inf poisoning the feedback loop permanently
-            if (std::isfinite(wet_frame.l) && std::isfinite(wet_frame.r)) {
-                s.feedback_sample = wet_frame;
+        // Quality mode transition: V-shaped duck on wet signal
+        if (s.quality_xfade_counter > 0) {
+            float phase = 1.0f - static_cast<float>(s.quality_xfade_counter)
+                        / static_cast<float>(Impl::kQualityXfadeSamples);
+            // phase: 0 at start → 1 at end
+            float duck;
+            if (phase < 0.5f) {
+                duck = 1.0f - phase * 2.0f;   // 1 → 0
             } else {
-                s.feedback_sample = {0.0f, 0.0f};
+                duck = (phase - 0.5f) * 2.0f;  // 0 → 1
             }
-
-            // 8. Dry/wet crossfade (equal-power, gains precomputed per block)
-            size_t dry_idx = offset + i;
-            StereoFrame in_frame = s.dry_input_buf[dry_idx];
-            StereoFrame mixed = {
-                in_frame.l * dry_gain + wet_frame.l * wet_gain,
-                in_frame.r * dry_gain + wet_frame.r * wet_gain
-            };
-
-            // 9. Reverb
-            float rev_l, rev_r;
-            s.reverb.Process(mixed.l, mixed.r, &rev_l, &rev_r);
-            mixed = {rev_l, rev_r};
-
-            // 10. Output
-            output[offset + i] = mixed;
+            wet_frame *= duck;
+            s.quality_xfade_counter--;
         }
 
-        offset += block;
-        remaining -= block;
+        // 6. Quality output processing
+        wet_frame = s.quality_processor.ProcessOutput(wet_frame, s.params.quality_mode);
+
+        // 7. Capture feedback sample (before reverb)
+        // Guard against NaN/inf poisoning the feedback loop permanently
+        if (std::isfinite(wet_frame.l) && std::isfinite(wet_frame.r)) {
+            s.feedback_sample = wet_frame;
+        } else {
+            s.feedback_sample = {0.0f, 0.0f};
+        }
+
+        // 8. Dry/wet crossfade (equal-power, gains precomputed per block)
+        StereoFrame in_frame = s.dry_input_buf[i];
+        StereoFrame mixed = {
+            in_frame.l * dry_gain + wet_frame.l * wet_gain,
+            in_frame.r * dry_gain + wet_frame.r * wet_gain
+        };
+
+        // 9. Reverb
+        float rev_l, rev_r;
+        s.reverb.Process(mixed.l, mixed.r, &rev_l, &rev_r);
+        mixed = {rev_l, rev_r};
+
+        // 10. Output
+        output[i] = mixed;
     }
 }
 

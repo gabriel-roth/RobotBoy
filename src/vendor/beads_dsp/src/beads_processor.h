@@ -54,7 +54,8 @@ struct BeadsProcessor::Impl {
     // overflowing the audio-thread stack on constrained targets (e.g. NT).
     StereoFrame wet_buf[kMaxBlockSize];
     // Input captured before auto-gain, for dry/wet mix output.
-    // Sized to kMaxBlockSize; callers must not pass num_frames > kMaxBlockSize.
+    // Indexed by intra-block offset only; Process() chunks caller frames
+    // into blocks of <= kMaxBlockSize.
     StereoFrame dry_input_buf[kMaxBlockSize];
 
     static constexpr size_t kAlignment = 16;

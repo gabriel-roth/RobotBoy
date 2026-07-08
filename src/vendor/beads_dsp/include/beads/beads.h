@@ -53,6 +53,11 @@ public:
 private:
     struct Impl;
     Impl* impl_ = nullptr;
+
+    // One internal block (num_frames <= kMaxBlockSize). Public Process()
+    // chunks arbitrary num_frames into these.
+    void ProcessBlock(const StereoFrame* input, StereoFrame* output,
+                      size_t num_frames);
 };
 
 } // namespace beads
