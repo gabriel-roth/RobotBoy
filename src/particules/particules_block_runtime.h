@@ -73,6 +73,17 @@ public:
         grain_led_ *= std::pow(0.9999f, static_cast<float>(BlockSize));
     }
 
+    // Per-sample SEED gate latch. The engine only sees the gate once per
+    // block, so a short trigger landing between block-boundary samples would
+    // otherwise be lost (~25% of 1 ms triggers at 48 kHz / 64-sample blocks).
+    // Note every sample; consume (and clear) once per processed block.
+    void NoteSeedGateSample(bool high) { seed_gate_latch_ = seed_gate_latch_ || high; }
+    bool ConsumeSeedGateLatch() {
+        bool v = seed_gate_latch_;
+        seed_gate_latch_ = false;
+        return v;
+    }
+
 private:
     std::array<beads::StereoFrame, BlockSize> input_buf_ {};
     std::array<beads::StereoFrame, BlockSize> output_buf_ {};
@@ -81,4 +92,5 @@ private:
     bool block_ready_ = false;
     int grain_trigger_remaining_ = 0;
     float grain_led_ = 0.0f;
+    bool seed_gate_latch_ = false;
 };

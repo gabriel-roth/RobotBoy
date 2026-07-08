@@ -2,6 +2,7 @@
 #include "beads/beads.h"
 #include "../vendor/beads_dsp/src/util/control_conditioner.h"
 #include "particules_block_runtime.h"
+#include "particules_cv_conditioning.h"
 #include "particules_density_control.h"
 
 #include <cmath>
@@ -166,10 +167,15 @@ struct Particules : Module {
 			dsp_memory_ = nullptr;
 #endif
 		processor_.Init(dsp_memory_, req.total_bytes, sampleRate);
-		time_cv_conditioner_.Init(8, 0.5f, 0.01f, 0.0f);
-		size_cv_conditioner_.Init(8, 0.5f, 0.01f, 0.0f);
-		shape_cv_conditioner_.Init(8, 0.5f, 0.01f, 0.0f);
-		pitch_cv_conditioner_.Init(8, 0.35f, 0.05f, 0.0f);
+		const int cv_dec = particules::CvDecimationForBlock(kWrapperBlockSize);
+		const float cv_smooth =
+			particules::CvSmoothingForBlock(particules::kCvSmoothing, kWrapperBlockSize);
+		const float pitch_smooth =
+			particules::CvSmoothingForBlock(particules::kPitchCvSmoothing, kWrapperBlockSize);
+		time_cv_conditioner_.Init(cv_dec, cv_smooth, particules::kMenuCvQuantizeStep, 0.0f);
+		size_cv_conditioner_.Init(cv_dec, cv_smooth, particules::kMenuCvQuantizeStep, 0.0f);
+		shape_cv_conditioner_.Init(cv_dec, cv_smooth, particules::kMenuCvQuantizeStep, 0.0f);
+		pitch_cv_conditioner_.Init(cv_dec, pitch_smooth, particules::kPitchCvQuantizeStep, 0.0f);
 	}
 
 	~Particules() {
@@ -290,7 +296,7 @@ struct Particules : Module {
 		params_.dry_wet  = clamp(params[DRY_WET_PARAM].getValue()  + inputs[DRY_WET_INPUT].getVoltage()  * 0.2f * params[DRY_WET_AMT_PARAM].getValue(),  0.f, 1.f);
 		params_.reverb   = clamp(params[REVERB_PARAM].getValue()   + inputs[REVERB_INPUT].getVoltage()   * 0.2f * params[REVERB_AMT_PARAM].getValue(),   0.f, 1.f);
 
-		params_.gate           = inputs[SEED_INPUT].getVoltage() > 1.f;
+		params_.gate           = block_runtime_.ConsumeSeedGateLatch();
 		params_.seed_connected = inputs[SEED_INPUT].isConnected();
 		params_.freeze = frozen;
 
@@ -313,6 +319,10 @@ struct Particules : Module {
 	void process(const ProcessArgs& args) override {
 		bool freeze_button = params[FREEZE_PARAM].getValue() > 0.5f;
 		bool frozen = freeze_button || inputs[FREEZE_INPUT].getVoltage() > 1.f;
+
+		// Latch the SEED gate every sample so short triggers survive the
+		// block boundary on MetaModule (updateSlowParams runs once per block).
+		block_runtime_.NoteSeedGateSample(inputs[SEED_INPUT].getVoltage() > 1.f);
 
 		// Button cycling — rising-edge detection every sample; blocked while frozen
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;

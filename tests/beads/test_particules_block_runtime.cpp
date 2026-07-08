@@ -94,3 +94,27 @@ TEST_CASE("ParticulesBlockRuntime: block-rate LED decay matches per-sample expon
 
     REQUIRE(runtime.GrainLed() == Approx(expected).margin(0.000001f));
 }
+
+TEST_CASE("ParticulesBlockRuntime: seed gate latch captures a mid-block pulse",
+          "[block_runtime]") {
+    ParticulesBlockRuntime<64> rt;
+    for (int i = 0; i < 64; ++i) {
+        rt.NoteSeedGateSample(i == 20);   // 1-sample trigger mid-block
+        rt.ReadOutputSample();
+        rt.PushInputSample({0.f, 0.f});
+    }
+    REQUIRE(rt.BlockReady());
+    REQUIRE(rt.ConsumeSeedGateLatch() == true);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);   // consume clears
+}
+
+TEST_CASE("ParticulesBlockRuntime: seed gate latch is per-sample passthrough at block 1",
+          "[block_runtime]") {
+    ParticulesBlockRuntime<1> rt;
+    rt.NoteSeedGateSample(false);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);
+    rt.NoteSeedGateSample(true);
+    REQUIRE(rt.ConsumeSeedGateLatch() == true);
+    rt.NoteSeedGateSample(false);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);
+}
