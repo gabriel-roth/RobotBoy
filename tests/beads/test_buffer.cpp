@@ -87,27 +87,95 @@ TEST_CASE("RecordingBuffer: Write wraps around", "[buffer]") {
     REQUIRE(buf.write_head() == 50);
 }
 
-TEST_CASE("RecordingBuffer: Freeze crossfade", "[buffer]") {
+TEST_CASE("RecordingBuffer: entering freeze fades both sides of the seam to zero",
+          "[buffer][freeze]") {
     size_t num_frames = 1000;
     size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
     std::vector<uint8_t> mem(bytes, 0);
 
     RecordingBuffer buf;
     buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    float* data = reinterpret_cast<float*>(mem.data());
 
-    // Fill buffer
-    for (size_t i = 0; i < 500; ++i) {
-        buf.Write(1.0f, 1.0f);
+    // Fill the whole buffer with a sine (has zero crossings — the old code
+    // skipped the fade entirely whenever it found one).
+    for (size_t i = 0; i < num_frames; ++i) {
+        float v = std::sin(2.0 * M_PI * i / 50.0) * 0.8f + 0.1f;
+        buf.Write(v, v);
     }
+    // Overwrite the seam region with DC so gains are directly observable.
+    // write_head_ has wrapped to 0; write 500 frames of 1.0 → seam at 500.
+    for (size_t i = 0; i < 500; ++i) buf.Write(1.0f, 1.0f);
+    REQUIRE(buf.write_head() == 500);
+    for (size_t i = 400; i < 600; ++i) { data[i * 2] = 1.0f; data[i * 2 + 1] = 1.0f; }
 
-    buf.StartFreezeCrossfade();
-    REQUIRE(buf.crossfading() == true);
+    buf.NotifyFreeze(true);
 
-    // Process crossfade samples
-    for (int i = 0; i < 32; ++i) {
-        buf.ProcessFreezeCrossfade();
+    // Newest side: frame 499 ≈ 0, ramp up moving away from the seam.
+    REQUIRE(std::fabs(data[499 * 2]) < 1e-6f);
+    REQUIRE(data[498 * 2] > 0.0f);
+    REQUIRE(data[498 * 2] < data[490 * 2]);
+    REQUIRE(data[490 * 2] < data[468 * 2]);
+    // Oldest side: frame 500 ≈ 0, ramp up moving away.
+    REQUIRE(std::fabs(data[500 * 2]) < 1e-6f);
+    REQUIRE(data[501 * 2] > 0.0f);
+    REQUIRE(data[501 * 2] < data[531 * 2]);
+    // Frames >= kCrossfadeSamples away untouched.
+    REQUIRE(data[467 * 2] == 1.0f);
+    REQUIRE(data[532 * 2] == 1.0f);
+}
+
+TEST_CASE("RecordingBuffer: freeze fade near frame 0 keeps the tail mirror in sync",
+          "[buffer][freeze]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    float* data = reinterpret_cast<float*>(mem.data());
+
+    // Put the write head just past 0 so the fade wraps across the boundary.
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+    for (size_t i = 0; i < 2; ++i) buf.Write(1.0f, 1.0f);
+    REQUIRE(buf.write_head() == 2);
+
+    buf.NotifyFreeze(true);
+
+    // Any faded frame < kInterpolationTail must be mirrored into the tail.
+    for (int f = 0; f < kInterpolationTail; ++f) {
+        REQUIRE(data[(num_frames + f) * 2] == data[f * 2]);
+        REQUIRE(data[(num_frames + f) * 2 + 1] == data[f * 2 + 1]);
     }
-    REQUIRE(buf.crossfading() == false);
+}
+
+TEST_CASE("RecordingBuffer: leaving freeze blends writes from old content to live input",
+          "[buffer][freeze]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    float* data = reinterpret_cast<float*>(mem.data());
+
+    for (size_t i = 0; i < 500; ++i) buf.Write(1.0f, 1.0f);
+    size_t seam = buf.write_head();
+
+    buf.NotifyFreeze(true);
+    buf.NotifyFreeze(false);
+    // Old content at the resume point is ~0 (the freeze fade zeroed it).
+    for (size_t i = 0; i < 64; ++i) buf.Write(0.5f, 0.5f);
+
+    // First write ≈ old content (near 0), ramping toward the incoming 0.5.
+    REQUIRE(std::fabs(data[seam * 2]) < 0.05f);
+    float prev = data[seam * 2];
+    for (size_t i = 1; i < 32; ++i) {
+        REQUIRE(data[(seam + i) * 2] >= prev - 1e-6f);
+        prev = data[(seam + i) * 2];
+    }
+    // After the ramp, writes are stored verbatim.
+    REQUIRE(data[(seam + 40) * 2] == 0.5f);
 }
 
 TEST_CASE("Interpolation: Hermite is exact for linear functions", "[interpolation]") {

@@ -92,11 +92,14 @@ public:
         }
     }
 
-    // Freeze-transition crossfade.  Call StartFreezeCrossfade() when the
-    // freeze state changes, then call ProcessFreezeCrossfade() once per
-    // sample during the fade.
-    void StartFreezeCrossfade();
-    void ProcessFreezeCrossfade();
+    // Freeze-transition declicking. Call on every freeze-state change.
+    // Entering freeze: one-shot symmetric fade-to-zero at the write seam
+    // (2 × kCrossfadeSamples frames) so looped playback crosses silence
+    // instead of a discontinuity.
+    // Leaving freeze: arms a write crossfade — the next kCrossfadeSamples
+    // accepted writes blend from the old buffer content into the incoming
+    // audio, so recorded content transitions smoothly back to live input.
+    void NotifyFreeze(bool frozen);
 
     // Zero the buffer and reset the write head.
     // The memset is deferred — call TickClear() each Process() block to
@@ -117,7 +120,6 @@ public:
 
     size_t size() const { return size_; }
     size_t write_head() const { return write_head_; }
-    bool crossfading() const { return crossfading_; }
 
     // How many bytes the caller must allocate for a buffer of the given
     // sample rate and duration.
@@ -139,9 +141,8 @@ private:
     size_t clear_cursor_ = 0;  // next float index to zero
     size_t clear_total_  = 0;  // total floats to zero (0 = none pending)
 
-    // Freeze crossfade state
-    bool crossfading_ = false;
-    int crossfade_counter_ = 0;
+    // Unfreeze write-crossfade state (counts accepted writes remaining)
+    int write_ramp_remaining_ = 0;
     static constexpr int kCrossfadeSamples = 32;
 };
 

@@ -170,9 +170,9 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
     static constexpr size_t kClearChunkFloats = (kDefaultBufferFrames / 128) * 2;
     s.recording_buffer.TickClear(kClearChunkFloats);
 
-    // Detect freeze transitions for crossfade
+    // Freeze transitions: declick the seam / arm the unfreeze write ramp.
     if (s.params.freeze != s.prev_freeze) {
-        s.recording_buffer.StartFreezeCrossfade();
+        s.recording_buffer.NotifyFreeze(s.params.freeze);
         s.prev_freeze = s.params.freeze;
     }
 
@@ -211,9 +211,6 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
         // 4. Record to buffer (unless frozen)
         if (!s.params.freeze) {
             s.recording_buffer.Write(in);
-        }
-        if (s.recording_buffer.crossfading()) {
-            s.recording_buffer.ProcessFreezeCrossfade();
         }
     }
 

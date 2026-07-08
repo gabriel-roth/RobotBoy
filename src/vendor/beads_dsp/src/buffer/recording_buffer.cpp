@@ -14,8 +14,7 @@ void RecordingBuffer::Init(float* buffer, size_t num_frames, int num_channels) {
     write_head_ = 0;
     decimation_factor_ = 1;
     decimation_counter_ = 0;
-    crossfading_ = false;
-    crossfade_counter_ = 0;
+    write_ramp_remaining_ = 0;
 
     // Zero the entire allocation (main buffer + tail).
     size_t total_samples =
@@ -38,6 +37,16 @@ void RecordingBuffer::Write(float left, float right) {
     decimation_counter_ = 0;
 
     size_t idx = write_head_ * channels_;
+
+    // Unfreeze crossfade: blend from the frozen content into live input.
+    if (write_ramp_remaining_ > 0) {
+        float g = 1.0f - static_cast<float>(write_ramp_remaining_)
+                       / static_cast<float>(kCrossfadeSamples);   // 0 → 1
+        left  = buffer_[idx]     + (left  - buffer_[idx])     * g;
+        right = buffer_[idx + 1] + (right - buffer_[idx + 1]) * g;
+        --write_ramp_remaining_;
+    }
+
     buffer_[idx] = left;
     buffer_[idx + 1] = right;
 
@@ -208,71 +217,46 @@ float RecordingBuffer::ReadLinear(int channel, float position) const {
 }
 
 // ---------------------------------------------------------------------------
-// Freeze crossfade
+// Freeze declicking
 // ---------------------------------------------------------------------------
 
-void RecordingBuffer::StartFreezeCrossfade() {
-    // Scan up to 64 samples backward from write_head_ for a zero crossing
-    // in the mono sum. If found, no crossfade needed.
-    static constexpr int kZeroCrossScan = 64;
-    if (size_ > 0 && buffer_ && channels_ >= 2) {
-        int size_int = static_cast<int>(size_);
-        float prev_mono = 0.0f;
-        // Read the sample at write_head_ - 1
-        int first_frame = (static_cast<int>(write_head_) - 1 + size_int) % size_int;
-        size_t first_idx = static_cast<size_t>(first_frame) * channels_;
-        prev_mono = buffer_[first_idx] + buffer_[first_idx + 1];
+void RecordingBuffer::NotifyFreeze(bool frozen) {
+    if (!buffer_ || size_ == 0 || channels_ < 2) return;
 
-        for (int i = 2; i <= kZeroCrossScan && i <= size_int; ++i) {
-            int frame = (static_cast<int>(write_head_) - i + size_int) % size_int;
-            size_t idx = static_cast<size_t>(frame) * channels_;
-            float mono = buffer_[idx] + buffer_[idx + 1];
-            // Sign change with minimum amplitude
-            if ((prev_mono > 1e-5f && mono <= 0.0f) ||
-                (prev_mono < -1e-5f && mono >= 0.0f)) {
-                // Found a zero crossing — no crossfade needed
-                crossfading_ = false;
-                crossfade_counter_ = 0;
-                return;
-            }
-            prev_mono = mono;
-        }
+    if (!frozen) {
+        // Leaving freeze: blend the next writes from frozen content into
+        // live input. No buffer mutation here.
+        write_ramp_remaining_ = kCrossfadeSamples;
+        return;
     }
 
-    // No zero crossing found — fall back to existing crossfade
-    crossfading_ = true;
-    crossfade_counter_ = kCrossfadeSamples;
-}
+    write_ramp_remaining_ = 0;
 
-void RecordingBuffer::ProcessFreezeCrossfade() {
-    if (!crossfading_ || size_ == 0 || !buffer_) return;
+    // Entering freeze: fade both sides of the seam to zero so grain playback
+    // crossing write_head_ passes through silence instead of a hard step
+    // from the newest audio into the oldest. One-shot, O(kCrossfadeSamples).
+    int size_int = static_cast<int>(size_);
+    int fade = kCrossfadeSamples;
+    if (fade > size_int / 2) fade = size_int / 2;   // degenerate small buffers
 
-    // Apply a short linear fade at the current write head to smooth the
-    // transition.  Each call attenuates the sample at (write_head_ - counter)
-    // by the crossfade envelope so there is no discontinuity at the freeze
-    // point.
-    if (crossfade_counter_ > 0) {
-        float gain =
-            static_cast<float>(crossfade_counter_) / kCrossfadeSamples;
-
-        // The frame we want to fade is the one that was most recently frozen.
-        // write_head_ points to where the *next* write would go, so the
-        // frozen edge is at (write_head_ - kCrossfadeSamples + counter - 1)
-        // but we step backwards from the freeze point one sample at a time.
-        int offset = kCrossfadeSamples - crossfade_counter_;
-        int frame = static_cast<int>(write_head_) - 1 - offset;
-        int size_int = static_cast<int>(size_);
-        // Use modular wrap that handles frame being multiple buffer-lengths negative
-        frame = ((frame % size_int) + size_int) % size_int;
-
-        size_t idx = static_cast<size_t>(frame) * channels_;
-        for (int c = 0; c < channels_; ++c) {
-            buffer_[idx + c] *= gain;
-        }
-
-        crossfade_counter_--;
-        if (crossfade_counter_ == 0) {
-            crossfading_ = false;
+    for (int j = 0; j < fade; ++j) {
+        float gain = static_cast<float>(j) / static_cast<float>(fade);
+        int newest = static_cast<int>(write_head_) - 1 - j;
+        newest = ((newest % size_int) + size_int) % size_int;
+        int oldest = (static_cast<int>(write_head_) + j) % size_int;
+        const int frames[2] = {newest, oldest};
+        for (int f = 0; f < 2; ++f) {
+            size_t idx = static_cast<size_t>(frames[f]) * channels_;
+            for (int c = 0; c < channels_; ++c) {
+                buffer_[idx + c] *= gain;
+            }
+            // Keep the interpolation-tail mirror in sync.
+            if (frames[f] < static_cast<int>(kInterpolationTail)) {
+                size_t tail = (size_ + static_cast<size_t>(frames[f])) * channels_;
+                for (int c = 0; c < channels_; ++c) {
+                    buffer_[tail + c] = buffer_[idx + c];
+                }
+            }
         }
     }
 }
