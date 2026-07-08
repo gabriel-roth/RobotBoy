@@ -11,6 +11,7 @@
  */
 
 #include "../../src/mf20/MF20Filter.hpp"
+#include "../../src/mf20/dsp_utils.hpp"   // resTaper — the module applies it before the filter
 #include <cmath>
 #include <cstdio>
 #include <cassert>
@@ -98,7 +99,7 @@ static SineResult runSine(MF20Filter& f,
 static void test_zero_io() {
     printf("\n1. Zero input → zero output\n");
     MF20Filter f;
-    float buf[1000];
+    bool allOk = true;
     for (float res : {0.f, 0.5f, 1.f}) {
         for (float fc : {200.f, 1000.f, 8000.f}) {
             f.setSampleRate(44100.f);
@@ -108,10 +109,10 @@ static void test_zero_io() {
                 auto [lp, bp, hp] = f.process(0.f, fc, res);
                 if (lp != 0.f || bp != 0.f || hp != 0.f) { ok = false; break; }
             }
-            buf[0] = ok ? 0.f : 1.f;
+            allOk = allOk && ok;
         }
     }
-    report(buf[0] == 0.f, "zero input → zero LP and HP for all (fc, res) combos");
+    report(allOk, "zero input → zero LP and HP for all (fc, res) combos");
 }
 
 // 2. reset() clears all state
@@ -628,6 +629,77 @@ static void test_k35_self_oscillation() {
     report(rms > 0.05f, "K35 LP sustains oscillation after impulse (res=1)", detail);
 }
 
+// K35 stability through the module's resonance taper.
+// MF20FilterModule maps the knob through resTaper() (max 1.025), so the
+// filter must stay bounded for res up to 1.025. fc=12000 exercises the
+// D1<=0 (bistable) branch at k > 8/3.
+static void test_k35_res_taper_stability() {
+    printf("\n19. K35 bounded at res = resTaper(knob), knob up to 1.0\n");
+    const float fs = 48000.f;
+    bool allOk = true;
+    char detail[128] = {0};
+    for (float knob : {0.85f, 0.90f, 1.00f}) {
+        for (float fc : {1000.f, 12000.f}) {
+            MF20Filter f;
+            f.setSampleRate(fs);
+            f.setMode(MF20Filter::Mode::K35);
+            f.setDriveCharacter(1.f);
+            f.reset();
+            const float res = resTaper(knob);
+            float peak = 0.f;
+            bool finite = true;
+            // 0.5 s of 220 Hz sine at 0.2 amplitude, then 2 s of silence.
+            for (int i = 0; i < (int)(2.5f * fs); i++) {
+                float in = (i < (int)(0.5f * fs))
+                    ? 0.2f * std::sin(2.f * 3.14159265f * 220.f * i / fs) : 0.f;
+                auto [lp, bp, hp] = f.process(in, fc, res);
+                if (!std::isfinite(lp) || !std::isfinite(bp) || !std::isfinite(hp)) {
+                    finite = false; break;
+                }
+                float a = std::fabs(lp);
+                if (a > peak) peak = a;
+            }
+            if (!finite || peak > 2.f) {
+                allOk = false;
+                snprintf(detail, sizeof(detail), "knob=%.2f fc=%.0f finite=%d peak=%g",
+                         knob, fc, (int)finite, peak);
+            }
+        }
+    }
+    report(allOk, "K35 finite and |lp| < 2 for knob {0.85,0.9,1.0} × fc {1k,12k}", detail);
+}
+
+// K35 self-oscillation must survive (bounded) at the taper's maximum.
+static void test_k35_taper_self_oscillation() {
+    printf("\n20. K35 sustains bounded self-oscillation at res = resTaper(1.0)\n");
+    const float fs = 48000.f;
+    MF20Filter f;
+    f.setSampleRate(fs);
+    f.setMode(MF20Filter::Mode::K35);
+    f.setDriveCharacter(1.f);
+    f.reset();
+    const float res = resTaper(1.f);   // 1.025 → k ≈ 2.733
+    f.process(0.5f, 1000.f, res);      // kick
+    bool finite = true;
+    for (int i = 0; i < 48000 && finite; i++) {          // settle 1 s
+        auto [lp, bp, hp] = f.process(0.f, 1000.f, res);
+        (void)bp; (void)hp;
+        finite = std::isfinite(lp);
+    }
+    static float buf[24000];
+    for (int i = 0; i < 24000 && finite; i++) {          // measure 0.5 s
+        auto [lp, bp, hp] = f.process(0.f, 1000.f, res);
+        (void)bp; (void)hp;
+        if (!std::isfinite(lp)) { finite = false; break; }
+        buf[i] = lp;
+    }
+    float rms = finite ? rmsRun(buf, 24000) : 0.f;
+    char detail[64];
+    snprintf(detail, sizeof(detail), "finite=%d rms=%g", (int)finite, rms);
+    report(finite && rms > 0.02f && rms < 2.f,
+           "K35 at resTaper(1.0): finite, 0.02 < RMS < 2", detail);
+}
+
 // 21c. K35 clips forward path, OTA does not clip at res=0
 //      At res=0 there is no resonance feedback in either mode.
 //      K35 clips the INPUT → LP output is amplitude-limited.
@@ -762,6 +834,8 @@ int main() {
     test_extreme_resonance_loud();
     test_k35_differs_from_ota();
     test_k35_self_oscillation();
+    test_k35_res_taper_stability();
+    test_k35_taper_self_oscillation();
     test_k35_forward_clip_isolation();
     test_mode_switch_mid_stream();
     test_k35_asymmetric_clip();

@@ -37,12 +37,15 @@
  *   Self-oscillation threshold: damping → 0 at k = 8/3 ≈ 2.667
  *
  * Key structural difference from OTA:
- *   Nonlinearity location:  FORWARD path (clips the INPUT, not the resonance feedback)
- *   Damping coefficient:    8/3 − k   (vs 2 − k in OTA)
+ *   Nonlinearity location:  BOTH the forward path (clips the INPUT, drive-scaled)
+ *                           AND the resonance loop (clips the feedback k·x₁, fixed
+ *                           threshold/slope) — the loop clip is what keeps the
+ *                           filter bounded once resTaper() pushes k past 8/3.
+ *   Damping coefficient:    8/3 − k in the linear region (vs 2 − k in OTA)
  *
  * State equations:
- *   ẋ₁ = ωc·(clip(in) − (8/3 − k)·x₁ − x₂)    x₁ = BP node
- *   ẋ₂ = ωc·x₁                                   x₂ = LP output
+ *   ẋ₁ = ωc·(clip(in) − (8/3)·x₁ + fbClip(k·x₁) − x₂)    x₁ = BP node
+ *   ẋ₂ = ωc·x₁                                              x₂ = LP output
  *
  * Forward-path clip: input pre-gained by √drive, clipped at normalised thresholds
  *   T_pos=1.0, T_neg=(1−kK35Asymmetry)=0.85. In the linear region clip_in = in×√drive
@@ -50,12 +53,26 @@
  *   → louder and more saturated → wilder. Asymmetric thresholds create even-order
  *   harmonics (Stinchcombe §4).
  *
- * TPT discretization — no iteration needed (clip is on the KNOWN input):
+ * Resonance-loop clip: the Korg35 loop transistor clips k·x₁ at a FIXED normalised
+ *   threshold (1.0) and slope (0.25) — unaffected by drive, which only shapes the
+ *   forward-path clip. Without this, resTaper() (max 1.025) drives k up to ≈2.733,
+ *   past the k=8/3 linear self-oscillation threshold, and a purely linear loop
+ *   diverges to NaN. In the linear region (|k·x₁| ≤ 1) the solve is algebraically
+ *   identical to the previous formulation: base − g·k = (1+g)² − g·(k − 2/3).
+ *
+ * TPT discretization — closed-form, region-wise (no iteration):
  *   rhs    = s₁ + g·(clip_in − s₂)
- *   D      = (1+g)² − g·(k − 2/3)    [vs OTA: (1+g)² − g·k]
- *   x₁_mid = rhs / D
+ *   base   = (1+g)² + (2/3)·g
+ *   D1     = base − g·k                                [linear region, |k·x₁| ≤ 1]
+ *   x₁_mid = rhs / D1,  fb = k·x₁_mid                   [if D1 > 0 and |fb| ≤ 1]
+ *   D2     = base − 0.25·g·k                            [saturated region, always > 0]
+ *   x₁_mid = (rhs ± (1−0.25)·g·1) / D2                  [sign from rhs]
  *   x₂_mid = s₂ + g·x₁_mid
- *   HP     = clip_in − (8/3 − k)·x₁_mid − x₂_mid
+ *   HP     = clip_in − (8/3)·x₁_mid + fb − x₂_mid
+ *
+ *   For k > 8/3, D1 ≤ 0 over a band of cutoffs (the linear region has no valid
+ *   solution there — a bistable analog regime); the code falls back directly to
+ *   the saturated-region solve, with branch sign taken from rhs.
  *
  *   Resonance scaling: k = res × (8/3)  so res = 1.0 is always the oscillation onset.
  *
@@ -193,16 +210,47 @@ private:
             }
         }
 
-        // TPT closed-form (no iteration needed: clip is on known input).
-        // D = (1+g)² − g·(k − 2/3)  [vs OTA: (1+g)² − g·k]
-        float rhs    = s1 + g * (clip_in - s2);
-        float D      = (1.f + g) * (1.f + g) - g * (k - 2.f / 3.f);
-        float x1_mid = rhs / D;
-        float x2_mid = s2 + g * x1_mid;
+        // Resonance loop with saturating feedback:
+        //   ẋ₁ = ωc·(clip_in − (8/3)·x₁ + fbClip(k·x₁) − x₂)
+        // The Korg35 loop transistor clips, which bounds the resonance even
+        // when the module's resTaper() pushes k past the linear-oscillation
+        // threshold 8/3 (max k = 1.025 × 8/3 ≈ 2.733). Fixed normalised
+        // threshold/slope: drive shapes the input clip only.
+        // Linear region (|k·x₁| ≤ 1) is algebraically identical to the
+        // previous formulation: base − g·k = (1+g)² − g·(k − 2/3).
+        constexpr float kFbThreshold = 1.f;
+        constexpr float kFbSlope     = 0.25f;
 
-        // HP from state equation: clip(in) − (8/3 − k)·x₁ − x₂
-        float damp   = 8.f / 3.f - k;
-        float hp_out = clip_in - damp * x1_mid - x2_mid;
+        float rhs  = s1 + g * (clip_in - s2);
+        float base = (1.f + g) * (1.f + g) + (2.f / 3.f) * g;
+        float D1   = base - g * k;
+
+        // For k > 8/3, D1 ≤ 0 over a band of g (fc ≈ 11.6–16.6 kHz at 48 kHz
+        // when k = 2.733): the linear region has no valid solution there
+        // (bistable analog regime), so solve the saturated region, taking the
+        // branch sign from the drive term rhs. When D1 > 0 the region-1 trial
+        // classifies exactly (implicit LHS is monotone), as in processOTA.
+        bool linear = false;
+        float x1_mid = 0.f, fb_val = 0.f;
+        if (D1 > 0.f) {
+            float x1_try = rhs / D1;
+            if (std::fabs(k * x1_try) <= kFbThreshold) {
+                x1_mid = x1_try;
+                fb_val = k * x1_mid;
+                linear = true;
+            }
+        }
+        if (!linear) {
+            float D2   = base - kFbSlope * g * k;
+            float sign = (rhs > 0.f) ? 1.f : -1.f;
+            float knee = (1.f - kFbSlope) * g * kFbThreshold;
+            x1_mid = (rhs + sign * knee) / D2;
+            fb_val = kFbSlope * k * x1_mid + sign * (1.f - kFbSlope) * kFbThreshold;
+        }
+
+        float x2_mid = s2 + g * x1_mid;
+        // HP from state equation: clip(in) − (8/3)·x₁ + fbClip(k·x₁) − x₂
+        float hp_out = clip_in - (8.f / 3.f) * x1_mid + fb_val - x2_mid;
 
         s1 = 2.f * x1_mid - s1;
         s2 = 2.f * x2_mid - s2;
