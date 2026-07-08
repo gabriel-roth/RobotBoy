@@ -528,6 +528,46 @@ static void test_jitter_crossfade_continuity() {
     check(maxDelta < 0.1f, msg);
 }
 
+static void test_sample_rate_change_preserves_loop() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f}) e.process(x);
+    e.toggleRecord();
+    e.setSampleRate(20.f);   // retune only: loop and buffer must survive
+    check(e.loopLength() == 4, "sr_change: loop length preserved");
+    check(near(e.process(0.f), 1.f), "sr_change: out[0]==1");
+    check(near(e.process(0.f), 2.f), "sr_change: out[1]==2");
+    check(near(e.process(0.f), 3.f), "sr_change: out[2]==3");
+    check(near(e.process(0.f), 4.f), "sr_change: out[3]==4");
+}
+
+static void test_sample_rate_change_mid_recording() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    e.process(1.f); e.process(2.f);
+    e.setSampleRate(20.f);
+    check(e.isRecording(), "sr_change mid-rec: still recording");
+    e.process(3.f); e.process(4.f);
+    e.toggleRecord();
+    check(e.loopLength() == 4, "sr_change mid-rec: length 4");
+    check(near(e.process(0.f), 1.f), "sr_change mid-rec: content preserved");
+}
+
+static void test_sample_rate_change_empty_reallocates() {
+    LoopEngine e;
+    e.reset(10.f, 1.f);      // maxSamples = 10
+    soloHead0(e);
+    e.setSampleRate(20.f);   // no loop -> full reset, maxSamples = 20
+    e.toggleRecord();
+    for (int i = 0; i < 25; ++i) e.process(1.f);
+    check(e.loopLength() == 20, "sr_change empty: ceiling at new rate");
+    check(!e.isRecording(),    "sr_change empty: auto-stopped at new ceiling");
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -560,6 +600,9 @@ int main() {
     test_display_snapshot_four_heads();
     test_overdub_gate();
     test_jitter_crossfade_continuity();
+    test_sample_rate_change_preserves_loop();
+    test_sample_rate_change_mid_recording();
+    test_sample_rate_change_empty_reallocates();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

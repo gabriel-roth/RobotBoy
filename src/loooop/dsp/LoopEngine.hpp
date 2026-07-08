@@ -18,6 +18,11 @@ public:
     int numHeads() const { return numHeads_; }
 
     void reset(float sampleRate, float maxSeconds = 60.f);
+    // Retune to a new sample rate WITHOUT destroying a recorded loop: the
+    // loop plays back repitched. Only reallocates (full reset) when there is
+    // nothing to lose (no loop, not recording) — never audio-adjacent with
+    // content in the buffer (see the clear() comment for why that matters).
+    void setSampleRate(float sampleRate);
     void process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads);
     float process(float in);      // mono convenience: inL=inR=in, returns summed head L
 
@@ -101,6 +106,7 @@ private:
     bool crossfade_ = true;
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
     float sampleRate_ = 48000.f;
+    float maxSeconds_ = 60.f;
     std::uint32_t rng_ = 0x9E3779B9u;
     PlayHead heads_[NUM_HEADS];
 

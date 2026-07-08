@@ -82,7 +82,7 @@ struct Loooop : Module {
     }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
-        engine.reset(e.sampleRate);
+        engine.setSampleRate(e.sampleRate);
     }
 
     void process(const ProcessArgs& args) override {

@@ -5,6 +5,7 @@
 static inline float clamp01(float v) { return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); }
 
 void LoopEngine::reset(float sampleRate, float maxSeconds) {
+    maxSeconds_ = maxSeconds;
     sampleRate_ = sampleRate;
     // ~5 ms declick crossfade. Rounds to 0 at very low sample rates (e.g. the
     // 10 Hz test rate), which disables the crossfade and preserves seam-exact
@@ -28,6 +29,15 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     for (auto& a : dispPos01_)      a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinStart01_) a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinEnd01_)   a.store(1.f, std::memory_order_relaxed);
+}
+
+void LoopEngine::setSampleRate(float sampleRate) {
+    if (loopLen_ == 0 && !recording_) {
+        reset(sampleRate, maxSeconds_);   // nothing to lose; size for the new rate
+        return;
+    }
+    sampleRate_ = sampleRate;
+    xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
 }
 
 void LoopEngine::toggleRecord() {
