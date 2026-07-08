@@ -24,6 +24,10 @@ int main() {
           "smoothing(0.5, block=64) ~ 1 (settles within one block)");
     check(CvSmoothingForBlock(0.35f, 64) > 0.99f,
           "smoothing(0.35, block=64) ~ 1");
+    check(CvSmoothingForBlock(0.5f, 1) == 0.5f,
+          "smoothing(0.5, block=1) bit-exact passthrough");
+    check(CvSmoothingForBlock(0.35f, 1) == 0.35f,
+          "smoothing(0.35, block=1) bit-exact passthrough");
 
     // Pitch CV must never be quantized (1 V/oct).
     check(kPitchCvQuantizeStep == 0.0f, "pitch quantize step is 0");

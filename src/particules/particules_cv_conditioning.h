@@ -21,6 +21,9 @@ constexpr int CvDecimationForBlock(std::size_t block_size) {
 // applying the result once per block matches applying per_sample every
 // sample of that block.
 inline float CvSmoothingForBlock(float per_sample, std::size_t block_size) {
+    // Block size 1 must return per_sample bit-exactly (VCV behavior
+    // unchanged); the 1-(1-s)^n round trip is not exact in float.
+    if (block_size <= 1) return per_sample;
     return 1.0f - std::pow(1.0f - per_sample, static_cast<float>(block_size));
 }
 
