@@ -55,7 +55,7 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
 
     impl_->sample_rate = sample_rate;
     impl_->params = BeadsParameters{};
-    impl_->feedback_sample = {0.0f, 0.0f};
+    impl_->prev_wet_len = 0;
     impl_->prev_freeze = false;
 
     // Allocate recording buffer (fixed frame budget; duration varies with sample rate)
@@ -191,9 +191,14 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
 
         // 3. Feedback mix (smoothed to prevent zipper noise)
         OnePole(s.smoothed_feedback, s.params.feedback, 0.002f);
+        StereoFrame fb_src = {0.0f, 0.0f};
+        if (s.prev_wet_len > 0) {
+            size_t fb_idx = (i < s.prev_wet_len) ? i : s.prev_wet_len - 1;
+            fb_src = s.prev_wet_buf[fb_idx];
+        }
         StereoFrame fb = {
-            s.feedback_hp_l.ProcessHP(s.feedback_sample.l),
-            s.feedback_hp_r.ProcessHP(s.feedback_sample.r)
+            s.feedback_hp_l.ProcessHP(fb_src.l),
+            s.feedback_hp_r.ProcessHP(fb_src.r)
         };
         // Scale source down by (feedback × 0.5) to leave headroom for
         // additive feedback.
@@ -257,12 +262,12 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
         // 6. Quality output processing
         wet_frame = s.quality_processor.ProcessOutput(wet_frame, s.params.quality_mode);
 
-        // 7. Capture feedback sample (before reverb)
-        // Guard against NaN/inf poisoning the feedback loop permanently
+        // 7. Capture this block's wet frame for the next block's feedback
+        // (before reverb). Guard against NaN/inf poisoning the loop.
         if (std::isfinite(wet_frame.l) && std::isfinite(wet_frame.r)) {
-            s.feedback_sample = wet_frame;
+            s.prev_wet_buf[i] = wet_frame;
         } else {
-            s.feedback_sample = {0.0f, 0.0f};
+            s.prev_wet_buf[i] = {0.0f, 0.0f};
         }
 
         // 8. Dry/wet crossfade (equal-power, gains precomputed per block)
@@ -280,6 +285,8 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
         // 10. Output
         output[i] = mixed;
     }
+
+    s.prev_wet_len = num_frames;
 }
 
 int BeadsProcessor::ActiveGrainCount() const {

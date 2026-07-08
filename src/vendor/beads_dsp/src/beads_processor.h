@@ -33,8 +33,12 @@ struct BeadsProcessor::Impl {
     BeadsParameters params;
     float sample_rate = 48000.0f;
 
-    // Feedback sample (captured after dry/wet, before reverb)
-    StereoFrame feedback_sample = {0.0f, 0.0f};
+    // Previous block's wet output (post-quality-processing, pre-reverb,
+    // NaN-guarded). The next block's input stage mixes prev_wet_buf[i] in
+    // per-sample — a one-block feedback delay (1 frame in VCV, 64 on MM),
+    // matching the original Beads design instead of a block-rate hold.
+    StereoFrame prev_wet_buf[kMaxBlockSize] = {};
+    size_t prev_wet_len = 0;
 
     // Previous freeze state for crossfade detection
     bool prev_freeze = false;
