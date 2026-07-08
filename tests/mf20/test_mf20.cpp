@@ -11,6 +11,7 @@
  */
 
 #include "../../src/mf20/MF20Filter.hpp"
+#include "../../src/mf20/engine.hpp"
 #include "../../src/mf20/dsp_utils.hpp"   // resTaper — the module applies it before the filter
 #include <cmath>
 #include <cstdio>
@@ -806,6 +807,45 @@ static void test_k35_asymmetric_clip() {
     }
 }
 
+static void test_nan_recovery() {
+    printf("\nNaN recovery (stateFinite + reset)\n");
+    for (auto mode : {MF20Filter::Mode::OTA, MF20Filter::Mode::K35}) {
+        const char* mn = (mode == MF20Filter::Mode::OTA) ? "OTA" : "K35";
+        MF20Filter f;
+        f.setSampleRate(48000.f);
+        f.setMode(mode);
+        for (int i = 0; i < 200; ++i) f.process(0.5f, 1000.f, 0.5f);
+        char b1[64]; snprintf(b1, sizeof(b1), "%s: finite after normal use", mn);
+        report(f.stateFinite(), b1);
+        f.process(NAN, 1000.f, 0.5f);
+        char b2[64]; snprintf(b2, sizeof(b2), "%s: non-finite after NaN input", mn);
+        report(!f.stateFinite(), b2);
+        f.reset();
+        bool ok = f.stateFinite();
+        for (int i = 0; i < 200; ++i) {
+            auto [lp, bp, hp] = f.process(0.5f, 1000.f, 0.5f);
+            ok = ok && std::isfinite(lp) && std::isfinite(bp) && std::isfinite(hp);
+        }
+        char b3[64]; snprintf(b3, sizeof(b3), "%s: finite output after reset", mn);
+        report(ok, b3);
+    }
+}
+
+static void test_voice_sanitize() {
+    printf("\nVoiceEngine::sanitize recovers poisoned voice\n");
+    VoiceEngine v;
+    v.setSampleRate(48000.f);
+    v.hpFilter.process(NAN, 1000.f, 0.5f);      // poison one filter
+    v.sanitize();
+    bool ok = v.hpFilter.stateFinite();
+    for (int i = 0; i < 200; ++i) {
+        auto [lp, bp, hp] = v.hpFilter.process(0.5f, 1000.f, 0.5f);
+        ok = ok && std::isfinite(lp);
+        (void)bp; (void)hp;
+    }
+    report(ok, "sanitize() resets non-finite filter state");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -839,6 +879,8 @@ int main() {
     test_k35_forward_clip_isolation();
     test_mode_switch_mid_stream();
     test_k35_asymmetric_clip();
+    test_nan_recovery();
+    test_voice_sanitize();
 
     printf("\n=======================\n");
     printf("%d passed, %d failed\n", sPassed, sFailed);

@@ -45,6 +45,21 @@ struct VoiceEngine {
         lpResSlew.reset(0.25f);
         hpResSlew.reset(0.25f);
     }
+
+    // NaN/inf recovery: one bad upstream sample would otherwise poison the
+    // filter state permanently. Called once per modulate block (~2.5 ms) by
+    // the module. Resets only the integrator states; the slew smoothers stay
+    // (their inputs are clamped params, so they are finite), avoiding a
+    // spurious parameter sweep after recovery.
+    void sanitize() {
+        if (!lpFilter.stateFinite()  || !hpFilter.stateFinite() ||
+            !lpFilterR.stateFinite() || !hpFilterR.stateFinite()) {
+            lpFilter.reset();
+            hpFilter.reset();
+            lpFilterR.reset();
+            hpFilterR.reset();
+        }
+    }
 };
 
 // Manages an array of VoiceEngine* for polyphonic use.

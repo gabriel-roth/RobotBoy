@@ -129,6 +129,7 @@ struct MF20FilterModule : Module {
         for (int c = 0; c < _pool.activeVoices; c++) {
             VoiceEngine* eng = _pool.engines[c];
             if (!eng) continue;
+            eng->sanitize();
 
             // Total cutoff CV is an octave offset (1 V/oct) added to BOTH filters,
             // preserving the knob spread — the MS-20 "Total" cutoff-modulation bus.

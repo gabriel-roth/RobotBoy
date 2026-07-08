@@ -111,6 +111,10 @@ public:
 
     void reset() { s1 = s2 = 0.f; }
 
+    /** False once any non-finite value has entered the TPT state (the
+        s = 2·mid − s update propagates NaN/inf forever). */
+    bool stateFinite() const { return std::isfinite(s1) && std::isfinite(s2); }
+
     /** Scale diode character with drive: higher drive = lower threshold + steeper saturation. */
     void setDriveCharacter(float drive) {
         float s       = 1.f / std::sqrt(drive);
