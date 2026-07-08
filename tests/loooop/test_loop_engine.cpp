@@ -557,6 +557,19 @@ static void test_sample_rate_change_mid_recording() {
     check(near(e.process(0.f), 1.f), "sr_change mid-rec: content preserved");
 }
 
+static void test_nan_input_recorded_as_zero() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    e.process(1.f); e.process(NAN); e.process(3.f); e.process(4.f);
+    e.toggleRecord();
+    check(near(e.process(0.f), 1.f), "nan guard: out[0]==1");
+    check(near(e.process(0.f), 0.f), "nan guard: NaN recorded as 0");
+    check(near(e.process(0.f), 3.f), "nan guard: out[2]==3");
+    check(near(e.process(0.f), 4.f), "nan guard: out[3]==4");
+}
+
 static void test_sample_rate_change_empty_reallocates() {
     LoopEngine e;
     e.reset(10.f, 1.f);      // maxSamples = 10
@@ -603,6 +616,7 @@ int main() {
     test_sample_rate_change_preserves_loop();
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
+    test_nan_input_recorded_as_zero();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

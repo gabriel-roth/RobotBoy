@@ -286,6 +286,10 @@ void LoopEngine::advanceHead(PlayHead& h, int idx) {
 }
 
 void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads) {
+    // Module boundary NaN guard: a non-finite input would be recorded into
+    // the loop (and summed forever by overdub) until the user hits Clear.
+    if (!std::isfinite(inL)) inL = 0.f;
+    if (!std::isfinite(inR)) inR = 0.f;
     if (recording_) {
         if (loopLen_ == 0) {                 // initial pass: overwrite
             bufL_[writeIdx_] = inL;

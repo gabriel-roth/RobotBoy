@@ -94,6 +94,8 @@ struct Particules : Module {
 	int quality_state_ = 0;   // 0–3
 	int seed_state_ = 0;      // 0=Triggers, 1=Gates
 	bool prev_quality_button_ = false;
+	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
+	dsp::SchmittTrigger seed_gate_;     // same for SEED
 	int  pitch_lock_ = 0;  // 0=off, 1=octaves, 2=octaves+5ths
 	bool grain_trigger_out_ = false;
 	bool stereo_input_ = false;
@@ -117,11 +119,14 @@ struct Particules : Module {
 
 	Particules() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		configParam(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze");
+		// configSwitch does NOT disable randomization (only configButton does),
+		// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
+		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
+			->randomizeEnabled = false;
+		configButton<QualityParamQuantity>(QUALITY_PARAM, "Quality");
 		configParam(DENSITY_PARAM, 0.f, 1.f, 0.5f, "Density");
 		configParam(TIME_PARAM, 0.f, 1.f, 0.5f, "Time");
 		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
-		configParam<QualityParamQuantity>(QUALITY_PARAM, 0.f, 1.f, 0.f, "Quality");
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
 		configParam(FEEDBACK_AMT_PARAM, 0.f, 1.f, 0.5f, "Feedback CV amount");
 		configParam(SIZE_PARAM, -1.f, 1.f, 0.f, "Size");
@@ -209,6 +214,7 @@ struct Particules : Module {
 		auto_gain_           = true;
 		manual_gain_db_      = 0.f;
 		needs_calibration_   = true;
+		processor_.ClearBuffer();   // 4 s buffer, feedback path, reverb tail
 		ResetControlConditioners();
 	}
 
@@ -247,7 +253,7 @@ struct Particules : Module {
 		if ((j = json_object_get(root, "autoGain")))
 			auto_gain_ = json_boolean_value(j);
 		if ((j = json_object_get(root, "manualGainDb")))
-			manual_gain_db_ = (float)json_real_value(j);
+			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
 		if ((j = json_object_get(root, "pitchLock")))
 			pitch_lock_ = clamp((int)json_integer_value(j), 0, 2);
 		if ((j = json_object_get(root, "grainTriggerOut")))
@@ -318,11 +324,13 @@ struct Particules : Module {
 
 	void process(const ProcessArgs& args) override {
 		bool freeze_button = params[FREEZE_PARAM].getValue() > 0.5f;
-		bool frozen = freeze_button || inputs[FREEZE_INPUT].getVoltage() > 1.f;
+		freeze_gate_.process(inputs[FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
+		bool frozen = freeze_button || freeze_gate_.isHigh();
 
 		// Latch the SEED gate every sample so short triggers survive the
 		// block boundary on MetaModule (updateSlowParams runs once per block).
-		block_runtime_.NoteSeedGateSample(inputs[SEED_INPUT].getVoltage() > 1.f);
+		seed_gate_.process(inputs[SEED_INPUT].getVoltage(), 0.1f, 1.f);
+		block_runtime_.NoteSeedGateSample(seed_gate_.isHigh());
 
 		// Button cycling — rising-edge detection every sample; blocked while frozen
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
@@ -359,7 +367,9 @@ struct Particules : Module {
 		prev_in_r_connected_ = in_r_connected;
 
 		float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
+		if (!std::isfinite(l)) l = 0.f;
 		float r = in_r_connected ? inputs[IN_R_INPUT].getVoltage() * 0.2f : l;
+		if (!std::isfinite(r)) r = 0.f;
 		block_runtime_.PushInputSample({l, r});
 
 		// Process when block is full
@@ -385,7 +395,7 @@ struct Particules : Module {
 		}
 
 		// Light updates
-		lights[FREEZE_BUTTON_LIGHT].setBrightness(freeze_button ? 1.f : 0.f);
+		lights[FREEZE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
 
 		if (quality_state_ != light_quality_state_) {
 			light_quality_state_ = quality_state_;
