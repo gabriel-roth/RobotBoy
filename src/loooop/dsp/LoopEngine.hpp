@@ -85,15 +85,17 @@ private:
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
     void windowBounds(const PlayHead& h, float jitterOff,
                       double& winStart, double& winLen) const;
-    float readInterpolated(const PlayHead& h, const std::vector<float>& buf) const;
+    float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
+                           double winStart, double winLen) const;
     float readRaw(double p, const std::vector<float>& buf) const;
-    void readHead(const PlayHead& h, float& outL, float& outR) const;
+    void readHead(const PlayHead& h, double winStart, double winLen,
+                  float& outL, float& outR) const;
     // Crossfade length in output samples for this head/window, capped to half the
     // window's output-period; 0 disables (window too short, or crossfade off).
     int fadeLen(const PlayHead& h, double winLen) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
-    void advanceHead(PlayHead& h, int idx);
+    void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
     void writePeak(std::size_t idx, float l, float r);
 
     int numHeads_ = NUM_HEADS;
@@ -105,6 +107,7 @@ private:
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
+    double minWinLen_ = 48.0;   // ceil(sampleRate · 1 ms); set in reset()/setSampleRate()
     float sampleRate_ = 48000.f;
     float maxSeconds_ = 60.f;
     std::uint32_t rng_ = 0x9E3779B9u;

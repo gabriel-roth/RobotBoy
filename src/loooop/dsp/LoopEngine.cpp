@@ -11,6 +11,8 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     // 10 Hz test rate), which disables the crossfade and preserves seam-exact
     // behavior there.
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    minWinLen_ = std::ceil(
+        static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
     bufL_.assign(maxSamples_, 0.f); bufR_.assign(maxSamples_, 0.f);   // pre-allocate once; never resized in audio
     peakBinSize_ = static_cast<std::uint32_t>((maxSamples_ + PEAK_BINS - 1) / PEAK_BINS);
@@ -38,6 +40,8 @@ void LoopEngine::setSampleRate(float sampleRate) {
     }
     sampleRate_ = sampleRate;
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    minWinLen_ = std::ceil(
+        static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 }
 
 void LoopEngine::toggleRecord() {
@@ -154,8 +158,7 @@ void LoopEngine::windowBounds(const PlayHead& h, double& winStart, double& winLe
 void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
                               double& winStart, double& winLen) const {
     const double L = static_cast<double>(loopLen_);
-    const double minWinLen = std::ceil(
-        static_cast<double>(sampleRate_) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
+    const double minWinLen = minWinLen_;
     winLen = static_cast<double>(h.size) * L;
     if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
@@ -166,9 +169,8 @@ void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
     if (winStart < 0.0) winStart = 0.0;
 }
 
-float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& buf) const {
-    double winStart, winLen;
-    windowBounds(h, winStart, winLen);
+float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& buf,
+                                   double winStart, double winLen) const {
     double p = h.pos;
     if (p < winStart || p >= winStart + winLen) p = winStart;   // honor a just-moved window on this read (advanceHead snaps h.pos after)
     std::size_t i0 = static_cast<std::size_t>(std::floor(p));
@@ -209,11 +211,10 @@ int LoopEngine::fadeLen(const PlayHead& h, double winLen) const {
 // before the loop point it is equal-power-crossfaded with the loop head read
 // ahead from the window start (direction-aware). advanceHead() resumes just past
 // that previewed head region so nothing is double-played.
-void LoopEngine::readHead(const PlayHead& h, float& outL, float& outR) const {
-    outL = readInterpolated(h, bufL_);
-    outR = readInterpolated(h, bufR_);
-    double winStart, winLen;
-    windowBounds(h, winStart, winLen);
+void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
+                          float& outL, float& outR) const {
+    outL = readInterpolated(h, bufL_, winStart, winLen);
+    outR = readInterpolated(h, bufR_, winStart, winLen);
     const int F = fadeLen(h, winLen);
     if (F < 1) return;
     const double sp = std::fabs(static_cast<double>(h.speed));
@@ -243,9 +244,7 @@ void LoopEngine::readHead(const PlayHead& h, float& outL, float& outR) const {
     outR = go * outR + gi * readRaw(headPos, bufR_);
 }
 
-void LoopEngine::advanceHead(PlayHead& h, int idx) {
-    double winStart, winLen;
-    windowBounds(h, winStart, winLen);
+void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLen) {
     const double winEnd = winStart + winLen;
     if (h.pos < winStart || h.pos >= winEnd) h.pos = winStart;   // snap in if params moved
     h.pos += h.speed;
@@ -317,10 +316,12 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
         for (int i = 0; i < numHeads_; ++i) {
             PlayHead& h = heads_[i];
             if (!h.playing) continue;
-            float l, r; readHead(h, l, r);
+            double winStart, winLen;
+            windowBounds(h, winStart, winLen);
+            float l, r; readHead(h, winStart, winLen, l, r);
             heads[i].l = l * h.level;
             heads[i].r = r * h.level;
-            advanceHead(h, i);
+            advanceHead(h, i, winStart, winLen);
         }
     }
 }
