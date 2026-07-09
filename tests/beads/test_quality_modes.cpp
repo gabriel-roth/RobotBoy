@@ -12,6 +12,23 @@ using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
 
+TEST_CASE("QualityModes: CleanLoFi feedback limiter is bounded", "[quality][saturation]") {
+    Saturation saturation;
+    saturation.Init();
+    const float inputs[] = {-20.0f, -10.0f, -3.0f, 0.0f, 3.0f, 10.0f, 20.0f};
+    float previous = -2.0f;
+    for (float input : inputs) {
+        const float output = saturation.LimitFeedback(input, QualityMode::kCleanLoFi);
+        REQUIRE(std::isfinite(output));
+        REQUIRE(output >= -1.0f);
+        REQUIRE(output <= 1.0f);
+        REQUIRE(output >= previous);
+        if (input != 0.0f)
+            REQUIRE((output > 0.0f) == (input > 0.0f));
+        previous = output;
+    }
+}
+
 TEST_CASE("QualityModes: Clouds output quantization is detectable", "[quality]") {
     QualityProcessor qp;
     qp.Init(kSampleRate);

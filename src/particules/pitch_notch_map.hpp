@@ -9,16 +9,12 @@
 // Weight accounting:
 //   41 normal gaps × 1 + 7 notch zones × 3 = 41 + 21 = 62 total units
 //
-// Anonymous namespace prevents ODR violations when included in multiple TUs.
-
-namespace {
-
 struct PitchMapPoint {
     float t;   // knob position [0, 1]
     float st;  // semitones [-24, 24]
 };
 
-static constexpr PitchMapPoint kPitchMap[] = {
+inline constexpr PitchMapPoint kPitchMap[] = {
     { 0.0f  / 62.0f, -24.0f },  // 0
     { 4.5f  / 62.0f, -19.5f },  // 1
     { 7.5f  / 62.0f, -18.5f },  // 2
@@ -37,9 +33,7 @@ static constexpr PitchMapPoint kPitchMap[] = {
     { 62.0f / 62.0f,  24.0f },  // 15
 };
 
-static constexpr std::size_t kPitchMapSize = sizeof(kPitchMap) / sizeof(kPitchMap[0]);
-
-} // anonymous namespace
+inline constexpr std::size_t kPitchMapSize = sizeof(kPitchMap) / sizeof(kPitchMap[0]);
 
 // Map knob position t ∈ [0,1] → semitones ∈ [-24, 24].
 inline float pitchKnobToSemitones(float t) {

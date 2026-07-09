@@ -8,6 +8,10 @@ namespace beads {
 // Fast PRNG using xorshift128
 class Random {
 public:
+    static float Uint32ToFloat(uint32_t value) {
+        return static_cast<float>(value >> 8) * (1.0f / 16777216.0f);
+    }
+
     void Init(uint32_t seed = 0x12345678) {
         state_[0] = seed;
         state_[1] = seed ^ 0xDEADBEEF;
@@ -32,7 +36,7 @@ public:
 
     // Uniform float in [0, 1)
     float NextFloat() {
-        return static_cast<float>(NextUint32()) / 4294967296.0f;
+        return Uint32ToFloat(NextUint32());
     }
 
     // Uniform float in [-1, 1)
@@ -40,14 +44,14 @@ public:
         return NextFloat() * 2.0f - 1.0f;
     }
 
-    // Gaussian approximation using Box-Muller-like sum of uniforms
+    // Gaussian-like CLT approximation with variance 1/3.
     float NextGaussian() {
         // Central limit theorem: sum of 4 uniforms ≈ Gaussian
         float sum = 0.0f;
         for (int i = 0; i < 4; ++i) {
             sum += NextBipolar();
         }
-        return sum * 0.5f;  // scale for roughly unit variance
+        return sum * 0.5f;
     }
 
     // Peaked distribution (triangular, values clustered near 0)

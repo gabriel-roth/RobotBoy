@@ -13,11 +13,8 @@ void Saturation::Init() {
 // magnetic bias asymmetry.
 // ---------------------------------------------------------------------------
 float Saturation::AsymmetricSoftClip(float x) {
-    if (x >= 0.0f) {
-        return FastTanh(x * 1.1f);
-    } else {
-        return FastTanh(x * 0.9f);
-    }
+    const float shaped = x * (x >= 0.0f ? 1.1f : 0.9f);
+    return SoftClip(shaped);
 }
 
 // ---------------------------------------------------------------------------
