@@ -61,7 +61,7 @@ TEST_CASE("QualityModes: Tape mode reduces high-frequency content", "[quality]")
     QualityProcessor qp;
     qp.Init(kSampleRate);
 
-    // Generate a high-frequency signal (20kHz) well above tape LP at 8kHz
+    // Generate a high-frequency signal (20kHz) well above tape LP at 5kHz
     float hifi_energy = 0.0f;
     float tape_energy = 0.0f;
 
@@ -80,7 +80,7 @@ TEST_CASE("QualityModes: Tape mode reduces high-frequency content", "[quality]")
         tape_energy += tape_out.l * tape_out.l;
     }
 
-    // Tape LP filter at 8kHz should heavily attenuate 20kHz
+    // Tape LP filter at 5kHz should heavily attenuate 20kHz
     REQUIRE(tape_energy < hifi_energy * 0.5f);
 }
 

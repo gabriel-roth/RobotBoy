@@ -126,3 +126,25 @@ TEST_CASE("BeadsProcessor: feedback recirculates per-sample at 64-frame cadence"
                           << "  roughness/energy: " << ratio);
     REQUIRE(ratio < 0.00488);
 }
+
+// Control case: feedback=0 baselines what the 0.00488 threshold means.
+// `FeedbackTailStats` measures the tail *after* `kTailMargin` has drained
+// the read-ahead delay's echo of the tone, so with recirculation fully
+// disengaged there is no mechanism left to keep the buffer's tail region
+// non-silent: nothing was written there but silence, and nothing feeds it
+// back. Measured here: energy == 0.0 exactly (bit-for-bit), confirming the
+// window really does isolate feedback-driven content — the energy and
+// roughness measured in the feedback=0.9 case above are attributable to
+// the recirculation path itself, not to some pre-existing grain-engine
+// artifact the ratio metric would pick up regardless of feedback. It also
+// guards against exactly the class of bug this suite cares about: any
+// future change that makes feedback "leak" when the knob is fully off
+// (e.g. a mixed-up smoothing target or an always-on feedback tap) would
+// turn this exact-zero baseline into nonzero tail energy.
+TEST_CASE("BeadsProcessor: feedback=0 control produces silent tail",
+          "[processor][feedback]") {
+    TailStats s = FeedbackTailStats(0.0f);
+    INFO("tail energy: " << s.energy << "  roughness: " << s.roughness);
+    REQUIRE(s.energy == 0.0);
+    REQUIRE(s.roughness == 0.0);
+}

@@ -39,8 +39,11 @@ test logic and assertions are untouched.
 This repo has two independent test lanes:
 
 - **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
-  and the small Particules pitch-map), plain-assert style. Runs anywhere, no
-  build system needed.
+  and the small Particules pitch-map), plain-assert style, followed by a
+  `python3 -m unittest discover` pass over `tests/test_*.py` (identity/build
+  guard tests — plugin metadata, slug parity between `plugin.json` and
+  `metamodule/plugin-mm.json`, and no-delay-mode symbol removal). Runs
+  anywhere, no build system needed beyond a `python3` on `PATH`.
 - **Lane 2 — `tests/beads/run.sh`** — the vendored beads_dsp Catch2 suite
   (CMake + CTest). Covers the granular / delay / reverb / quality / pitch DSP
   that powers Particules. Catch2 is vendored (amalgamated, v3.5.2), so the lane

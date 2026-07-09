@@ -84,6 +84,22 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
     if (!impl_) return;
     impl_->params = params;
 
+    // Guard feedback/dry_wet/reverb against NaN at the parameter-ingestion
+    // boundary. Unlike time/size/shape/pitch CV, these three don't get
+    // re-derived from scratch every grain -- they drive persistent OnePole
+    // smoothing state (smoothed_feedback, smoothed_dry_wet in ProcessBlock())
+    // and the reverb's own persistent coefficients (amount_/decay_/diffusion_
+    // in Reverb::SetAmount/SetDecay/SetDiffusion). beads::Clamp() and
+    // rack::math::clamp() are both built on std::min/std::max, which leave a
+    // NaN operand unclamped, so nothing upstream reliably sanitizes this.
+    // Once one of those state variables is poisoned by a single NaN
+    // parameter frame, `state += coeff * (NaN - state)` keeps it NaN
+    // forever -- even after the caller goes back to sending valid values --
+    // so this has to be fixed at ingestion, not downstream.
+    if (!std::isfinite(impl_->params.feedback)) impl_->params.feedback = 0.0f;
+    if (!std::isfinite(impl_->params.dry_wet))  impl_->params.dry_wet  = 0.5f;
+    if (!std::isfinite(impl_->params.reverb))   impl_->params.reverb   = 0.0f;
+
     // Detect quality mode change → update decimation factor + start wet duck
     if (params.quality_mode != impl_->prev_quality_mode) {
         impl_->prev_quality_mode = params.quality_mode;
@@ -93,9 +109,10 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
         impl_->quality_xfade_counter = Impl::kQualityXfadeSamples;
     }
 
-    // Configure reverb from parameters
-    impl_->reverb.SetAmount(params.reverb);
-    impl_->reverb.SetDecay(0.3f + params.reverb * 0.65f);
+    // Configure reverb from parameters (use the sanitized copy so a NaN
+    // params.reverb from the caller can't reach Reverb::SetAmount/SetDecay).
+    impl_->reverb.SetAmount(impl_->params.reverb);
+    impl_->reverb.SetDecay(0.3f + impl_->params.reverb * 0.65f);
     impl_->reverb.SetDiffusion(0.7f);
     // Fixed wet makeup: +4 dB, compensating the reverb tail being quieter than
     // the dry (its energy is spread across the decay tail and low-passed).

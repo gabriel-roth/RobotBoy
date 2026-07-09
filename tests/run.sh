@@ -23,4 +23,8 @@ for d in mf20 loooop particules; do
         -I../src/vendor/beads_dsp/include -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
   done
 done
+
+echo "== python guard tests =="
+python3 -m unittest discover -s . -p 'test_*.py' -v || fail=1
+
 exit $fail

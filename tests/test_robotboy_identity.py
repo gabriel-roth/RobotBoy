@@ -21,6 +21,14 @@ class RobotBoyIdentityTest(unittest.TestCase):
         self.assertEqual(mm["MetaModuleBrandName"], "Robot Boy")
         self.assertEqual(mm["MetaModuleBrandSlug"], "RobotBoy")
 
+        # Slug parity: the ordered module-slug list must match between the
+        # public VCV manifest and the MetaModule manifest, or a module added
+        # to one and forgotten in the other silently falls out of sync.
+        self.assertEqual(
+            [module["slug"] for module in plugin["modules"]],
+            [module["slug"] for module in mm["MetaModuleIncludedModules"]],
+        )
+
     def test_build_and_registration_identity(self):
         brand = (ROOT / "metamodule/loooop/brand.hh").read_text()
         cmake = (ROOT / "metamodule/CMakeLists.txt").read_text()

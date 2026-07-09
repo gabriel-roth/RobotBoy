@@ -153,6 +153,17 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     if (reverse) {
         gp.pitch_ratio = -gp.pitch_ratio;
     }
+    // Guard against NaN pitch_ratio (e.g. a NaN pitch_cv with pitch_ar
+    // engaged survives ar_pitch_.Process() and the scale quantizer, which
+    // both pass NaN through unchanged). Grain::Start() stores this directly
+    // into phase_increment_, which is added into read_position_ every
+    // sample in the hot loop -- once read_position_ goes NaN, the very next
+    // ReadHermiteStereoFast() call does an unguarded float->int cast on it,
+    // which is undefined behavior. That happens before the per-sample
+    // isfinite(gl/gr) check in Grain::ProcessBlock ever gets a chance to
+    // catch it, so this needs its own fence, same idea as the gp.position
+    // guard below.
+    if (!std::isfinite(gp.pitch_ratio)) gp.pitch_ratio = reverse ? -1.0f : 1.0f;
 
     // Convert to an absolute position in the recording buffer.
     // time=0.0 means read from write_head (newest), time=1.0 means read

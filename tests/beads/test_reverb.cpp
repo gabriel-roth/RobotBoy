@@ -187,7 +187,7 @@ TEST_CASE("QualityProcessor: Tape mode pitch modulation", "[quality]") {
         mod = qp.GetPitchModulation(QualityMode::kTape);
     }
     // After advancing, modulation should deviate from 1.0
-    // wow: 0.3 semitones peak = SemitonesToRatio(0.3) ≈ 1.0175
+    // wow: 0.02 semitones peak = SemitonesToRatio(0.02) ≈ 1.0012
     REQUIRE(mod != Approx(1.0f).margin(0.001f));
     REQUIRE(mod > 0.95f);
     REQUIRE(mod < 1.05f);
