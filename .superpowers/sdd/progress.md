@@ -54,3 +54,9 @@ Task 4: complete (commits 733e3ed..051c6fd, review clean/Approved, opus reviewer
 Task 5: complete (commits 051c6fd..c6a1189, review clean/Approved, bit-identity traced against pre-refactor source incl. pre-commit display stores).
 Task 6: complete (commits c6a1189..ef0c576, review clean/Approved, opus). Test-edit (output_index_ 1->0) verified legitimate dead-code assertion removal. Minor: RecordingBuffer::CopyRegionTo now orphaned (follow-up).
 FINAL WHOLE-BRANCH REVIEW (fable): READY TO MERGE. No Critical/Important. Cross-task seams traced clean (minWinLen_ lifecycle, _sampleRate/g coherence, sanitize placement, CV-NaN clamp route, deletion fallout). Minors queued as round-3 follow-ups: magic-static hoists (kDecay/kSilenceGain), orphaned WavetableProvider/kWavetableSize + CopyRegionTo, named g-default constants, same-rate setSampleRate early-out, multi-head SR test. Fresh MM build re-verified exit 0. ALL 6 TASKS + FINAL REVIEW COMPLETE.
+
+=== CODEX CARRY-OVER PLANNING (2026-07-09, docs only, no code) ===
+Analyzed all 27 commits on review-fixes-codex vs code-review-fixes (3 parallel opus analyses: looper/MF-20/beads).
+Carry: SVF denom cache (bad157c), MetaModule FTZ (cf74abc), CleanLoFi SoftClip bound (6754c75), MF-20 first-modulate+R-poly+drive smoothing (from 614a6af, re-designed zero-divide port), Loooop/Lop control-math header (806d935), waveform display cache stack (4f04486+7b3824d+LoopEngine hunks of d17e13d, -47%/-84% frozen raster), grain timing unification (ed7beb9, listen-test), random<1 (7b99f9d), LED SR decay (ee606e6), deferred ClearBuffer (c078e05 nugget), pitch map inline constexpr (32a051c nugget).
+Skip (superseded/N-A): K35 clamp fbf834e, jitter 7e865ea, freeze 97e5c59, block sizes 83c26eb, memory growth 08627e4 (only needed under codex SR-scaled reverb), delay hoists 43bdcf0, dead-code chores.
+Spec: docs/superpowers/plans/2026-07-09-codex-carryover-spec.md; Plan: same dir -plan.md (7 tasks). NOT EXECUTED.
