@@ -39,8 +39,14 @@ struct MF20FilterModule : Module {
     int _modulationSteps = 100;
     int _steps = -1;
 
-    // Shared modulation target (same for all voices; per-voice CV added in modulate()).
+    // Shared modulation targets (same for all voices; per-voice CV added in modulate()).
     float _drive = 1.f;
+    float _driveSqrt = 1.f;          // hoisted out of the per-sample OTA pre-gain
+    float _sampleRate = 44100.f;     // mirrors the engine rate for modulate-rate math
+    // Deterministic denormal-prevention dither: alternates sign each sample.
+    // Replaces the RNG dither — cheaper, and bit-reproducible between the
+    // VCV and MetaModule builds (relevant to headless comparison testing).
+    float _dither = 1e-9f;
 
     MF20Filter::Mode _filterMode = MF20Filter::Mode::OTA;
 
@@ -87,25 +93,21 @@ struct MF20FilterModule : Module {
     }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
+        _sampleRate = e.sampleRate;
         _pool.setSampleRate(e.sampleRate);
         float alpha = smootherAlpha(e.sampleRate, 0.005f);
-        for (int i = 0; i < 16; i++) {
-            if (!_pool.engines[i]) continue;
-            VoiceEngine* eng = _pool.engines[i];
-            eng->lpCutoffSlew.setAlpha(alpha);
-            eng->hpCutoffSlew.setAlpha(alpha);
-            eng->lpResSlew.setAlpha(alpha);
-            eng->hpResSlew.setAlpha(alpha);
+        for (auto& eng : _pool.engines) {
+            eng.lpGSlew.setAlpha(alpha);
+            eng.hpGSlew.setAlpha(alpha);
+            eng.lpResSlew.setAlpha(alpha);
+            eng.hpResSlew.setAlpha(alpha);
         }
         _modulationSteps = static_cast<int>(e.sampleRate * 0.0025f);  // 2.5 ms
     }
 
     void onReset(const ResetEvent& e) override {
         Module::onReset(e);
-        for (int i = 0; i < 16; i++) {
-            if (!_pool.engines[i]) continue;
-            _pool.engines[i]->reset();
-        }
+        _pool.resetAll();
     }
 
     // Called at ~2.5 ms intervals. Reads params/CVs and updates smoother targets
@@ -113,6 +115,7 @@ struct MF20FilterModule : Module {
     void modulate() {
         float drive = params[DRIVE_PARAM].getValue();
         _drive = drive;
+        _driveSqrt = std::sqrt(drive);
 
         float cutoffLog = params[CUTOFF_PARAM].getValue();
         float hpLog     = params[HP_CUTOFF_PARAM].getValue();
@@ -127,9 +130,8 @@ struct MF20FilterModule : Module {
         bool totalCvConn = inputs[TOTAL_CUTOFF_INPUT].isConnected();
 
         for (int c = 0; c < _pool.activeVoices; c++) {
-            VoiceEngine* eng = _pool.engines[c];
-            if (!eng) continue;
-            eng->sanitize();
+            VoiceEngine& eng = _pool.engines[c];
+            eng.sanitize();
 
             // Total cutoff CV is an octave offset (1 V/oct) added to BOTH filters,
             // preserving the knob spread — the MS-20 "Total" cutoff-modulation bus.
@@ -141,36 +143,38 @@ struct MF20FilterModule : Module {
             float voiceCutoffLog = cutoffLog + totalOffset;
             if (lpCvConn)
                 voiceCutoffLog += lpCvAtten * inputs[LP_CUTOFF_INPUT].getPolyVoltage(c);
-            eng->lpCutoffTarget = voiceCutoffLog;
+            float lpHz = clamp(std::exp2(voiceCutoffLog), 20.f, _sampleRate * 0.498f);
+            eng.lpGTarget = MF20Filter::cutoffToG(lpHz, _sampleRate);
 
             // HP cutoff target (log2 Hz): knob + Total + per-filter CV.
             float voiceHpLog = hpLog + totalOffset;
             if (hpCvConn)
                 voiceHpLog += hpCvAtten * inputs[HP_CUTOFF_INPUT].getPolyVoltage(c);
-            eng->hpCutoffTarget = voiceHpLog;
+            float hpHz = clamp(std::exp2(voiceHpLog), 20.f, _sampleRate * 0.498f);
+            eng.hpGTarget = MF20Filter::cutoffToG(hpHz, _sampleRate);
 
             // Resonance targets — knob only (the MS-20 has no resonance modulation).
-            eng->lpResTarget = res;
-            eng->hpResTarget = hpResRaw;
+            eng.lpResTarget = res;
+            eng.hpResTarget = hpResRaw;
 
             // Update filter mode and drive for this voice.
-            eng->lpFilter.setMode(_filterMode);
-            eng->hpFilter.setMode(_filterMode);
-            eng->lpFilterR.setMode(_filterMode);
-            eng->hpFilterR.setMode(_filterMode);
-            eng->lpFilter.setDriveCharacter(drive);
-            eng->lpFilterR.setDriveCharacter(drive);
-            eng->hpFilter.setDriveCharacter(drive);
-            eng->hpFilterR.setDriveCharacter(drive);
+            eng.lpFilter.setMode(_filterMode);
+            eng.hpFilter.setMode(_filterMode);
+            eng.lpFilterR.setMode(_filterMode);
+            eng.hpFilterR.setMode(_filterMode);
+            eng.lpFilter.setDriveCharacter(drive);
+            eng.lpFilterR.setDriveCharacter(drive);
+            eng.hpFilter.setDriveCharacter(drive);
+            eng.hpFilterR.setDriveCharacter(drive);
         }
     }
 
     // Process one voice (channel c). Advances its smoothers and runs the audio cascade.
     void processChannel(const ProcessArgs& args, int c) {
-        VoiceEngine* eng = _pool.engines[c];
-        if (!eng) return;
+        VoiceEngine& eng = _pool.engines[c];
 
-        // OTA mode: piecewise-linear pre-gain — amplifies by √drive, soft-clips at ±5 V.
+        // OTA mode: piecewise-linear pre-gain — amplifies by √drive (precomputed
+        //   in modulate() as _driveSqrt), soft-clips at ±5 V.
         //   Unity gain at drive=1; continuous, monotonic for all drive values.
         //   NOTE: In OTA mode Drive is applied TWICE and intentionally so — here as
         //   input level, and inside the filter via setDriveCharacter() (see modulate()),
@@ -178,39 +182,36 @@ struct MF20FilterModule : Module {
         //   all of this in processK35()'s forward-path clip, so no pre-gain is applied.
         auto otaPreGain = [&](float x) {
             if (_filterMode != MF20Filter::Mode::OTA) return x;
-            float d = x * std::sqrt(_drive);
+            float d = x * _driveSqrt;
             return (d >  5.f) ?  5.f + 0.25f * (d - 5.f)
                  : (d < -5.f) ? -5.f + 0.25f * (d + 5.f)
                  : d;
         };
 
         float in = inputs[AUDIO_INPUT].getPolyVoltage(c);
-        in += 1e-6f * (2.f * random::uniform() - 1.f);
+        in += _dither;
         in = otaPreGain(in);
 
         // Advance slew smoothers one step toward their targets.
-        float cutoffLog = eng->lpCutoffSlew.process(eng->lpCutoffTarget);
-        float hpLog     = eng->hpCutoffSlew.process(eng->hpCutoffTarget);
-        float res       = eng->lpResSlew.process(eng->lpResTarget);
-        float hpResRaw  = eng->hpResSlew.process(eng->hpResTarget);
-
-        float cutoffHz   = clamp(std::pow(2.f, cutoffLog), 20.f, args.sampleRate * 0.498f);
-        float hpCutoffHz = clamp(std::pow(2.f, hpLog),     20.f, args.sampleRate * 0.498f);
+        float gLp      = eng.lpGSlew.process(eng.lpGTarget);
+        float gHp      = eng.hpGSlew.process(eng.hpGTarget);
+        float res      = eng.lpResSlew.process(eng.lpResTarget);
+        float hpResRaw = eng.hpResSlew.process(eng.hpResTarget);
 
         res = resTaper(res);
         float hpRes = resTaper(hpResRaw);
 
-        auto hpStage = eng->hpFilter.processVCV(in,         hpCutoffHz, hpRes);
-        auto lpStage = eng->lpFilter.processVCV(hpStage.hp, cutoffHz,   res);
+        auto hpStage = eng.hpFilter.processVCVG(in,         gHp, hpRes);
+        auto lpStage = eng.lpFilter.processVCVG(hpStage.hp, gLp, res);
         outputs[LP_OUTPUT].setVoltage(lpStage.lp, c);
 
         if (inputs[AUDIO_INPUT_R].isConnected()) {
             // True stereo: process R through its own filter pair.
             float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
-            inR += 1e-6f * (2.f * random::uniform() - 1.f);
+            inR += _dither;
             inR = otaPreGain(inR);
-            auto hpStageR = eng->hpFilterR.processVCV(inR,          hpCutoffHz, hpRes);
-            auto lpStageR = eng->lpFilterR.processVCV(hpStageR.hp,  cutoffHz,   res);
+            auto hpStageR = eng.hpFilterR.processVCVG(inR,          gHp, hpRes);
+            auto lpStageR = eng.lpFilterR.processVCVG(hpStageR.hp,  gLp, res);
             outputs[LP_OUTPUT_R].setVoltage(lpStageR.lp, c);
         } else {
             // R input is normalled to L → an identical filter pass. Mirror L instead
@@ -231,6 +232,7 @@ struct MF20FilterModule : Module {
             modulate();
         }
 
+        _dither = -_dither;
         for (int c = 0; c < voices; c++)
             processChannel(args, c);
     }

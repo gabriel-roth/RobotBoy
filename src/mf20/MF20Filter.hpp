@@ -122,6 +122,14 @@ public:
         satSlope      = 0.25f * s;
     }
 
+    /** Bilinear prewarp gain g = tan(π·fc/fs), fc clamped to [1, fs·0.498).
+        Hosts call this at modulate rate and slew g itself, keeping tan/pow
+        out of the audio path entirely. */
+    static float cutoffToG(float cutoffHz, float fs) {
+        float fc = std::clamp(cutoffHz, 1.f, fs * 0.498f);
+        return std::tan(kPi * fc / fs);
+    }
+
     /**
      * Process one sample.
      * @param in        Normalised input (±1 V)
@@ -129,13 +137,23 @@ public:
      * @param res       Resonance [0, 1]; 1.0 = onset of self-oscillation
      */
     Out process(float in, float cutoffHz, float res) {
-        if (mode == Mode::K35)
-            return processK35(in, cutoffHz, res);
-        return processOTA(in, cutoffHz, res);
+        return processG(in, cutoffToG(cutoffHz, sampleRate), res);
     }
 
     Out processVCV(float inVolts, float cutoffHz, float res) {
         auto [lp, bp, hp] = process(inVolts * kVCVScale, cutoffHz, res);
+        return { lp / kVCVScale, bp / kVCVScale, hp / kVCVScale };
+    }
+
+    /** Process one sample with a precomputed prewarp gain (see cutoffToG). */
+    Out processG(float in, float g, float res) {
+        if (mode == Mode::K35)
+            return processK35(in, g, res);
+        return processOTA(in, g, res);
+    }
+
+    Out processVCVG(float inVolts, float g, float res) {
+        auto [lp, bp, hp] = processG(inVolts * kVCVScale, g, res);
         return { lp / kVCVScale, bp / kVCVScale, hp / kVCVScale };
     }
 
@@ -151,9 +169,7 @@ private:
     float satSlope      = 0.25f;  // gain in saturation region
     Mode  mode          = Mode::OTA;
 
-    Out processOTA(float in, float cutoffHz, float res) {
-        float fc = std::clamp(cutoffHz, 1.f, sampleRate * 0.498f);
-        float g  = std::tan(kPi * fc / sampleRate);
+    Out processOTA(float in, float g, float res) {
         float k  = res * 2.f;
 
         // Right-hand side: contribution from current states only.
@@ -161,7 +177,8 @@ private:
 
         // Solve x1_mid from: x1_mid·(1+g)² = rhs + g·diodeClip(k·x1_mid)
         // Try region 1 (no clipping) first.
-        float D1    = (1.f + g) * (1.f + g) - g * k;
+        const float onePlusG2 = (1.f + g) * (1.f + g);
+        float D1    = onePlusG2 - g * k;
         float x1_r1 = rhs / D1;
 
         float x1_mid;
@@ -171,7 +188,7 @@ private:
             clip_val = k * x1_mid;
         } else {
             // Regions 2 / 3: clip active, effective gain → satSlope·k
-            float D2     = (1.f + g) * (1.f + g) - satSlope * g * k;
+            float D2     = onePlusG2 - satSlope * g * k;
             float knee   = (1.f - satSlope) * g * clipThreshold;
             float offset = (x1_r1 > 0.f) ? knee : -knee;
             x1_mid = (rhs + offset) / D2;
@@ -189,9 +206,7 @@ private:
         return { x2_mid, x1_mid, hp_out };
     }
 
-    Out processK35(float in, float cutoffHz, float res) {
-        float fc = std::clamp(cutoffHz, 1.f, sampleRate * 0.498f);
-        float g  = std::tan(kPi * fc / sampleRate);
+    Out processK35(float in, float g, float res) {
         float k  = res * (8.f / 3.f);
 
         // Forward-path nonlinearity: pre-gain input by 1/clipThreshold (= √drive),

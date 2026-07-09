@@ -846,6 +846,24 @@ static void test_voice_sanitize() {
     report(ok, "sanitize() resets non-finite filter state");
 }
 
+static void test_processG_matches_process() {
+    printf("\nprocessG(cutoffToG(fc)) == process(fc)\n");
+    for (auto mode : {MF20Filter::Mode::OTA, MF20Filter::Mode::K35}) {
+        MF20Filter a, b;
+        a.setSampleRate(48000.f); b.setSampleRate(48000.f);
+        a.setMode(mode); b.setMode(mode);
+        bool ok = true;
+        for (int i = 0; i < 500; ++i) {
+            float in = std::sin(2.f * float(M_PI) * 220.f * i / 48000.f);
+            float fc = 200.f + 30.f * i;
+            auto ra = a.process(in, fc, 0.6f);
+            auto rb = b.processG(in, MF20Filter::cutoffToG(fc, 48000.f), 0.6f);
+            ok = ok && ra.lp == rb.lp && ra.bp == rb.bp && ra.hp == rb.hp;
+        }
+        report(ok, mode == MF20Filter::Mode::OTA ? "OTA identical" : "K35 identical");
+    }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -881,6 +899,7 @@ int main() {
     test_k35_asymmetric_clip();
     test_nan_recovery();
     test_voice_sanitize();
+    test_processG_matches_process();
 
     printf("\n=======================\n");
     printf("%d passed, %d failed\n", sPassed, sFailed);
