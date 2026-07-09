@@ -22,6 +22,9 @@ public:
 
 private:
     static constexpr float kMaxRateHz = 80.0f;
+    // Exponent for the density→rate mapping in DensityToRate(); std::log2 is
+    // not constexpr, so this is defined out-of-line in the .cpp file.
+    static const float kRateExponent;
 
     float DensityToRate(float density);
 

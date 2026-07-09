@@ -6,6 +6,10 @@
 
 namespace beads {
 
+// Derived once at load time (before audio starts) rather than as a
+// function-local magic static on the audio path.
+const float GrainScheduler::kRateExponent = std::log2(GrainScheduler::kMaxRateHz / 0.25f);
+
 void GrainScheduler::Init(float sample_rate) {
     sample_rate_ = sample_rate;
     latched_phase_ = 0.0f;
@@ -25,8 +29,7 @@ float GrainScheduler::DensityToRate(float density) {
     float distance = std::abs(density - 0.5f) * 2.0f;  // 0..1
     if (distance < 0.001f) return 0.0f;
 
-    static const float exponent = std::log2(kMaxRateHz / 0.25f);
-    return 0.25f * std::exp2(distance * exponent);
+    return 0.25f * std::exp2(distance * kRateExponent);
 }
 
 int GrainScheduler::Process(const BeadsParameters& params, size_t block_size,

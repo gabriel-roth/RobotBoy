@@ -205,6 +205,8 @@ struct Particules : Module {
 		block_runtime_ = ParticulesBlockRuntime<kWrapperBlockSize>{};
 		block_runtime_.ConfigureSampleRate(e.sampleRate);
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
+		// Re-arm so a possibly-new audio thread gets FTZ configured.
+		metamodule_fpu_configured_ = false;
 		if (dsp_memory_) {
 			auto req = beads::BeadsProcessor::GetMemoryRequirements(e.sampleRate);
 			processor_.Init(dsp_memory_, req.total_bytes, e.sampleRate);
