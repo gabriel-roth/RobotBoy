@@ -50,6 +50,14 @@ struct VoiceEngine {
         hpGSlew.reset(kDefaultHpG);
         lpResSlew.reset(0.25f);
         hpResSlew.reset(0.25f);
+        // Also reset the slew targets -- otherwise a growth-reset voice keeps
+        // slewing toward whatever stale target it had before, for up to one
+        // modulate() interval (~2.5 ms), instead of starting flat at the
+        // default cutoff/resonance the slews were just reset to.
+        lpGTarget = kDefaultLpG;
+        hpGTarget = kDefaultHpG;
+        lpResTarget = 0.25f;
+        hpResTarget = 0.25f;
     }
 
     // NaN/inf recovery: one bad upstream sample would otherwise poison the

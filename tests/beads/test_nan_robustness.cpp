@@ -73,6 +73,7 @@ TEST_CASE("BeadsProcessor: NaN in every CV-ish parameter field yields finite out
     StereoFrame in[kBlock], out[kBlock];
     bool all_finite = true;
     bool had_output = false;
+    bool grain_triggered_during_nan = false;
 
     // Several blocks with real audio input: enough for grains to trigger,
     // read from the buffer, and recirculate through feedback/reverb.
@@ -83,6 +84,7 @@ TEST_CASE("BeadsProcessor: NaN in every CV-ish parameter field yields finite out
             in[i] = {v, v};
         }
         proc.p.Process(in, out, kBlock);
+        if (proc.p.GrainTriggeredThisBlock()) grain_triggered_during_nan = true;
         for (size_t i = 0; i < kBlock; ++i) {
             if (!std::isfinite(out[i].l) || !std::isfinite(out[i].r)) {
                 all_finite = false;
@@ -99,4 +101,42 @@ TEST_CASE("BeadsProcessor: NaN in every CV-ish parameter field yields finite out
     // the NaN inputs -- a fence that degenerated to "always output silence"
     // would pass the finiteness check above for the wrong reason.
     REQUIRE(had_output);
+    // Pins that grains actually fire *while* density/density_cv/pitch_cv are
+    // NaN, not merely that the dry path stayed finite: a scheduler poisoned
+    // by an un-fenced NaN density (latched_phase_ += NaN, where neither
+    // `NaN <= 0` nor `NaN >= 1` is ever true) would never trigger again, and
+    // this run would silently degrade to testing only the dry passthrough.
+    REQUIRE(grain_triggered_during_nan);
+
+    // Recovery phase: go back to sending fully-valid parameters and confirm
+    // grains still fire. This pins the "no permanent poisoning" property --
+    // a fence applied too late (e.g. only sanitizing on read, after the
+    // persistent phasor state was already NaN) could pass the checks above
+    // yet leave the scheduler dead for the rest of the object's lifetime.
+    BeadsParameters recovered = params;
+    recovered.time_cv = 0.0f;
+    recovered.size_cv = 0.0f;
+    recovered.shape_cv = 0.0f;
+    recovered.pitch_cv = 0.0f;
+    recovered.density_cv = 0.0f;
+    proc.p.SetParameters(recovered);
+
+    bool grain_triggered_after_recovery = false;
+    for (int block = 0; block < 200; ++block) {
+        for (size_t i = 0; i < kBlock; ++i) {
+            size_t n = (200 + block) * kBlock + i;
+            float v = 0.5f * std::sin(2.0 * M_PI * 440.0 * n / kSR);
+            in[i] = {v, v};
+        }
+        proc.p.Process(in, out, kBlock);
+        if (proc.p.GrainTriggeredThisBlock()) grain_triggered_after_recovery = true;
+        for (size_t i = 0; i < kBlock; ++i) {
+            if (!std::isfinite(out[i].l) || !std::isfinite(out[i].r)) {
+                all_finite = false;
+            }
+        }
+    }
+
+    REQUIRE(all_finite);
+    REQUIRE(grain_triggered_after_recovery);
 }
