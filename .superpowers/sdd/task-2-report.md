@@ -1,123 +1,55 @@
-# Task 2 Report: MF-20 NaN/inf recovery
+# Task 2 Report: MetaModule flush-to-zero
 
-## What I implemented
+## Status: DONE
 
-Added a per-modulate-block NaN/inf recovery guard to the MF-20 filter, exactly
-as specified in the brief:
+## What was done
 
-- `src/mf20/MF20Filter.hpp` — added `bool stateFinite() const` next to
-  `reset()`, checking `std::isfinite(s1) && std::isfinite(s2)` (the two TPT
-  integrator states). Public `process(in, cutoffHz, res)` signature is
-  untouched.
-- `src/mf20/engine.hpp` — added `void VoiceEngine::sanitize()` after
-  `reset()`. It checks `stateFinite()` on all four per-voice filters
-  (`lpFilter`, `hpFilter`, `lpFilterR`, `hpFilterR`) and, if any is
-  non-finite, resets all four filter states. It deliberately does **not**
-  touch the cutoff/resonance slew smoothers (per the brief's note that Task 4
-  will rename them — this task's `sanitize()` only resets the `MF20Filter`
-  integrator states, not smoother state).
-- `src/mf20/MF20Filter.cpp` — added `eng->sanitize();` in `modulate()`,
-  immediately after `if (!eng) continue;` in the per-voice loop, so recovery
-  runs once per modulate block (~2.5 ms) per active voice, not per sample.
-- `tests/mf20/test_mf20.cpp` — added `#include "../../src/mf20/engine.hpp"`
-  and the two new tests from the brief verbatim: `test_nan_recovery()` (both
-  OTA and K35 modes: finite after normal use → non-finite after a NaN sample
-  → finite again after `reset()`, with 200 finite samples following) and
-  `test_voice_sanitize()` (poison `VoiceEngine::hpFilter` with a NaN sample,
-  call `sanitize()`, confirm it's finite and stays finite for 200 samples).
-  Both registered in `main()`.
+1. **Created `src/particules/metamodule_fpu.h`** — ported verbatim from `cf74abc:src/particules/metamodule_fpu.h`
+   (the `#if defined(METAMODULE) && defined(__arm__)` VMRS/VMSR FPSCR read-modify-write, setting bits 24/25 = FZ +
+   DN). Added a doc comment (codex's version lacked one) noting that the FPSCR write intentionally mutates
+   thread-wide FPU state for the lifetime of the audio thread it's called from, and is not scoped/restored.
 
-## TDD Evidence
+2. **Wired the call into `src/particules/Particules.cpp`**:
+   - `#include "metamodule_fpu.h"` added alongside the other `particules_*` includes.
+   - `bool metamodule_fpu_configured_ = false;` member added next to `needs_calibration_` (our branch has drifted
+     from codex's — this is the nearest analogous one-time-init flag in the current struct layout).
+   - At the top of `process()`, before any other per-sample work:
+     ```cpp
+     if (!metamodule_fpu_configured_) {
+         metamodule_fpu_configured_ = true;
+         particules::EnableMetaModuleFlushToZero();
+     }
+     ```
+     Order matches the brief's Step 2 snippet (flag set before the call), which differs slightly from cf74abc's
+     own ordering (call then flag) — brief takes precedence.
 
-### RED
+## Verification (all four lanes)
 
-Command: `cd /Users/gabrielroth/Dev/RobotBoy/tests && ./run.sh`
-
-Relevant output (tests added, implementation not yet added):
-
-```
-== building mf20/test_mf20.cpp ==
-mf20/test_mf20.cpp:819:18: error: no member named 'stateFinite' in 'MF20Filter'
-  819 |         report(f.stateFinite(), b1);
-      |                ~ ^
-mf20/test_mf20.cpp:822:19: error: no member named 'stateFinite' in 'MF20Filter'
-mf20/test_mf20.cpp:824:21: error: no member named 'stateFinite' in 'MF20Filter'
-mf20/test_mf20.cpp:839:7: error: no member named 'sanitize' in 'VoiceEngine'
-mf20/test_mf20.cpp:840:26: error: no member named 'stateFinite' in 'MF20Filter'
-5 errors generated.
-```
-
-Matches the brief's expected RED state exactly (compile error on
-`stateFinite`/`sanitize`, not yet a member).
-
-### GREEN
-
-Command: `cd /Users/gabrielroth/Dev/RobotBoy/tests && ./run.sh` (exit 0)
-
-```
-NaN recovery (stateFinite + reset)
-  PASS  OTA: finite after normal use
-  PASS  OTA: non-finite after NaN input
-  PASS  OTA: finite output after reset
-  PASS  K35: finite after normal use
-  PASS  K35: non-finite after NaN input
-  PASS  K35: finite output after reset
-
-VoiceEngine::sanitize recovers poisoned voice
-  PASS  sanitize() resets non-finite filter state
-
-=======================
-39 passed, 0 failed
-```
-
-All other binaries in the run (loooop, particules, dsp_utils) also passed
-with no FAIL lines anywhere in the full `run.sh` output; overall exit code 0.
-
-### Builds
-
-- `make -C vcv -j8` — exit 0. Only pre-existing, unrelated Rack-SDK
-  deprecation warnings (`helpers.hpp`, implicit `this` capture), nothing new
-  from this change.
-- `cmake --build metamodule/build -j8` — exit 0. `RobotBoy.so` built,
-  "All symbols found!", `.mmplugin` package created successfully.
-
-## Files changed
-
-- `src/mf20/MF20Filter.hpp` — added `stateFinite()`.
-- `src/mf20/engine.hpp` — added `VoiceEngine::sanitize()`.
-- `src/mf20/MF20Filter.cpp` — call `eng->sanitize()` in `modulate()`.
-- `tests/mf20/test_mf20.cpp` — added `engine.hpp` include, two new tests,
-  registered in `main()`.
-
-Commit: `0c0c90f` — "fix: MF-20 recovers from NaN/inf filter state"
-(4 files changed, 62 insertions, matches the brief's `git add src/mf20
-tests/mf20` file scope exactly.)
+- `cd tests/beads && ./run.sh` — pass (`beads_tests` 100%, 1.13s).
+- `cd tests && ./run.sh` — pass (beads unit tests, particules CV-conditioning tests, pitch/notch map tests all green).
+- `make -C vcv -j8` — pass. Clean build; only pre-existing unrelated `-Wdeprecated-this-capture` warnings from
+  Rack SDK helpers.hpp (menu lambda captures), not from this change.
+- `cmake --build metamodule/build -j8` — pass. This is the meaningful check since the ARM branch only compiles
+  under MetaModule. Confirmed by disassembling the built object
+  (`metamodule/build/CMakeFiles/RobotBoy.dir/.../Particules.cpp.obj`): `Particules::process` opens with a guard
+  read of the `metamodule_fpu_configured_` byte, and on the first-call path executes
+  `vmrs r3, fpscr` / `orr r3, r3, #50331648` (0x3000000 = bits 24+25) / `vmsr fpscr, r3` — i.e. the flush-to-zero
+  write is actually emitted and reachable, not compiled out.
 
 ## Self-review
 
-- **Completeness**: All 6 brief steps done — failing tests written and
-  verified RED, `stateFinite()`/`sanitize()`/`modulate()` call added
-  verbatim, tests verified GREEN, both plugin builds verified, committed
-  with the exact specified message.
-- **Signature preserved**: `MF20Filter::process(in, cutoffHz, res)` public
-  signature is unchanged — `stateFinite()` is a new, separate accessor.
-- **Scope discipline**: `sanitize()` resets only the four `MF20Filter`
-  instances' integrator states (`s1`/`s2` via `reset()`); it does not touch
-  `lpCutoffSlew`/`hpCutoffSlew`/`lpResSlew`/`hpResSlew` or their targets, per
-  the brief's explicit instruction (their inputs are clamped params and stay
-  finite, and resetting them would cause a spurious parameter sweep). This
-  also satisfies the constraint that Task 4 (which renames these smoothers)
-  can land cleanly on top.
-- **Placement**: `eng->sanitize()` runs once per voice per `modulate()` call
-  (~2.5 ms cadence), not per audio sample — matches the brief's stated
-  "per-modulate-block recovery guard" performance intent, not a per-sample
-  check.
-- **Testing**: both new tests exercise real observable behavior (actual
-  NaN propagation through the TPT state-update `s = 2·mid - s`, confirmed by
-  `stateFinite()` before/after, and by checking `std::isfinite` on filter
-  outputs over 200 further samples) — not tautological. Verified they fail
-  pre-implementation (RED, captured above) and pass post-implementation
-  (GREEN, captured above).
-- **Concerns**: None. The diff matches the brief's exact code verbatim
-  (`stateFinite()`, `sanitize()`, and the `modulate()` call site), and all
-  verification gates (tests, VCV build, MetaModule build) passed cleanly.
+- Header content matches the source commit exactly aside from the added comment (no functional change).
+- Non-ARM builds (macOS VCV lane) compile the function to an empty inline no-op; verified by successful
+  `make -C vcv` build with no new warnings/errors attributable to this change.
+- Member and call placement adapted to current file (Schmitt-trigger-based gates, no `stereo_input_`) rather than
+  assuming codex's line numbers — placed next to the most similar existing one-shot-init flag
+  (`needs_calibration_`) and at the very top of `process()`, ahead of all other per-sample logic, matching intent.
+- Diff is minimal: 2 files changed, 26 insertions, 0 deletions — no unrelated changes.
+
+## Commit
+
+`8625f6c` — "perf: enable flush-to-zero on MetaModule audio thread"
+
+## Concerns
+
+None. Task complete, no blockers.

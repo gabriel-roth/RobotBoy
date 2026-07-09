@@ -86,6 +86,11 @@ struct Loooop : Module {
         engine.setSampleRate(e.sampleRate);
     }
 
+    void onReset(const ResetEvent& e) override {
+        Module::onReset(e);
+        engine.clear();   // Initialize should silence the loop too (audio-safe; bumps the display revision)
+    }
+
     void process(const ProcessArgs& args) override {
         engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On

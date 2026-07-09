@@ -25,3 +25,4 @@ Mutable-Beads-manual.pdf
 
 # archived standalone source repos (pre-merge history); see archive/README.md
 archive/
+__pycache__/
