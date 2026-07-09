@@ -24,20 +24,12 @@ BeadsProcessor::MemoryRequirements BeadsProcessor::GetMemoryRequirements(float s
         (kDefaultBufferFrames + kInterpolationTail) * 2 * sizeof(float);
     size_t reverb_bytes = kReverbBufferSize * sizeof(float);
 
-    // DRAM always includes reverb as fallback (when DTC not available)
     req.total_bytes = (kImplAlignment - 1) + impl_bytes + AlignUp(recording_bytes) + AlignUp(reverb_bytes);
-    // DTC: grain pre-fetch cache + reverb delay lines
-    req.dtc_bytes = AlignUp(sizeof(GrainDTCCache)) + AlignUp(reverb_bytes);
     req.alignment = kImplAlignment;
     return req;
 }
 
 void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
-    Init(memory, memory_size, sample_rate, nullptr, 0);
-}
-
-void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
-                           void* dtc_memory, size_t dtc_size) {
     if (!memory || memory_size == 0) return;
 
     // Verify the caller provided enough memory.
@@ -64,28 +56,9 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
     impl_->recording_buffer.Init(reinterpret_cast<float*>(ptr), kDefaultBufferFrames, 2);
     ptr += AlignUp(recording_bytes);
 
-    // --- DTC memory layout: [GrainDTCCache] [Reverb buffer] ---
-    bool use_dtc = (dtc_memory != nullptr && dtc_size >= req.dtc_bytes);
-    GrainDTCCache* dtc_cache = nullptr;
-    float* reverb_buffer = nullptr;
-
-    if (use_dtc) {
-        uint8_t* dtc_ptr = reinterpret_cast<uint8_t*>(dtc_memory);
-
-        // Grain DTC cache at start of DTC
-        dtc_cache = reinterpret_cast<GrainDTCCache*>(dtc_ptr);
-        dtc_cache->num_frames = 0;
-        dtc_ptr += AlignUp(sizeof(GrainDTCCache));
-
-        // Reverb buffer in DTC (single-cycle access)
-        reverb_buffer = reinterpret_cast<float*>(dtc_ptr);
-    } else {
-        // Fallback: reverb in DRAM
-        reverb_buffer = reinterpret_cast<float*>(ptr);
-        ptr += AlignUp(kReverbBufferSize * sizeof(float));
-    }
-
-    // Allocate reverb delay memory
+    // Reverb delay memory (DRAM)
+    float* reverb_buffer = reinterpret_cast<float*>(ptr);
+    ptr += AlignUp(kReverbBufferSize * sizeof(float));
     impl_->reverb.Init(reverb_buffer, kReverbBufferSize, sample_rate);
 
     // Set initial decimation factor (HiFi = 1x, no change from current behavior)
@@ -94,7 +67,6 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate,
 
     // Initialize sub-processors
     impl_->grain_engine.Init(sample_rate, &impl_->recording_buffer);
-    impl_->grain_engine.SetDTCCache(dtc_cache);
     impl_->saturation.Init();
     impl_->quality_processor.Init(sample_rate);
     impl_->auto_gain.Init(sample_rate);
@@ -230,8 +202,14 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
     // Closed-form equivalent of running OnePole block times: avoids
     // the O(N) loop and gives the correct end-state in one step.
     {
-        float a = 1.0f - std::pow(1.0f - 0.002f, static_cast<float>(num_frames));
-        s.smoothed_dry_wet += a * (s.params.dry_wet - s.smoothed_dry_wet);
+        // Closed-form one-pole advance for the block; the pow only reruns
+        // when the host's block size changes (it never does within a run).
+        if (num_frames != s.dry_wet_coeff_frames) {
+            s.dry_wet_coeff_frames = num_frames;
+            s.dry_wet_coeff =
+                1.0f - std::pow(1.0f - 0.002f, static_cast<float>(num_frames));
+        }
+        s.smoothed_dry_wet += s.dry_wet_coeff * (s.params.dry_wet - s.smoothed_dry_wet);
     }
     float dw_phase = s.smoothed_dry_wet * 0.25f;
     float dry_gain = CosLookup(dw_phase);

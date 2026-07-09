@@ -23,18 +23,13 @@ namespace beads {
 class BeadsProcessor {
 public:
     struct MemoryRequirements {
-        size_t total_bytes;     // DRAM requirement (includes reverb as fallback)
-        size_t dtc_bytes;       // DTC requirement (grain cache + reverb)
+        size_t total_bytes;     // DRAM requirement (includes reverb)
         size_t alignment;
     };
 
     static MemoryRequirements GetMemoryRequirements(float sample_rate);
 
-    // Init with DRAM only (reverb in DRAM, no grain DTC cache)
     void Init(void* memory, size_t memory_size, float sample_rate);
-    // Init with DRAM + optional DTC (reverb + grain cache in DTC if provided)
-    void Init(void* memory, size_t memory_size, float sample_rate,
-              void* dtc_memory, size_t dtc_size);
     void SetParameters(const BeadsParameters& params);
     void Process(const StereoFrame* input, StereoFrame* output, size_t num_frames);
 

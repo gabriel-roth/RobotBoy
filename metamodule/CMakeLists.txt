@@ -36,7 +36,6 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/vendor/beads_dsp/src/quality/quality_processor.cpp
     ${SRC}/src/vendor/beads_dsp/src/random/attenurandomizer.cpp
     ${SRC}/src/vendor/beads_dsp/src/random/random.cpp
-    ${SRC}/src/vendor/beads_dsp/src/wavetable/wavetable_oscillator.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src

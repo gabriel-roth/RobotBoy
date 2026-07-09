@@ -32,7 +32,7 @@ static inline float SoftLimit(float x) {
 
     float sign = (x > 0.0f) ? 1.0f : -1.0f;
     float excess = ax - kThreshold;
-    return sign * (kThreshold + kHeadroom * std::tanh(excess / kHeadroom));
+    return sign * (kThreshold + kHeadroom * SoftClip(excess / kHeadroom));
 }
 
 void AutoGain::Init(float sample_rate) {
@@ -115,7 +115,8 @@ StereoFrame AutoGain::Process(StereoFrame input, float manual_gain_db, bool auto
         }
     } else if (state_ == State::kLocked) {
         // Check for silence -> sound transition
-        bool is_silent = peak < FastDbToGain(kMinGainDb);
+        static const float kSilenceGain = FastDbToGain(kMinGainDb);
+        bool is_silent = peak < kSilenceGain;
 
         if (is_silent) {
             if (silence_samples_ < silence_threshold_samples_) {

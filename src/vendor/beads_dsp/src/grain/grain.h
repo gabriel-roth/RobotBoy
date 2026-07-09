@@ -9,91 +9,6 @@
 
 namespace beads {
 
-// DTC pre-fetch cache for grain buffer reads.
-// Before each grain's block, a contiguous region of the recording buffer
-// is copied into this small DTC-resident struct. Grain processing then
-// reads from the linear cache (single-cycle DTC) instead of random DRAM.
-struct GrainDTCCache {
-    // 64 samples * max pitch 4.5x + Hermite margin + rounding = ~300 frames
-    static constexpr int kMaxCacheFrames = 300;
-    float data[kMaxCacheFrames * 2];  // stereo interleaved
-    float base_position;              // buffer position of cache frame 0
-    float buf_size;                   // recording buffer size in frames
-    int num_frames;                   // frames actually cached (0 = cache miss)
-
-    // Fill cache with the buffer region the grain will read this block.
-    // Returns false if the required range exceeds kMaxCacheFrames (fallback).
-    inline bool Prefetch(const RecordingBuffer& buffer, float read_pos,
-                         float phase_inc, int num_samples,
-                         int pre_delay_remaining) {
-        buf_size = static_cast<float>(buffer.size());
-        int buf_size_int = static_cast<int>(buffer.size());
-
-        int active_samples = num_samples - pre_delay_remaining;
-        if (active_samples <= 0) {
-            num_frames = 0;
-            return true;  // nothing to read, no fallback needed
-        }
-
-        float end_pos = read_pos + phase_inc * static_cast<float>(active_samples - 1);
-        float min_pos, max_pos;
-        if (phase_inc >= 0.0f) {
-            min_pos = read_pos;
-            max_pos = end_pos;
-        } else {
-            min_pos = end_pos;
-            max_pos = read_pos;
-        }
-
-        // Hermite needs frames at -1 before min and +2 after max.
-        // Floor for negative: static_cast truncates toward zero; adjust if fractional.
-        int min_int = static_cast<int>(min_pos);
-        if (min_pos < static_cast<float>(min_int)) min_int--;  // proper floor
-        int start_frame = min_int - 1;
-        int end_frame = static_cast<int>(max_pos) + 4;  // ceil + 2 for Hermite + margin
-
-        num_frames = end_frame - start_frame;
-        if (num_frames > kMaxCacheFrames || num_frames < 4) {
-            num_frames = 0;
-            return false;  // signal fallback to direct DRAM reads
-        }
-
-        // Normalize base to [0, buf_size)
-        base_position = static_cast<float>(
-            ((start_frame % buf_size_int) + buf_size_int) % buf_size_int);
-
-        buffer.CopyRegionTo(start_frame, num_frames, data);
-        return true;
-    }
-
-    // Read from cache using Hermite interpolation.
-    // buf_pos is in original buffer coordinates.
-    inline void ReadHermiteStereo(float buf_pos, float* out_l, float* out_r) const {
-        float local = buf_pos - base_position;
-        if (local < 0.0f) local += buf_size;
-        int pos_int = static_cast<int>(local);
-        float frac = local - static_cast<float>(pos_int);
-        const float* p_1 = &data[(pos_int - 1) * 2];
-        const float* p0  = &data[pos_int * 2];
-        const float* p1  = &data[(pos_int + 1) * 2];
-        const float* p2  = &data[(pos_int + 2) * 2];
-        *out_l = InterpolateHermite(p_1[0], p0[0], p1[0], p2[0], frac);
-        *out_r = InterpolateHermite(p_1[1], p0[1], p1[1], p2[1], frac);
-    }
-
-    // Read from cache using linear interpolation (~3x cheaper).
-    inline void ReadLinearStereo(float buf_pos, float* out_l, float* out_r) const {
-        float local = buf_pos - base_position;
-        if (local < 0.0f) local += buf_size;
-        int pos_int = static_cast<int>(local);
-        float frac = local - static_cast<float>(pos_int);
-        const float* p0 = &data[pos_int * 2];
-        const float* p1 = &data[(pos_int + 1) * 2];
-        *out_l = p0[0] + frac * (p1[0] - p0[0]);
-        *out_r = p0[1] + frac * (p1[1] - p0[1]);
-    }
-};
-
 class Grain {
 public:
     struct GrainParameters {
@@ -198,72 +113,15 @@ public:
         }
     }
 
-    // Process a full block reading from a DTC pre-fetch cache.
-    // The cache must have been filled via Prefetch() before calling.
-    // use_linear: true for linear interpolation (cheaper, used under load).
-    inline void ProcessBlockCached(const GrainDTCCache& cache, float buf_size_f,
-                                   StereoFrame* output, size_t num_frames) {
-        if (!active_) return;
-
-        for (size_t i = 0; i < num_frames; ++i) {
-            if (!active_) break;
-
-            if (pre_delay_ > 0) {
-                --pre_delay_;
-                continue;  // output already zeroed by caller
-            }
-
-            if (envelope_phase_ >= 1.0f || !std::isfinite(envelope_phase_)) {
-                active_ = false;
-                break;
-            }
-
-            float env = ComputeEnvelope(envelope_phase_);
-            envelope_phase_ += envelope_increment_;
-
-            float sample_l, sample_r;
-            if (use_linear_) {
-                cache.ReadLinearStereo(read_position_, &sample_l, &sample_r);
-            } else {
-                cache.ReadHermiteStereo(read_position_, &sample_l, &sample_r);
-            }
-
-            read_position_ += phase_increment_;
-            if (buf_size_f > 0.0f) {
-                while (read_position_ >= buf_size_f) read_position_ -= buf_size_f;
-                while (read_position_ < 0.0f) read_position_ += buf_size_f;
-            }
-
-            float out_l_val = sample_l * env * gain_ * pan_l_;
-            float out_r_val = sample_r * env * gain_ * pan_r_;
-
-            if (!std::isfinite(out_l_val) || !std::isfinite(out_r_val)) {
-                active_ = false;
-                return;
-            }
-
-            if (pending_kill_) {
-                if (ApplyPendingKill(out_l_val, out_r_val)) break;
-            } else {
-                prev_mono_ = out_l_val + out_r_val;
-            }
-
-            output[i].l += out_l_val;
-            output[i].r += out_r_val;
-        }
-    }
-
     bool active() const { return active_; }
     bool pending_kill() const { return pending_kill_; }
     float read_position() const { return read_position_; }
     float phase_increment() const { return phase_increment_; }
     int pre_delay_remaining() const { return pre_delay_; }
-    void set_use_linear(bool v) { use_linear_ = v; }
 
 private:
     bool active_ = false;
     bool pending_kill_ = false;
-    bool use_linear_ = false;
 
     // Zero-crossing kill with fallback fade
     static constexpr int kZeroCrossDeadline = 32;

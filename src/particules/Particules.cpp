@@ -98,13 +98,11 @@ struct Particules : Module {
 	dsp::SchmittTrigger seed_gate_;     // same for SEED
 	int  pitch_lock_ = 0;  // 0=off, 1=octaves, 2=octaves+5ths
 	bool grain_trigger_out_ = false;
-	bool stereo_input_ = false;
 	bool auto_gain_ = true;
 	float manual_gain_db_ = 0.f;
 	bool prev_in_l_connected_ = false;
 	bool prev_in_r_connected_ = false;
 	bool needs_calibration_ = true;  // Calibrate on first process() if auto_gain_
-	float grain_led_ = 0.f;
 
 	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
@@ -303,7 +301,6 @@ struct Particules : Module {
 		params_.reverb   = clamp(params[REVERB_PARAM].getValue()   + inputs[REVERB_INPUT].getVoltage()   * 0.2f * params[REVERB_AMT_PARAM].getValue(),   0.f, 1.f);
 
 		params_.gate           = block_runtime_.ConsumeSeedGateLatch();
-		params_.seed_connected = inputs[SEED_INPUT].isConnected();
 		params_.freeze = frozen;
 
 		if (seed_state_ == 0) {
@@ -315,9 +312,6 @@ struct Particules : Module {
 		}
 		params_.quality_mode = static_cast<beads::QualityMode>(quality_state_);
 
-		if (!params_.freeze)
-			stereo_input_ = inputs[IN_R_INPUT].isConnected();
-		params_.stereo_input   = stereo_input_;
 		params_.auto_gain      = auto_gain_;
 		params_.manual_gain_db = auto_gain_ ? NAN : manual_gain_db_;
 	}

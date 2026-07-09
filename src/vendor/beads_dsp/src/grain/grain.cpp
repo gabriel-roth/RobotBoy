@@ -8,7 +8,6 @@ namespace beads {
 void Grain::Init() {
     active_ = false;
     pending_kill_ = false;
-    use_linear_ = false;
     kill_deadline_ = 0;
     fallback_fade_ = false;
     fallback_counter_ = 0;

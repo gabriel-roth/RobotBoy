@@ -237,8 +237,6 @@ void GrainEngine::Process(const BeadsParameters& params,
         if (active_before >= max_active) break;
         Grain* g = AllocateGrain();
         if (g) {
-            // Adaptive interpolation: use cheaper linear when under load
-            g->set_use_linear(render_load_tier_ == RenderLoadTier::kHigh);
             auto gp = ComputeGrainParams(params, trigger_samples[t]);
             g->Start(gp);
             ++active_before;
@@ -261,27 +259,7 @@ void GrainEngine::Process(const BeadsParameters& params,
         if (!grains_[g].active()) continue;
         ++active_count;
 
-        if (dtc_cache_) {
-            // Pre-fetch the buffer region this grain will read into DTC
-            bool cached = dtc_cache_->Prefetch(
-                *buffer_, grains_[g].read_position(),
-                grains_[g].phase_increment(),
-                static_cast<int>(num_frames),
-                grains_[g].pre_delay_remaining());
-            if (cached) {
-                // num_frames may be 0 when the grain is entirely in
-                // pre-delay.  ProcessBlockCached still needs to run so
-                // the pre_delay counter is decremented; it never reads
-                // from the cache during pre-delay samples.
-                grains_[g].ProcessBlockCached(*dtc_cache_, buf_size_f,
-                                              output, num_frames);
-            } else {
-                // Cache overflow: fall back to direct DRAM reads
-                grains_[g].ProcessBlock(*buffer_, buf_size_f, output, num_frames);
-            }
-        } else {
-            grains_[g].ProcessBlock(*buffer_, buf_size_f, output, num_frames);
-        }
+        grains_[g].ProcessBlock(*buffer_, buf_size_f, output, num_frames);
     }
 
     // --- Overlap normalization (matches Clouds approach) ---

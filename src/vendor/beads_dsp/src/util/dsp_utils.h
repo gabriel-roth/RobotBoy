@@ -23,18 +23,6 @@ inline float Crossfade(float a, float b, float mix) {
     return a + (b - a) * mix;
 }
 
-// Equal-power crossfade (stereo)
-// Uses CosLookup: mix 0..1 maps to phase 0..0.25 (quarter cycle).
-inline StereoFrame EqualPowerCrossfade(StereoFrame dry, StereoFrame wet, float mix) {
-    float phase = mix * 0.25f;  // 0..0.25 = 0..pi/2
-    float dry_gain = CosLookup(phase);
-    float wet_gain = CosLookup(phase - 0.25f);  // sin = cos(x - pi/2)
-    return {
-        dry.l * dry_gain + wet.l * wet_gain,
-        dry.r * dry_gain + wet.r * wet_gain
-    };
-}
-
 inline float SemitonesToRatio(float semitones) {
     return std::exp2(semitones / 12.0f);
 }
@@ -87,17 +75,6 @@ inline float MuLawExpand(float x, float mu = 255.0f) {
     // For mu=64: log(65) = 4.17438..
     float log_1_plus_mu = (mu == 64.0f) ? 4.17438726989f : logf(1.0f + mu);
     return sign * (expf(abs_x * log_1_plus_mu) - 1.0f) / mu;
-}
-
-// Fast approximation of pow(base, exponent) for base in [0, 1].
-// Uses IEEE 754 float bit manipulation (~3-5 cycles on M7).
-// Accurate to within ~5% for typical steepness values 1-8.
-inline float FastPowUnit(float base, float exponent) {
-    if (base <= 0.0f) return 0.0f;  // 0^n = 0; also prevents int32 overflow below
-    union { float f; int32_t i; } v;
-    v.f = base;
-    v.i = static_cast<int32_t>(exponent * static_cast<float>(v.i - 1065353216) + 1065353216.0f);
-    return (v.f >= 0.0f) ? v.f : 0.0f;  // >= rejects NaN (which v.f < 0 does not)
 }
 
 } // namespace beads

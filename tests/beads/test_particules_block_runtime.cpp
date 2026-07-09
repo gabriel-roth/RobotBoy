@@ -13,7 +13,11 @@ TEST_CASE("ParticulesBlockRuntime: outputs samples in processed-block order", "[
 
     runtime.PushInputSample({1.0f, 10.0f});
     REQUIRE(runtime.BlockReady() == false);
-    REQUIRE(runtime.OutputIndex() == 1);
+    // OutputIndex() is advanced only by ReadOutputSample()/CommitProcessedBlock();
+    // PushInputSample() no longer writes it (that assignment was a dead
+    // write always overwritten by the real caller's Read-before-Push order,
+    // and was transiently out-of-range at the last index before wraparound).
+    REQUIRE(runtime.OutputIndex() == 0);
 
     runtime.PushInputSample({2.0f, 20.0f});
     runtime.PushInputSample({3.0f, 30.0f});

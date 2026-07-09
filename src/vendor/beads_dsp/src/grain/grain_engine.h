@@ -27,9 +27,6 @@ public:
     int ActiveGrainCount() const;
     bool GrainTriggeredThisBlock() const { return scheduler_.GrainTriggeredThisBlock(); }
 
-    // Set DTC cache pointer (nullptr to disable DTC reads)
-    void SetDTCCache(GrainDTCCache* cache) { dtc_cache_ = cache; }
-
     // Scale quantization
     void LoadScale(const double* ratios, uint32_t num_notes) { pitch_quantizer_.loadRatios(ratios, num_notes); }
     void ClearScale() { pitch_quantizer_.clear(); }
@@ -59,9 +56,6 @@ private:
 
     // Tape mode wow/flutter pitch modulation (ratio, 1.0 = none)
     float pitch_mod_ratio_ = 1.0f;
-
-    // DTC pre-fetch cache (nullptr if DTC not available)
-    GrainDTCCache* dtc_cache_ = nullptr;
 
     // Cache for grain_dur calculation: avoid exp2+log2f every sample.
     // Decimation ensures we only recompute every N samples even when

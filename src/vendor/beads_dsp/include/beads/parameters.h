@@ -39,7 +39,6 @@ struct BeadsParameters {
     // Gate/clock/freeze
     bool gate = false;
     bool freeze = false;
-    bool seed_connected = false;         // true when SEED jack is patched
     float clock_interval_samples = 0.0f; // measured clock period; 0 = unclocked
     TriggerMode trigger_mode = TriggerMode::kLatched;
     QualityMode quality_mode = QualityMode::kHiFi;
@@ -51,7 +50,6 @@ struct BeadsParameters {
     // Input config
     float manual_gain_db = NAN;  // NaN = auto-gain
     bool auto_gain = true;       // true = calibrate-and-lock auto-gain
-    bool stereo_input = true;
 
     // Pitch lock quantization (applied as the final step after AR and CV)
     // 0 = off, 1 = octaves only, 2 = octaves + perfect 5ths

@@ -54,6 +54,11 @@ struct BeadsProcessor::Impl {
     float smoothed_dry_wet = 0.5f;
     float smoothed_feedback = 0.0f;
 
+    // Cached closed-form one-pole coefficient for smoothed_dry_wet; only
+    // recomputed when the host's block size changes (never within a run).
+    size_t dry_wet_coeff_frames = 0;
+    float  dry_wet_coeff = 0.0f;
+
     // Work buffers for Process() — moved here from the stack to avoid
     // overflowing the audio-thread stack on constrained targets (e.g. NT).
     StereoFrame wet_buf[kMaxBlockSize];

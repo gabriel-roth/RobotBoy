@@ -14,7 +14,6 @@ public:
 
     bool PushInputSample(beads::StereoFrame in) {
         input_buf_[input_index_] = in;
-        output_index_ = input_index_ + 1;
         ++input_index_;
         if (input_index_ >= BlockSize) {
             input_index_ = 0;
@@ -70,7 +69,9 @@ public:
             grain_led_ = 0.0f;
             return;
         }
-        grain_led_ *= std::pow(0.9999f, static_cast<float>(BlockSize));
+        // pow of two compile-time constants; a per-sample powf in the VCV build.
+        static const float kDecay = std::pow(0.9999f, static_cast<float>(BlockSize));
+        grain_led_ *= kDecay;
     }
 
     // Per-sample SEED gate latch. The engine only sees the gate once per
