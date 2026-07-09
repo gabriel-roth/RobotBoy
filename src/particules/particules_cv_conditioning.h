@@ -5,16 +5,19 @@
 // CV-conditioner settings for the Particules wrapper.
 //
 // The wrapper steps each beads::ControlConditioner once per wrapper block —
-// every sample in VCV (block 1), every 64 samples on MetaModule. These
-// helpers convert per-sample-tuned constants into equivalents for the actual
-// block size so both platforms condition CVs on the same timescale.
+// every 64 samples, on both VCV and MetaModule. These helpers convert
+// per-sample-tuned constants into equivalents for the actual block size so
+// both platforms condition CVs on the same timescale.
 namespace particules {
 
 // Sample-and-hold decimation in conditioner *steps*: targets one CV sample
 // per ~8 audio samples. For block sizes >= 8 every step already spans >= 8
-// samples, so no further decimation.
+// samples, so no further decimation. Block size is clamped to >= 1 first
+// (avoids a divide-by-zero for a hypothetical 0-sized block; every block
+// size actually in use is >= 1, so the clamp never changes the result).
 constexpr int CvDecimationForBlock(std::size_t block_size) {
-    return block_size >= 8 ? 1 : static_cast<int>(8 / block_size);
+    const std::size_t effective = block_size < 1 ? 1 : block_size;
+    return effective >= 8 ? 1 : static_cast<int>(8 / effective);
 }
 
 // Convert a per-sample one-pole coefficient into the per-block equivalent:

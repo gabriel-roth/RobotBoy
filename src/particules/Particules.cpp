@@ -16,11 +16,10 @@
 #endif
 #endif
 
-#ifdef METAMODULE
+// One block size for both hosts: matches MetaModule exactly (identical CV
+// conditioning cadence) and amortizes updateSlowParams/SetParameters ~64×
+// on VCV. Costs 64 samples of I/O latency (1.3 ms @ 48 kHz).
 static constexpr size_t kWrapperBlockSize = 64;
-#else
-static constexpr size_t kWrapperBlockSize = 1;
-#endif
 static_assert(kWrapperBlockSize <= beads::kMaxBlockSize,
 	"Particules wrapper block size must not exceed beads::kMaxBlockSize");
 
