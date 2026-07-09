@@ -21,6 +21,14 @@ int main() {
     check(near(loooop::normalizedControl(0.9f, 5.0f), 1.0f), "normalized control clamps");
     check(near(loooop::panControl(0.0f, 2.5f), 0.5f), "pan CV scaling");
 
+    // NaN CV must land on a clamp bound (rack::clamp semantics), never
+    // propagate into the engine. fmax(lo, fmin(NaN, hi)) == hi.
+    const float nan = std::nanf("");
+    check(near(loooop::speedFromControls(1.0f, nan), 2.0f), "NaN linear speed CV clamps");
+    check(near(loooop::speedFromVOct(1.0f, nan), 16.0f), "NaN V/oct speed CV clamps");
+    check(near(loooop::normalizedControl(0.5f, nan), 1.0f), "NaN normalized CV clamps");
+    check(near(loooop::panControl(0.0f, nan), 1.0f), "NaN pan CV clamps");
+
     auto leftOnly = loooop::normalledStereo(true, 0.25f, false, 0.75f);
     check(near(leftOnly.l, 0.25f) && near(leftOnly.r, 0.25f), "left input normals to right");
     auto rightOnly = loooop::normalledStereo(false, 0.25f, true, 0.75f);
