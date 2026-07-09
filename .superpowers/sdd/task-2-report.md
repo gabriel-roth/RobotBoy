@@ -1,82 +1,123 @@
-# Task 2 Report — MetaModule registration spike (GATE)
+# Task 2 Report: MF-20 NaN/inf recovery
 
-**Status: DONE_WITH_CONCERNS** — the gate is met at the sanctioned fallback level (single `init`, all four modules registered, links + all firmware symbols resolve). Live sim load was not performed because it is impossible for a `.mmplugin` and out of scope to drive headlessly (see "Simulator" below).
+## What I implemented
 
-## Result
+Added a per-modulate-block NaN/inf recovery guard to the MF-20 filter, exactly
+as specified in the brief:
 
-One `.mmplugin` (`metamodule/metamodule-plugins/Foobar.mmplugin`) builds and links with a **single exported `init`** that registers **all four** modules:
-- **Loooop / Löp** via the native `SmartCoreProcessor` cores (`register_loooop_modules()` / `register_lop_modules()` → `register_module<Core,Info>(...)`).
-- **MF-20 / Particules** via the VCV adapter (`pluginInstance->addModel(...)`, which calls `register_module` internally).
+- `src/mf20/MF20Filter.hpp` — added `bool stateFinite() const` next to
+  `reset()`, checking `std::isfinite(s1) && std::isfinite(s2)` (the two TPT
+  integrator states). Public `process(in, cutoffHz, res)` signature is
+  untouched.
+- `src/mf20/engine.hpp` — added `void VoiceEngine::sanitize()` after
+  `reset()`. It checks `stateFinite()` on all four per-voice filters
+  (`lpFilter`, `hpFilter`, `lpFilterR`, `hpFilterR`) and, if any is
+  non-finite, resets all four filter states. It deliberately does **not**
+  touch the cutoff/resonance slew smoothers (per the brief's note that Task 4
+  will rename them — this task's `sanitize()` only resets the `MF20Filter`
+  integrator states, not smoother state).
+- `src/mf20/MF20Filter.cpp` — added `eng->sanitize();` in `modulate()`,
+  immediately after `if (!eng) continue;` in the per-voice loop, so recovery
+  runs once per modulate block (~2.5 ms) per active voice, not per sample.
+- `tests/mf20/test_mf20.cpp` — added `#include "../../src/mf20/engine.hpp"`
+  and the two new tests from the brief verbatim: `test_nan_recovery()` (both
+  OTA and K35 modes: finite after normal use → non-finite after a NaN sample
+  → finite again after `reset()`, with 200 finite samples following) and
+  `test_voice_sanitize()` (poison `VoiceEngine::hpFilter` with a NaN sample,
+  call `sanitize()`, confirm it's finite and stays finite for 200 samples).
+  Both registered in `main()`.
 
-## Exact build command
+## TDD Evidence
 
-```bash
-cd ~/Dev/Foobar/metamodule
-cmake -B build -G "Unix Makefiles" -DMETAMODULE_SDK_DIR=$HOME/Dev/metamodule-plugin-sdk
-cmake --build build
+### RED
+
+Command: `cd /Users/gabrielroth/Dev/RobotBoy/tests && ./run.sh`
+
+Relevant output (tests added, implementation not yet added):
+
+```
+== building mf20/test_mf20.cpp ==
+mf20/test_mf20.cpp:819:18: error: no member named 'stateFinite' in 'MF20Filter'
+  819 |         report(f.stateFinite(), b1);
+      |                ~ ^
+mf20/test_mf20.cpp:822:19: error: no member named 'stateFinite' in 'MF20Filter'
+mf20/test_mf20.cpp:824:21: error: no member named 'stateFinite' in 'MF20Filter'
+mf20/test_mf20.cpp:839:7: error: no member named 'sanitize' in 'VoiceEngine'
+mf20/test_mf20.cpp:840:26: error: no member named 'stateFinite' in 'MF20Filter'
+5 errors generated.
 ```
 
-## Final build output (tail)
+Matches the brief's expected RED state exactly (compile error on
+`stateFinite`/`sanitize`, not yet a member).
+
+### GREEN
+
+Command: `cd /Users/gabrielroth/Dev/RobotBoy/tests && ./run.sh` (exit 0)
 
 ```
-   text     data     bss     dec     hex  filename
- 210759    32980      96  243835   3b87b  .../build/Foobar.so
-Checking if symbols in .../build/Foobar.so would be resolved
-All symbols found!
-------------------
-Creating plugin at .../metamodule/metamodule-plugins/Foobar.mmplugin
-[100%] Built target plugin
+NaN recovery (stateFinite + reset)
+  PASS  OTA: finite after normal use
+  PASS  OTA: non-finite after NaN input
+  PASS  OTA: finite output after reset
+  PASS  K35: finite after normal use
+  PASS  K35: non-finite after NaN input
+  PASS  K35: finite output after reset
+
+VoiceEngine::sanitize recovers poisoned voice
+  PASS  sanitize() resets non-finite filter state
+
+=======================
+39 passed, 0 failed
 ```
 
-`All symbols found!` is the SDK's own `check_syms.py` confirming every symbol the plugin imports exists in the firmware API table (`api-symbols.txt`).
+All other binaries in the run (loooop, particules, dsp_utils) also passed
+with no FAIL lines anywhere in the full `run.sh` output; overall exit code 0.
 
-## Verification method — nm / readelf evidence (fallback gate)
+### Builds
 
-From `build/Foobar-debug.so.nm` / `.readelf`:
+- `make -C vcv -j8` — exit 0. Only pre-existing, unrelated Rack-SDK
+  deprecation warnings (`helpers.hpp`, implicit `this` capture), nothing new
+  from this change.
+- `cmake --build metamodule/build -j8` — exit 0. `RobotBoy.so` built,
+  "All symbols found!", `.mmplugin` package created successfully.
 
-- **Exactly one defined global `init`:** `0000a60c T init`. In `.dynsym`: `FUNC GLOBAL DEFAULT ... init` at the same address 0xa60c (satisfies `-Wl,--require-defined=init`). No other defined `init`; `init_Loooop`/`init_Lop` are absent (correctly compiled out by the `FOOBAR_COMBINED` guard).
-- **Single init → all four register paths:**
-  - `init_Foobar(rack::plugin::Plugin*)` present, called by `init`.
-  - `MetaModule::register_loooop_modules()` and `MetaModule::register_lop_modules()` present.
-  - `register_module<MetaModule::LoooopCore, LoooopInfo>` and `register_module<MetaModule::LopCore, LopInfo>` template instantiations present (native cores linked in).
-  - `modelMF20Filter`, `modelParticules` present; `rack::plugin::Plugin::addModel(...)` referenced (adapter path linked in; addModel resolved by firmware at load).
-- **Package contents** (`tar tf Foobar.mmplugin`): `Foobar.so`, `plugin.json`, `plugin-mm.json`, faceplates `MF20Filter.png`, `Particules.png`, `Loooop/Loooop.png`, `Loooop/Lop.png`, `SDK-2.2`, `presets/`.
+## Files changed
 
-## How the mechanism actually works (verified against the SDK)
+- `src/mf20/MF20Filter.hpp` — added `stateFinite()`.
+- `src/mf20/engine.hpp` — added `VoiceEngine::sanitize()`.
+- `src/mf20/MF20Filter.cpp` — call `eng->sanitize()` in `modulate()`.
+- `tests/mf20/test_mf20.cpp` — added `engine.hpp` include, two new tests,
+  registered in `main()`.
 
-The brief's premise (native + adapter share one registry) is correct, but two details in the brief's literal `register.cc`/`plugin.cpp` were wrong and were corrected:
+Commit: `0c0c90f` — "fix: MF-20 recovers from NaN/inf filter state"
+(4 files changed, 62 insertions, matches the brief's `git add src/mf20
+tests/mf20` file scope exactly.)
 
-1. **`init` signature / plugin bootstrap.** The SDK declares the entry point as
-   `extern "C" __attribute__((visibility("default"))) void init(rack::plugin::Plugin* plugin);`
-   in `rack-interface/include/plugin/callbacks.hpp`. So the exported unmangled `init` symbol is the *`Plugin*`-taking* function, and the firmware calls it with a `Plugin` **already populated from `plugin.json`** (brand slug `Foobar`). The brief's no-arg `extern "C" void init()` that constructs its own `static rack::Plugin plugin;` would have registered the adapter modules under an **empty brand slug** (addModel derives the brand from the plugin's slug). Corrected to define `void init(rack::plugin::Plugin* p)`, matching the SDK declaration. Confirmed against the working standalone MF-20 build, whose `.so` exports exactly one `T init` for its `void init(Plugin*)`.
+## Self-review
 
-## Non-trivial fixes made to the brief's file contents (and why)
-
-1. **`register.cc` uses `init(rack::plugin::Plugin* p)`**, not no-arg `init()` + self-constructed `Plugin` (reason above). It just calls `init_Foobar(p)`.
-2. **`src/plugin.cpp` MM branch does NOT `addModel(modelLoooop/modelLop)`.** Those VCV `Model*` live in `Loooop.cpp`/`Lop.cpp`, which are **not** compiled into the MM build — adding them would be undefined symbols. The native cores register Loooop/Löp instead. (The brief's Step 4 note already anticipated that `modelLoooop/modelLop` are VCV-only.) All registration for the MM build now lives in `init_Foobar` (natives + adapters), so the same function serves both the `.mmplugin` `init()` and the simulator's built-in `init_Foobar` dispatch.
-3. **`register_loooop_modules()` was `static`** in `LoooopCore.cc` (internal linkage) — `register.cc`/`plugin.cpp` in other TUs could not link against it. Removed `static`.
-4. **Native register brand `"Loooop"` → `"Foobar"`** in `LoooopCore.cc` and `LopCore.cc`, so Loooop/Löp group under the same brand as the adapter modules (adapters get their brand from the plugin slug `Foobar`). See concern #1.
-5. **`LoooopCore.cc` bottom `init` block guarded with `#ifndef FOOBAR_COMBINED`** (per brief Step 7) so it defines neither `extern "C" init()` nor `init_Loooop` in the combined build; `register.cc` owns `init`.
-6. **`register.cc` guards its `init` and `pluginInstance` definitions with `#ifndef SIMULATOR`.** In the simulator built-in build the sim generates a direct `init_Foobar(&plugin)` call, provides `pluginInstance`, and links all built-in plugins together — a bare `init` or a second `pluginInstance` there would collide. This makes the source work in all three modes (VCV / `.mmplugin` / sim built-in) without further edits.
-7. **Vendored include-path fixes (Task 1 left these broken for the new directory layout):**
-   - `src/mf20/MF20Filter.cpp` and `src/mf20/engine.hpp`: `"../MF20Filter.hpp"` → `"MF20Filter.hpp"` (header is now a sibling under `src/mf20/`).
-   - `metamodule/loooop/LoooopCore.cc` & `LopCore.cc`: `"../src/dsp/LoopEngine.hpp"` → `"dsp/LoopEngine.hpp"`, `"../src/display/LoopWaveformRenderer.hpp"` → `"display/LoopWaveformRenderer.hpp"` (resolved via `-I src/loooop`).
-   - `src/particules/Particules.cpp`: `"../nosuch_texture/beads_dsp/include/beads/beads.h"` → `"beads/beads.h"` (via `-I .../beads_dsp/include`); `"../nosuch_texture/beads_dsp/src/util/control_conditioner.h"` → `"../vendor/beads_dsp/src/util/control_conditioner.h"`.
-   - `src/particules/particules_block_runtime.h`: `"../nosuch_texture/beads_dsp/include/beads/types.h"` → `"beads/types.h"`.
-8. **Assets:** created `metamodule/assets/Loooop/` containing `Loooop.png` and `Lop.png`, because the native cores' `png_filename` is `"Loooop/Loooop.png"` / `"Loooop/Lop.png"` and `create_plugin` copies `SOURCE_ASSETS` to the package root verbatim (no brand prefix).
-
-## Simulator
-
-The `build-simulator` skill is explicit: **the simulator cannot load `.mmplugin` files at runtime.** The only sim path is compiling a plugin *into* the simulator binary as a built-in, which:
-- is native-compiled against a "fake SDK" and shares a single `pluginInstance` across built-in plugins (a Task-4 firmware-integration concern), and
-- opens a GUI window that a human must navigate to instantiate modules — not headlessly verifiable.
-
-This is the "simulator harness too involved to drive headlessly" case the brief's fallback explicitly allows, so I stopped at the nm/readelf gate. I did the `register.cc`/`plugin.cpp` restructure (fix #2, #6) specifically so the built-in path (`init_Foobar` registers all four; `SIMULATOR` guard) is ready for Task 4 to drive when a human is available.
-
-## Concerns for later tasks
-
-1. **Brand-slug unification (done here, verify downstream).** Native cores now register under `"Foobar"` to match the adapter modules and `plugin.json`/`plugin-mm.json` (`MetaModuleBrandSlug: "Foobar"`). If any later param/asset tooling keys off the old `"Loooop"` brand, update it. The looper faceplate paths remain `"Loooop/*.png"` (independent of brand); assets are laid out accordingly.
-2. **Faceplate assets for the adapter modules.** MF-20/Particules widgets call `asset::plugin(pluginInstance, "res/*.svg")`, but the MM package ships PNGs (`MF20Filter.png`, `Particules.png`) at the root, mirroring the working standalone builds. This spike did not verify on-device panel rendering for the combined plugin; confirm in Task 3/4 (panel/asset work). Particules also historically shipped a `bogaudio/` asset subdir and its sibling modules (Ondes/Retours) — only `Particules` is vendored/registered here, which is intended.
-3. **`Particules.cpp` uses `<malloc.h>`** (line ~12). Fine for the ARM `.mmplugin` build; it will break a *native macOS* simulator built-in build (`<malloc.h>` doesn't exist on macOS — the skill notes this). Task 4 will need a guard (e.g. `<malloc/malloc.h>` under `defined(__APPLE__)`) before the sim built-in build.
-4. **`FOOBAR_COMBINED` + `METAMODULE_BUILTIN` are both defined by our CMakeLists**, while the sim also defines `METAMODULE_BUILTIN`/`SIMULATOR`. The three-mode guard scheme (VCV: neither; `.mmplugin`: `METAMODULE_BUILTIN`+`FOOBAR_COMBINED`, no `SIMULATOR`; sim built-in: `+SIMULATOR`) is what makes the shared source compile everywhere — keep it intact when editing these files.
-5. **VCV build path (Task 4) is untested here.** `src/plugin.cpp`'s `#else` branch registers all four VCV models and expects `Loooop.cpp`/`Lop.cpp` to be compiled (they are not part of the MM target). That is Task 4's responsibility.
+- **Completeness**: All 6 brief steps done — failing tests written and
+  verified RED, `stateFinite()`/`sanitize()`/`modulate()` call added
+  verbatim, tests verified GREEN, both plugin builds verified, committed
+  with the exact specified message.
+- **Signature preserved**: `MF20Filter::process(in, cutoffHz, res)` public
+  signature is unchanged — `stateFinite()` is a new, separate accessor.
+- **Scope discipline**: `sanitize()` resets only the four `MF20Filter`
+  instances' integrator states (`s1`/`s2` via `reset()`); it does not touch
+  `lpCutoffSlew`/`hpCutoffSlew`/`lpResSlew`/`hpResSlew` or their targets, per
+  the brief's explicit instruction (their inputs are clamped params and stay
+  finite, and resetting them would cause a spurious parameter sweep). This
+  also satisfies the constraint that Task 4 (which renames these smoothers)
+  can land cleanly on top.
+- **Placement**: `eng->sanitize()` runs once per voice per `modulate()` call
+  (~2.5 ms cadence), not per audio sample — matches the brief's stated
+  "per-modulate-block recovery guard" performance intent, not a per-sample
+  check.
+- **Testing**: both new tests exercise real observable behavior (actual
+  NaN propagation through the TPT state-update `s = 2·mid - s`, confirmed by
+  `stateFinite()` before/after, and by checking `std::isfinite` on filter
+  outputs over 200 further samples) — not tautological. Verified they fail
+  pre-implementation (RED, captured above) and pass post-implementation
+  (GREEN, captured above).
+- **Concerns**: None. The diff matches the brief's exact code verbatim
+  (`stateFinite()`, `sanitize()`, and the `modulate()` call site), and all
+  verification gates (tests, VCV build, MetaModule build) passed cleanly.
