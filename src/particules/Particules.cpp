@@ -6,6 +6,7 @@
 #include "particules_density_control.h"
 #include "metamodule_fpu.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
 #include <cstring>
@@ -105,6 +106,9 @@ struct Particules : Module {
 	bool prev_in_r_connected_ = false;
 	bool needs_calibration_ = true;  // Calibrate on first process() if auto_gain_
 	bool metamodule_fpu_configured_ = false;
+	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
+	// call to the audio thread (process()) so it's not racing the DSP.
+	std::atomic<bool> clear_requested_{false};
 
 	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
@@ -172,6 +176,7 @@ struct Particules : Module {
 			dsp_memory_ = nullptr;
 #endif
 		processor_.Init(dsp_memory_, req.total_bytes, sampleRate);
+		block_runtime_.ConfigureSampleRate(sampleRate);
 		const int cv_dec = particules::CvDecimationForBlock(kWrapperBlockSize);
 		const float cv_smooth =
 			particules::CvSmoothingForBlock(particules::kCvSmoothing, kWrapperBlockSize);
@@ -195,6 +200,7 @@ struct Particules : Module {
 		// Memory requirements are sample-rate-independent (fixed frame budget),
 		// so we can reinitialize into the same allocation.
 		block_runtime_ = ParticulesBlockRuntime<kWrapperBlockSize>{};
+		block_runtime_.ConfigureSampleRate(e.sampleRate);
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		if (dsp_memory_) {
 			auto req = beads::BeadsProcessor::GetMemoryRequirements(e.sampleRate);
@@ -374,6 +380,8 @@ struct Particules : Module {
 
 		// Process when block is full
 		if (block_runtime_.BlockReady()) {
+			if (clear_requested_.exchange(false))
+				processor_.ClearBuffer();
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -552,8 +560,10 @@ struct ParticulesWidget : ModuleWidget {
 		));
 
 		// --- Clear Buffer ---
+		// Deferred to the audio thread (process()) to avoid racing the DSP;
+		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->processor_.ClearBuffer(); }
+			[=]() { module->clear_requested_.store(true); }
 		));
 
 	}

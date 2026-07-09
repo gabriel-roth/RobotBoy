@@ -64,14 +64,20 @@ public:
     void SetGrainLed(float value) { grain_led_ = value; }
     float GrainLed() const { return grain_led_; }
 
+    // Per-block LED decay factor for the current sample rate. Old code used a
+    // fixed 0.9999^BlockSize, which decayed twice as fast (wall-clock) at 96 kHz.
+    // f = 0.9999^(48000·BlockSize/sr) keeps the per-second decay constant.
+    void ConfigureSampleRate(float sample_rate) {
+        float sr = sample_rate > 0.f ? sample_rate : 48000.f;
+        grain_led_decay_ = std::pow(0.9999f, 48000.f * static_cast<float>(BlockSize) / sr);
+    }
+
     void DecayGrainLed() {
         if (grain_led_ <= 0.0001f) {
             grain_led_ = 0.0f;
             return;
         }
-        // pow of two compile-time constants; a per-sample powf in the VCV build.
-        static const float kDecay = std::pow(0.9999f, static_cast<float>(BlockSize));
-        grain_led_ *= kDecay;
+        grain_led_ *= grain_led_decay_;
     }
 
     // Per-sample SEED gate latch. The engine only sees the gate once per
@@ -93,5 +99,6 @@ private:
     bool block_ready_ = false;
     int grain_trigger_remaining_ = 0;
     float grain_led_ = 0.0f;
+    float grain_led_decay_ = 0.9999f;
     bool seed_gate_latch_ = false;
 };

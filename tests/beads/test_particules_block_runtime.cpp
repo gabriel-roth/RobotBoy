@@ -86,6 +86,7 @@ TEST_CASE("ParticulesBlockRuntime: trigger pulse countdown remains sample accura
 
 TEST_CASE("ParticulesBlockRuntime: block-rate LED decay matches per-sample exponential", "[particules_block_runtime]") {
     ParticulesBlockRuntime<4> runtime;
+    runtime.ConfigureSampleRate(48000.0f);
     runtime.SetGrainLed(1.0f);
 
     float expected = 1.0f;
@@ -97,6 +98,18 @@ TEST_CASE("ParticulesBlockRuntime: block-rate LED decay matches per-sample expon
     }
 
     REQUIRE(runtime.GrainLed() == Approx(expected).margin(0.000001f));
+}
+
+TEST_CASE("ParticulesBlockRuntime: LED decay duration is sample-rate independent", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<64> at48;
+    ParticulesBlockRuntime<64> at96;
+    at48.ConfigureSampleRate(48000.0f);
+    at96.ConfigureSampleRate(96000.0f);
+    at48.SetGrainLed(1.0f);
+    at96.SetGrainLed(1.0f);
+    for (int i = 0; i < 750; ++i) at48.DecayGrainLed();
+    for (int i = 0; i < 1500; ++i) at96.DecayGrainLed();
+    REQUIRE(at48.GrainLed() == Approx(at96.GrainLed()).margin(0.00001f));
 }
 
 TEST_CASE("ParticulesBlockRuntime: seed gate latch captures a mid-block pulse",
