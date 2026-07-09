@@ -37,12 +37,22 @@ struct MF20FilterModule : Module {
 
     // Rate divider — modulate() runs every ~2.5 ms instead of every sample.
     int _modulationSteps = 100;
-    int _steps = -1;
+    int _steps = 100;  // ≥ _modulationSteps: first process() modulates immediately (saved K35 mode, g targets)
 
     // Shared modulation targets (same for all voices; per-voice CV added in modulate()).
     float _drive = 1.f;
-    float _driveSqrt = 1.f;          // hoisted out of the per-sample OTA pre-gain
     float _sampleRate = 44100.f;     // mirrors the engine rate for modulate-rate math
+
+    // Drive smoothing: targets computed once per modulate block, slewed
+    // per-sample (5 ms) so Drive sweeps don't zipper. Two smoothers so the
+    // audio path needs no sqrt or divide: √drive feeds the OTA pre-gain,
+    // 1/√drive feeds the diode clip character.
+    OnePoleSmoother _driveSqrtSlew   { 1.f };
+    OnePoleSmoother _clipThreshSlew  { 1.f };
+    float _driveSqrtTarget  = 1.f;
+    float _clipThreshTarget = 1.f;
+    float _driveSqrt = 1.f;   // current smoothed value, used by otaPreGain
+    float _clipThresh = 1.f;
     // Deterministic denormal-prevention dither: alternates sign each sample.
     // Replaces the RNG dither — cheaper, and bit-reproducible between the
     // VCV and MetaModule builds (relevant to headless comparison testing).
@@ -102,7 +112,10 @@ struct MF20FilterModule : Module {
             eng.lpResSlew.setAlpha(alpha);
             eng.hpResSlew.setAlpha(alpha);
         }
+        _driveSqrtSlew.setAlpha(alpha);
+        _clipThreshSlew.setAlpha(alpha);
         _modulationSteps = static_cast<int>(e.sampleRate * 0.0025f);  // 2.5 ms
+        _steps = _modulationSteps;
     }
 
     void onReset(const ResetEvent& e) override {
@@ -115,7 +128,8 @@ struct MF20FilterModule : Module {
     void modulate() {
         float drive = params[DRIVE_PARAM].getValue();
         _drive = drive;
-        _driveSqrt = std::sqrt(drive);
+        _driveSqrtTarget  = std::sqrt(drive);
+        _clipThreshTarget = 1.f / _driveSqrtTarget;
 
         float cutoffLog = params[CUTOFF_PARAM].getValue();
         float hpLog     = params[HP_CUTOFF_PARAM].getValue();
@@ -162,10 +176,6 @@ struct MF20FilterModule : Module {
             eng.hpFilter.setMode(_filterMode);
             eng.lpFilterR.setMode(_filterMode);
             eng.hpFilterR.setMode(_filterMode);
-            eng.lpFilter.setDriveCharacter(drive);
-            eng.lpFilterR.setDriveCharacter(drive);
-            eng.hpFilter.setDriveCharacter(drive);
-            eng.hpFilterR.setDriveCharacter(drive);
         }
     }
 
@@ -173,13 +183,17 @@ struct MF20FilterModule : Module {
     void processChannel(const ProcessArgs& args, int c) {
         VoiceEngine& eng = _pool.engines[c];
 
-        // OTA mode: piecewise-linear pre-gain — amplifies by √drive (precomputed
-        //   in modulate() as _driveSqrt), soft-clips at ±5 V.
+        eng.hpFilter.setDriveCharacterFromThreshold(_clipThresh);
+        eng.lpFilter.setDriveCharacterFromThreshold(_clipThresh);
+
+        // OTA mode: piecewise-linear pre-gain — amplifies by √drive (smoothed
+        //   in process() into _driveSqrt), soft-clips at ±5 V.
         //   Unity gain at drive=1; continuous, monotonic for all drive values.
         //   NOTE: In OTA mode Drive is applied TWICE and intentionally so — here as
-        //   input level, and inside the filter via setDriveCharacter() (see modulate()),
-        //   which lowers the diode clip threshold and steepens its slope. K35 mode does
-        //   all of this in processK35()'s forward-path clip, so no pre-gain is applied.
+        //   input level, and inside the filter via setDriveCharacterFromThreshold()
+        //   above, which lowers the diode clip threshold and steepens its slope.
+        //   K35 mode does all of this in processK35()'s forward-path clip, so no
+        //   pre-gain is applied.
         auto otaPreGain = [&](float x) {
             if (_filterMode != MF20Filter::Mode::OTA) return x;
             float d = x * _driveSqrt;
@@ -207,6 +221,8 @@ struct MF20FilterModule : Module {
 
         if (inputs[AUDIO_INPUT_R].isConnected()) {
             // True stereo: process R through its own filter pair.
+            eng.hpFilterR.setDriveCharacterFromThreshold(_clipThresh);
+            eng.lpFilterR.setDriveCharacterFromThreshold(_clipThresh);
             float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
             inR += _dither;
             inR = otaPreGain(inR);
@@ -221,7 +237,7 @@ struct MF20FilterModule : Module {
     }
 
     void process(const ProcessArgs& args) override {
-        int voices = std::max(1, inputs[AUDIO_INPUT].getChannels());
+        int voices = std::max({1, inputs[AUDIO_INPUT].getChannels(), inputs[AUDIO_INPUT_R].getChannels()});
         _pool.setVoices(voices);
 
         outputs[LP_OUTPUT].setChannels(voices);
@@ -233,6 +249,8 @@ struct MF20FilterModule : Module {
         }
 
         _dither = -_dither;
+        _driveSqrt  = _driveSqrtSlew.process(_driveSqrtTarget);
+        _clipThresh = _clipThreshSlew.process(_clipThreshTarget);
         for (int c = 0; c < voices; c++)
             processChannel(args, c);
     }

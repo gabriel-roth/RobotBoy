@@ -846,6 +846,32 @@ static void test_voice_sanitize() {
     report(ok, "sanitize() resets non-finite filter state");
 }
 
+// setDriveCharacterFromThreshold(1/√d) must produce output identical to
+// setDriveCharacter(d) — the smoothed-drive path (module) stores a
+// precomputed threshold instead of recomputing sqrt/divide per sample, but
+// the filter-level math must be exactly the same.
+static void test_drive_from_threshold_matches_setDriveCharacter() {
+    printf("\nsetDriveCharacterFromThreshold(1/sqrt(d)) == setDriveCharacter(d)\n");
+    for (float d : {1.f, 2.f, 4.f, 8.f}) {
+        MF20Filter fA, fB;
+        fA.setSampleRate(44100.f);
+        fB.setSampleRate(44100.f);
+        fA.setDriveCharacter(d);
+        fB.setDriveCharacterFromThreshold(1.f / std::sqrt(d));
+
+        bool ok = true;
+        for (int i = 0; i < 200 && ok; i++) {
+            float in = 0.8f * std::sin(2.f * 3.14159265f * 440.f * i / 44100.f);
+            auto ra = fA.process(in, 1000.f, 0.5f);
+            auto rb = fB.process(in, 1000.f, 0.5f);
+            ok = ok && ra.lp == rb.lp && ra.bp == rb.bp && ra.hp == rb.hp;
+        }
+        char buf[64];
+        snprintf(buf, sizeof(buf), "drive=%.0f", d);
+        report(ok, "setDriveCharacterFromThreshold matches setDriveCharacter", buf);
+    }
+}
+
 static void test_processG_matches_process() {
     printf("\nprocessG(cutoffToG(fc)) == process(fc)\n");
     for (auto mode : {MF20Filter::Mode::OTA, MF20Filter::Mode::K35}) {
@@ -899,6 +925,7 @@ int main() {
     test_k35_asymmetric_clip();
     test_nan_recovery();
     test_voice_sanitize();
+    test_drive_from_threshold_matches_setDriveCharacter();
     test_processG_matches_process();
 
     printf("\n=======================\n");

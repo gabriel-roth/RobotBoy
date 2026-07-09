@@ -122,6 +122,13 @@ public:
         satSlope      = 0.25f * s;
     }
 
+    /** Store an already-computed clip threshold (= 1/√drive). Lets hosts slew
+        the drive character per-sample without any per-sample sqrt/divide. */
+    void setDriveCharacterFromThreshold(float t) {
+        clipThreshold = t;
+        satSlope      = 0.25f * t;
+    }
+
     /** Bilinear prewarp gain g = tan(π·fc/fs), fc clamped to [1, fs·0.498).
         Hosts call this at modulate rate and slew g itself, keeping tan/pow
         out of the audio path entirely. */
