@@ -15,8 +15,9 @@ struct LoopDisplayWidget : Widget {
     const LoopEngine* engine = nullptr;          // module engine; nullptr in browser
     int demoHeads = LoopEngine::NUM_HEADS;       // browser-preview head count
     static constexpr int kOversample = 2;
-    std::vector<uint32_t> pix;
-    int img = -1;
+    std::vector<uint32_t> wavePix, lanePix;
+    int waveImg = -1, laneImg = -1;
+    std::uint32_t cachedWaveRevision = UINT32_MAX;
 
     // Module-browser preview: a canned decaying-sine loop drawn by the same
     // renderer code path. In-place init: LoopEngine is non-copyable (atomics).
@@ -40,21 +41,52 @@ struct LoopDisplayWidget : Widget {
         if (layer == 1) {
             const int w = std::max(1, (int)std::round(box.size.x)) * kOversample;
             const int h = std::max(1, (int)std::round(box.size.y)) * kOversample;
-            if ((int)pix.size() != w * h) {
-                pix.assign((size_t)w * h, 0);
-                if (img >= 0) { nvgDeleteImage(args.vg, img); img = -1; }
-            }
             const LoopEngine& eng = engine ? *engine : demoEngine(demoHeads);
-            LoopWaveformRenderer::render(pix.data(), w, h, eng, loopDisplayPackRGBA);
-            if (img < 0)
-                img = nvgCreateImageRGBA(args.vg, w, h, 0, (const unsigned char*)pix.data());
+            const auto geometry = LoopWaveformRenderer::geometry(h, eng.numHeads());
+            const int laneH = geometry.laneHeight;
+            const int lanesH = geometry.lanesHeight;
+            const int waveH = geometry.waveHeight;
+            if ((int)wavePix.size() != w * waveH) {
+                wavePix.assign((size_t)w * waveH, 0);
+                if (waveImg >= 0) { nvgDeleteImage(args.vg, waveImg); waveImg = -1; }
+                cachedWaveRevision = UINT32_MAX;
+            }
+            if ((int)lanePix.size() != w * lanesH) {
+                lanePix.assign((size_t)w * lanesH, 0);
+                if (laneImg >= 0) { nvgDeleteImage(args.vg, laneImg); laneImg = -1; }
+            }
+
+            const auto revision = eng.waveformRevision();
+            if (waveImg < 0 || cachedWaveRevision != revision) {
+                LoopWaveformRenderer::renderWaveform(
+                    wavePix.data(), w, waveH, eng, loopDisplayPackRGBA);
+                if (waveImg < 0)
+                    waveImg = nvgCreateImageRGBA(args.vg, w, waveH, 0,
+                        (const unsigned char*)wavePix.data());
+                else
+                    nvgUpdateImage(args.vg, waveImg, (const unsigned char*)wavePix.data());
+                cachedWaveRevision = revision;
+            }
+            LoopWaveformRenderer::renderLanes(
+                lanePix.data(), w, lanesH, laneH, eng, loopDisplayPackRGBA);
+            if (laneImg < 0)
+                laneImg = nvgCreateImageRGBA(args.vg, w, lanesH, 0,
+                    (const unsigned char*)lanePix.data());
             else
-                nvgUpdateImage(args.vg, img, (const unsigned char*)pix.data());
-            NVGpaint paint = nvgImagePattern(args.vg, 0.f, 0.f, box.size.x, box.size.y, 0.f, img, 1.f);
-            nvgBeginPath(args.vg);
-            nvgRect(args.vg, 0.f, 0.f, box.size.x, box.size.y);
-            nvgFillPaint(args.vg, paint);
-            nvgFill(args.vg);
+                nvgUpdateImage(args.vg, laneImg, (const unsigned char*)lanePix.data());
+
+            const float waveBoxH = box.size.y * float(waveH) / float(h);
+            const float laneBoxH = box.size.y - waveBoxH;
+            auto drawImage = [&](int image, float y, float height) {
+                NVGpaint paint = nvgImagePattern(
+                    args.vg, 0.f, y, box.size.x, height, 0.f, image, 1.f);
+                nvgBeginPath(args.vg);
+                nvgRect(args.vg, 0.f, y, box.size.x, height);
+                nvgFillPaint(args.vg, paint);
+                nvgFill(args.vg);
+            };
+            drawImage(waveImg, 0.f, waveBoxH);
+            drawImage(laneImg, waveBoxH, laneBoxH);
         }
         Widget::drawLayer(args, layer);
     }
@@ -62,7 +94,8 @@ struct LoopDisplayWidget : Widget {
     // Free the GPU image when the nanovg context goes away, so removing the
     // module (or closing Rack) doesn't leak the texture.
     void onContextDestroy(const ContextDestroyEvent& e) override {
-        if (img >= 0) { nvgDeleteImage(e.vg, img); img = -1; }
+        if (waveImg >= 0) { nvgDeleteImage(e.vg, waveImg); waveImg = -1; }
+        if (laneImg >= 0) { nvgDeleteImage(e.vg, laneImg); laneImg = -1; }
         Widget::onContextDestroy(e);
     }
 };

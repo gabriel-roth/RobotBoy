@@ -71,6 +71,9 @@ public:
         std::array<float, NUM_HEADS> winStart01, winEnd01;   // per-head window, 0..1
     };
     DisplaySnapshot displaySnapshot() const;
+    std::uint32_t waveformRevision() const {
+        return waveformRevision_.load(std::memory_order_acquire);
+    }
 
 private:
     static constexpr double MINIMUM_LOOP_MILLISECONDS = 1.0;
@@ -97,6 +100,13 @@ private:
     void commitJitter(PlayHead& h);
     void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
     void writePeak(std::size_t idx, float l, float r);
+    // Waveform-cache invalidation: bumped (release) after any change to the
+    // peak arrays so display hosts re-render the static waveform only when
+    // recorded audio actually changed. Only the audio thread writes; the
+    // counter is kept non-atomic and published with a single atomic store.
+    void bumpWaveformRevision() {
+        waveformRevision_.store(++waveformRevisionCounter_, std::memory_order_release);
+    }
 
     int numHeads_ = NUM_HEADS;
     std::vector<float> bufL_, bufR_;
@@ -121,6 +131,8 @@ private:
     std::atomic<std::uint32_t> dispLoopLen_{0};
     std::atomic<std::uint32_t> dispRecLen_{0};
     std::atomic<bool> dispRecording_{false};
+    std::atomic<std::uint32_t> waveformRevision_{0};
+    std::uint32_t waveformRevisionCounter_ = 0;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};

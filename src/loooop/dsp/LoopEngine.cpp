@@ -31,6 +31,7 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     for (auto& a : dispPos01_)      a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinStart01_) a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinEnd01_)   a.store(1.f, std::memory_order_relaxed);
+    bumpWaveformRevision();
 }
 
 void LoopEngine::setSampleRate(float sampleRate) {
@@ -82,6 +83,7 @@ void LoopEngine::clear() {
     for (auto& a : dispPos01_)      a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinStart01_) a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinEnd01_)   a.store(1.f, std::memory_order_relaxed);
+    bumpWaveformRevision();
 }
 
 void LoopEngine::setSpeed(int head, float x)     { if (head >= 0 && head < numHeads_) heads_[head].speed = x; }
@@ -350,6 +352,7 @@ void LoopEngine::writePeak(std::size_t idx, float l, float r) {
         if (r < peakMinR_[bin]) peakMinR_[bin] = r;
         if (r > peakMaxR_[bin]) peakMaxR_[bin] = r;
     }
+    bumpWaveformRevision();
 }
 
 LoopEngine::DisplaySnapshot LoopEngine::displaySnapshot() const {

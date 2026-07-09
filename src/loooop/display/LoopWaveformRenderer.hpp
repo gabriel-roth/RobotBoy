@@ -27,9 +27,22 @@ public:
     };
     // Window-extent bars use the head color dimmed by DIM_NUM/DIM_DEN.
     static constexpr int DIM_NUM = 2, DIM_DEN = 5;
-    // Lane band height in rows; four lanes stack at the bottom of the display.
+    // Preferred lane band height. Use geometry() to cap the complete lane
+    // region to the actual destination height.
     static constexpr int laneHeight(int height) {
         return height / 8 < 3 ? 3 : height / 8;
+    }
+    struct Geometry {
+        int laneHeight;
+        int lanesHeight;
+        int waveHeight;
+    };
+    static constexpr Geometry geometry(int height, int numHeads) {
+        if (height <= 0 || numHeads <= 0) return {0, 0, 0};
+        const int laneH = laneHeight(height) < height / numHeads
+            ? laneHeight(height) : height / numHeads;
+        const int lanesH = numHeads * laneH;
+        return {laneH, lanesH, height - lanesH};
     }
 
     // Wave regions shorter than this draw one combined L∪R envelope instead
@@ -51,4 +64,8 @@ public:
 
     static void render(uint32_t* buf, int width, int height,
                        const LoopEngine& engine, PackFn pack);
+    static void renderWaveform(uint32_t* buf, int width, int height,
+                               const LoopEngine& engine, PackFn pack);
+    static void renderLanes(uint32_t* buf, int width, int height, int laneHeight,
+                            const LoopEngine& engine, PackFn pack);
 };

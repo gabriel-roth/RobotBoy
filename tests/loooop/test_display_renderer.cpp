@@ -264,6 +264,66 @@ static void test_single_head_single_lane() {
           "single_head: wave region extends over old lane rows");
 }
 
+// The split render (renderWaveform + renderLanes into adjoining regions) must
+// be byte-identical to the thin composed render() — the host caches call the
+// split entry points directly, so any divergence would silently change what
+// ships to a display.
+static void test_split_render_matches_composed_render() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    const float l[] = {0.1f, 0.8f, -0.4f, 0.3f};
+    const float r[] = {-0.2f, 0.4f, -0.9f, 0.5f};
+    recordStereo(e, l, r, 4);
+    uint32_t composed[W * H]{};
+    uint32_t split[W * H]{};
+    LoopWaveformRenderer::render(composed, W, H, e, pack);
+    const int laneH = LoopWaveformRenderer::laneHeight(H);
+    const int lanesH = e.numHeads() * laneH;
+    const int waveH = H - lanesH;
+    LoopWaveformRenderer::renderWaveform(split, W, waveH, e, pack);
+    LoopWaveformRenderer::renderLanes(split + waveH * W, W, lanesH, laneH, e, pack);
+    bool identical = true;
+    for (int i = 0; i < W * H; ++i) identical &= composed[i] == split[i];
+    check(identical, "split renderer: composed pixels are byte-identical");
+}
+
+// geometry() must cap the lane region to the destination height (never
+// overrunning it) and the wave+lane split must exactly cover the full
+// destination on every tiny height, from 0 up through a few multiples of
+// NUM_HEADS. Canary bytes bracket the buffer to catch any out-of-bounds
+// write by either the composed or the split render path.
+static void test_tiny_heights_stay_within_destination() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    const float signal[] = {0.1f, 0.8f, -0.4f, 0.3f};
+    recordStereo(e, signal, signal, 4);
+
+    static constexpr int width = 7;
+    static constexpr uint32_t canary = 0xDEADBEEFu;
+    for (int height = 0; height < LoopEngine::NUM_HEADS * 3; ++height) {
+        std::vector<uint32_t> guarded(std::size_t(width) * height + 2, canary);
+        LoopWaveformRenderer::render(guarded.data() + 1, width, height, e, pack);
+        check(guarded.front() == canary && guarded.back() == canary,
+              "tiny geometry: composed render preserves canaries");
+
+        const auto geometry = LoopWaveformRenderer::geometry(height, e.numHeads());
+        check(geometry.waveHeight + geometry.lanesHeight == height,
+              "tiny geometry: regions exactly cover destination height");
+        check(geometry.lanesHeight <= height,
+              "tiny geometry: lanes are capped to destination height");
+
+        std::fill(guarded.begin(), guarded.end(), canary);
+        auto* pixels = guarded.data() + 1;
+        LoopWaveformRenderer::renderWaveform(
+            pixels, width, geometry.waveHeight, e, pack);
+        LoopWaveformRenderer::renderLanes(
+            pixels + std::size_t(width) * geometry.waveHeight,
+            width, geometry.lanesHeight, geometry.laneHeight, e, pack);
+        check(guarded.front() == canary && guarded.back() == canary,
+              "tiny geometry: split render preserves canaries");
+    }
+}
+
 int main() {
     test_blank();
     test_waveform_and_lanes();
@@ -274,6 +334,8 @@ int main() {
     test_level_aware_height();
     test_tiny_display_combined();
     test_single_head_single_lane();
+    test_split_render_matches_composed_render();
+    test_tiny_heights_stay_within_destination();
     if (g_failures == 0) std::printf("All display renderer tests passed.\n");
     return g_failures;
 }

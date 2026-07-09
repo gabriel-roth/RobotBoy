@@ -12,8 +12,8 @@ void vline(uint32_t* buf, int width, int height, int x, int y0, int y1, uint32_t
 }
 } // namespace
 
-void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,
-                                  const LoopEngine& engine, PackFn pack) {
+void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
+                                          const LoopEngine& engine, PackFn pack) {
     if (width <= 0 || height <= 0) return;
     const uint32_t bg = pack(BG[0], BG[1], BG[2], 0xFF);
     std::fill(buf, buf + std::size_t(width) * height, bg);
@@ -24,10 +24,7 @@ void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,
     const uint64_t axisLen = (s.loopLen > 0) ? s.loopLen : (s.recording ? s.recordedLen : 0);
     if (axisLen == 0) return;
 
-    const int laneH = laneHeight(height);
-    const int nHeads = engine.numHeads();
-    const int lanesTop = height - nHeads * laneH;
-    const int waveH = lanesTop;              // waveform region: rows [0, waveH)
+    const int waveH = height;
 
     if (waveH > 1) {
         // Stereo waveform: L band over R band, each channel min/max around
@@ -102,9 +99,18 @@ void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,
         }
     }
 
-    // Per-head lanes only exist once the loop is frozen.
+}
+
+void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
+                                       int laneH, const LoopEngine& engine, PackFn pack) {
+    if (width <= 0 || height <= 0 || laneH <= 0) return;
+    const uint32_t bg = pack(BG[0], BG[1], BG[2], 0xFF);
+    std::fill(buf, buf + std::size_t(width) * height, bg);
+    const auto s = engine.displaySnapshot();
     if (s.loopLen == 0) return;
 
+    const int nHeads = engine.numHeads();
+    const int lanesTop = 0;
     const int hw = std::max(2, width / 90);   // playhead bar width
     for (int i = 0; i < nHeads; ++i) {
         const uint8_t* c = HEAD_COLORS[i];
@@ -124,4 +130,13 @@ void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,
         for (int dx = 0; dx < hw; ++dx)
             vline(buf, width, height, hx - hw / 2 + dx, top, bot, brightC);
     }
+}
+
+void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,
+                                  const LoopEngine& engine, PackFn pack) {
+    if (width <= 0 || height <= 0) return;
+    const auto g = geometry(height, engine.numHeads());
+    renderWaveform(buf, width, g.waveHeight, engine, pack);
+    renderLanes(buf + std::size_t(g.waveHeight) * width,
+                width, g.lanesHeight, g.laneHeight, engine, pack);
 }

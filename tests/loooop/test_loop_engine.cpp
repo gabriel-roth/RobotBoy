@@ -243,6 +243,32 @@ static void test_display_snapshot_four_heads() {
     check(near(s.winEnd01[2], 0.75f),     "snap4: head2 window end 0.75");
 }
 
+// waveformRevision() must change on any peak-array mutation (initial write,
+// overdub write, clear, reset) and stay stable across playback-only ticks —
+// display hosts key their waveform cache on this counter, so a false-negative
+// bump would show stale audio and a false-positive would defeat the cache.
+static void test_waveform_revision_tracks_peak_changes_only() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    const auto afterReset = e.waveformRevision();
+    e.toggleRecord();
+    e.process(0.25f);
+    const auto afterWrite = e.waveformRevision();
+    check(afterWrite != afterReset, "wave revision: recording write invalidates waveform");
+    e.toggleRecord();
+    for (int i = 0; i < 100; ++i) e.process(0.f);
+    check(e.waveformRevision() == afterWrite, "wave revision: playback does not invalidate waveform");
+    e.toggleRecord();
+    e.process(0.25f);
+    check(e.waveformRevision() != afterWrite, "wave revision: overdub invalidates waveform");
+    const auto beforeClear = e.waveformRevision();
+    e.clear();
+    check(e.waveformRevision() != beforeClear, "wave revision: clear invalidates waveform");
+    const auto beforeSecondReset = e.waveformRevision();
+    e.reset(48000.f, 1.f);
+    check(e.waveformRevision() != beforeSecondReset, "wave revision: repeated reset invalidates waveform");
+}
+
 static void test_overdub_gate() {
     LoopEngine e; record_ramp(e, 4);      // loop exists, not recording, head 0 soloed
     e.setOverdub(false);
@@ -611,6 +637,7 @@ int main() {
     test_four_heads_mix();
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
+    test_waveform_revision_tracks_peak_changes_only();
     test_overdub_gate();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();

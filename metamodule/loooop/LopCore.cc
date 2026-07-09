@@ -102,6 +102,7 @@ public:
             dispBuf_ = buf;
             dispWidth_ = width;
             dispDirty_ = true;   // paint at least once, even if idle
+            cachedWaveRevision_ = UINT32_MAX;
         }
     }
 
@@ -112,10 +113,28 @@ public:
         const bool active = snap.loopLen > 0 || snap.recording;
         if (!active && !dispDirty_) return false;   // idle: skip redraws
         dispDirty_ = active;    // one final repaint after going idle (e.g. clear)
-        LoopWaveformRenderer::render(dispBuf_.data(),
-                                     int(dispWidth_),
-                                     int(dispBuf_.size() / dispWidth_),
-                                     engine_, packARGB);
+        const int width = int(dispWidth_);
+        const int height = int(dispBuf_.size() / dispWidth_);
+        const auto geometry = LoopWaveformRenderer::geometry(height, engine_.numHeads());
+        const int laneH = geometry.laneHeight;
+        const int lanesH = geometry.lanesHeight;
+        const int waveH = geometry.waveHeight;
+        const auto revision = engine_.waveformRevision();
+        // The waveform region is static between peak-array changes, so re-render
+        // it only when the revision (or destination geometry) changes; the
+        // persistent display canvas (dispBuf_) keeps last frame's pixels
+        // otherwise. Rendered straight into the destination — no intermediate
+        // cache buffer/copy needed.
+        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width || cachedWaveHeight_ != waveH) {
+            LoopWaveformRenderer::renderWaveform(
+                dispBuf_.data(), width, waveH, engine_, packARGB);
+            cachedWaveRevision_ = revision;
+            cachedWaveWidth_ = width;
+            cachedWaveHeight_ = waveH;
+        }
+        LoopWaveformRenderer::renderLanes(
+            dispBuf_.data() + size_t(waveH) * width,
+            width, lanesH, laneH, engine_, packARGB);
         return true;
     }
 
@@ -133,6 +152,8 @@ private:
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;
+    std::uint32_t cachedWaveRevision_ = UINT32_MAX;
+    int cachedWaveWidth_ = -1, cachedWaveHeight_ = -1;
 };
 
 void register_lop_modules() {
