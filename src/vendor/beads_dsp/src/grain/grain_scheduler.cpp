@@ -25,7 +25,7 @@ float GrainScheduler::DensityToRate(float density) {
     float distance = std::abs(density - 0.5f) * 2.0f;  // 0..1
     if (distance < 0.001f) return 0.0f;
 
-    float exponent = std::log2(kMaxRateHz / 0.25f);
+    static const float exponent = std::log2(kMaxRateHz / 0.25f);
     return 0.25f * std::exp2(distance * exponent);
 }
 

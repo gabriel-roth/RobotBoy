@@ -9,6 +9,7 @@
 #include "grain/grain.h"
 #include "grain/grain_scheduler.h"
 #include "grain/grain_engine.h"
+#include "util/dsp_utils.h"
 
 using namespace beads;
 using Catch::Approx;
@@ -532,4 +533,157 @@ TEST_CASE("GrainEngine: size=-0.1 (between boundary and noon) is forward", "[eng
     // Forward: second_mean > first_mean (reading upward in ramp)
     // Reverse: second_mean < first_mean (reading downward)
     REQUIRE(second_mean > first_mean);  // fails with old code, passes with new
+}
+
+// ── Overlap-normalization smoothing: exact block coefficient ──────────────
+//
+// GrainEngine::Process folds the per-sample overlap-count OnePole update
+// into a single call using block_coefficient = 1 - (1 - c)^n. This test
+// pins that formula against the ground truth: applying the per-sample
+// OnePole update n times in a row on a constant target must land at
+// exactly the same state as one call with the block coefficient.
+
+TEST_CASE("OnePole: exact block coefficient matches n per-sample updates", "[grain][overlap]") {
+    auto run_case = [](float start, float target, float coeff, int n) {
+        float per_sample = start;
+        for (int i = 0; i < n; ++i) {
+            OnePole(per_sample, target, coeff);
+        }
+
+        float block_coefficient = 1.0f - std::pow(1.0f - coeff, static_cast<float>(n));
+        float blocked = start;
+        OnePole(blocked, target, block_coefficient);
+
+        REQUIRE(blocked == Approx(per_sample).margin(1e-4f));
+    };
+
+    // Fast-rise coefficient (0.9, as used when the count is climbing).
+    run_case(0.0f, 30.0f, 0.9f, 64);
+    run_case(5.0f, 2.0f, 0.9f, 256);
+    // Slow-fall coefficient (0.2, as used when the count is settling).
+    run_case(0.0f, 30.0f, 0.2f, 64);
+    run_case(12.0f, 1.0f, 0.2f, 512);
+    // Degenerate block sizes should still be exact.
+    run_case(3.0f, 9.0f, 0.2f, 1);
+}
+
+// The old code approximated this same update with a strided per-sample
+// loop (stride 4 in the "high load" render tier, i.e. only n/4 OnePole
+// calls per block) instead of the exact closed form. At the real-world
+// block size (kMaxBlockSize == 64, see beads/types.h) and the slow-fall
+// coefficient (0.2, used while the overlap count is settling down), that
+// under-shoots convergence by several percent per block — exactly the
+// kind of per-block error that would accumulate into audible stepping
+// under a sustained density sweep in the high-load tier. This test pins
+// the size of that gap so a regression back to striding would be caught.
+TEST_CASE("OnePole: strided approximation under-converges vs exact block coefficient", "[grain][overlap]") {
+    constexpr int kBlockSize = 64;    // kMaxBlockSize
+    constexpr int kStride = 4;        // old high-load-tier stride
+    constexpr float kSlowFallCoeff = 0.2f;
+    constexpr float kStart = 0.0f;
+    constexpr float kTarget = 30.0f;
+
+    // Old: strided loop, i += kStride, kBlockSize / kStride actual updates.
+    float strided = kStart;
+    for (int i = 0; i < kBlockSize; i += kStride) {
+        OnePole(strided, kTarget, kSlowFallCoeff);
+    }
+
+    // New: exact block coefficient for the full kBlockSize.
+    float exact = kStart;
+    float block_coefficient = 1.0f - std::pow(1.0f - kSlowFallCoeff, static_cast<float>(kBlockSize));
+    OnePole(exact, kTarget, block_coefficient);
+
+    float exact_residual = kTarget - exact;
+    float strided_residual = kTarget - strided;
+
+    CAPTURE(exact_residual);
+    CAPTURE(strided_residual);
+
+    // The exact formula converges to within a small fraction of a percent
+    // of the target inside a single block...
+    REQUIRE(exact_residual < 0.001f * kTarget);
+    // ...while the strided approximation is still measurably short (on the
+    // order of a couple of percent), i.e. genuinely coarser — confirming
+    // (b) is a real (if subtle) smoothing improvement, not a no-op.
+    REQUIRE(strided_residual > 0.5f * kTarget * 1e-2f);
+    REQUIRE(strided_residual > exact_residual * 10.0f);
+}
+
+// ── Dense grain cloud: overlap-loudness has no per-block discontinuity ────
+//
+// Quantitative proxy for the listening check (deferred to the user): a
+// dense grain cloud (Density high, Size mid) rendered through GrainEngine
+// while sweeping Density should show a smoothly-tracking output RMS
+// envelope, not stepwise jumps between blocks (which would read as
+// pumping/stepping in overlap loudness).
+
+TEST_CASE("GrainEngine: dense cloud density sweep has bounded per-block RMS steps", "[grain][overlap][engine]") {
+    TestBuffer tb(48000 * 4);  // 4 seconds of audio — enough headroom for the
+                                // dynamic max-active-grain cap (buf_dur /
+                                // grain_dur * 1.5) to clear the high-load
+                                // threshold (12 active grains) at mid SIZE.
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &tb.buffer);
+
+    BeadsParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.size = 0.3f;      // mid SIZE
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+
+    // kMaxBlockSize (64, see beads/types.h) is the largest block GrainEngine
+    // ever actually sees in production — BeadsProcessor::Process chunks any
+    // larger host block into <=64-frame pieces before calling in here.
+    constexpr size_t kBlockSize = 64;
+    constexpr int kNumBlocks = 3000;
+    std::vector<StereoFrame> output(kBlockSize);
+
+    std::vector<float> block_rms;
+    block_rms.reserve(kNumBlocks);
+
+    for (int b = 0; b < kNumBlocks; ++b) {
+        // Sweep density back and forth across the dense (away-from-noon)
+        // range, spending time at the high end where active grain count
+        // crosses into the "high load" render tier (>= 12 active grains),
+        // which is exactly where the old strided OnePole loop diverged
+        // from an exact per-sample smoother.
+        float phase = static_cast<float>(b) / static_cast<float>(kNumBlocks);
+        float tri = std::abs(2.0f * (phase - std::floor(phase + 0.5f)));  // 0..1 triangle
+        params.density = 0.02f + 0.10f * tri;  // sweeps [0.02, 0.12] — dense, left of noon
+
+        engine.Process(params, output.data(), kBlockSize);
+
+        double sum_sq = 0.0;
+        for (auto& f : output) {
+            sum_sq += static_cast<double>(f.l) * f.l + static_cast<double>(f.r) * f.r;
+        }
+        float rms = static_cast<float>(std::sqrt(sum_sq / (2.0 * kBlockSize)));
+        block_rms.push_back(rms);
+    }
+
+    // Discard the startup ramp / fill-in period so we're measuring
+    // steady-state overlap behavior, not the initial grain pool filling.
+    constexpr int kWarmupBlocks = 400;
+    float max_step = 0.0f;
+    float max_rms = 0.0f;
+    for (size_t i = kWarmupBlocks; i < block_rms.size(); ++i) {
+        max_rms = std::max(max_rms, block_rms[i]);
+        if (i > kWarmupBlocks) {
+            max_step = std::max(max_step, std::abs(block_rms[i] - block_rms[i - 1]));
+        }
+    }
+
+    CAPTURE(max_step);
+    CAPTURE(max_rms);
+
+    REQUIRE(max_rms > 0.01f);  // sanity: the cloud is actually producing sound
+    // No single block-to-block RMS jump should exceed a large fraction of
+    // the overall signal level. This is the quantitative proxy for
+    // "no pumping/stepping in overlap loudness" — a real discontinuity in
+    // the overlap-normalization gain would show up as a jump comparable to
+    // max_rms itself.
+    REQUIRE(max_step < 0.5f * max_rms);
 }

@@ -11,6 +11,24 @@ namespace beads {
 // At this value abs_size=0 → 30ms minimum grain (hardware Beads manual).
 // CW (> boundary) = forward; CCW (< boundary) = reverse.
 static constexpr float kSizeBoundary = -0.2f;
+static constexpr float kMinGrainDurationSeconds = 0.030f;
+
+// Normalizes a raw SIZE value (forward or reverse range) to [0, 1) around
+// kSizeBoundary, matching the mapping used for both grain-param computation
+// and the cached max-active-grain estimate.
+static float NormalizedGrainSize(float size) {
+    const float normalized = size >= kSizeBoundary
+        ? (size - kSizeBoundary) / (1.0f - kSizeBoundary)
+        : (kSizeBoundary - size) / (kSizeBoundary + 1.0f);
+    return Clamp(normalized, 0.0f, 0.999f);
+}
+
+// Exponential mapping from normalized SIZE (0..1) to 30ms..max_duration.
+static float GrainDurationSeconds(float size, float max_duration) {
+    const float normalized = NormalizedGrainSize(size);
+    return kMinGrainDurationSeconds
+        * std::exp2(normalized * std::log2f(max_duration / kMinGrainDurationSeconds));
+}
 
 
 void GrainEngine::Init(float sample_rate, RecordingBuffer* buffer) {
@@ -83,21 +101,13 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     float mod_size = ar_size_.Process(params.size, params.size_ar,
                                        params.size_cv, params.size_cv_connected);
     bool reverse = (mod_size < kSizeBoundary);
-    float abs_size;
-    if (!reverse) {
-        abs_size = (mod_size - kSizeBoundary) / (1.0f - kSizeBoundary);  // [-0.2, 1.0] → [0, 1]
-    } else {
-        abs_size = (kSizeBoundary - mod_size) / (kSizeBoundary + 1.0f);  // [-1.0, -0.2) → [0, 1]
-    }
-    abs_size = Clamp(abs_size, 0.0f, 0.999f);
 
     // Exponential mapping from 0..1 to 30ms..max duration
     // Decimation extends effective buffer duration
     int df = buffer_->decimation_factor();
     float df_f = static_cast<float>(df);
-    float min_dur = 0.030f;  // 30ms (hardware Beads minimum at 11 o'clock)
     float max_dur = static_cast<float>(buffer_->size()) * df_f / sample_rate_;
-    float duration = min_dur * std::exp2(abs_size * std::log2f(max_dur / min_dur));
+    float duration = GrainDurationSeconds(mod_size, max_dur);
     gp.size = duration * sample_rate_;
 
     // --- TIME → buffer read position ---
@@ -202,15 +212,7 @@ void GrainEngine::Process(const BeadsParameters& params,
         cached_decimation_ = df;
         float buf_dur = static_cast<float>(buffer_->size()) * static_cast<float>(df)
                       / sample_rate_;
-        float abs_size;
-        if (raw_size >= kSizeBoundary) {
-            abs_size = (raw_size - kSizeBoundary) / (1.0f - kSizeBoundary);
-        } else {
-            abs_size = (kSizeBoundary - raw_size) / (kSizeBoundary + 1.0f);
-        }
-        abs_size = Clamp(abs_size, 0.0f, 0.999f);
-        float min_dur = 0.030f;
-        cached_grain_dur_ = min_dur * std::exp2(abs_size * std::log2f(buf_dur / min_dur));
+        cached_grain_dur_ = GrainDurationSeconds(raw_size, buf_dur);
         cached_max_active_ = static_cast<int>(buf_dur / cached_grain_dur_ * 1.5f);
         cached_max_active_ = std::max(cached_max_active_, 2);
         cached_max_active_ = std::min(cached_max_active_, kMaxGrains);
@@ -268,10 +270,9 @@ void GrainEngine::Process(const BeadsParameters& params,
     // gain slowly to prevent pumping).
     float count_f = static_cast<float>(active_count);
     float slope_coeff = (count_f > overlap_count_lp_) ? 0.9f : 0.2f;
-    int normalization_stride = (render_load_tier_ == RenderLoadTier::kHigh) ? 4 : 1;
-    for (size_t i = 0; i < num_frames; i += normalization_stride) {
-        OnePole(overlap_count_lp_, count_f, slope_coeff);
-    }
+    const float block_coefficient = 1.0f
+        - std::pow(1.0f - slope_coeff, static_cast<float>(num_frames));
+    OnePole(overlap_count_lp_, count_f, block_coefficient);
 
     // 1/sqrt(n-1) for n > 2, unity gain for 1-2 grains.
     float gain_norm = (overlap_count_lp_ > 2.0f)
