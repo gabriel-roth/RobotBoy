@@ -9,7 +9,7 @@ Full-repo review at commit `f222f8a`, followed by three fix rounds and a codex-b
 - **Round 3 (July 9):** `2026-07-09-round-3-spec.md` — Initialize clears the loop; grain kill-fade/kill-order/mode-change fixes; MF-20 stale-voice reset; fractional seam wrap; the hardening sweep (fmod/isfinite wraps, NaN fences incl. density/pitch at ingestion, reverb Init guard, orphan deletions, hoists); **Particules now runs a 64-sample block on both hosts** (VCV gains 1.3 ms latency at 48 kHz, control behavior now identical to MetaModule); python tests wired into the lane, slug parity, beads NaN-robustness + recovery tests.
 
 **⚠ Pending USER CHECKS (manual, GUI/ears — agents don't drive the sim):**
-1. **MetaModule simulator — waveform display cache:** record a loop on Loooop, freeze, overdub, clear, switch modules and back; waveform must stay correct across frames (canvas-persistence assumption). Details: `.superpowers/sdd/task-5-report.md` (carry-over round) USER CHECK section.
+1. ~~**MetaModule simulator — waveform display cache**~~ — **PASSED (July 9):** user verified in the built-in-plugin simulator that the waveform persists correctly across frames and module switches (canvas-persistence assumption holds).
 2. **VCV listening — grain overlap smoothing:** dense Particules cloud (Density high, Size mid), sweep Density; listen for pumping/stepping.
 3. **VCV feel — Particules 64-block batching:** dry/wet=0 passthrough feel, freeze-button responsiveness (≤64-sample quantization), CV modulation matches MetaModule.
 
