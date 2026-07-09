@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "LoopDisplay.hpp"
 #include "dsp/LoopEngine.hpp"
+#include "LooperModuleDSP.hpp"
 #include <array>
 #include <cmath>
 #include <string>
@@ -73,14 +74,14 @@ struct Lop : Module {
         float spKnob = params[SPEED_PARAM].getValue();
         float spCv = inputs[SPEED_CV_INPUT].getVoltage();
         engine.setSpeed(0, params[SPEED_VOCT_PARAM].getValue() > 0.5f
-            ? clamp(spKnob * std::exp2(clamp(spCv, -5.f, 5.f)), -16.f, 16.f)
-            : clamp(spKnob + spCv * 0.4f, -2.f, 2.f));
-        engine.setPosition(0, clamp(params[POSITION_PARAM].getValue()
-            + inputs[POSITION_CV_INPUT].getVoltage() * 0.1f, 0.f, 1.f));
-        engine.setSize(0, clamp(params[SIZE_PARAM].getValue()
-            + inputs[SIZE_CV_INPUT].getVoltage() * 0.1f, 0.f, 1.f));
-        engine.setJitter(0, clamp(params[JITTER_PARAM].getValue()
-            + inputs[JITTER_CV_INPUT].getVoltage() * 0.1f, 0.f, 1.f));
+            ? loooop::speedFromVOct(spKnob, spCv)
+            : loooop::speedFromControls(spKnob, spCv));
+        engine.setPosition(0, loooop::normalizedControl(
+            params[POSITION_PARAM].getValue(), inputs[POSITION_CV_INPUT].getVoltage()));
+        engine.setSize(0, loooop::normalizedControl(
+            params[SIZE_PARAM].getValue(), inputs[SIZE_CV_INPUT].getVoltage()));
+        engine.setJitter(0, loooop::normalizedControl(
+            params[JITTER_PARAM].getValue(), inputs[JITTER_CV_INPUT].getVoltage()));
 
         bool oneShot = params[TRIG_MODE_PARAM].getValue() > 0.5f;
         engine.setOneShot(0, oneShot);
@@ -95,17 +96,18 @@ struct Lop : Module {
         }
 
         // Stereo in: an unpatched jack follows the patched one (mono -> both).
-        float inL = inputs[AUDIO_L_INPUT].isConnected()
-            ? inputs[AUDIO_L_INPUT].getVoltage() : inputs[AUDIO_R_INPUT].getVoltage();
-        float inR = inputs[AUDIO_R_INPUT].isConnected()
-            ? inputs[AUDIO_R_INPUT].getVoltage() : inputs[AUDIO_L_INPUT].getVoltage();
+        const auto in = loooop::normalledStereo(
+            inputs[AUDIO_L_INPUT].isConnected(), inputs[AUDIO_L_INPUT].getVoltage(),
+            inputs[AUDIO_R_INPUT].isConnected(), inputs[AUDIO_R_INPUT].getVoltage());
+        const float inL = in.l;
+        const float inR = in.r;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine.process(inL / 5.f, inR / 5.f, hs);   // ±5V <-> ±1
-        float w = clamp(params[DRYWET_PARAM].getValue()
-            + inputs[DRYWET_CV_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
-        outputs[OUT_L_OUTPUT].setVoltage((inL / 5.f * (1.f - w) + hs[0].l * w) * 5.f);
-        outputs[OUT_R_OUTPUT].setVoltage((inR / 5.f * (1.f - w) + hs[0].r * w) * 5.f);
+        const float w = loooop::normalizedControl(
+            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage());
+        outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
+        outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
     }
 };

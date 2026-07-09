@@ -3,6 +3,7 @@
 #include "CoreModules/register_module.hh"
 #include "dsp/LoopEngine.hpp"
 #include "display/LoopWaveformRenderer.hpp"
+#include "LooperModuleDSP.hpp"
 #include <algorithm>
 #include <cmath>
 #include <span>
@@ -63,8 +64,10 @@ public:
 
         // Stereo in: an unpatched jack follows the patched one (mono -> both).
         auto inLOpt = getInput<AudioInL>(), inROpt = getInput<AudioInR>();
-        float inL = (inLOpt ? *inLOpt : inROpt.value_or(0.f)) / 5.f;   // ±5V -> ±1
-        float inR = (inROpt ? *inROpt : inLOpt.value_or(0.f)) / 5.f;
+        const auto in = loooop::normalledStereo(
+            bool(inLOpt), inLOpt.value_or(0.f), bool(inROpt), inROpt.value_or(0.f));
+        float inL = in.l / 5.f;   // ±5V -> ±1
+        float inR = in.r / 5.f;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
@@ -74,10 +77,10 @@ public:
         setOutput<Head4OutL>(hs[3].l * 5.f); setOutput<Head4OutR>(hs[3].r * 5.f);
         float wetL = hs[0].l*g0.l + hs[1].l*g1.l + hs[2].l*g2.l + hs[3].l*g3.l;
         float wetR = hs[0].r*g0.r + hs[1].r*g1.r + hs[2].r*g2.r + hs[3].r*g3.r;
-        float w = std::clamp(getState<DryWetKnob>()
-            + getInput<DryWetCvIn>().value_or(0.f) * 0.1f, 0.f, 1.f);
-        setOutput<MixOutL>((inL * (1.f - w) + wetL * w) * 5.f);
-        setOutput<MixOutR>((inR * (1.f - w) + wetR * w) * 5.f);
+        float w = loooop::normalizedControl(
+            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f));
+        setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);
+        setOutput<MixOutR>(loooop::dryWet(inR, wetR, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
@@ -126,16 +129,16 @@ private:
         float spKnob = (getState<S>() - 0.5f) * 4.f;
         float spCv = getInput<SC>().value_or(0.f);
         engine_.setSpeed(h, getState<VO>() == 1
-            ? std::clamp(spKnob * std::exp2(std::clamp(spCv, -5.f, 5.f)), -16.f, 16.f)
-            : std::clamp(spKnob + spCv * 0.4f, -2.f, 2.f));
-        engine_.setPosition(h, std::clamp(getState<P>()
-            + getInput<PC>().value_or(0.f) * 0.1f, 0.f, 1.f));
-        engine_.setSize(h, std::clamp(getState<Z>()
-            + getInput<ZC>().value_or(0.f) * 0.1f, 0.f, 1.f));
-        engine_.setLevel(h, std::clamp(getState<L>()
-            + getInput<LC>().value_or(0.f) * 0.1f, 0.f, 1.f));
-        engine_.setJitter(h, std::clamp(getState<J>()
-            + getInput<JC>().value_or(0.f) * 0.1f, 0.f, 1.f));
+            ? loooop::speedFromVOct(spKnob, spCv)
+            : loooop::speedFromControls(spKnob, spCv));
+        engine_.setPosition(h, loooop::normalizedControl(
+            getState<P>(), getInput<PC>().value_or(0.f)));
+        engine_.setSize(h, loooop::normalizedControl(
+            getState<Z>(), getInput<ZC>().value_or(0.f)));
+        engine_.setLevel(h, loooop::normalizedControl(
+            getState<L>(), getInput<LC>().value_or(0.f)));
+        engine_.setJitter(h, loooop::normalizedControl(
+            getState<J>(), getInput<JC>().value_or(0.f)));
 
         const bool oneShot = getState<TM>() == 1;
         engine_.setOneShot(h, oneShot);
@@ -151,11 +154,11 @@ private:
             lastJumpV_[h] = jv;
         }
 
-        float pan = std::clamp((getState<PN>() - 0.5f) * 2.f
-            + getInput<PNC>().value_or(0.f) * 0.2f, -1.f, 1.f);
+        float pan = loooop::panControl(
+            (getState<PN>() - 0.5f) * 2.f, getInput<PNC>().value_or(0.f));
         LoopEngine::HeadOut g;
-        g.l = pan <= 0.f ? 1.f : 1.f - pan;   // gain for L contribution to mix
-        g.r = pan >= 0.f ? 1.f : 1.f + pan;   // gain for R contribution to mix
+        g.l = loooop::panLeftGain(pan);   // gain for L contribution to mix
+        g.r = loooop::panRightGain(pan);  // gain for R contribution to mix
         return g;
     }
 

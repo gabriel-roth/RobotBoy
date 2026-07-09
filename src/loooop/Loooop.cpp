@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "dsp/LoopEngine.hpp"
 #include "LoopDisplay.hpp"
+#include "LooperModuleDSP.hpp"
 #include <cmath>
 #include <array>
 #include <vector>
@@ -100,16 +101,20 @@ struct Loooop : Module {
             float spKnob = params[SPEED1_PARAM + HEAD_PARAMS * h].getValue();
             float spCv = inputs[SPEED1_CV_INPUT + HEAD_INPUTS * h].getVoltage();
             engine.setSpeed(h, params[SPEED_VOCT1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f
-                ? clamp(spKnob * std::exp2(clamp(spCv, -5.f, 5.f)), -16.f, 16.f)
-                : clamp(spKnob + spCv * 0.4f, -2.f, 2.f));
-            engine.setPosition(h, clamp(params[POSITION1_PARAM + HEAD_PARAMS * h].getValue()
-                + inputs[POSITION1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setSize(h, clamp(params[SIZE1_PARAM + HEAD_PARAMS * h].getValue()
-                + inputs[SIZE1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setLevel(h, clamp(params[LEVEL1_PARAM + HEAD_PARAMS * h].getValue()
-                + inputs[LEVEL1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
-            engine.setJitter(h, clamp(params[JITTER1_PARAM + HEAD_PARAMS * h].getValue()
-                + inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.1f, 0.f, 1.f));
+                ? loooop::speedFromVOct(spKnob, spCv)
+                : loooop::speedFromControls(spKnob, spCv));
+            engine.setPosition(h, loooop::normalizedControl(
+                params[POSITION1_PARAM + HEAD_PARAMS * h].getValue(),
+                inputs[POSITION1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
+            engine.setSize(h, loooop::normalizedControl(
+                params[SIZE1_PARAM + HEAD_PARAMS * h].getValue(),
+                inputs[SIZE1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
+            engine.setLevel(h, loooop::normalizedControl(
+                params[LEVEL1_PARAM + HEAD_PARAMS * h].getValue(),
+                inputs[LEVEL1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
+            engine.setJitter(h, loooop::normalizedControl(
+                params[JITTER1_PARAM + HEAD_PARAMS * h].getValue(),
+                inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
 
             bool oneShot = params[TRIG_MODE1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f;
             engine.setOneShot(h, oneShot);
@@ -125,10 +130,11 @@ struct Loooop : Module {
         }
 
         // Stereo in: an unpatched jack follows the patched one (mono -> both).
-        float inL = inputs[AUDIO_L_INPUT].isConnected()
-            ? inputs[AUDIO_L_INPUT].getVoltage() : inputs[AUDIO_R_INPUT].getVoltage();
-        float inR = inputs[AUDIO_R_INPUT].isConnected()
-            ? inputs[AUDIO_R_INPUT].getVoltage() : inputs[AUDIO_L_INPUT].getVoltage();
+        const auto in = loooop::normalledStereo(
+            inputs[AUDIO_L_INPUT].isConnected(), inputs[AUDIO_L_INPUT].getVoltage(),
+            inputs[AUDIO_R_INPUT].isConnected(), inputs[AUDIO_R_INPUT].getVoltage());
+        const float inL = in.l;
+        const float inR = in.r;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine.process(inL / 5.f, inR / 5.f, hs);   // ±5V <-> ±1
@@ -138,16 +144,17 @@ struct Loooop : Module {
             outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
             // Pan is a balance on each head's contribution to the mix only;
             // the individual head outputs above are unaffected. Center = unity.
-            float pan = clamp(params[PAN1_PARAM + HEAD_PARAMS * h].getValue()
-                + inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage() * 0.2f, -1.f, 1.f);
-            float gL = pan <= 0.f ? 1.f : 1.f - pan;
-            float gR = pan >= 0.f ? 1.f : 1.f + pan;
+            const float pan = loooop::panControl(
+                params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
+                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage());
+            const float gL = loooop::panLeftGain(pan);
+            const float gR = loooop::panRightGain(pan);
             wetL += hs[h].l * gL; wetR += hs[h].r * gR;
         }
-        float w = clamp(params[DRYWET_PARAM].getValue()
-            + inputs[DRYWET_CV_INPUT].getVoltage() * 0.1f, 0.f, 1.f);
-        outputs[MIX_L_OUTPUT].setVoltage((inL / 5.f * (1.f - w) + wetL * w) * 5.f);
-        outputs[MIX_R_OUTPUT].setVoltage((inR / 5.f * (1.f - w) + wetR * w) * 5.f);
+        const float w = loooop::normalizedControl(
+            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage());
+        outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
+        outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
     }
 };

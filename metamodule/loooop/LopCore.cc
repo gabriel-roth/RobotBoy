@@ -3,6 +3,7 @@
 #include "CoreModules/register_module.hh"
 #include "dsp/LoopEngine.hpp"
 #include "display/LoopWaveformRenderer.hpp"
+#include "LooperModuleDSP.hpp"
 #include <algorithm>
 #include <cmath>
 #include <span>
@@ -52,14 +53,14 @@ public:
         float spKnob = (getState<SpeedKnob>() - 0.5f) * 4.f;
         float spCv = getInput<SpeedCvIn>().value_or(0.f);
         engine_.setSpeed(0, getState<SpeedVoctAlt>() == 1
-            ? std::clamp(spKnob * std::exp2(std::clamp(spCv, -5.f, 5.f)), -16.f, 16.f)
-            : std::clamp(spKnob + spCv * 0.4f, -2.f, 2.f));
-        engine_.setPosition(0, std::clamp(getState<PositionKnob>()
-            + getInput<PositionCvIn>().value_or(0.f) * 0.1f, 0.f, 1.f));
-        engine_.setSize(0, std::clamp(getState<SizeKnob>()
-            + getInput<SizeCvIn>().value_or(0.f) * 0.1f, 0.f, 1.f));
-        engine_.setJitter(0, std::clamp(getState<JitterKnob>()
-            + getInput<JitterCvIn>().value_or(0.f) * 0.1f, 0.f, 1.f));
+            ? loooop::speedFromVOct(spKnob, spCv)
+            : loooop::speedFromControls(spKnob, spCv));
+        engine_.setPosition(0, loooop::normalizedControl(
+            getState<PositionKnob>(), getInput<PositionCvIn>().value_or(0.f)));
+        engine_.setSize(0, loooop::normalizedControl(
+            getState<SizeKnob>(), getInput<SizeCvIn>().value_or(0.f)));
+        engine_.setJitter(0, loooop::normalizedControl(
+            getState<JitterKnob>(), getInput<JitterCvIn>().value_or(0.f)));
 
         const bool oneShot = getState<TrigModeAlt>() == 1;
         engine_.setOneShot(0, oneShot);
@@ -77,15 +78,17 @@ public:
 
         // Stereo in: an unpatched jack follows the patched one (mono -> both).
         auto inLOpt = getInput<AudioInL>(), inROpt = getInput<AudioInR>();
-        float inL = (inLOpt ? *inLOpt : inROpt.value_or(0.f)) / 5.f;   // ±5V -> ±1
-        float inR = (inROpt ? *inROpt : inLOpt.value_or(0.f)) / 5.f;
+        const auto in = loooop::normalledStereo(
+            bool(inLOpt), inLOpt.value_or(0.f), bool(inROpt), inROpt.value_or(0.f));
+        float inL = in.l / 5.f;   // ±5V -> ±1
+        float inR = in.r / 5.f;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
-        float w = std::clamp(getState<DryWetKnob>()
-            + getInput<DryWetCvIn>().value_or(0.f) * 0.1f, 0.f, 1.f);
-        setOutput<OutL>((inL * (1.f - w) + hs[0].l * w) * 5.f);
-        setOutput<OutR>((inR * (1.f - w) + hs[0].r * w) * 5.f);
+        float w = loooop::normalizedControl(
+            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f));
+        setOutput<OutL>(loooop::dryWet(inL, hs[0].l, w) * 5.f);
+        setOutput<OutR>(loooop::dryWet(inR, hs[0].r, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
