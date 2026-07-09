@@ -4,6 +4,7 @@
 #include "particules_block_runtime.h"
 #include "particules_cv_conditioning.h"
 #include "particules_density_control.h"
+#include "metamodule_fpu.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -103,6 +104,7 @@ struct Particules : Module {
 	bool prev_in_l_connected_ = false;
 	bool prev_in_r_connected_ = false;
 	bool needs_calibration_ = true;  // Calibrate on first process() if auto_gain_
+	bool metamodule_fpu_configured_ = false;
 
 	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
@@ -317,6 +319,10 @@ struct Particules : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		if (!metamodule_fpu_configured_) {
+			metamodule_fpu_configured_ = true;
+			particules::EnableMetaModuleFlushToZero();
+		}
 		bool freeze_button = params[FREEZE_PARAM].getValue() > 0.5f;
 		freeze_gate_.process(inputs[FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
 		bool frozen = freeze_button || freeze_gate_.isHigh();
