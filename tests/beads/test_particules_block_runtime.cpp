@@ -112,6 +112,33 @@ TEST_CASE("ParticulesBlockRuntime: LED decay duration is sample-rate independent
     REQUIRE(at48.GrainLed() == Approx(at96.GrainLed()).margin(0.00001f));
 }
 
+TEST_CASE("ParticulesBlockRuntime: reassignment discards sample-rate configuration", "[particules_block_runtime]") {
+    // Hosts reset the runtime by reassignment (runtime = {};). That discards
+    // the configured decay factor, so every reassignment site must re-call
+    // ConfigureSampleRate. This test pins that invariant.
+    ParticulesBlockRuntime<64> configured;
+    configured.ConfigureSampleRate(48000.0f);   // decay = 0.9999^64, not the flat default
+
+    ParticulesBlockRuntime<64> defaulted;       // flat default decay = 0.9999
+
+    configured.SetGrainLed(1.0f);
+    defaulted.SetGrainLed(1.0f);
+    configured.DecayGrainLed();
+    defaulted.DecayGrainLed();
+
+    // Configured decay must actually differ from the default-constructed one.
+    REQUIRE(configured.GrainLed() != Approx(defaulted.GrainLed()).margin(0.0001f));
+    const float default_decay = defaulted.GrainLed();
+
+    // Reassignment reverts to the flat default: decay matches the
+    // default-constructed runtime again until ConfigureSampleRate is re-called.
+    configured = ParticulesBlockRuntime<64>{};
+    configured.SetGrainLed(1.0f);
+    configured.DecayGrainLed();
+    REQUIRE(configured.GrainLed() == Approx(default_decay).margin(0.0000001f));
+    REQUIRE(configured.GrainLed() == Approx(0.9999f).margin(0.0000001f));
+}
+
 TEST_CASE("ParticulesBlockRuntime: seed gate latch captures a mid-block pulse",
           "[block_runtime]") {
     ParticulesBlockRuntime<64> rt;

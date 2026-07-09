@@ -199,6 +199,9 @@ struct Particules : Module {
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
 		// Memory requirements are sample-rate-independent (fixed frame budget),
 		// so we can reinitialize into the same allocation.
+		// Reassigning block_runtime_ discards its configuration; it must be
+		// followed by ConfigureSampleRate or the LED decay reverts to the
+		// flat BlockSize=1 @ 48 kHz default.
 		block_runtime_ = ParticulesBlockRuntime<kWrapperBlockSize>{};
 		block_runtime_.ConfigureSampleRate(e.sampleRate);
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
@@ -215,7 +218,11 @@ struct Particules : Module {
 		seed_state_          = 0;
 		pitch_lock_          = 0;
 		grain_trigger_out_   = false;
+		// Reassigning block_runtime_ discards its configuration; it must be
+		// followed by ConfigureSampleRate or the LED decay reverts to the
+		// flat BlockSize=1 @ 48 kHz default.
 		block_runtime_       = ParticulesBlockRuntime<kWrapperBlockSize>{};
+		block_runtime_.ConfigureSampleRate(APP->engine->getSampleRate());
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		auto_gain_           = true;
 		manual_gain_db_      = 0.f;
