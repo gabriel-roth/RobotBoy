@@ -119,9 +119,16 @@ public:
     float phase_increment() const { return phase_increment_; }
     int pre_delay_remaining() const { return pre_delay_; }
 
+    // Spawn order, stamped by GrainEngine at activation. Used by the
+    // kill-fallback to pick the true oldest active grain (see
+    // GrainEngine::AllocateGrain) rather than an arbitrary array slot.
+    uint32_t spawn_serial() const { return spawn_serial_; }
+    void SetSpawnSerial(uint32_t serial) { spawn_serial_ = serial; }
+
 private:
     bool active_ = false;
     bool pending_kill_ = false;
+    uint32_t spawn_serial_ = 0;
 
     // Zero-crossing kill with fallback fade
     static constexpr int kZeroCrossDeadline = 32;
@@ -167,9 +174,11 @@ private:
     inline bool ApplyPendingKill(float& out_l, float& out_r) {
         float mono = out_l + out_r;
         if (fallback_fade_) {
-            float fade = static_cast<float>(fallback_counter_) * kFallbackFadeInv;
-            out_l *= fade;
-            out_r *= fade;
+            // Decrement first, so `fade` is computed as
+            // (counter - 1) / kFallbackFadeSamples: the emitted sequence
+            // is 0.75, 0.5, 0.25, 0.0 (kFallbackFadeSamples == 4) — the
+            // last emitted sample reaches exactly 0 instead of hard-
+            // cutting from 0.25 straight to silence.
             if (--fallback_counter_ < 0) {
                 active_ = false;
                 pending_kill_ = false;
@@ -177,6 +186,9 @@ private:
                 prev_mono_ = 0.0f;
                 return true;
             }
+            float fade = static_cast<float>(fallback_counter_) * kFallbackFadeInv;
+            out_l *= fade;
+            out_r *= fade;
         } else {
             bool crossed = (prev_mono_ > 1e-5f && mono <= 0.0f) ||
                            (prev_mono_ < -1e-5f && mono >= 0.0f);

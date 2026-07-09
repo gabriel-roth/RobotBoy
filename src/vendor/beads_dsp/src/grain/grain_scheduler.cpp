@@ -12,12 +12,11 @@ const float GrainScheduler::kRateExponent = std::log2(GrainScheduler::kMaxRateHz
 
 void GrainScheduler::Init(float sample_rate) {
     sample_rate_ = sample_rate;
+    prev_trigger_mode_ = TriggerMode::kLatched;
     latched_phase_ = 0.0f;
     prev_gate_ = false;
     gate_phase_ = 0.0f;
     prev_clock_ = false;
-    clock_period_ = 0.0f;
-    samples_since_clock_ = 0;
     random_.Init(0xBEAD5EED);
 }
 
@@ -35,6 +34,22 @@ float GrainScheduler::DensityToRate(float density) {
 int GrainScheduler::Process(const BeadsParameters& params, size_t block_size,
                             int* trigger_samples, int max_triggers) {
     int trigger_count = 0;
+
+    if (params.trigger_mode != prev_trigger_mode_) {
+        // gate_phase_ is reused across modes for different purposes (a
+        // continuous kGated inter-grain phasor, an integer kClocked
+        // division counter, a kMidi repeat-rate phasor); prev_gate_ and
+        // prev_clock_ are per-mode edge-detect latches. Carrying any of
+        // this over a mode switch caused the first clock division after
+        // gated->clocked to be wrong. Reset unconditionally on ANY mode
+        // change so no transition — not just gated->clocked — can
+        // inherit another mode's stale interpretation of these fields.
+        latched_phase_ = 0.0f;
+        prev_gate_ = false;
+        gate_phase_ = 0.0f;
+        prev_clock_ = false;
+        prev_trigger_mode_ = params.trigger_mode;
+    }
 
     switch (params.trigger_mode) {
     case TriggerMode::kLatched: {
@@ -114,25 +129,8 @@ int GrainScheduler::Process(const BeadsParameters& params, size_t block_size,
     case TriggerMode::kClocked: {
         bool clock = params.gate;
         bool rising_edge = clock && !prev_clock_;
-        // Cap the counter to prevent uint32_t overflow after very long
-        // periods without a clock edge (~24h at 48kHz).  10 seconds of
-        // samples is already far beyond any musical clock period.
-        uint32_t max_samples = static_cast<uint32_t>(sample_rate_ * 10.0f);
-        if (samples_since_clock_ < max_samples) {
-            samples_since_clock_ += static_cast<uint32_t>(block_size);
-        }
 
         if (rising_edge) {
-            // Measure period between clock edges.
-            if (clock_period_ > 0.0f) {
-                // Smooth the period estimate.
-                OnePole(clock_period_,
-                         static_cast<float>(samples_since_clock_), 0.5f);
-            } else {
-                clock_period_ = static_cast<float>(samples_since_clock_);
-            }
-            samples_since_clock_ = 0;
-
             float eff_density = Clamp(params.density + params.density_cv, 0.0f, 1.0f);
             if (eff_density < 0.5f) {
                 // CCW from noon: clock division.

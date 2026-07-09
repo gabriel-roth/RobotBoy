@@ -39,7 +39,6 @@ struct BeadsParameters {
     // Gate/clock/freeze
     bool gate = false;
     bool freeze = false;
-    float clock_interval_samples = 0.0f; // measured clock period; 0 = unclocked
     TriggerMode trigger_mode = TriggerMode::kLatched;
     QualityMode quality_mode = QualityMode::kHiFi;
 

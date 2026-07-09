@@ -36,6 +36,7 @@ void GrainEngine::Init(float sample_rate, RecordingBuffer* buffer) {
     buffer_ = buffer;
     overlap_count_lp_ = 0.0f;
     gain_normalization_ = 1.0f;
+    spawn_serial_ = 0;
 
     for (int i = 0; i < kMaxGrains; ++i) {
         grains_[i].Init();
@@ -76,16 +77,36 @@ Grain* GrainEngine::AllocateGrain() {
         }
     }
 
-    // Pool is full — mark the oldest grain for zero-crossing kill.
-    // The grain will be killed at the next zero crossing (or after a
-    // short fallback fade), avoiding clicks without smearing transients.
-    // We do NOT return the grain for immediate reuse; the new trigger
-    // is simply dropped.
+    // Pool is full — mark the true oldest grain (by spawn order) for
+    // zero-crossing kill. The grain will be killed at the next zero
+    // crossing (or after a short fallback fade), avoiding clicks without
+    // smearing transients. We do NOT return the grain for immediate
+    // reuse; the new trigger is simply dropped.
+    //
+    // Array index does NOT track spawn order: as grains finish, their
+    // slots free up and get reused by the first loop above, so a low
+    // array index can hold the *newest* grain in the pool. spawn_serial_
+    // is a monotonically increasing counter stamped on each grain at
+    // activation (see Process()); pick the active, not-yet-pending-kill
+    // grain with the lowest serial.
+    //
+    // spawn_serial_ wraps at 2^32 (~4.29 billion grains). Even under a
+    // sustained worst-case trigger rate (e.g. an audio-rate signal into a
+    // gate/clock input firing a grain on every rising edge, tens of kHz),
+    // that's still on the order of a day of continuous playing. Wraparound
+    // only affects *relative* ordering, and grains live at most a few
+    // hundred ms — far shorter than the wrap period — so no two
+    // simultaneously-active grains can ever straddle a wrap; ordering
+    // self-heals immediately.
+    int victim = -1;
     for (int i = 0; i < kMaxGrains; ++i) {
-        if (!grains_[i].pending_kill()) {
-            grains_[i].StartPendingKill();
-            break;
+        if (grains_[i].pending_kill()) continue;
+        if (victim < 0 || grains_[i].spawn_serial() < grains_[victim].spawn_serial()) {
+            victim = i;
         }
+    }
+    if (victim >= 0) {
+        grains_[victim].StartPendingKill();
     }
     return nullptr;
 }
@@ -241,6 +262,7 @@ void GrainEngine::Process(const BeadsParameters& params,
         if (g) {
             auto gp = ComputeGrainParams(params, trigger_samples[t]);
             g->Start(gp);
+            g->SetSpawnSerial(++spawn_serial_);
             ++active_before;
         }
     }

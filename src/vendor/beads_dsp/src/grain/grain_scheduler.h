@@ -30,17 +30,24 @@ private:
 
     float sample_rate_ = 48000.0f;
 
+    // Trigger mode as of the last Process() call, so a mode change can be
+    // detected and the mode-specific timing state below reset (see
+    // Process()). Defaults to kLatched to match both BeadsParameters'
+    // default and Init()'s all-zero state, so the very first call never
+    // spuriously looks like a "mode change".
+    TriggerMode prev_trigger_mode_ = TriggerMode::kLatched;
+
     // Latched mode: internal phasor
     float latched_phase_ = 0.0f;
 
-    // Gated mode
+    // Gated mode. gate_phase_ is also reused as the kClocked clock-
+    // division counter and the kMidi repeat-rate phasor — see the
+    // mode-change reset in Process().
     bool prev_gate_ = false;
     float gate_phase_ = 0.0f;
 
     // Clocked mode
     bool prev_clock_ = false;
-    float clock_period_ = 0.0f;   // Estimated period between clocks
-    uint32_t samples_since_clock_ = 0;
 
     Random random_;
     bool grain_triggered_ = false;
