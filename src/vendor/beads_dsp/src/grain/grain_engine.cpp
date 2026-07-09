@@ -183,6 +183,13 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
         while (gp.position >= buf_size_f) gp.position -= buf_size_f;
     }
 
+    // Guard against NaN/huge positions before they reach Grain::Start(),
+    // which stores gp.position directly into read_position_ and feeds it to
+    // RecordingBuffer::ReadHermiteStereoFast — an unguarded hot-loop reader
+    // whose float->int cast is undefined behavior for non-finite input.
+    // Land on a safe, always-valid position rather than propagate the NaN.
+    if (!std::isfinite(gp.position)) gp.position = 0.0f;
+
     // --- SHAPE → envelope shape ---
     float mod_shape = ar_shape_.Process(params.shape, params.shape_ar,
                                          params.shape_cv, params.shape_cv_connected);
@@ -251,9 +258,6 @@ void GrainEngine::Process(const BeadsParameters& params,
     }
 
     int active_before = ActiveGrainCount();
-    render_load_tier_ = (active_before >= kHighLoadActiveGrains)
-        ? RenderLoadTier::kHigh
-        : RenderLoadTier::kNormal;
 
     // Start new grains at their trigger points.
     for (int t = 0; t < num_triggers; ++t) {

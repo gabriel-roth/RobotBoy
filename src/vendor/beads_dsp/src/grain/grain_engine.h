@@ -50,11 +50,6 @@ public:
     void SetScaleRoot(int midi_note) { pitch_quantizer_.set_root(midi_note); }
 
 private:
-    enum class RenderLoadTier {
-        kNormal,
-        kHigh
-    };
-
     Grain grains_[kMaxGrains];
     GrainScheduler scheduler_;
     Attenurandomizer ar_time_;
@@ -88,8 +83,6 @@ private:
     int cached_decimation_ = -1;
     float cached_grain_dur_ = 0.f;
     int cached_max_active_ = kMaxGrains;
-    RenderLoadTier render_load_tier_ = RenderLoadTier::kNormal;
-    static constexpr int kHighLoadActiveGrains = 12;
 
     // Startup ramp: limit grain count for the first second to avoid
     // CPU spike when loading a patch with high density settings.

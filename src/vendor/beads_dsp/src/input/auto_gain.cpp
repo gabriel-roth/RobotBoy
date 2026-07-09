@@ -35,6 +35,12 @@ static inline float SoftLimit(float x) {
     return sign * (kThreshold + kHeadroom * SoftClip(excess / kHeadroom));
 }
 
+// Hoisted to file scope: a function-local `static const` needs a
+// thread-safety guard check on every call (dynamic init on first use only,
+// but the compiler can't prove that here); initializing once at load time
+// keeps this off the audio-thread hot path in the kLocked branch below.
+static const float kSilenceGain = FastDbToGain(AutoGain::kMinGainDb);
+
 void AutoGain::Init(float sample_rate) {
     sample_rate_ = sample_rate;
     envelope_ = 0.0f;
@@ -115,7 +121,6 @@ StereoFrame AutoGain::Process(StereoFrame input, float manual_gain_db, bool auto
         }
     } else if (state_ == State::kLocked) {
         // Check for silence -> sound transition
-        static const float kSilenceGain = FastDbToGain(kMinGainDb);
         bool is_silent = peak < kSilenceGain;
 
         if (is_silent) {

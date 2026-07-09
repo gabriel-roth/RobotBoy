@@ -31,7 +31,7 @@ You control **how often** grains are born (Density), **where** on the tape they 
 
 *Density:* How often grains are born. **Straight up (12 o'clock) = silence.** Clockwise generates grains at a *randomly modulated* rate; counter-clockwise generates them at a *constant* rate. The further from center, the shorter the gap between grains, up to a continuous stream. (When a clock is patched into **Seed**, Density works differently — see [Seed](#seed-clocking-grains).)
 
-*Seed input:* The clock/trigger/gate input for grains (bottom right, labeled SEED). Its behavior depends on whether a cable is patched and on the **Seed CV mode** menu setting — see below.
+*Seed input:* The clock/trigger/gate input for grains (top right, labeled SEED). Its behavior depends on whether a cable is patched and on the **Seed CV mode** menu setting — see below.
 
 *Freeze:* Stops recording into the buffer so the grains gather sound from a frozen snapshot instead of the live input. The button latches; the **Freeze** gate input (top left) does the same from CV (high above 1 V).
 
@@ -68,15 +68,15 @@ Each of these has its own **CV input** and a small **CV-amount trimpot** beside 
 
 ### Quality
 
-The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes sample rate, bit depth, buffer length, and the flavor of the feedback limiter:
+The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. The recording rate is a fixed decimation factor of your engine's sample rate, not an absolute number — the figures below are what that factor works out to at a 48 kHz sample rate:
 
-*Bright digital* (white LED): 48 kHz, 16-bit — cleanest and brightest.
+*Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit — cleanest and brightest.
 
-*Cold digital* (cyan LED): 32 kHz, 12-bit — the classic Mutable *Clouds* grain.
+*Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain.
 
-*Sunny tape* (amber LED): 24 kHz, 12-bit — warm.
+*Sunny tape* (amber LED): rate ÷ 8 (6 kHz at 48 kHz), 12-bit — warm.
 
-*Scorched cassette* (magenta LED): 24 kHz, 8-bit — lo-fi, with wow and flutter.
+*Scorched cassette* (magenta LED): rate ÷ 4 (12 kHz at 48 kHz), 8-bit — lo-fi, with wow and flutter.
 
 Lower-quality settings also give you a **longer recording buffer** to gather grains from. Quality can't be changed while Freeze is engaged.
 

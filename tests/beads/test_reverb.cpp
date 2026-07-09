@@ -36,6 +36,36 @@ TEST_CASE("Reverb: Init and process without crash", "[reverb]") {
     REQUIRE(max_tail > 0.001f);
 }
 
+TEST_CASE("Reverb: undersized buffer disables instead of crashing", "[reverb]") {
+    // Deliberately smaller than kMinBufferSize: Init() must not allocate any
+    // of the 12 delay lines against this buffer (they'd otherwise partially
+    // fall back to nullptr and Process() would write through it).
+    std::vector<float> tiny_mem(Reverb::kMinBufferSize / 2, 0.0f);
+
+    Reverb rev;
+    rev.Init(tiny_mem.data(), tiny_mem.size(), kSampleRate);
+    rev.SetAmount(1.0f);
+    rev.SetDecay(0.95f);
+
+    float out_l = 1.0f, out_r = 1.0f;
+    for (int i = 0; i < 1000; ++i) {
+        float input = (i == 0) ? 1.0f : 0.0f;
+        rev.Process(input, input, &out_l, &out_r);   // must not crash
+        REQUIRE(out_l == 0.0f);
+        REQUIRE(out_r == 0.0f);
+    }
+}
+
+TEST_CASE("Reverb: null buffer disables instead of crashing", "[reverb]") {
+    Reverb rev;
+    rev.Init(nullptr, Reverb::kMinBufferSize, kSampleRate);
+
+    float out_l, out_r;
+    rev.Process(1.0f, 1.0f, &out_l, &out_r);   // must not crash
+    REQUIRE(out_l == 0.0f);
+    REQUIRE(out_r == 0.0f);
+}
+
 TEST_CASE("Reverb: Dry signal passes when amount is 0", "[reverb]") {
     std::vector<float> reverb_mem(kReverbBufferSize, 0.0f);
 

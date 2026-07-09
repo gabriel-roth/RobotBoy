@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <vector>
 #include <cmath>
+#include <limits>
 
 #include "beads/types.h"
 #include "buffer/recording_buffer.h"
@@ -85,6 +86,53 @@ TEST_CASE("RecordingBuffer: Write wraps around", "[buffer]") {
 
     // Write head should have wrapped
     REQUIRE(buf.write_head() == 50);
+}
+
+TEST_CASE("RecordingBuffer: non-finite read position returns silence, not a hang",
+          "[buffer]") {
+    size_t num_frames = 100;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+
+    float nan = std::numeric_limits<float>::quiet_NaN();
+    float inf = std::numeric_limits<float>::infinity();
+
+    for (float pos : {nan, inf, -inf}) {
+        REQUIRE(buf.ReadLinear(0, pos) == 0.0f);
+        REQUIRE(buf.ReadHermite(0, pos) == 0.0f);
+        float out_l, out_r;
+        buf.ReadHermiteStereo(pos, &out_l, &out_r);
+        REQUIRE(out_l == 0.0f);
+        REQUIRE(out_r == 0.0f);
+    }
+}
+
+TEST_CASE("RecordingBuffer: huge finite read position wraps in O(1) via fmod",
+          "[buffer]") {
+    size_t num_frames = 100;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        float val = static_cast<float>(i) / static_cast<float>(num_frames);
+        buf.Write(val, -val);
+    }
+
+    // A position many multiples of size_ past frame 5 must read the same as
+    // frame 5 itself -- the old while-loop wrap would have taken ~100,000
+    // iterations here; fmod does it in one step. (Kept within 2^24 so the
+    // float representation of `huge` itself is exact -- larger values lose
+    // enough mantissa precision that the wrapped fractional part isn't
+    // meaningfully comparable to the small-position readback.)
+    float huge = 5.0f + static_cast<float>(num_frames) * 100000.0f;
+    REQUIRE(buf.ReadLinear(0, huge) == Approx(buf.ReadLinear(0, 5.0f)));
+    REQUIRE(buf.ReadHermite(0, huge) == Approx(buf.ReadHermite(0, 5.0f)));
 }
 
 TEST_CASE("RecordingBuffer: entering freeze fades both sides of the seam to zero",

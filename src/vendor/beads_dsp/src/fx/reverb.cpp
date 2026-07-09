@@ -5,6 +5,17 @@
 namespace beads {
 
 void Reverb::Init(float* buffer, size_t buffer_size, float sample_rate) {
+    // Guard: the shared buffer must hold all 12 partitioned delay lines
+    // (kMinBufferSize is their required total). Previously a too-small
+    // buffer left some delay lines pointing at nullptr (see the `alloc`
+    // fallback below), which Process() then wrote through unconditionally
+    // -- undefined behavior. Disable instead and stay silent-but-safe.
+    if (!buffer || buffer_size < kMinBufferSize) {
+        enabled_ = false;
+        return;
+    }
+    enabled_ = true;
+
     sample_rate_ = sample_rate;
 
     amount_ = 0.0f;
@@ -86,6 +97,12 @@ void Reverb::SetLpCutoff(float cutoff) {
 
 void Reverb::Process(float left_in, float right_in,
                      float* left_out, float* right_out) {
+    if (!enabled_) {
+        *left_out = 0.0f;
+        *right_out = 0.0f;
+        return;
+    }
+
     // Map decay knob (0-1) to feedback gain.
     // Non-linear: slow ramp then steep near 1.0 for long tails.
     float fb = 0.2f + decay_ * 0.75f;

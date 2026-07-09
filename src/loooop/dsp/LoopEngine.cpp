@@ -36,6 +36,8 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
 
 void LoopEngine::setSampleRate(float sampleRate) {
     if (loopLen_ == 0 && !recording_) {
+        if (sampleRate == sampleRate_ && bufL_.size() == maxSamples_ && maxSamples_ != 0)
+            return;                       // already sized for this rate; skip the ~23 MB refill
         reset(sampleRate, maxSeconds_);   // nothing to lose; size for the new rate
         return;
     }
@@ -100,7 +102,15 @@ void LoopEngine::setJitter(int head, float j01) {
         rollJitter(h);          // first wrap after enabling is already random
     } else {
         h.jitter = j;
-        if (j == 0.f) h.jitterNext = 0.f;
+        if (j == 0.f) {
+            h.jitterNext = 0.f;
+        } else if (std::fabs(h.jitterNext) > 0.5f * j) {
+            // The amount decreased: rescale a pre-rolled offset that now
+            // exceeds the new range (offsets are jitter * U(-0.5, 0.5))
+            // back onto its boundary instead of letting it play one extra
+            // out-of-range wrap.
+            h.jitterNext = (h.jitterNext < 0.f ? -0.5f : 0.5f) * j;
+        }
     }
 }
 

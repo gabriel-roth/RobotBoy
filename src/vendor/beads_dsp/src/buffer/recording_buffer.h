@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstddef>
-#include <cstring>
 #include "../../include/beads/types.h"
 #include "../util/interpolation.h"
 
@@ -68,28 +67,6 @@ public:
         const float* p2  = &buffer_[i2  * channels_];
         *out_l = InterpolateHermite(p_1[0], p0[0], p1[0], p2[0], frac);
         *out_r = InterpolateHermite(p_1[1], p0[1], p1[1], p2[1], frac);
-    }
-
-    // Copy a contiguous region of stereo frames from the circular buffer
-    // into a linear destination array. Handles wrap-around transparently.
-    // start_frame may be negative (wraps to buffer end).
-    // dest must hold num_frames * channels_ floats.
-    inline void CopyRegionTo(int start_frame, int num_frames_to_copy,
-                             float* dest) const {
-        int buf_frames = static_cast<int>(size_);
-        // Normalize start_frame to [0, buf_frames)
-        int src = ((start_frame % buf_frames) + buf_frames) % buf_frames;
-        int remaining = num_frames_to_copy;
-        float* dst = dest;
-        while (remaining > 0) {
-            int chunk = remaining;
-            if (chunk > buf_frames - src) chunk = buf_frames - src;
-            std::memcpy(dst, &buffer_[src * channels_],
-                        static_cast<size_t>(chunk * channels_) * sizeof(float));
-            dst += chunk * channels_;
-            remaining -= chunk;
-            src = 0;  // After first chunk, continue from start of buffer
-        }
     }
 
     // Freeze-transition declicking. Call on every freeze-state change.

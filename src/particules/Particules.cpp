@@ -175,6 +175,14 @@ struct Particules : Module {
 		if (posix_memalign(&dsp_memory_, req.alignment, req.total_bytes) != 0)
 			dsp_memory_ = nullptr;
 #endif
+		if (!dsp_memory_) {
+			// processor_.Init() below already no-ops safely on a null pointer
+			// (see BeadsProcessor::Init), but a failed allocation of this size
+			// (~a few hundred KB) is worth surfacing instead of silently
+			// running with a dead DSP chain. WARN is defined identically by
+			// both hosts' logger.hpp (Rack SDK and MetaModule plugin SDK).
+			WARN("Particules: dsp_memory_ allocation failed (%zu bytes)", req.total_bytes);
+		}
 		processor_.Init(dsp_memory_, req.total_bytes, sampleRate);
 		block_runtime_.ConfigureSampleRate(sampleRate);
 		const int cv_dec = particules::CvDecimationForBlock(kWrapperBlockSize);

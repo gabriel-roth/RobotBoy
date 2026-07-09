@@ -2,6 +2,7 @@
 #include <catch2/catch_approx.hpp>
 #include <vector>
 #include <cmath>
+#include <limits>
 
 #include "beads/types.h"
 #include "beads/parameters.h"
@@ -358,6 +359,44 @@ TEST_CASE("GrainEngine: Negative SIZE produces reverse output", "[engine]") {
 
     REQUIRE(all_finite);
     REQUIRE(max_level > 0.001f);
+}
+
+TEST_CASE("GrainEngine: NaN TIME CV can't reach the buffer read as a NaN position",
+          "[engine][nan]") {
+    // time_ar > 0 with a connected CV makes ComputeGrainParams' modulation
+    // term ar_amount * cv; a NaN cv poisons mod_time -> offset_frames ->
+    // gp.position all the way through (Clamp/std::min/std::max all propagate
+    // NaN). Without the isfinite fence, that NaN would reach Grain::Start()
+    // and then RecordingBuffer::ReadHermiteStereoFast's unguarded
+    // float->int cast -- undefined behavior. The fence should land it on a
+    // safe position instead, keeping output finite.
+    TestBuffer tb(48000);
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &tb.buffer);
+
+    BeadsParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.density = 0.1f;   // fast trigger rate
+    params.size = 0.5f;
+    params.time = 0.5f;
+    params.time_ar = 1.0f;                                  // CW: CV attenuator
+    params.time_cv = std::numeric_limits<float>::quiet_NaN();
+    params.time_cv_connected = true;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+
+    std::vector<StereoFrame> output(256, {0.0f, 0.0f});
+    bool all_finite = true;
+    for (int block = 0; block < 200; ++block) {
+        engine.Process(params, output.data(), 256);
+        for (auto& f : output) {
+            if (!std::isfinite(f.l) || !std::isfinite(f.r)) all_finite = false;
+        }
+    }
+
+    REQUIRE(all_finite);
+    REQUIRE(engine.ActiveGrainCount() > 0);
 }
 
 TEST_CASE("GrainEngine: Produces output with active grains", "[engine]") {

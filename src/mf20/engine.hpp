@@ -14,20 +14,23 @@
 #include <cmath>
 
 struct VoiceEngine {
+    // Default g (prewarp-gain) values ≈ the 750 Hz / 120 Hz cutoff defaults
+    // at 48 kHz; the first modulate() call corrects them within 2.5 ms.
+    static constexpr float kDefaultLpG = 0.0491f;
+    static constexpr float kDefaultHpG = 0.0079f;
+
     MF20Filter lpFilter,  hpFilter;
     MF20Filter lpFilterR, hpFilterR;
 
     // Cutoff smoothing happens in the g (prewarp-gain) domain: modulate()
     // computes tan/exp2 at ~2.5 ms intervals and the audio path only slews g.
-    // Init values ≈ the 750 Hz / 120 Hz defaults at 48 kHz; the first
-    // modulate() corrects them within 2.5 ms.
-    OnePoleSmoother lpGSlew { 0.0491f };
-    OnePoleSmoother hpGSlew { 0.0079f };
+    OnePoleSmoother lpGSlew { kDefaultLpG };
+    OnePoleSmoother hpGSlew { kDefaultHpG };
     OnePoleSmoother lpResSlew { 0.25f };
     OnePoleSmoother hpResSlew { 0.25f };
 
-    float lpGTarget   = 0.0491f;
-    float hpGTarget   = 0.0079f;
+    float lpGTarget   = kDefaultLpG;
+    float hpGTarget   = kDefaultHpG;
     float lpResTarget = 0.25f;
     float hpResTarget = 0.25f;
 
@@ -43,8 +46,8 @@ struct VoiceEngine {
         hpFilter.reset();
         lpFilterR.reset();
         hpFilterR.reset();
-        lpGSlew.reset(0.0491f);
-        hpGSlew.reset(0.0079f);
+        lpGSlew.reset(kDefaultLpG);
+        hpGSlew.reset(kDefaultHpG);
         lpResSlew.reset(0.25f);
         hpResSlew.reset(0.25f);
     }

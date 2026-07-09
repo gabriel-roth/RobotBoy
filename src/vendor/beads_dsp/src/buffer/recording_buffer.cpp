@@ -105,14 +105,14 @@ void RecordingBuffer::SetDecimationFactor(int factor) {
 float RecordingBuffer::ReadHermite(int channel, float position) const {
     if (size_ == 0 || !buffer_) return 0.0f;
 
-    // Guard against NaN (which would cause infinite loops below).
-    if (std::isnan(position)) return 0.0f;
+    // Guard against non-finite input (NaN or +/-Inf); Inf would never
+    // satisfy the wrap below and could spin forever.
+    if (!std::isfinite(position)) return 0.0f;
 
-    // Wrap position into [0, size_). Callers pre-wrap positions so these
-    // loops execute 0-1 times. NaN is caught by the isnan guard above.
+    // Wrap position into [0, size_) in O(1) regardless of magnitude.
     float size_f = static_cast<float>(size_);
-    while (position >= size_f) position -= size_f;
-    while (position < 0.0f) position += size_f;
+    position = std::fmod(position, size_f);
+    if (position < 0.0f) position += size_f;
 
     // Integer and fractional parts.
     int pos_int = static_cast<int>(position);
@@ -154,15 +154,15 @@ void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out
         return;
     }
 
-    if (std::isnan(position)) {
+    if (!std::isfinite(position)) {
         *out_l = 0.0f;
         *out_r = 0.0f;
         return;
     }
 
     float size_f = static_cast<float>(size_);
-    while (position >= size_f) position -= size_f;
-    while (position < 0.0f) position += size_f;
+    position = std::fmod(position, size_f);
+    if (position < 0.0f) position += size_f;
 
     int pos_int = static_cast<int>(position);
     float frac = position - static_cast<float>(pos_int);
@@ -192,14 +192,14 @@ void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out
 float RecordingBuffer::ReadLinear(int channel, float position) const {
     if (size_ == 0 || !buffer_) return 0.0f;
 
-    // Guard against NaN (which would cause infinite loops below).
-    if (std::isnan(position)) return 0.0f;
+    // Guard against non-finite input (NaN or +/-Inf); Inf would never
+    // satisfy the wrap below and could spin forever.
+    if (!std::isfinite(position)) return 0.0f;
 
-    // Wrap position into [0, size_). Callers pre-wrap positions so these
-    // loops execute 0-1 times. NaN is caught by the isnan guard above.
+    // Wrap position into [0, size_) in O(1) regardless of magnitude.
     float size_f = static_cast<float>(size_);
-    while (position >= size_f) position -= size_f;
-    while (position < 0.0f) position += size_f;
+    position = std::fmod(position, size_f);
+    if (position < 0.0f) position += size_f;
 
     int pos_int = static_cast<int>(position);
     float frac = position - static_cast<float>(pos_int);

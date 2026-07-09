@@ -33,6 +33,11 @@ public:
     static constexpr size_t kMinBufferSize = 12000;
 
 private:
+    // False when Init() was given a buffer smaller than kMinBufferSize.
+    // Process() short-circuits to silence rather than touching delay lines
+    // that Init() left unallocated (nullptr).
+    bool enabled_ = false;
+
     float sample_rate_ = 48000.0f;
     float amount_ = 0.0f;
     float decay_ = 0.5f;

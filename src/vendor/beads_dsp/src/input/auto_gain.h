@@ -21,6 +21,13 @@ public:
     // Get current gain in dB (valid when auto-gain is active)
     float GainDb() const;
 
+    // Public so auto_gain.cpp can hoist derived constants (e.g. kSilenceGain)
+    // to file scope instead of recomputing them behind a function-local
+    // static's init-guard check on every call.
+    static constexpr float kMinGainDb = -60.0f;
+    static constexpr float kMaxGainDb = 32.0f;
+    static constexpr float kTargetHeadroomDb = 8.0f;  // Leave headroom for peaks
+
 private:
     enum class State { kDisabled, kCalibrating, kLocked };
 
@@ -40,10 +47,6 @@ private:
     int calibration_samples_ = 0;   // ~1 second of calibration
     int silence_samples_ = 0;           // Counter for consecutive silent samples
     int silence_threshold_samples_ = 0; // 10 seconds worth of samples
-
-    static constexpr float kMinGainDb = -60.0f;
-    static constexpr float kMaxGainDb = 32.0f;
-    static constexpr float kTargetHeadroomDb = 8.0f;  // Leave headroom for peaks
 };
 
 } // namespace beads

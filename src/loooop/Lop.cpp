@@ -68,11 +68,16 @@ struct Lop : Module {
     void process(const ProcessArgs& args) override {
         engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
-        if (recordBtn.process(params[RECORD_PARAM].getValue()) ||
-            recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f))
+        // Evaluate both triggers into locals before OR-ing: `||` short-
+        // circuits, so `a || b` would skip calling b.process() (and updating
+        // its Schmitt state) on any sample where a is already true.
+        bool recBtn  = recordBtn.process(params[RECORD_PARAM].getValue());
+        bool recTrig = recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
+        if (recBtn || recTrig)
             engine.toggleRecord();
-        if (clearBtn.process(params[CLEAR_PARAM].getValue()) ||
-            clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f))
+        bool clrBtn  = clearBtn.process(params[CLEAR_PARAM].getValue());
+        bool clrTrig = clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
+        if (clrBtn || clrTrig)
             engine.clear();
 
         // CV: 10 V spans each param's full range, summed with the knob, clamped.

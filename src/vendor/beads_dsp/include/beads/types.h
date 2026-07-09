@@ -69,17 +69,4 @@ static constexpr size_t kMaxBlockSize = 64;
 // Hermite interpolation requires 4 samples
 static constexpr int kInterpolationTail = 4;
 
-// Wavetable size
-static constexpr int kWavetableSize = 256;
-
-// Wavetable data provider — implemented by host wrapper
-struct WavetableProvider {
-    virtual ~WavetableProvider() = default;
-    // Return pointer to waveform data for given bank and index within bank
-    // Data is kWavetableSize samples, normalized float [-1, 1]
-    virtual const float* GetWaveform(int bank, int index) const = 0;
-    virtual int NumBanksAvailable() const = 0;
-    virtual int WaveformsPerBank() const = 0;
-};
-
 } // namespace beads
