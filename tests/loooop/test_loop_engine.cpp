@@ -90,6 +90,33 @@ static void test_subloop_window() {
     check(near(e.process(0.f), 2.5f), "subloop: out[2]==2.5 (wrapped in window)");
 }
 
+// When the read position's next tap (i1) spills past a fractional window
+// start on wrap, the wrap target must interpolate at the fractional winStart
+// (lerp between floor(winStart) and floor(winStart)+1) rather than truncating
+// it to floor(winStart). Crossfade is off so the seam-crossfade blend (which
+// previews via readRaw, unaffected by this bug) doesn't mask the result.
+static void test_fractional_winstart_wrap_target() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 10; ++i) e.process(static_cast<float>(i + 1)); // buf = 1..10
+    e.toggleRecord();                          // loopLen == 10
+    e.setCrossfade(false);
+    // size 0.55 -> winLen 5.5 ; centre 0.5 -> centre sample 5.0 -> winStart 2.25
+    // (fractional) ; winEnd 7.75.
+    e.setSize(0, 0.55f);
+    e.setPosition(0, 0.5f);
+    // pos snaps to winStart=2.25 on the first read, then advances by 1 each
+    // sample: 2.25, 3.25, 4.25, 5.25, 6.25, 7.25 (last read before the wrap
+    // at 7.75 — i1=8 spills past winEnd here).
+    float out = 0.f;
+    for (int i = 0; i < 6; ++i) out = e.process(0.f);
+    // out = (1-.25)*buf[7](=8) + .25*lerp(buf[2](=3), buf[3](=4), .25)
+    //     = 6 + .25*3.25 = 6.8125  (truncated-wrap bug gives 6 + .25*3 = 6.75)
+    check(near(out, 6.8125f), "fractional winStart: wrap target interpolates at frac(winStart)");
+}
+
 static void test_overdub_sums() {
     LoopEngine e;
     e.reset(10.f, 100.f);
@@ -627,6 +654,7 @@ int main() {
     test_double_speed();
     test_reverse();
     test_subloop_window();
+    test_fractional_winstart_wrap_target();
     test_overdub_sums();
     test_clear();
     test_buffer_ceiling_autoend();

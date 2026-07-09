@@ -846,6 +846,56 @@ static void test_voice_sanitize() {
     report(ok, "sanitize() resets non-finite filter state");
 }
 
+// EnginePool::setVoices(n) with n > activeVoices must reset the engines
+// newly entering [activeVoices, n) — a voice that rang hard while inactive
+// (e.g. left self-oscillating at res=1 from a previous polyphony setting)
+// must not re-emit its stale state once it becomes active again.
+static void test_engine_pool_reset_on_growth() {
+    printf("\nEnginePool::setVoices resets voices (re)entering the active range\n");
+    EnginePool pool;
+    pool.setSampleRate(44100.f);
+    pool.setVoices(1);   // baseline: only voice 0 active
+
+    // Ring voice index 1 hard: impulse + res=1 self-oscillation (OTA, hot input),
+    // exactly as test_self_oscillation() establishes sustains after 4000 samples.
+    const float fc = 1000.f;
+    for (int i = 0; i < 5000; i++) {
+        float in = (i == 0) ? 1.f : 0.f;
+        pool.engines[1].lpFilter.process(in, fc, 1.f);
+    }
+    bool ringing = std::fabs(pool.engines[1].lpFilter.process(0.f, fc, 1.f).lp) > 0.05f;
+    report(ringing, "voice 1 is ringing before growth (sanity check)");
+
+    pool.setVoices(3);   // growth 1 -> 3: engines[1], engines[2] must be reset
+
+    bool clean = true;
+    float firstOut[2] = {0.f, 0.f};
+    for (int idx = 1; idx <= 2; idx++) {
+        float out = pool.engines[idx].lpFilter.process(0.f, fc, 1.f).lp;
+        firstOut[idx - 1] = out;
+        clean = clean && std::fabs(out) < 1e-6f;
+    }
+    char detail[96];
+    snprintf(detail, sizeof(detail), "voice1=%.6f voice2=%.6f (want ~0)", firstOut[0], firstOut[1]);
+    report(clean, "voices entering active range start clean (not ringing)", detail);
+
+    // No-op / shrink must not touch any engine state (loop range is empty).
+    EnginePool pool2;
+    pool2.setSampleRate(44100.f);
+    pool2.setVoices(3);
+    for (int i = 0; i < 5000; i++) {
+        float in = (i == 0) ? 1.f : 0.f;
+        pool2.engines[2].lpFilter.process(in, fc, 1.f);
+    }
+    float beforeNoop = pool2.engines[2].lpFilter.process(0.f, fc, 1.f).lp;
+    pool2.setVoices(3);   // no growth (n <= activeVoices): must be a no-op
+    float afterNoop = pool2.engines[2].lpFilter.process(0.f, fc, 1.f).lp;
+    char detail2[96];
+    snprintf(detail2, sizeof(detail2), "before=%.6f after=%.6f", beforeNoop, afterNoop);
+    report(std::fabs(beforeNoop) > 0.05f && std::fabs(afterNoop) > 0.05f,
+           "setVoices(n) with n <= activeVoices does not reset any engine", detail2);
+}
+
 // setDriveCharacterFromThreshold(1/√d) must produce output identical to
 // setDriveCharacter(d) — the smoothed-drive path (module) stores a
 // precomputed threshold instead of recomputing sqrt/divide per sample, but
@@ -925,6 +975,7 @@ int main() {
     test_k35_asymmetric_clip();
     test_nan_recovery();
     test_voice_sanitize();
+    test_engine_pool_reset_on_growth();
     test_drive_from_threshold_matches_setDriveCharacter();
     test_processG_matches_process();
 

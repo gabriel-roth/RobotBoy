@@ -178,10 +178,23 @@ float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& 
     std::size_t i0 = static_cast<std::size_t>(std::floor(p));
     const double frac = p - std::floor(p);
     std::size_t i1 = i0 + 1;
-    if (static_cast<double>(i1) >= winStart + winLen) i1 = static_cast<std::size_t>(winStart);
+    double v1;
+    if (static_cast<double>(i1) >= winStart + winLen) {
+        // Wrap target: interpolate at the (possibly fractional) window start
+        // instead of truncating it — a fractional winStart still needs its
+        // own lerp between the two samples straddling it.
+        std::size_t ws0 = static_cast<std::size_t>(std::floor(winStart));
+        std::size_t ws1 = ws0 + 1;
+        if (ws0 >= loopLen_) ws0 = loopLen_ ? loopLen_ - 1 : 0;
+        if (ws1 >= loopLen_) ws1 = loopLen_ ? loopLen_ - 1 : 0;
+        const double wsFrac = winStart - std::floor(winStart);
+        v1 = (1.0 - wsFrac) * buf[ws0] + wsFrac * buf[ws1];
+    } else {
+        if (i1 >= loopLen_) i1 = loopLen_ ? loopLen_ - 1 : 0;
+        v1 = buf[i1];
+    }
     if (i0 >= loopLen_) i0 = loopLen_ ? loopLen_ - 1 : 0;
-    if (i1 >= loopLen_) i1 = loopLen_ ? loopLen_ - 1 : 0;
-    return static_cast<float>((1.0 - frac) * buf[i0] + frac * buf[i1]);
+    return static_cast<float>((1.0 - frac) * buf[i0] + frac * v1);
 }
 
 // Raw interpolated buffer read, clamped to [0, loopLen). Used by the seam

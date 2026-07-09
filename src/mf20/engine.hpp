@@ -73,7 +73,13 @@ struct EnginePool {
     VoiceEngine engines[16];
     int activeVoices = 1;
 
-    void setVoices(int n) { activeVoices = std::clamp(n, 1, 16); }
+    void setVoices(int n) {
+        n = std::clamp(n, 1, 16);
+        // Voices (re)entering the active range start clean — a voice that rang
+        // at high resonance and went inactive must not re-emit its old state.
+        for (int i = activeVoices; i < n; i++) engines[i].reset();
+        activeVoices = n;
+    }
 
     void setSampleRate(float fs) {
         for (auto& e : engines) e.setSampleRate(fs);
