@@ -17,7 +17,7 @@ struct Loooop : Module {
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM,
                    SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM,
                    SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, GRID_PARAM,
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM,
                    PARAMS_LEN };
     enum InputId { SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
                    SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
@@ -69,12 +69,11 @@ struct Loooop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
-        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub", {"Off", "On"});
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+            {"Layer", "Decay", "Add", "Replace", "Lock"});
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
-        configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
-            {"Add", "Replace", "Layer", "Decay"});
         configSwitch(GRID_PARAM, 0.f, 3.f, 0.f, "Grid", {"Off", "4", "8", "16"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
@@ -104,10 +103,17 @@ struct Loooop : Module {
             for (auto& s : panSm) s.alpha = a;
             mixSm.alpha = a;
         }
-        engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
+        // Overdub is one 5-state control: four write modes + Lock (= overdub
+        // off, loop untouchable). While Locked the last write mode stays set;
+        // the engine ignores it with overdub off.
+        static constexpr LoopEngine::WriteMode kOverdubModes[4] = {
+            LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
+            LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
+        int od = (int)std::round(params[OVERDUB_PARAM].getValue());
+        engine.setOverdub(od != 4);   // 4 = Lock
+        if (od >= 0 && od < 4)
+            engine.setWriteMode(kOverdubModes[od]);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
-        engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
-            (int)std::round(params[WRITE_MODE_PARAM].getValue())));
         engine.setGrid(loooop::gridSegments(
             (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
@@ -297,20 +303,9 @@ struct LoooopWidget : ModuleWidget {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Overdub", "",
-            [m] { return m->params[Loooop::OVERDUB_PARAM].getValue() > 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::OVERDUB_PARAM]->setValue(v ? 1.f : 0.f); }));
         menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        static const std::vector<std::string> kWriteModes = {"Add", "Replace", "Layer", "Decay"};
-        menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
-            [m] { return (int)std::round(m->params[Loooop::WRITE_MODE_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Loooop::WRITE_MODE_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16"};
-        menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
-            [m] { return (int)std::round(m->params[Loooop::GRID_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Loooop::GRID_PARAM]->setValue((float)v); }));
         static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             menu->addChild(createSubmenuItem("Head " + std::to_string(h + 1), "",
