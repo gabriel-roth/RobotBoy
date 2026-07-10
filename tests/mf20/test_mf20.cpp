@@ -940,6 +940,30 @@ static void test_processG_matches_process() {
     }
 }
 
+// K35 forward clip, extracted as a static helper (Q6 groundwork).
+// Full-range equivalence against the previous inline piecewise expression.
+static void test_k35_forward_clip_helper_equivalence() {
+    printf("\n24. k35ForwardClip helper matches the inline piecewise clip\n");
+    auto oldClip = [](float in_n) -> float {
+        constexpr float kSatSlope = 0.25f;
+        if (in_n >= 0.f)
+            return (in_n <= 1.f) ? in_n : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
+        constexpr float T_neg_n = 0.85f;   // 1 - kK35Asymmetry
+        return (in_n >= -T_neg_n) ? in_n : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
+    };
+    bool ok = true;
+    float maxErr = 0.f;
+    for (int i = -30000; i <= 30000; ++i) {           // x in [-3, 3], step 1e-4
+        float x = i * 1e-4f;
+        float err = std::fabs(MF20Filter::k35ForwardClip(x) - oldClip(x));
+        if (err > maxErr) maxErr = err;
+        if (err > 1e-6f) ok = false;
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "maxErr=%.3g", maxErr);
+    report(ok, "k35ForwardClip == previous inline clip over [-3, 3]", buf);
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -973,6 +997,7 @@ int main() {
     test_k35_forward_clip_isolation();
     test_mode_switch_mid_stream();
     test_k35_asymmetric_clip();
+    test_k35_forward_clip_helper_equivalence();
     test_nan_recovery();
     test_voice_sanitize();
     test_engine_pool_reset_on_growth();

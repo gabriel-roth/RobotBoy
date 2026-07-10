@@ -164,10 +164,26 @@ public:
         return { lp / kVCVScale, bp / kVCVScale, hp / kVCVScale };
     }
 
+    static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
+
+    /** K35 forward-path clip in the normalised domain (in_n = in × √drive).
+        Piecewise linear: slope 1 through the origin, slope kSatSlope beyond
+        T_pos = 1.0 / −T_neg = −0.85 (asymmetry → even-order harmonics,
+        Stinchcombe §4). Static so the headless tests can drive it directly. */
+    static float k35ForwardClip(float in_n) {
+        constexpr float kSatSlope = 0.25f;
+        if (in_n >= 0.f) {
+            return (in_n <= 1.f) ? in_n
+                 : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
+        }
+        constexpr float T_neg_n = 1.f - kK35Asymmetry;  // 0.85
+        return (in_n >= -T_neg_n) ? in_n
+             : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
+    }
+
 private:
     static constexpr float kPi           = 3.14159265358979f;
     static constexpr float kVCVScale     = 0.2f;
-    static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
 
     float sampleRate    = 44100.f;
     float s1            = 0.f;    // BP integrator state
@@ -217,24 +233,9 @@ private:
         float k  = res * (8.f / 3.f);
 
         // Forward-path nonlinearity: pre-gain input by 1/clipThreshold (= √drive),
-        // then clip at normalised thresholds (T_pos=1.0, T_neg=0.85).
-        // Linear region: clip_in = in_n = in * √drive  (amplified).
-        // Saturation: clip_in ≈ normalised clip level  (limited, independent of drive).
-        // Net effect: more drive → louder and more saturated → wilder.
-        float clip_in;
-        {
-            constexpr float kSatSlope = 0.25f;
-            float in_n = in / clipThreshold;      // pre-gain: = in * √drive
-
-            if (in_n >= 0.f) {
-                clip_in = (in_n <= 1.f) ? in_n
-                        : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
-            } else {
-                constexpr float T_neg_n = 1.f - kK35Asymmetry;  // 0.85
-                clip_in = (in_n >= -T_neg_n) ? in_n
-                        : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
-            }
-        }
+        // then clip at normalised thresholds. More drive → louder and more
+        // saturated → wilder. See k35ForwardClip.
+        float clip_in = k35ForwardClip(in / clipThreshold);
 
         // Resonance loop with saturating feedback:
         //   ẋ₁ = ωc·(clip_in − (8/3)·x₁ + fbClip(k·x₁) − x₂)
