@@ -5,6 +5,7 @@
 #include "particules_cv_conditioning.h"
 #include "particules_density_control.h"
 #include "particules_gain_display.h"
+#include "particules_scales.h"
 #include "metamodule_fpu.h"
 
 #include <atomic>
@@ -98,7 +99,13 @@ struct Particules : Module {
 	bool prev_quality_button_ = false;
 	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
 	dsp::SchmittTrigger seed_gate_;     // same for SEED
-	int  pitch_lock_ = 0;  // 0=off, 1=octaves, 2=octaves+5ths
+	// Unified pitch selector: 0-2 = legacy pitch_lock modes (engine
+	// QuantizePitchLock), 3-7 = scale modes (engine PitchQuantizer).
+	int pitch_scale_ = 0;
+	int pitch_root_ = 0;   // 0-11 semitones above C; scale modes only
+	// Menu/load/reset mutate scale state on the UI thread; the audio thread
+	// applies it at the next block boundary (same pattern as clear_requested_).
+	std::atomic<bool> scale_dirty_{false};
 	bool grain_trigger_out_ = false;
 	bool auto_gain_ = true;
 	float manual_gain_db_ = 0.f;
@@ -184,6 +191,7 @@ struct Particules : Module {
 			WARN("Particules: dsp_memory_ allocation failed (%zu bytes)", req.total_bytes);
 		}
 		processor_.Init(dsp_memory_, req.total_bytes, sampleRate);
+		scale_dirty_.store(true, std::memory_order_release);
 		block_runtime_.ConfigureSampleRate(sampleRate);
 		const int cv_dec = particules::CvDecimationForBlock(kWrapperBlockSize);
 		const float cv_smooth =
@@ -218,6 +226,8 @@ struct Particules : Module {
 		if (dsp_memory_) {
 			auto req = beads::BeadsProcessor::GetMemoryRequirements(e.sampleRate);
 			processor_.Init(dsp_memory_, req.total_bytes, e.sampleRate);
+			// Init placement-news the Impl — quantizer state is gone.
+			scale_dirty_.store(true, std::memory_order_release);
 		}
 		ResetControlConditioners();
 	}
@@ -226,7 +236,9 @@ struct Particules : Module {
 		Module::onReset(e);
 		quality_state_       = 0;
 		seed_state_          = 0;
-		pitch_lock_          = 0;
+		pitch_scale_         = 0;
+		pitch_root_          = 0;
+		scale_dirty_.store(true, std::memory_order_release);
 		grain_trigger_out_   = false;
 		// Reassigning block_runtime_ discards its configuration; it must be
 		// followed by ConfigureSampleRate or the LED decay reverts to the
@@ -248,6 +260,20 @@ struct Particules : Module {
 		pitch_cv_conditioner_.Reset(0.0f);
 	}
 
+	// Audio-thread only: (re)push the scale selection into the engine.
+	void ApplyScaleToProcessor() {
+		uint32_t count = 0;
+		const int* semis = particules::ScaleSemitones(pitch_scale_, &count);
+		if (semis) {
+			double ratios[particules::kMaxScaleNotes];
+			particules::BuildScaleRatios(semis, count, ratios);
+			processor_.LoadScale(ratios, count);
+			processor_.SetScaleRoot(60 + pitch_root_);
+		} else {
+			processor_.ClearScale();
+		}
+	}
+
 	void onPortChange(const PortChangeEvent& e) override {
 		// Trigger auto gain calibration when audio inputs are connected/disconnected
 		// This handles both VCV Rack virtual cables and MetaModule physical panel cables
@@ -262,7 +288,8 @@ struct Particules : Module {
 		json_object_set_new(root, "seedState",    json_integer(seed_state_));
 		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
-		json_object_set_new(root, "pitchLock",       json_integer(pitch_lock_));
+		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
+		json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
 		json_object_set_new(root, "grainTriggerOut", json_boolean(grain_trigger_out_));
 		return root;
 	}
@@ -277,8 +304,13 @@ struct Particules : Module {
 			auto_gain_ = json_boolean_value(j);
 		if ((j = json_object_get(root, "manualGainDb")))
 			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
-		if ((j = json_object_get(root, "pitchLock")))
-			pitch_lock_ = clamp((int)json_integer_value(j), 0, 2);
+		if ((j = json_object_get(root, "pitchScale")))
+			pitch_scale_ = clamp((int)json_integer_value(j), 0, 7);
+		else if ((j = json_object_get(root, "pitchLock")))   // pre-scale patches
+			pitch_scale_ = clamp((int)json_integer_value(j), 0, 2);
+		if ((j = json_object_get(root, "pitchRoot")))
+			pitch_root_ = clamp((int)json_integer_value(j), 0, 11);
+		scale_dirty_.store(true, std::memory_order_release);
 		if ((j = json_object_get(root, "grainTriggerOut")))
 			grain_trigger_out_ = json_boolean_value(j);
 	}
@@ -319,7 +351,10 @@ struct Particules : Module {
 		params_.pitch_cv           = conditioned_pitch_cv;
 		params_.pitch_cv_connected = inputs[PITCH_INPUT].isConnected();
 
-		params_.pitch_lock = pitch_lock_;
+		// Scale modes use the engine quantizer; pitch_lock must stay 0 there
+		// or the engine would quantize twice (scale first, then pitch_lock).
+		params_.pitch_lock =
+			(pitch_scale_ <= particules::kPitchOctavesFifths) ? pitch_scale_ : 0;
 
 		params_.feedback = clamp(params[FEEDBACK_PARAM].getValue() + inputs[FEEDBACK_INPUT].getVoltage() * 0.2f * params[FEEDBACK_AMT_PARAM].getValue(), 0.f, 1.f);
 		params_.dry_wet  = clamp(params[DRY_WET_PARAM].getValue()  + inputs[DRY_WET_INPUT].getVoltage()  * 0.2f * params[DRY_WET_AMT_PARAM].getValue(),  0.f, 1.f);
@@ -399,6 +434,8 @@ struct Particules : Module {
 		if (block_runtime_.BlockReady()) {
 			if (clear_requested_.exchange(false))
 				processor_.ClearBuffer();
+			if (scale_dirty_.exchange(false, std::memory_order_acquire))
+				ApplyScaleToProcessor();
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -585,10 +622,30 @@ struct ParticulesWidget : ModuleWidget {
 
 		// --- Pitch Lock ---
 		menu->addChild(createIndexSubmenuItem("Lock pitch",
-			{"Off", "Octaves", "Octaves + 5ths"},
-			[=]() { return module->pitch_lock_; },
-			[=](int val) { module->pitch_lock_ = val; }
+			{"Off", "Octaves", "Octaves + 5ths", "Chromatic", "Major", "Minor",
+			 "Major pentatonic", "Minor pentatonic"},
+			[=]() { return module->pitch_scale_; },
+			[=](int val) {
+				module->pitch_scale_ = val;
+				module->scale_dirty_.store(true, std::memory_order_release);
+			}
 		));
+
+		// --- Scale root (scale modes only) ---
+		{
+			auto* rootItem = createIndexSubmenuItem("Root",
+				{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"},
+				[=]() { return module->pitch_root_; },
+				[=](int val) {
+					module->pitch_root_ = val;
+					module->scale_dirty_.store(true, std::memory_order_release);
+				}
+			);
+			// Disabled state is computed at menu-open; picking a scale and
+			// then Root needs a menu re-open on VCV. Acceptable.
+			rootItem->disabled = module->pitch_scale_ < particules::kPitchChromatic;
+			menu->addChild(rootItem);
+		}
 
 		// --- Grain Trigger Output ---
 		menu->addChild(createBoolMenuItem("Grain trigger on R output", "",
