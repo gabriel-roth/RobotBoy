@@ -24,7 +24,7 @@ struct LopInfo : ModuleInfoBase {
     // Trig-mode, Speed V/Oct, then globals; input jacks follow the same order.
     // Keep this array and the Elem enum below in the SAME order, mirroring the
     // VCV enums in src/loooop/Lop.cpp.
-    static constexpr std::array<Element, 25> Elements{{
+    static constexpr std::array<Element, 26> Elements{{
         // ── Params: Size, Pos, Speed, Jitter, Trig-mode, Speed V/Oct ──
         QlpKnob{{9.870f, 75.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{30.480f, 46.350f, Center, "Position", "", 9.f, 9.f}, 0.5f},
@@ -38,6 +38,7 @@ struct LopInfo : ModuleInfoBase {
         QlpButton{{51.090f, 91.250f, Center, "Clear", "", 5.f, 5.f}},
         QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", "", 0.f, 0.f}, 1},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
+        QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", "", 0.f, 0.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
         QlpJackIn{{9.870f, 87.400f, Center, "Size CV", "", 6.f, 6.f}},
         QlpJackIn{{30.480f, 58.700f, Center, "Position CV", "", 6.f, 6.f}},
@@ -59,7 +60,7 @@ struct LopInfo : ModuleInfoBase {
 
     enum class Elem {
         SizeKnob, PositionKnob, SpeedKnob, JitterKnob, TrigModeAlt, SpeedVoctAlt,
-        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch,
+        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch, WriteModeAlt,
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
         OutL, OutR,

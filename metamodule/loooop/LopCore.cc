@@ -33,6 +33,8 @@ public:
 
         engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
+        engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
+            (int)getState<WriteModeAlt>()));
 
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
         bool recTrig = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
