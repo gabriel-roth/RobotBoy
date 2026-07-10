@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
-"""Position-sync metamodule/*_info.hh headers and the VCV display rects from
-their vcv/res/*.svg panels.
+"""Position-sync metamodule/loooop/*_info.hh headers and the VCV display
+rects from the canonical res/*.svg panels at the repo root.
 
 The headers are HAND-MAINTAINED: element names, order, structs, defaults, and
-menu-only alt-params are a contract with the matching *Core.cc and
-test/mm_wiring_test.py. Header element coordinates are synced by the generic
-tool ~/Dev/vcv-panel-gen/mm_sync.py (strict mode, name-matched through each
-module's metamodule/sync-map-*.yaml) (requires vcv-panel-gen at commit da5a583
+menu-only alt-params are a contract with the matching *Core.cc. Header
+element coordinates are synced by the generic tool
+~/Dev/vcv-panel-gen/mm_sync.py (strict mode, name-matched through each
+module's sync-map-*.yaml) (requires vcv-panel-gen at commit da5a583
 or later — the branch that ships mm_sync.py with --strict); this script then
-patches the waveform display widget's rect in the matching vcv/src/*.cpp from
-the SVG's SCREEN rect — the one coordinate neither mm_sync nor the
+patches the waveform display widget's rect in the matching src/loooop/*.cpp
+from the SVG's SCREEN rect — the one coordinate neither mm_sync nor the
 build-install.sh coord sync covers. Each module's cpp is validated before its
 header is touched, and on any mismatch that module's files are left unwritten
 and the run exits nonzero (other modules are still processed independently).
 
-Usage: python3 metamodule/sync_info_positions.py             # all modules
-       python3 metamodule/sync_info_positions.py --module Lop \
+Usage: python3 metamodule/loooop/sync_info_positions.py      # all modules
+       python3 metamodule/loooop/sync_info_positions.py --module Lop \
            --header PATH --svg PATH --cpp PATH [--map PATH]   # single (tests)
 """
 import argparse
@@ -28,24 +28,29 @@ import xml.etree.ElementTree as ET
 HERE = os.path.dirname(os.path.abspath(__file__))
 PANEL_GEN = os.path.expanduser("~/Dev/vcv-panel-gen")
 
+# HERE is metamodule/loooop/; the repo root is two levels up. The canonical
+# panel SVGs live at res/ (vcv/res is a build-time copy) and the module
+# sources with the display rect at src/loooop/.
+ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
+
 MODULES = [
     {
         "name": "Loooop",
         "header": os.path.join(HERE, "Loooop_info.hh"),
-        "svg": os.path.normpath(os.path.join(HERE, "..", "vcv", "res", "Loooop.svg")),
-        "cpp": os.path.normpath(os.path.join(HERE, "..", "vcv", "src", "Loooop.cpp")),
+        "svg": os.path.join(ROOT, "res", "Loooop.svg"),
+        "cpp": os.path.join(ROOT, "src", "loooop", "Loooop.cpp"),
         "map": os.path.join(HERE, "sync-map-loooop.yaml"),
     },
     {
         "name": "Lop",
         "header": os.path.join(HERE, "Lop_info.hh"),
-        "svg": os.path.normpath(os.path.join(HERE, "..", "vcv", "res", "Lop.svg")),
-        "cpp": os.path.normpath(os.path.join(HERE, "..", "vcv", "src", "Lop.cpp")),
+        "svg": os.path.join(ROOT, "res", "Lop.svg"),
+        "cpp": os.path.join(ROOT, "src", "loooop", "Lop.cpp"),
         "map": os.path.join(HERE, "sync-map-lop.yaml"),
     },
 ]
 
-# The VCV waveform display widget's rect in vcv/src/*.cpp — the one panel
+# The VCV waveform display widget's rect in src/loooop/*.cpp — the one panel
 # coordinate the build-install.sh coord sync doesn't cover.
 CPP_POS_RE = re.compile(
     r"^(\s*display->box\.pos = mm2px\(Vec\()(-?\d+\.?\d*),\s*(-?\d+\.?\d*)(\)\);.*)$")
