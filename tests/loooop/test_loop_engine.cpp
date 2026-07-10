@@ -385,11 +385,16 @@ static void test_waveform_revision_tracks_peak_changes_only() {
     const auto afterWrite = e.waveformRevision();
     check(afterWrite != afterReset, "wave revision: recording write invalidates waveform");
     e.toggleRecord();
+    // The freeze itself must invalidate: grid bars (drawn only once a frozen
+    // loop exists) have to appear the moment recording stops, not on the
+    // next write.
+    const auto afterFreeze = e.waveformRevision();
+    check(afterFreeze != afterWrite, "wave revision: loop freeze invalidates waveform");
     for (int i = 0; i < 100; ++i) e.process(0.f);
-    check(e.waveformRevision() == afterWrite, "wave revision: playback does not invalidate waveform");
+    check(e.waveformRevision() == afterFreeze, "wave revision: playback does not invalidate waveform");
     e.toggleRecord();
     e.process(0.25f);
-    check(e.waveformRevision() != afterWrite, "wave revision: overdub invalidates waveform");
+    check(e.waveformRevision() != afterFreeze, "wave revision: overdub invalidates waveform");
     const auto beforeClear = e.waveformRevision();
     e.clear();
     check(e.waveformRevision() != beforeClear, "wave revision: clear invalidates waveform");

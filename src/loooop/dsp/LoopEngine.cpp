@@ -88,6 +88,10 @@ void LoopEngine::toggleRecord() {
         loopLen_ = writeIdx_;
         dispRecording_.store(false, std::memory_order_relaxed);
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+        // The freeze changes what the waveform region shows (grid bars are
+        // drawn only over a frozen loop) even though no sample was written,
+        // so the hosts' waveform caches must be invalidated here too.
+        bumpWaveformRevision();
     } else if (odGainStep_ > 0.f) {
         // Overdub stop request: ramp the write gain down while continuing to
         // write; recording_ clears when the gain reaches 0 (in process()).
@@ -444,6 +448,11 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 writeIdx_ = 0;
                 dispRecording_.store(false, std::memory_order_relaxed);
                 dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+                // Re-bump AFTER the freeze is published: this sample's
+                // writePeak bumped before loopLen_ was set, so a GUI frame
+                // in that window could cache a bar-less waveform at the
+                // final revision and never repaint the grid bars.
+                bumpWaveformRevision();
             }
         } else {                             // overdub: mode-dependent write, wrap at loop length
             const float fb = writeFeedback();
