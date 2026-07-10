@@ -121,6 +121,6 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
 ## Löp
 
-**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do.
+**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. The context-menu options, including **Grid**, work the same as Loooop's.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">

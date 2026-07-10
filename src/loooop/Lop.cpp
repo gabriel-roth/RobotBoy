@@ -13,7 +13,7 @@ struct Lop : Module {
     // line up with metamodule/loooop/Lop_info.hh.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, PARAMS_LEN };
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, GRID_PARAM, PARAMS_LEN };
     enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
@@ -42,6 +42,7 @@ struct Lop : Module {
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
         configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
             {"Add", "Replace", "Layer", "Decay"});
+        configSwitch(GRID_PARAM, 0.f, 3.f, 0.f, "Grid", {"Off", "4", "8", "16"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -78,6 +79,8 @@ struct Lop : Module {
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
             (int)std::round(params[WRITE_MODE_PARAM].getValue())));
+        engine.setGrid(loooop::gridSegments(
+            (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
         // circuits, so `a || b` would skip calling b.process() (and updating
         // its Schmitt state) on any sample where a is already true.
@@ -190,6 +193,10 @@ struct LopWidget : ModuleWidget {
         menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
             [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Lop::WRITE_MODE_PARAM]->setValue((float)v); }));
+        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16"};
+        menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
+            [m] { return (int)std::round(m->params[Lop::GRID_PARAM].getValue()); },
+            [m](int v) { m->paramQuantities[Lop::GRID_PARAM]->setValue((float)v); }));
         static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
         menu->addChild(createIndexSubmenuItem("Trigger", kTrigModes,
             [m] { return (int)std::round(m->params[Lop::TRIG_MODE_PARAM].getValue()); },

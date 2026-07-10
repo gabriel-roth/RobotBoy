@@ -111,6 +111,9 @@ MetaModule param system persist it with no extra JSON.
 
 - **Lop**: the single-head sibling gets engine grid support for free, but its
   host wiring (param + menu + info) is deferred until wanted.
+  > **DECISION 2026-07-10: wanted.** Löp got the identical wiring (VCV
+  > `GRID_PARAM` + menu, MM `QlpGridAlt`/`GridAlt`, cache key, sync-map) as a
+  > follow-up commit on `loooop-track`.
 - Snapping record start/stop to the grid (Gloop uses a gate input for that;
   Loooop's record trigger already covers externally clocked recording).
 - Per-head grid overrides.
