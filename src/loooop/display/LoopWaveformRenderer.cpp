@@ -10,6 +10,22 @@ void vline(uint32_t* buf, int width, int height, int x, int y0, int y1, uint32_t
     for (int y = y0; y <= y1; ++y)
         buf[y * width + x] = c;
 }
+
+// Vertical bars at a grid's interior segment boundaries, across the full
+// region height. Callers pick the z-order: over the waveform (slicing it into
+// chunks), under the lane bars (so head markers stay prominent).
+void drawGridBars(uint32_t* buf, int width, int height, unsigned grid,
+                  LoopWaveformRenderer::PackFn pack) {
+    const uint32_t c = pack(LoopWaveformRenderer::GRID[0],
+                            LoopWaveformRenderer::GRID[1],
+                            LoopWaveformRenderer::GRID[2], 0xFF);
+    const int bw = std::max(1, width / 300);
+    for (unsigned k = 1; k < grid; ++k) {
+        const int x = int(std::uint64_t(k) * unsigned(width) / grid);
+        for (int dx = 0; dx < bw; ++dx)
+            vline(buf, width, height, x + dx, 0, height - 1, c);
+    }
+}
 } // namespace
 
 void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
@@ -99,6 +115,10 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
         }
     }
 
+    // Grid bars slice through the waveform. Frozen loops only — a growing
+    // initial recording has no meaningful divisions yet.
+    if (s.grid >= 2 && s.loopLen > 0)
+        drawGridBars(buf, width, height, s.grid, pack);
 }
 
 void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
@@ -108,6 +128,9 @@ void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
     std::fill(buf, buf + std::size_t(width) * height, bg);
     const auto s = engine.displaySnapshot();
     if (s.loopLen == 0) return;
+
+    if (s.grid >= 2)
+        drawGridBars(buf, width, height, s.grid, pack);
 
     const int nHeads = engine.numHeads();
     const int lanesTop = 0;

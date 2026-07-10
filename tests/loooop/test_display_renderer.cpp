@@ -324,6 +324,42 @@ static void test_tiny_heights_stay_within_destination() {
     }
 }
 
+static void test_grid_bars() {
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
+    e.toggleRecord();                        // loop of 4, heads at pos 0
+    e.setGrid(4);
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    const uint32_t grid = C(LoopWaveformRenderer::GRID);
+    const uint32_t bg   = C(LoopWaveformRenderer::BG);
+    // Interior boundaries at x = k*64/4 = 16, 32, 48; bar width 64/300 -> 1 px.
+    check(px(16, 0) == grid && px(32, 0) == grid && px(48, 0) == grid,
+          "grid: bars at interior boundaries in wave region");
+    check(px(0, 0) == bg && px(15, 0) == bg && px(63, 0) == bg,
+          "grid: no bars at loop edges");
+    // x=32 is the waveform peak column: with grid on the bar slices the peak.
+    check(px(32, 2) == grid, "grid: bar drawn over the waveform");
+    // Lane region: bars sit UNDER the head bars. The full default window
+    // covers x=16 in dim head color; the gap row below shows the grid line.
+    check(px(16, 32) == laneDim(0), "grid: lane bars stay on top of grid lines");
+    check(px(16, 39) == grid,       "grid: gap row shows grid line");
+    // Off again: no grid pixels anywhere.
+    e.setGrid(0);
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    check(countColor(grid) == 0, "grid off: no grid pixels");
+}
+
+static void test_grid_hidden_while_recording() {
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.setGrid(8);
+    e.toggleRecord();
+    for (int i = 0; i < 10; ++i) e.process(0.8f);   // still recording, no loop
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    check(countColor(C(LoopWaveformRenderer::GRID)) == 0,
+          "grid: hidden until the loop freezes");
+}
+
 int main() {
     test_blank();
     test_waveform_and_lanes();
@@ -336,6 +372,8 @@ int main() {
     test_single_head_single_lane();
     test_split_render_matches_composed_render();
     test_tiny_heights_stay_within_destination();
+    test_grid_bars();
+    test_grid_hidden_while_recording();
     if (g_failures == 0) std::printf("All display renderer tests passed.\n");
     return g_failures;
 }
