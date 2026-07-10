@@ -30,7 +30,7 @@ struct Loooop : Module {
     enum OutputId { HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
                     HEAD3_L_OUTPUT, HEAD3_R_OUTPUT, HEAD4_L_OUTPUT, HEAD4_R_OUTPUT,
                     MIX_L_OUTPUT, MIX_R_OUTPUT, OUTPUTS_LEN };
-    enum LightId { RECORD_LIGHT, LIGHTS_LEN };
+    enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
     LoopEngine engine;
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig[LoopEngine::NUM_HEADS];
@@ -188,49 +188,28 @@ struct Loooop : Module {
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
+        // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button
+        // style: an RGB LED in the bezel driven from a color table.
+        static constexpr float kOverdubColors[5][3] = {
+            {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
+            {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
+            {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
+            {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
+            {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
+        };
+        lights[OVERDUB_R_LIGHT].setBrightness(kOverdubColors[od][0]);
+        lights[OVERDUB_G_LIGHT].setBrightness(kOverdubColors[od][1]);
+        lights[OVERDUB_B_LIGHT].setBrightness(kOverdubColors[od][2]);
     }
 };
 
-// Five-state overdub button: click cycles Layer/Decay/Add/Replace/Lock
-// (app::Switch wraps at max), drawn as a bezel whose center lights in the
-// state's color. Colors echo the panel's head-color family.
-struct OverdubButton : app::Switch {
-    static constexpr float kDiamMM = 9.f;
+// Five-state overdub button, Quality-button style (see Particules): the
+// stock light bezel with an RGB LED, made non-momentary so a click cycles
+// the stepped param Layer/Decay/Add/Replace/Lock with wraparound. The
+// module drives the LED color from the state in process().
+struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
     OverdubButton() {
         momentary = false;
-        box.size = mm2px(Vec(kDiamMM, kDiamMM));
-    }
-
-    void draw(const DrawArgs& args) override {
-        static const NVGcolor kStateColors[5] = {
-            nvgRGB(0x3f, 0x8c, 0xff),   // Layer   - blue
-            nvgRGB(0xff, 0x9f, 0x0a),   // Decay   - amber
-            nvgRGB(0x30, 0xd1, 0x58),   // Add     - green
-            nvgRGB(0xff, 0x3b, 0x30),   // Replace - red
-            nvgRGB(0xbf, 0x5a, 0xf2),   // Lock    - purple
-        };
-        ParamQuantity* pq = getParamQuantity();
-        int state = pq ? math::clamp((int)std::round(pq->getValue()), 0, 4) : 0;
-
-        Vec c = box.size.div(2.f);
-        float r = c.x;
-
-        // Bezel: dark face with a darker rim, matching the stock button look.
-        nvgBeginPath(args.vg);
-        nvgCircle(args.vg, c.x, c.y, r);
-        nvgFillColor(args.vg, nvgRGB(0x1a, 0x1a, 0x1a));
-        nvgFill(args.vg);
-        nvgStrokeWidth(args.vg, 1.f);
-        nvgStrokeColor(args.vg, nvgRGB(0x00, 0x00, 0x00));
-        nvgStroke(args.vg);
-
-        // State light: filled center circle in the state color.
-        nvgBeginPath(args.vg);
-        nvgCircle(args.vg, c.x, c.y, r * 0.55f);
-        nvgFillColor(args.vg, kStateColors[state]);
-        nvgFill(args.vg);
-
-        Switch::draw(args);
     }
 };
 
@@ -336,7 +315,7 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
         addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.118, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.968, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
-        addParam(createParamCentered<OverdubButton>(mm2px(Vec(68.877, 116.05)), module, Loooop::OVERDUB_PARAM));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(68.877, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
         addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(121.63, 116.05)), module, Loooop::GRID_PARAM));
         addParam(createParamCentered<VCVButton>(mm2px(Vec(90.785, 116.05)), module, Loooop::CLEAR_PARAM));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(101.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
