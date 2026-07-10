@@ -353,6 +353,9 @@ TEST_CASE("BeadsProcessor: Output levels match Eurorack input levels", "[process
         params.dry_wet = 0.0f;            // Full dry
         params.reverb = 0.0f;
         params.manual_gain_db = 0.0f;
+        // This SECTION pins the menu-off bypass-dry path (dry = raw input);
+        // the default post-gain path is covered by the [drytap] tests.
+        params.dry_post_gain = false;
         tp.processor.SetParameters(params);
 
         std::vector<StereoFrame> input(kBlockSize);
@@ -475,4 +478,80 @@ TEST_CASE("BeadsProcessor: Feedback affects output when source is present", "[pr
     }
 
     REQUIRE(max_diff > 0.01f);
+}
+
+// Local sine fill with controllable amplitude: Q9 tests need the post-gain
+// signal to stay inside SoftLimit's exactly-linear region (|x| <= 0.8).
+static void make_scaled_sine_block(StereoFrame* buf, size_t n, int block_index,
+                                   float amplitude) {
+    for (size_t i = 0; i < n; ++i) {
+        float t = static_cast<float>(block_index * n + i);
+        float v = amplitude * std::sin(2.0f * 3.14159265f * 440.0f * t / 48000.0f);
+        buf[i] = {v, v};
+    }
+}
+
+TEST_CASE("BeadsProcessor: dry tap follows input gain when dry_post_gain is set", "[processor][drytap]") {
+    TestProcessor tp;
+    BeadsParameters params;
+    params.dry_wet = 0.0f;            // Full dry
+    params.reverb = 0.0f;
+    params.auto_gain = false;
+    params.manual_gain_db = 12.0f;    // 10^(12/20) = 3.9811x
+    params.dry_post_gain = true;      // The new default, set explicitly
+    tp.processor.SetParameters(params);
+
+    std::vector<StereoFrame> input(kBlockSize);
+    std::vector<StereoFrame> output(kBlockSize);
+
+    // Settle manual-gain smoothing. AutoGain's manual-mode OnePole runs at
+    // coeff 0.0001 (~10.4k-sample / ~217ms time constant at 48kHz), so 50
+    // blocks (12800 samples) leaves ~4% of the gain step unsettled — enough
+    // to blow the 0.002 margin below. 200 blocks (51200 samples, ~4.9 time
+    // constants) settles within ~0.0009 of target, comfortably inside margin.
+    for (int b = 0; b < 200; ++b) {
+        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
+        tp.processor.Process(input.data(), output.data(), kBlockSize);
+    }
+
+    // 0.05 * 3.9811 = 0.199 peak — inside SoftLimit's linear region, so the
+    // dry output is exactly the gained input (crossfade dry gain is 1 at
+    // dry_wet = 0).
+    for (int b = 200; b < 205; ++b) {
+        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
+        tp.processor.Process(input.data(), output.data(), kBlockSize);
+        for (size_t i = 0; i < kBlockSize; ++i) {
+            REQUIRE(output[i].l == Approx(input[i].l * 3.9811f).margin(0.002f));
+            REQUIRE(output[i].r == Approx(input[i].r * 3.9811f).margin(0.002f));
+        }
+    }
+}
+
+TEST_CASE("BeadsProcessor: dry_post_gain=false keeps the pre-gain bypass dry", "[processor][drytap]") {
+    TestProcessor tp;
+    BeadsParameters params;
+    params.dry_wet = 0.0f;
+    params.reverb = 0.0f;
+    params.auto_gain = false;
+    params.manual_gain_db = 12.0f;    // gain applies to wet path only
+    params.dry_post_gain = false;
+    tp.processor.SetParameters(params);
+
+    std::vector<StereoFrame> input(kBlockSize);
+    std::vector<StereoFrame> output(kBlockSize);
+
+    for (int b = 0; b < 50; ++b) {
+        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
+        tp.processor.Process(input.data(), output.data(), kBlockSize);
+    }
+
+    // Dry equals the RAW input despite the +12 dB input gain.
+    for (int b = 50; b < 55; ++b) {
+        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
+        tp.processor.Process(input.data(), output.data(), kBlockSize);
+        for (size_t i = 0; i < kBlockSize; ++i) {
+            REQUIRE(output[i].l == Approx(input[i].l).margin(0.002f));
+            REQUIRE(output[i].r == Approx(input[i].r).margin(0.002f));
+        }
+    }
 }

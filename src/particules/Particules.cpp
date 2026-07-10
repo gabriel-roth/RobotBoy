@@ -107,6 +107,7 @@ struct Particules : Module {
 	// applies it at the next block boundary (same pattern as clear_requested_).
 	std::atomic<bool> scale_dirty_{false};
 	bool grain_trigger_out_ = false;
+	bool dry_post_gain_ = true;
 	bool auto_gain_ = true;
 	float manual_gain_db_ = 0.f;
 	bool prev_in_l_connected_ = false;
@@ -240,6 +241,7 @@ struct Particules : Module {
 		pitch_root_          = 0;
 		scale_dirty_.store(true, std::memory_order_release);
 		grain_trigger_out_   = false;
+		dry_post_gain_       = true;
 		// Reassigning block_runtime_ discards its configuration; it must be
 		// followed by ConfigureSampleRate or the LED decay reverts to the
 		// flat BlockSize=1 @ 48 kHz default.
@@ -291,6 +293,7 @@ struct Particules : Module {
 		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
 		json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
 		json_object_set_new(root, "grainTriggerOut", json_boolean(grain_trigger_out_));
+		json_object_set_new(root, "dryPostGain", json_boolean(dry_post_gain_));
 		return root;
 	}
 
@@ -313,6 +316,8 @@ struct Particules : Module {
 		scale_dirty_.store(true, std::memory_order_release);
 		if ((j = json_object_get(root, "grainTriggerOut")))
 			grain_trigger_out_ = json_boolean_value(j);
+		if ((j = json_object_get(root, "dryPostGain")))
+			dry_post_gain_ = json_boolean_value(j);
 	}
 
 	void updateSlowParams(bool frozen) {
@@ -374,6 +379,7 @@ struct Particules : Module {
 
 		params_.auto_gain      = auto_gain_;
 		params_.manual_gain_db = auto_gain_ ? NAN : manual_gain_db_;
+		params_.dry_post_gain = dry_post_gain_;
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -612,6 +618,12 @@ struct ParticulesWidget : ModuleWidget {
 			item->disabled = true;
 			menu->addChild(item);
 		}
+
+		// --- Dry tap point ---
+		menu->addChild(createBoolMenuItem("Dry signal follows input gain", "",
+			[=]() { return module->dry_post_gain_; },
+			[=](bool val) { module->dry_post_gain_ = val; }
+		));
 
 		// --- SEED CV Mode ---
 		menu->addChild(createIndexSubmenuItem("SEED CV mode",

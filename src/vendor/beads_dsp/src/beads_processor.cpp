@@ -175,11 +175,16 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
     for (size_t i = 0; i < num_frames; ++i) {
         StereoFrame in = input[i];
 
-        // Save pre-processing frame for dry output path so DRY/WET=0 matches bypass.
-        s.dry_input_buf[i] = in;
+        // Dry tap for the DRY/WET crossfade: pre-gain keeps DRY/WET=0 a
+        // bit-exact bypass; post-gain (default) keeps mid-knob mixes
+        // level-matched against the auto-gained wet path. Note the post-gain
+        // dry also passes AutoGain's SoftLimit, so it is not bit-clean at
+        // hot inputs — documented in the manual.
+        if (!s.params.dry_post_gain) s.dry_input_buf[i] = in;
 
         // 1. Auto-gain
         in = s.auto_gain.Process(in, s.params.manual_gain_db, s.params.auto_gain);
+        if (s.params.dry_post_gain) s.dry_input_buf[i] = in;
 
         // 2. Quality input processing
         in = s.quality_processor.ProcessInput(in, s.params.quality_mode);
