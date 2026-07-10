@@ -132,6 +132,12 @@ private:
     static constexpr float DECAY_LP_HZ = 6000.f;
     float decayLpL_ = 0.f, decayLpR_ = 0.f;
     float decayLpA_ = 1.f;
+    // F2 overdub declick: write gain ramps 0->1 on overdub start, 1->0 on
+    // stop, over xfadeSamples_. Gain is applied write-then-advance, so the
+    // first sample of an overdub pass is written at gain 0.
+    float odGain_ = 1.f;
+    float odGainStep_ = 0.f;   // per-sample increment; 0 when xfadeSamples_==0
+    bool stopPending_ = false;
     float writeFeedback() const {
         switch (writeMode_) {
             case WriteMode::Replace: return 0.f;

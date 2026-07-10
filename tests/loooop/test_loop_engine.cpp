@@ -634,6 +634,83 @@ static void test_sample_rate_change_empty_reallocates() {
     check(!e.isRecording(),    "sr_change empty: auto-stopped at new ceiling");
 }
 
+static void test_overdub_ramps_declick() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);  // xfade = 240
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(0.f);   // silent 1000-sample loop
+    e.toggleRecord();
+    e.toggleRecord();                                 // overdub start: gain ramps 0 -> 1
+    for (int i = 0; i < 500; ++i) e.process(1.f);
+    e.toggleRecord();                                 // stop: gain ramps 1 -> 0
+    check(e.isRecording(), "ramps: still recording right after stop toggle");
+    for (int i = 0; i < 239; ++i) e.process(1.f);
+    check(e.isRecording(), "ramps: still recording 239 samples into stop ramp");
+    for (int i = 0; i < 3; ++i) e.process(1.f);
+    check(!e.isRecording(), "ramps: recording ends when the ramp completes");
+    // The buffer holds the write-gain envelope (input was constant 1).
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    check(near(buf[0],   0.f,  0.01f),  "ramps: first overdub sample at gain 0");
+    check(near(buf[120], 0.5f, 0.01f),  "ramps: up-ramp midpoint");
+    check(near(buf[300], 1.f,  0.001f), "ramps: full gain after up-ramp");
+    check(near(buf[620], 0.5f, 0.01f),  "ramps: down-ramp midpoint");
+    check(near(buf[745], 0.f,  0.01f),  "ramps: zero at ramp end");
+    bool mono = true;
+    for (int i = 501; i < 745; ++i) if (buf[i] > buf[i-1] + 1e-4f) mono = false;
+    check(mono, "ramps: stop ramp is monotonic");
+}
+
+static void test_stop_ramp_rearm() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(0.f);
+    e.toggleRecord();
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(1.f);    // gain settled at 1
+    e.toggleRecord();                                 // stop ramp begins
+    for (int i = 0; i < 120; ++i) e.process(1.f);     // gain ~0.5
+    e.toggleRecord();                                 // re-arm: ramp back up from 0.5
+    check(e.isRecording(), "rearm: still recording");
+    for (int i = 0; i < 130; ++i) e.process(1.f);     // gain back to 1 by ~write 740
+    e.toggleRecord();
+    for (int i = 0; i < 250; ++i) e.process(1.f);     // final stop completes
+    check(!e.isRecording(), "rearm: final stop completes");
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    check(near(buf[618], 0.5f, 0.02f), "rearm: dip bottoms out ~0.5, no snap to 0");
+    // gain reached 1 at write ~740; writes 740..749 land before the final stop toggle
+    check(near(buf[745], 1.f,  0.01f), "rearm: recovered to full gain");
+    bool noSnap = true;
+    for (int i = 501; i < 999; ++i)
+        if (std::fabs(buf[i] - buf[i-1]) > 0.006f) noSnap = false;   // step is 1/240
+    check(noSnap, "rearm: per-sample write-gain delta never exceeds the ramp step");
+}
+
+static void test_ramp_layer_combined_expression() {
+    // Mid-ramp the write must follow buf = old + g·(fb·old − old) + g·in.
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);   // loop of constant 1
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(0.5f);
+    e.toggleRecord();
+    for (int i = 0; i < 250; ++i) e.process(0.5f);   // stop ramp completes
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    auto expect = [](float g) {
+        const float fb = LoopEngine::LAYER_FEEDBACK;   // old = 1, in = 0.5
+        return 1.f + g * (fb - 1.f) + g * 0.5f;
+    };
+    check(near(buf[120], expect(0.5f), 0.005f), "combined: mid-up-ramp expression");
+    check(near(buf[300], expect(1.f),  0.005f), "combined: full-gain expression");
+    check(near(buf[620], expect(0.5f), 0.005f), "combined: mid-stop-ramp expression");
+}
+
 static void test_write_mode_replace() {
     LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
     e.toggleRecord();
@@ -756,6 +833,9 @@ int main() {
     test_display_snapshot_four_heads();
     test_waveform_revision_tracks_peak_changes_only();
     test_overdub_gate();
+    test_overdub_ramps_declick();
+    test_stop_ramp_rearm();
+    test_ramp_layer_combined_expression();
     test_write_mode_replace();
     test_write_mode_layer();
     test_write_mode_decay_at_low_rate_matches_layer();

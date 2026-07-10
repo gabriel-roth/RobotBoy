@@ -26,6 +26,9 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     writeIdx_ = 0;
     loopLen_ = 0;
     recording_ = false;
+    stopPending_ = false;
+    odGain_ = 1.f;
+    odGainStep_ = 0.f;
     rng_ = 0x9E3779B9u;
     for (auto& h : heads_) h = PlayHead{};
     dispLoopLen_.store(0, std::memory_order_relaxed);
@@ -61,15 +64,34 @@ void LoopEngine::toggleRecord() {
         recording_ = true;
         writeIdx_ = 0;                  // record/overdub always starts at loop start (v1)
         lastPeakBin_ = UINT32_MAX;          // first write re-seeds its bin
+        if (loopLen_ == 0) {
+            odGain_ = 1.f; odGainStep_ = 0.f;   // initial pass: overwrite, no ramp
+        } else {
+            odGain_ = xfadeSamples_ ? 0.f : 1.f;
+            odGainStep_ = xfadeSamples_ ? 1.f / static_cast<float>(xfadeSamples_) : 0.f;
+            stopPending_ = false;
+            if (writeMode_ == WriteMode::Decay) {
+                decayLpL_ = bufL_[0];
+                decayLpR_ = bufR_[0];
+            }
+        }
         dispRecording_.store(true, std::memory_order_relaxed);
         dispRecLen_.store(0, std::memory_order_relaxed);
-        if (loopLen_ > 0 && writeMode_ == WriteMode::Decay) {
-            decayLpL_ = bufL_[0];
-            decayLpR_ = bufR_[0];
-        }
-    } else {
+    } else if (loopLen_ == 0) {
+        // Stopping the initial pass freezes immediately: there is no prior
+        // content to blend with, and the seam crossfade declicks the join.
         recording_ = false;
-        if (loopLen_ == 0) loopLen_ = writeIdx_;   // freeze initial loop length
+        loopLen_ = writeIdx_;
+        dispRecording_.store(false, std::memory_order_relaxed);
+        dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+    } else if (odGainStep_ > 0.f) {
+        // Overdub stop request: ramp the write gain down while continuing to
+        // write; recording_ clears when the gain reaches 0 (in process()).
+        // A second toggle during the stop ramp re-arms the up-ramp from the
+        // current gain — no snap.
+        stopPending_ = !stopPending_;
+    } else {
+        recording_ = false;   // xfadeSamples_ == 0: legacy step behavior
         dispRecording_.store(false, std::memory_order_relaxed);
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
     }
@@ -84,6 +106,9 @@ void LoopEngine::clear() {
     loopLen_ = 0;
     writeIdx_ = 0;
     recording_ = false;
+    stopPending_ = false;
+    odGain_ = 1.f;
+    odGainStep_ = 0.f;
     for (auto& h : heads_) { h.pos = 0.0; h.playing = !h.oneShot; }   // re-arm one-shots
     peakMinL_.fill(0.f); peakMaxL_.fill(0.f);
     peakMinR_.fill(0.f); peakMaxR_.fill(0.f);
@@ -345,12 +370,26 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 decayLpL_ += decayLpA_ * (oldL - decayLpL_); fbL = decayLpL_;
                 decayLpR_ += decayLpA_ * (oldR - decayLpR_); fbR = decayLpR_;
             }
-            // Add (fb=1) reduces to old + in — the legacy sum, bit-exact.
-            bufL_[writeIdx_] = oldL + (fb * fbL - oldL) + inL;
-            bufR_[writeIdx_] = oldR + (fb * fbR - oldR) + inR;
+            // odGain_ == 1 reduces to old + (fb·fbSrc − old) + in; Add (fb=1)
+            // further reduces to the legacy old + in, bit-exact.
+            bufL_[writeIdx_] = oldL + odGain_ * (fb * fbL - oldL) + odGain_ * inL;
+            bufR_[writeIdx_] = oldR + odGain_ * (fb * fbR - oldR) + odGain_ * inR;
             writePeak(writeIdx_, bufL_[writeIdx_], bufR_[writeIdx_]);
             ++writeIdx_;
             if (writeIdx_ >= loopLen_) writeIdx_ = 0;
+            if (stopPending_) {
+                odGain_ -= odGainStep_;
+                if (odGain_ <= 0.f) {
+                    odGain_ = 0.f;
+                    stopPending_ = false;
+                    recording_ = false;
+                    dispRecording_.store(false, std::memory_order_relaxed);
+                    dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+                }
+            } else if (odGain_ < 1.f) {
+                odGain_ += odGainStep_;
+                if (odGain_ > 1.f) odGain_ = 1.f;
+            }
         }
     }
     for (auto& o : heads) o = HeadOut{};
