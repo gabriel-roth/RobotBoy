@@ -35,6 +35,9 @@ struct Loooop : Module {
     LoopEngine engine;
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig[LoopEngine::NUM_HEADS];
     float lastJumpV[LoopEngine::NUM_HEADS] = {};
+    loooop::OnePoleSmoother panSm[LoopEngine::NUM_HEADS];
+    loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
+    float smootherRate = 0.f;
 
     Loooop() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -94,6 +97,12 @@ struct Loooop : Module {
     }
 
     void process(const ProcessArgs& args) override {
+        if (args.sampleRate != smootherRate) {
+            smootherRate = args.sampleRate;
+            const float a = loooop::smootherAlpha(smootherRate, 0.002f);
+            for (auto& s : panSm) s.alpha = a;
+            mixSm.alpha = a;
+        }
         engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
@@ -158,15 +167,15 @@ struct Loooop : Module {
             outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
             // Pan is a balance on each head's contribution to the mix only;
             // the individual head outputs above are unaffected. Center = unity.
-            const float pan = loooop::panControl(
+            const float pan = panSm[h].process(loooop::panControl(
                 params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage());
+                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
             const float gL = loooop::panLeftGain(pan);
             const float gR = loooop::panRightGain(pan);
             wetL += hs[h].l * gL; wetR += hs[h].r * gR;
         }
-        const float w = loooop::normalizedControl(
-            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage());
+        const float w = mixSm.process(loooop::normalizedControl(
+            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);

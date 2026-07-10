@@ -87,14 +87,17 @@ public:
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
-        float w = loooop::normalizedControl(
-            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f));
+        float w = mixSm_.process(loooop::normalizedControl(
+            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
         setOutput<OutL>(loooop::dryWet(inL, hs[0].l, w) * 5.f);
         setOutput<OutR>(loooop::dryWet(inR, hs[0].r, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
-    void set_samplerate(float sr) override { engine_.reset(sr); }
+    void set_samplerate(float sr) override {
+        engine_.reset(sr);
+        mixSm_.alpha = loooop::smootherAlpha(sr, 0.002f);
+    }
 
     // Display callbacks — GUI context (audio runs concurrently; the engine's
     // display snapshot/atomics make the cross-thread reads safe).
@@ -151,6 +154,7 @@ private:
     LoopEngine engine_;
     bool recPrev_ = false, clrPrev_ = false, clrTrigPrev_ = false, trigPrev_ = false;
     float lastJumpV_ = 0.f;
+    loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;

@@ -42,5 +42,16 @@ int main() {
     check(near(loooop::panLeftGain(0.5f), 0.5f) && near(loooop::panRightGain(0.5f), 1.0f),
           "right pan balance");
 
+    loooop::OnePoleSmoother s;
+    s.reset(0.f);
+    s.alpha = loooop::smootherAlpha(48000.f, 0.002f);
+    float v1 = s.process(1.f);
+    check(v1 > 0.f && v1 < 0.02f, "smoother: first step bounded by alpha");
+    float v = 0.f;
+    for (int i = 0; i < 48000; ++i) v = s.process(1.f);
+    check(std::fabs(v - 1.f) < 1e-3f, "smoother: settles at target");
+    check(std::fabs(loooop::smootherAlpha(10.f, 0.002f) - 1.f) < 1e-6f,
+          "smoother: alpha saturates to 1 at low sample rates");
+
     return failures == 0 ? 0 : 1;
 }

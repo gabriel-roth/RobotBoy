@@ -94,6 +94,7 @@ private:
         bool oneShot = false, playing = true;
         float jitter = 0.f, jitterOff = 0.f, jitterNext = 0.f;
         float osRamp = 1.f;   // retrigger ramp-in gain (Q2)
+        float levelSm = 1.f;  // one-pole-smoothed level (Q3), matches the 1.0 level default
     };
 
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
@@ -155,6 +156,8 @@ private:
     }
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
     float osRampStep_ = 1.f;   // ~1 ms retrigger ramp-in; set with xfadeSamples_
+    // Head-level one-pole smoothing coefficient (Q3), ~2 ms; ==1 at test rates.
+    float levelAlpha_ = 1.f;
     double minWinLen_ = 48.0;   // ceil(sampleRate · 1 ms); set in reset()/setSampleRate()
     float sampleRate_ = 48000.f;
     float maxSeconds_ = 60.f;

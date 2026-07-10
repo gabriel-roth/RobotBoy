@@ -15,6 +15,7 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     // Underflows to exactly 1.0 (passthrough) at very low test rates.
     decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
     decayLpL_ = decayLpR_ = 0.f;
+    levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
@@ -53,6 +54,7 @@ void LoopEngine::setSampleRate(float sampleRate) {
     osRampStep_ = 1.f / std::max(1.f, 0.001f * sampleRate);
     // Underflows to exactly 1.0 (passthrough) at very low test rates.
     decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
+    levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 }
@@ -450,6 +452,13 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
         }
     }
     for (auto& o : heads) o = HeadOut{};
+    // Advance every head's level smoother every sample, regardless of
+    // loop/playing state, so levels are already settled when playback starts
+    // (no post-record bleed of a stale target).
+    for (int i = 0; i < numHeads_; ++i) {
+        PlayHead& h = heads_[i];
+        h.levelSm += levelAlpha_ * (h.level - h.levelSm);
+    }
     if (loopLen_ > 0) {
         for (int i = 0; i < numHeads_; ++i) {
             PlayHead& h = heads_[i];
@@ -457,8 +466,8 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             double winStart, winLen;
             windowBounds(h, winStart, winLen);
             float l, r; readHead(h, winStart, winLen, l, r);
-            heads[i].l = l * h.level;
-            heads[i].r = r * h.level;
+            heads[i].l = l * h.levelSm;
+            heads[i].r = r * h.levelSm;
             advanceHead(h, i, winStart, winLen);
         }
     }

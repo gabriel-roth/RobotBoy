@@ -22,6 +22,8 @@ struct Lop : Module {
     LoopEngine engine{1};      // single playhead; head level stays at its 1.0 default
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
     float lastJumpV = 0.f;
+    loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
+    float smootherRate = 0.f;
 
     Lop() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -68,6 +70,10 @@ struct Lop : Module {
     }
 
     void process(const ProcessArgs& args) override {
+        if (args.sampleRate != smootherRate) {
+            smootherRate = args.sampleRate;
+            mixSm.alpha = loooop::smootherAlpha(smootherRate, 0.002f);
+        }
         engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
@@ -118,8 +124,8 @@ struct Lop : Module {
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine.process(inL / 5.f, inR / 5.f, hs);   // ±5V <-> ±1
-        const float w = loooop::normalizedControl(
-            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage());
+        const float w = mixSm.process(loooop::normalizedControl(
+            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
         outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
         outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);

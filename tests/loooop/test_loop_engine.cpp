@@ -785,6 +785,21 @@ static void test_nan_input_recorded_as_zero() {
     check(near(e.process(0.f), 4.f), "nan guard: out[3]==4");
 }
 
+static void test_level_smoothing() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);   // constant loop
+    e.toggleRecord();
+    e.setLevel(0, 0.f);
+    for (int i = 0; i < 3000; ++i) e.process(0.f);   // settle at 0
+    e.setLevel(0, 1.f);                               // step 0 -> 1
+    float first = e.process(0.f);
+    check(first > 0.f && first < 0.05f, "smooth: no full level step in one sample");
+    float last = 0.f;
+    for (int i = 0; i < 3000; ++i) last = e.process(0.f);
+    check(near(last, 1.f, 0.01f), "smooth: settles at target");
+}
+
 static void test_sample_rate_change_empty_reallocates() {
     LoopEngine e;
     e.reset(10.f, 1.f);      // maxSamples = 10
@@ -1015,6 +1030,7 @@ int main() {
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();
+    test_level_smoothing();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;
