@@ -197,7 +197,7 @@ private:
     bool headTrigPrev_[LoopEngine::NUM_HEADS] = {};
     float lastJumpV_[LoopEngine::NUM_HEADS] = {};
     loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
-    loooop::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz below, refreshed in set_samplerate
+    loooop::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz in the constructor, refreshed in set_samplerate
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;

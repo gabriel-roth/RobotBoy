@@ -988,3 +988,4 @@ And the mix: `const float w = mixSm.process(loooop::normalizedControl(...));`
 5. **One-shot ends:** the re-slicer patch no longer clicks at one-shot ends; retriggering during the tail doesn't pop.
 6. **Smoothing:** square LFO into Level/Pan/Mix CV — steps become \~2 ms glides, no zipper.
 7. **MetaModule menu:** Write mode appears with four options on both Loooop and Lop; old patches load in Add.
+8. **MetaModule CPU:** with all four Loooop heads playing at fractional speeds, glance at the CPU meter — the cubic read roughly quadruples per-head read cost; confirm headroom is still comfortable.

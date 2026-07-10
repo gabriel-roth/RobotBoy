@@ -254,7 +254,7 @@ float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& 
     const double ip = std::floor(p);
     const float frac = static_cast<float>(p - ip);
     const float t0 = tapWrapped(ip - 1.0, winStart, winLen, buf);
-    const float t1 = readRaw(ip, buf);                    // base tap: in-window by construction
+    const float t1 = readRaw(ip, buf);                    // base tap: clamped, never wraps — matches the old linear base read
     const float t2 = tapWrapped(ip + 1.0, winStart, winLen, buf);
     const float t3 = tapWrapped(ip + 2.0, winStart, winLen, buf);
     const float c1 = 0.5f * (t2 - t0);

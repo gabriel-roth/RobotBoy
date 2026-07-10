@@ -29,7 +29,7 @@ struct LoooopInfo : ModuleInfoBase {
     // so the MetaModule mapping menu lists everything for one head together;
     // the VCV Param/Input enums (src/loooop/Loooop.cpp) mirror this exact order
     // so patch ids line up between the two builds. Trig-mode, Speed V/Oct,
-    // Overdub, and Crossfade are menu-only (AltParamChoiceLabeled) so their
+    // Overdub, Crossfade, and Write mode are menu-only (AltParamChoiceLabeled) so their
     // position fields are unused.
     static constexpr std::array<Element, 86> Elements{{
         // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level, Trig mode, Speed V/Oct ──
