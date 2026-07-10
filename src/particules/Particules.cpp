@@ -480,6 +480,29 @@ std::string QualityParamQuantity::getDisplayValueString() {
 	return kNames[m->quality_state_];
 }
 
+// Wrap a context-menu mutation in a whole-module undo snapshot. Because the
+// snapshot is the module's full JSON (params + data), one helper covers
+// every menu field with no per-item code. VCV-only: MetaModule has no undo
+// stack, so there it just runs the mutation.
+#ifndef METAMODULE
+template <typename F>
+static void withMenuUndo(Particules* module, const char* label, F&& mutate) {
+	json_t* oldJ = APP->engine->moduleToJson(module);
+	mutate();
+	history::ModuleChange* h = new history::ModuleChange;
+	h->name = label;
+	h->moduleId = module->id;
+	h->oldModuleJ = oldJ;
+	h->newModuleJ = APP->engine->moduleToJson(module);
+	APP->history->push(h);
+}
+#else
+template <typename F>
+static void withMenuUndo(Particules*, const char*, F&& mutate) {
+	mutate();
+}
+#endif
+
 struct ManualGainQuantity : Quantity {
 	Particules* module;
 
@@ -530,7 +553,8 @@ struct ParticulesWidget : ModuleWidget {
 
 			void onAction(const event::Action& e) override {
 				if (!module->auto_gain_) {
-					module->auto_gain_ = true;
+					withMenuUndo(module, "enable auto gain",
+						[this]() { module->auto_gain_ = true; });
 				}
 				module->processor_.TriggerAutoGainCalibration();
 			}
@@ -558,7 +582,8 @@ struct ParticulesWidget : ModuleWidget {
 
 			void onAction(const event::Action& e) override {
 				if (module->auto_gain_) {
-					module->auto_gain_ = false;
+					withMenuUndo(module, "disable auto gain",
+						[this]() { module->auto_gain_ = false; });
 				}
 			}
 
@@ -622,14 +647,20 @@ struct ParticulesWidget : ModuleWidget {
 		// --- Dry tap point ---
 		menu->addChild(createBoolMenuItem("Dry signal follows input gain", "",
 			[=]() { return module->dry_post_gain_; },
-			[=](bool val) { module->dry_post_gain_ = val; }
+			[=](bool val) {
+				withMenuUndo(module, "toggle dry gain follow",
+					[=]() { module->dry_post_gain_ = val; });
+			}
 		));
 
 		// --- SEED CV Mode ---
 		menu->addChild(createIndexSubmenuItem("SEED CV mode",
 			{"Triggers", "Gates"},
 			[=]() { return module->seed_state_; },
-			[=](int val) { module->seed_state_ = val; }
+			[=](int val) {
+				withMenuUndo(module, "change SEED CV mode",
+					[=]() { module->seed_state_ = val; });
+			}
 		));
 
 		// --- Pitch Lock ---
@@ -638,8 +669,10 @@ struct ParticulesWidget : ModuleWidget {
 			 "Major pentatonic", "Minor pentatonic"},
 			[=]() { return module->pitch_scale_; },
 			[=](int val) {
-				module->pitch_scale_ = val;
-				module->scale_dirty_.store(true, std::memory_order_release);
+				withMenuUndo(module, "change pitch lock", [=]() {
+					module->pitch_scale_ = val;
+					module->scale_dirty_.store(true, std::memory_order_release);
+				});
 			}
 		));
 
@@ -649,8 +682,10 @@ struct ParticulesWidget : ModuleWidget {
 				{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"},
 				[=]() { return module->pitch_root_; },
 				[=](int val) {
-					module->pitch_root_ = val;
-					module->scale_dirty_.store(true, std::memory_order_release);
+					withMenuUndo(module, "change scale root", [=]() {
+						module->pitch_root_ = val;
+						module->scale_dirty_.store(true, std::memory_order_release);
+					});
 				}
 			);
 			// Disabled state is computed at menu-open; picking a scale and
@@ -662,7 +697,10 @@ struct ParticulesWidget : ModuleWidget {
 		// --- Grain Trigger Output ---
 		menu->addChild(createBoolMenuItem("Grain trigger on R output", "",
 			[=]() { return module->grain_trigger_out_; },
-			[=](bool val) { module->grain_trigger_out_ = val; }
+			[=](bool val) {
+				withMenuUndo(module, "toggle grain trigger output",
+					[=]() { module->grain_trigger_out_ = val; });
+			}
 		));
 
 		// --- Clear Buffer ---
