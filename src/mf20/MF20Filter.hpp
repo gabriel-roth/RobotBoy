@@ -167,18 +167,29 @@ public:
     static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
 
     /** K35 forward-path clip in the normalised domain (in_n = in × √drive).
-        Piecewise linear: slope 1 through the origin, slope kSatSlope beyond
-        T_pos = 1.0 / −T_neg = −0.85 (asymmetry → even-order harmonics,
-        Stinchcombe §4). Static so the headless tests can drive it directly. */
+        Piecewise linear (slope 1 → kSatSlope at T_pos = 1.0 / −T_neg = −0.85,
+        asymmetry → even-order harmonics, Stinchcombe §4) with C1 quadratic
+        knees of half-width kKneeW around each corner (Q6): hard corners in a
+        drive-scaled static nonlinearity are the filter's cheapest-to-fix
+        aliasing source. Outside ±kKneeW of a corner the curve is unchanged. */
     static float k35ForwardClip(float in_n) {
         constexpr float kSatSlope = 0.25f;
+        constexpr float kKneeW    = 0.1f;                              // knee half-width
+        constexpr float kQ        = (1.f - kSatSlope) / (4.f * kKneeW);  // 1.875
         if (in_n >= 0.f) {
-            return (in_n <= 1.f) ? in_n
-                 : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
+            constexpr float T = 1.f;
+            if (in_n <= T - kKneeW) return in_n;
+            if (in_n >= T + kKneeW)
+                return kSatSlope * in_n + (1.f - kSatSlope) * T;
+            const float d = in_n - (T - kKneeW);
+            return in_n - kQ * d * d;
         }
-        constexpr float T_neg_n = 1.f - kK35Asymmetry;  // 0.85
-        return (in_n >= -T_neg_n) ? in_n
-             : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
+        constexpr float T = 1.f - kK35Asymmetry;                       // 0.85
+        if (in_n >= -(T - kKneeW)) return in_n;
+        if (in_n <= -(T + kKneeW))
+            return kSatSlope * in_n - (1.f - kSatSlope) * T;
+        const float d = in_n + (T - kKneeW);
+        return in_n + kQ * d * d;
     }
 
 private:
