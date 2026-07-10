@@ -74,7 +74,7 @@ struct Loooop : Module {
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
-        configSwitch(GRID_PARAM, 0.f, 3.f, 0.f, "Grid", {"Off", "4", "8", "16"});
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");

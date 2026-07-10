@@ -60,7 +60,7 @@ struct QlpWriteModeAlt : AltParamChoiceLabeled {
 // alt-params) keep the ungridded behavior.
 struct QlpGridAlt : AltParamChoiceLabeled {
     constexpr QlpGridAlt(BaseElement b)
-        : AltParamChoiceLabeled{{{b}, 4, 0}, {"Off", "4", "8", "16"}} {}
+        : AltParamChoiceLabeled{{{b}, 6, 0}, {"Off", "4", "8", "16", "32", "64"}} {}
 };
 struct QlpJackIn : JackInput {
     constexpr QlpJackIn(BaseElement b) : JackInput{{b, "4ms/comp/jack_x.png"}} {}

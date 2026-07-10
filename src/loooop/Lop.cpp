@@ -42,7 +42,7 @@ struct Lop : Module {
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
         configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
             {"Add", "Replace", "Layer", "Decay"});
-        configSwitch(GRID_PARAM, 0.f, 3.f, 0.f, "Grid", {"Off", "4", "8", "16"});
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -193,7 +193,7 @@ struct LopWidget : ModuleWidget {
         menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
             [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Lop::WRITE_MODE_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16"};
+        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16", "32", "64"};
         menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
             [m] { return (int)std::round(m->params[Lop::GRID_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Lop::GRID_PARAM]->setValue((float)v); }));
