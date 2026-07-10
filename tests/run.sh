@@ -2,11 +2,15 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 fail=0
+# Test binaries go in this worktree's gitignored build/ dir, not a fixed
+# /tmp path, so parallel runs from different worktrees don't clobber each other
+out_dir="../build/tests"
+mkdir -p "$out_dir"
 for d in mf20 loooop particules; do
   [ -d "$d" ] || continue
   for t in "$d"/test_*.cpp; do
     [ -e "$t" ] || continue
-    out="/tmp/robotboy_$(basename "$t" .cpp)"
+    out="$out_dir/$(basename "$t" .cpp)"
     echo "== building $t =="
     # Some tests need non-header-only .cpp sources from src/ linked in
     # alongside the test file (e.g. LoopEngine.cpp). If a sibling
