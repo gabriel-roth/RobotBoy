@@ -36,7 +36,7 @@
 **Interfaces:**
 - Produces: `void LoopEngine::setGrid(int segments)` — 0 or <2 disables; `DisplaySnapshot::grid` (`std::uint32_t`, 0 = off). Tasks 2–4 rely on both.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/loooop/test_loop_engine.cpp`, before `int main()` (the file already has `check`, `near`, `soloHead0`, and `record_ramp(e, n)` — reuse them). All tests run at the 10 Hz test rate where the 1 ms minimum window is 1 sample.
 
@@ -158,7 +158,7 @@ Add the calls at the end of `main()`'s test list (before the failure summary):
     test_grid_respects_min_window();
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests
@@ -169,7 +169,7 @@ g++ -std=c++20 -O2 -I../src -I../src/loooop -o ../build/tests/test_loop_engine \
 
 Expected: compile FAILS — `setGrid` is not a member of `LoopEngine`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/loooop/dsp/LoopEngine.hpp` — after `void setCrossfade(bool on) ...`:
 
@@ -247,11 +247,11 @@ In `displaySnapshot()` add:
     s.grid = dispGrid_.load(std::memory_order_relaxed);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Same command as Step 2. Expected: `All ... tests passed` output, exit 0, including every new `grid_*` check.
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
@@ -259,7 +259,7 @@ cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
 
 Expected: all C++ and python tests pass (exit 0). The pre-existing tests must be untouched by the grid-off path.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track
@@ -280,7 +280,7 @@ git commit -m "feat: grid quantization of playhead windows in LoopEngine"
 - Consumes: `DisplaySnapshot::grid` and `LoopEngine::setGrid(int)` from Task 1.
 - Produces: `LoopWaveformRenderer::GRID[3]` color constant (tests and future tweaks reference it). No signature changes — grid arrives via the snapshot.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Add to `tests/loooop/test_display_renderer.cpp` before `main()` (reuse `check`, `px`, `C`, `countColor`, `laneDim`, `laneBright`; W=64, H=64, lane 0 rows 32–39 with gap row 39):
 
@@ -329,7 +329,7 @@ Add to `main()`:
     test_grid_hidden_while_recording();
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests
@@ -341,7 +341,7 @@ g++ -std=c++20 -O2 -I../src -I../src/loooop -o ../build/tests/test_display_rende
 
 Expected: compile FAILS — `GRID` is not a member of `LoopWaveformRenderer`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `src/loooop/display/LoopWaveformRenderer.hpp` — after the `WAVE` constant:
 
@@ -385,11 +385,11 @@ In `renderLanes`, right after the `if (s.loopLen == 0) return;` line:
         drawGridBars(buf, width, height, s.grid, pack);
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [x] **Step 4: Run the test to verify it passes**
 
 Same command as Step 2. Expected: all checks pass, including the pre-existing `split renderer: composed pixels are byte-identical` (both split entry points draw the same bars).
 
-- [ ] **Step 5: Run the whole suite**
+- [x] **Step 5: Run the whole suite**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
@@ -397,7 +397,7 @@ cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
 
 Expected: exit 0.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track
@@ -419,7 +419,7 @@ git commit -m "feat: draw grid segment bars on the loop display"
 - Consumes: `engine.setGrid(int)` (Task 1), `DisplaySnapshot::grid` (Task 1).
 - Produces: `loooop::gridSegments(int choiceIdx) -> int` in `LooperModuleDSP.hpp` — maps menu index 0–3 to `{0, 4, 8, 16}`, out-of-range to 0. Task 4 uses the same helper.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 In `tests/loooop/test_module_dsp.cpp`, add inside `main()` before the failure summary:
 
@@ -433,7 +433,7 @@ In `tests/loooop/test_module_dsp.cpp`, add inside `main()` before the failure su
           "grid choice out of range = off");
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [x] **Step 2: Run the test to verify it fails**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests
@@ -444,7 +444,7 @@ g++ -std=c++20 -O2 -I../src -I../src/loooop -o ../build/tests/test_module_dsp \
 
 Expected: compile FAILS — `gridSegments` is not a member of namespace `loooop`.
 
-- [ ] **Step 3: Implement the helper**
+- [x] **Step 3: Implement the helper**
 
 `src/loooop/LooperModuleDSP.hpp`, after `panRightGain`:
 
@@ -458,7 +458,7 @@ inline int gridSegments(int choiceIdx) {
 
 Run the Step 2 command again. Expected: PASS.
 
-- [ ] **Step 4: Wire the VCV module**
+- [x] **Step 4: Wire the VCV module**
 
 `src/loooop/Loooop.cpp`:
 
@@ -515,7 +515,7 @@ and change the re-render condition and bookkeeping in `drawLayer`:
             }
 ```
 
-- [ ] **Step 5: Build the VCV plugin to verify it compiles**
+- [x] **Step 5: Build the VCV plugin to verify it compiles**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/vcv && make -j8
@@ -523,7 +523,7 @@ cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/vcv && make -j8
 
 Expected: builds `plugin.dylib` with no errors. (Full GUI verification is a user check in Task 5.)
 
-- [ ] **Step 6: Run the whole suite**
+- [x] **Step 6: Run the whole suite**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
@@ -531,7 +531,7 @@ cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/tests && ./run.sh
 
 Expected: exit 0.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track
@@ -553,7 +553,7 @@ git commit -m "feat: Grid context-menu setting in the VCV Loooop module"
 - Consumes: `engine_.setGrid(int)` and `DisplaySnapshot::grid` (Task 1), `loooop::gridSegments(int)` (Task 3).
 - Produces: `Elem::GridAlt` — the last param element (named `…Alt` like the branch's `WriteModeAlt`); existing param/jack indices unchanged.
 
-- [ ] **Step 1: Add the alt-param element type**
+- [x] **Step 1: Add the alt-param element type**
 
 `metamodule/loooop/QlpElements.hh`, after `QlpWriteModeAlt`:
 
@@ -566,7 +566,7 @@ struct QlpGridAlt : AltParamChoiceLabeled {
 };
 ```
 
-- [ ] **Step 2: Add the element and enum entry**
+- [x] **Step 2: Add the element and enum entry**
 
 `metamodule/loooop/Loooop_info.hh`:
 
@@ -585,7 +585,7 @@ struct QlpGridAlt : AltParamChoiceLabeled {
 
 4. Update the header comment listing menu-only params ("Trig-mode, Speed V/Oct, Overdub, and Crossfade are menu-only") to include Grid.
 
-- [ ] **Step 3: Wire the core**
+- [x] **Step 3: Wire the core**
 
 `metamodule/loooop/LoooopCore.cc`:
 
@@ -615,7 +615,7 @@ and in `draw_graphic_display`, extend the waveform re-render condition (the `sna
         }
 ```
 
-- [ ] **Step 4: Add the sync-map exception**
+- [x] **Step 4: Add the sync-map exception**
 
 `metamodule/loooop/sync-map-loooop.yaml`, with the other menu-only nulls:
 
@@ -625,7 +625,7 @@ GridAlt: null
 
 Note: the branch's `WriteModeAlt` is missing from this file (pre-existing gap). If `sync_info_positions.py` in Step 5 flags it, add `WriteModeAlt: null` in the same commit; otherwise leave it alone.
 
-- [ ] **Step 5: Verify the MetaModule build compiles and positions stay in sync**
+- [x] **Step 5: Verify the MetaModule build compiles and positions stay in sync**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/metamodule/build && cmake --build . -j8 2>&1 | tail -5
@@ -634,7 +634,7 @@ python3 /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track/metamodule/loooo
 
 Expected: the cmake build succeeds (if the worktree has no configured `metamodule/build` dir, note it and rely on the compile being covered by the shared-source tests plus the user checklist — do NOT reconfigure toolchains speculatively). `sync_info_positions.py` reports Loooop positions in sync (the new element is a null-mapped menu param and needs no SVG element). Run `tests/run.sh` too — the python guard tests must stay green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track
@@ -651,7 +651,7 @@ git commit -m "feat: Grid alt-param in the MetaModule Loooop core"
 
 **Interfaces:** none (documentation only).
 
-- [ ] **Step 1: Document the setting**
+- [x] **Step 1: Document the setting**
 
 In `Loooop.md`'s "Context menu" bullet list, after the "Crossfade loop seams" bullet (which on this branch follows the multi-line "Write mode" bullet):
 
@@ -661,7 +661,7 @@ In `Loooop.md`'s "Context menu" bullet list, after the "Crossfade loop seams" bu
 
 Also add a "Rhythmic" mention where it fits naturally in Patch ideas, e.g. extend the "Rhythmic re-slicer" bullet: after "rearrange the beat" append ", and turn on **Grid** so every slice lands exactly on a division".
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 cd /Users/gabrielroth/Dev/RobotBoy/.worktrees/loooop-track
@@ -669,7 +669,7 @@ git add Loooop.md
 git commit -m "docs: describe the Grid context-menu setting"
 ```
 
-- [ ] **Step 3: Present the user-run GUI checklist**
+- [x] **Step 3: Present the user-run GUI checklist**
 
 GUI checks are user-run in this project (no agent-driven GUI/simulator tests). Present this checklist at the end of the work, do not automate it:
 
