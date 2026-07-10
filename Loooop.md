@@ -102,6 +102,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
   Layer and Decay only act **while you're recording** — a loop that's just playing back never fades on its own.
 - **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
+- **Grid** — Off (the default), 4, 8, or 16. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Per head → Trigger** — pick *Loop start* or *One-shot* for that head (see above).
 - **Per head → Speed CV is V/Oct** — makes that head's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
 
@@ -113,7 +114,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 - **Granular cloud:** shrink every head's **Size** right down, crank **Jitter**, and slowly sweep **Position**.
 - **Stutter machine:** patch an LFO or sequencer into a head's **Jump** input.
 - **Wide moving field:** spread the four heads across the stereo image with their **Pan** knobs, or patch slow, phase-offset LFOs into the Pan CVs so they drift around each other.
-- **Rhythmic re-slicer:** record a drum loop, set each head to **One-shot** with a small window, and trigger them from a sequencer to rearrange the beat.
+- **Rhythmic re-slicer:** record a drum loop, set each head to **One-shot** with a small window, and trigger them from a sequencer to rearrange the beat, and turn on **Grid** so every slice lands exactly on a division.
 - **Separate processing:** take each head's own **Out L/R** into different reverbs, filters, or panners instead of using the combined Mix.
 
 ---
