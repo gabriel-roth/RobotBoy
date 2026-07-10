@@ -57,7 +57,7 @@ Each head has these controls, laid out in its own column:
 
 ## Recording controls
 
-- **Record** — Starts and stops recording. The first press records a fresh loop. Once a loop exists, pressing Record again **overdubs** (layers new audio on top of what's there), if overdubbing is enabled (see the right-click menu). The red light shows when Loooop is recording.
+- **Record** — Starts and stops recording. The first press records a fresh loop. Once a loop exists, pressing Record again **overdubs** — what happens to the audio already in the loop depends on the **Write mode** menu setting (see below). Punch-in and punch-out are softened with a \~5 ms ramp, so starting and stopping an overdub doesn't record a click into the loop. The red light shows when Loooop is recording.
 - **Clear** — Erases the loop and starts over.
 - **Dry/Wet** — Global blend between your incoming audio (dry) and the loop playback (wet) at the Mix output. Fully clockwise = loop only.
 
@@ -85,7 +85,7 @@ Nearly every knob has a **CV input** right below or beside it, and a full ±10 V
 Each head's **Trig** input behaves in one of two ways, chosen per head in the context menu:
 
 - **Loop start** (default) — a trigger restarts the head at the beginning of its window. Use it to re-sync heads to a clock.
-- **One-shot** — the head stays silent until triggered, then plays **through its window exactly once and stops**. This turns a head into a sample-triggered one-shot player.
+- **One-shot** — the head stays silent until triggered, then plays **through its window exactly once and stops**, ending with a short fade so it doesn't click. This turns a head into a sample-triggered one-shot player.
 
 ---
 
@@ -93,8 +93,15 @@ Each head's **Trig** input behaves in one of two ways, chosen per head in the co
 
 You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule:
 
-- **Overdub** — When on (the default), pressing Record over an existing loop layers new audio on top. When off, the Record button does nothing while a loop exists — the loop is locked, and you'll need to **Clear** it before you can record again.
-- **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
+- **Overdub** — When on (the default), pressing Record over an existing loop records into it again, using the current **Write mode**. When off, the Record button does nothing while a loop exists — the loop is locked, and you'll need to **Clear** it before you can record again.
+- **Write mode** — What an overdub pass does to the audio already in the loop:
+  - **Add** (default) — new audio sums with what's there at full level, forever. The classic build-up-layers overdub.
+  - **Replace** — new audio **overwrites** the loop as the record head passes. Punch in a new phrase over an old one.
+  - **Layer** — sound-on-sound: each overdub pass turns the existing material down slightly (about 1 dB per pass), so older layers gradually sink underneath what you're playing now.
+  - **Decay** — like Layer, but older layers also lose a little high end on every pass — tape-style degradation the longer you keep overdubbing.
+
+  Layer and Decay only act **while you're recording** — a loop that's just playing back never fades on its own.
+- **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
 - **Per head → Trigger** — pick *Loop start* or *One-shot* for that head (see above).
 - **Per head → Speed CV is V/Oct** — makes that head's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
 
