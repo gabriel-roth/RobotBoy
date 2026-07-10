@@ -240,3 +240,98 @@ TEST_CASE("Reverb: amount 0 is exact dry passthrough", "[reverb]") {
     REQUIRE(l == Approx(0.5f));
     REQUIRE(r == Approx(-0.3f));
 }
+
+TEST_CASE("Reverb: sleeps after amount sits at 0 and the tail decays", "[reverb][sleep]") {
+    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
+    beads::Reverb rv;
+    rv.Init(buffer.data(), buffer.size(), 48000.0f);
+    rv.SetDecay(0.5f);
+    rv.SetDiffusion(0.7f);
+    rv.SetMakeupGain(1.5849f);
+
+    // Build a tail.
+    rv.SetAmount(0.5f);
+    float l, r;
+    rv.Process(1.0f, 1.0f, &l, &r);
+    for (int i = 0; i < 4800; ++i) rv.Process(0.0f, 0.0f, &l, &r);
+
+    // Turn amount to 0: not asleep yet (hold period).
+    rv.SetAmount(0.0f);
+    REQUIRE(!rv.IsAsleep());
+
+    // A second of silence at amount 0: tail decays below -80 dBFS and the
+    // 250 ms hold elapses.
+    for (int i = 0; i < 96000; ++i) rv.Process(0.0f, 0.0f, &l, &r);
+    REQUIRE(rv.IsAsleep());
+
+    // Asleep passthrough is exact.
+    rv.Process(0.3f, -0.2f, &l, &r);
+    REQUIRE(l == 0.3f);
+    REQUIRE(r == -0.2f);
+    REQUIRE(rv.IsAsleep());   // input while asleep does not wake it
+}
+
+TEST_CASE("Reverb: brief amount=0 dip keeps the tail ringing", "[reverb][sleep]") {
+    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
+    beads::Reverb rv;
+    rv.Init(buffer.data(), buffer.size(), 48000.0f);
+    rv.SetDecay(0.9f);
+    rv.SetDiffusion(0.7f);
+    rv.SetMakeupGain(1.5849f);
+
+    rv.SetAmount(0.8f);
+    float l, r;
+    rv.Process(1.0f, 1.0f, &l, &r);
+    for (int i = 0; i < 2400; ++i) rv.Process(0.0f, 0.0f, &l, &r);
+
+    // 50 ms at amount 0 — well inside the 250 ms hold.
+    rv.SetAmount(0.0f);
+    for (int i = 0; i < 2400; ++i) rv.Process(0.0f, 0.0f, &l, &r);
+    REQUIRE(!rv.IsAsleep());
+
+    // Back up: the tail is still in the tank.
+    rv.SetAmount(0.8f);
+    float energy = 0.0f;
+    for (int i = 0; i < 4800; ++i) {
+        rv.Process(0.0f, 0.0f, &l, &r);
+        energy += l * l + r * r;
+    }
+    REQUIRE(energy > 1e-6f);
+}
+
+TEST_CASE("Reverb: wake from sleep is clean and functional", "[reverb][sleep]") {
+    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
+    beads::Reverb rv;
+    rv.Init(buffer.data(), buffer.size(), 48000.0f);
+    rv.SetDecay(0.5f);
+    rv.SetDiffusion(0.7f);
+    rv.SetMakeupGain(1.5849f);
+
+    // Sleep it.
+    rv.SetAmount(0.5f);
+    float l, r;
+    rv.Process(1.0f, 1.0f, &l, &r);
+    rv.SetAmount(0.0f);
+    for (int i = 0; i < 96000; ++i) rv.Process(0.0f, 0.0f, &l, &r);
+    REQUIRE(rv.IsAsleep());
+
+    // Wake: no stale tail (state was flushed), no NaN.
+    rv.SetAmount(0.7f);
+    REQUIRE(!rv.IsAsleep());
+    for (int i = 0; i < 4800; ++i) {
+        rv.Process(0.0f, 0.0f, &l, &r);
+        REQUIRE(std::isfinite(l));
+        REQUIRE(std::isfinite(r));
+        REQUIRE(std::fabs(l) < 1e-5f);
+        REQUIRE(std::fabs(r) < 1e-5f);
+    }
+
+    // And it still reverberates.
+    rv.Process(1.0f, 1.0f, &l, &r);
+    float energy = 0.0f;
+    for (int i = 0; i < 4800; ++i) {
+        rv.Process(0.0f, 0.0f, &l, &r);
+        energy += l * l + r * r;
+    }
+    REQUIRE(energy > 1e-6f);
+}

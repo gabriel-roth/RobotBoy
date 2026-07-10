@@ -63,6 +63,14 @@ public:
         if (++write_ptr_ >= size_) write_ptr_ = 0;
     }
 
+    // Zero the stored samples (keeps the buffer pointer and write position).
+    // Used by the reverb's idle-sleep flush.
+    void ClearData() {
+        if (buffer_) {
+            for (size_t i = 0; i < size_; ++i) buffer_[i] = 0.0f;
+        }
+    }
+
     size_t size() const { return size_; }
 
 private:

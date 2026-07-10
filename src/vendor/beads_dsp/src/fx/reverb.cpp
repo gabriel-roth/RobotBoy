@@ -36,6 +36,16 @@ void Reverb::Init(float* buffer, size_t buffer_size, float sample_rate) {
     feedback_l_ = 0.0f;
     feedback_r_ = 0.0f;
 
+    asleep_ = false;
+    wet_env_ = 0.0f;
+    quiet_samples_ = 0;
+    sleep_hold_samples_ = (sample_rate > 0.0f)
+        ? static_cast<int>(sample_rate * kSleepHoldSeconds)
+        : 12000;
+    wet_env_decay_ = (sample_rate > 0.0f)
+        ? std::exp(-1.0f / (0.020f * sample_rate))
+        : 0.99896f;
+
     // Partition the shared buffer into 12 individual delay lines.
     // Each delay line gets its own contiguous region.
     float* ptr = buffer;
@@ -77,6 +87,12 @@ void Reverb::SetAmount(float amount) {
     float phase = amount_ * 0.25f;
     dry_xfade_ = CosLookup(phase);
     wet_xfade_ = CosLookup(phase - 0.25f);   // sin = cos(x - pi/2)
+
+    if (amount_ > 0.0f) {
+        // Wake. State was flushed at sleep entry, so the tank starts clean.
+        asleep_ = false;
+        quiet_samples_ = 0;
+    }
 }
 
 void Reverb::SetMakeupGain(float gain) {
@@ -100,6 +116,14 @@ void Reverb::Process(float left_in, float right_in,
     if (!enabled_) {
         *left_out = 0.0f;
         *right_out = 0.0f;
+        return;
+    }
+
+    if (asleep_) {
+        // amount_ == 0 here, so dry_xfade_ == 1 and wet_xfade_ == 0: the
+        // full path would return the dry input anyway. Skip the whole tank.
+        *left_out = left_in;
+        *right_out = right_in;
         return;
     }
 
@@ -225,10 +249,52 @@ void Reverb::Process(float left_in, float right_in,
     float wet_l = (dl1_out * 0.6f + dr2_out * 0.4f) * makeup_gain_;
     float wet_r = (dr1_out * 0.6f + dl2_out * 0.4f) * makeup_gain_;
 
+    // Idle-sleep bookkeeping. The explicit greater-than comparison (not
+    // std::max) means a NaN wet frame decays the envelope instead of
+    // poisoning it, so a NaN'd tank still reaches sleep and gets flushed.
+    float wet_abs_l = std::fabs(wet_l);
+    float wet_abs_r = std::fabs(wet_r);
+    float wet_abs = wet_abs_l > wet_abs_r ? wet_abs_l : wet_abs_r;
+    wet_env_ *= wet_env_decay_;
+    if (wet_abs > wet_env_) wet_env_ = wet_abs;
+    if (amount_ == 0.0f && wet_env_ < kSleepEnvThreshold) {
+        if (++quiet_samples_ >= sleep_hold_samples_) {
+            FlushTank();
+            asleep_ = true;
+        }
+    } else {
+        quiet_samples_ = 0;
+    }
+
     // Equal-power crossfade: full wet still fully replaces the dry (dreamy
     // wash), but the makeup keeps that wash as loud as the grains it replaced.
     *left_out  = left_in  * dry_xfade_ + wet_l * wet_xfade_;
     *right_out = right_in * dry_xfade_ + wet_r * wet_xfade_;
+}
+
+void Reverb::FlushTank() {
+    // One-time cost at sleep entry (~11k floats zeroed) — never on the
+    // steady-state path.
+    ap_in_1_.ClearData();
+    ap_in_2_.ClearData();
+    ap_in_3_.ClearData();
+    ap_in_4_.ClearData();
+    delay_l1_.ClearData();
+    ap_l1_.ClearData();
+    ap_l2_.ClearData();
+    delay_l2_.ClearData();
+    delay_r1_.ClearData();
+    ap_r1_.ClearData();
+    ap_r2_.ClearData();
+    delay_r2_.ClearData();
+    feedback_l_ = 0.0f;
+    feedback_r_ = 0.0f;
+    lp_state_l_ = 0.0f;
+    lp_state_r_ = 0.0f;
+    dc_estimate_l_ = 0.0f;
+    dc_estimate_r_ = 0.0f;
+    wet_env_ = 0.0f;
+    quiet_samples_ = 0;
 }
 
 } // namespace beads
