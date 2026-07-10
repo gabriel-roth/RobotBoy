@@ -18,6 +18,7 @@ struct LoopDisplayWidget : Widget {
     std::vector<uint32_t> wavePix, lanePix;
     int waveImg = -1, laneImg = -1;
     std::uint32_t cachedWaveRevision = UINT32_MAX;
+    std::uint32_t cachedWaveGrid = UINT32_MAX;
 
     // Module-browser preview: a canned decaying-sine loop drawn by the same
     // renderer code path. In-place init: LoopEngine is non-copyable (atomics).
@@ -57,7 +58,8 @@ struct LoopDisplayWidget : Widget {
             }
 
             const auto revision = eng.waveformRevision();
-            if (waveImg < 0 || cachedWaveRevision != revision) {
+            const auto grid = eng.displaySnapshot().grid;
+            if (waveImg < 0 || cachedWaveRevision != revision || cachedWaveGrid != grid) {
                 LoopWaveformRenderer::renderWaveform(
                     wavePix.data(), w, waveH, eng, loopDisplayPackRGBA);
                 if (waveImg < 0)
@@ -66,6 +68,7 @@ struct LoopDisplayWidget : Widget {
                 else
                     nvgUpdateImage(args.vg, waveImg, (const unsigned char*)wavePix.data());
                 cachedWaveRevision = revision;
+                cachedWaveGrid = grid;
             }
             LoopWaveformRenderer::renderLanes(
                 lanePix.data(), w, lanesH, laneH, eng, loopDisplayPackRGBA);

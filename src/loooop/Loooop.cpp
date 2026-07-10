@@ -17,7 +17,7 @@ struct Loooop : Module {
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM,
                    SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM,
                    SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM,
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, GRID_PARAM,
                    PARAMS_LEN };
     enum InputId { SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
                    SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
@@ -75,6 +75,7 @@ struct Loooop : Module {
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
         configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
             {"Add", "Replace", "Layer", "Decay"});
+        configSwitch(GRID_PARAM, 0.f, 3.f, 0.f, "Grid", {"Off", "4", "8", "16"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -107,6 +108,8 @@ struct Loooop : Module {
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
             (int)std::round(params[WRITE_MODE_PARAM].getValue())));
+        engine.setGrid(loooop::gridSegments(
+            (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
         // circuits, so `a || b` would skip calling b.process() (and updating
         // its Schmitt state) on any sample where a is already true.
@@ -304,6 +307,10 @@ struct LoooopWidget : ModuleWidget {
         menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
             [m] { return (int)std::round(m->params[Loooop::WRITE_MODE_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Loooop::WRITE_MODE_PARAM]->setValue((float)v); }));
+        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16"};
+        menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
+            [m] { return (int)std::round(m->params[Loooop::GRID_PARAM].getValue()); },
+            [m](int v) { m->paramQuantities[Loooop::GRID_PARAM]->setValue((float)v); }));
         static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             menu->addChild(createSubmenuItem("Head " + std::to_string(h + 1), "",

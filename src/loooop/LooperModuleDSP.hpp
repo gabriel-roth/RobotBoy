@@ -57,6 +57,12 @@ inline float panRightGain(float pan) {
     return pan >= 0.0f ? 1.0f : 1.0f + pan;
 }
 
+// Grid menu choice (0..3: Off/4/8/16) -> LoopEngine::setGrid segment count.
+inline int gridSegments(int choiceIdx) {
+    constexpr int kGridChoices[4] = {0, 4, 8, 16};
+    return (choiceIdx < 0 || choiceIdx > 3) ? 0 : kGridChoices[choiceIdx];
+}
+
 // One-pole smoother for zipper-noise suppression (mirrors mf20/dsp_utils.hpp
 // so the loooop headless lane stays self-contained). alpha 1 = passthrough.
 struct OnePoleSmoother {
