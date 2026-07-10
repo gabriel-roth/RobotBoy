@@ -1,6 +1,6 @@
 #include "plugin.hpp"
 #include "beads/beads.h"
-#include "../vendor/beads_dsp/src/util/control_conditioner.h"
+#include "dsp/src/util/control_conditioner.h"
 #include "particules_block_runtime.h"
 #include "particules_cv_conditioning.h"
 #include "particules_density_control.h"

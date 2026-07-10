@@ -24,7 +24,7 @@ for d in mf20 loooop particules; do
       done < "$extra_file"
     fi
     g++ -std=c++20 -O2 -I../src -I../src/loooop -I../src/mf20 -I../src/particules \
-        -I../src/vendor/beads_dsp/include -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
+        -I../src/particules/dsp/include -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
   done
 done
 

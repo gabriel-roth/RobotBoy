@@ -24,25 +24,25 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/loooop/dsp/LoopEngine.cpp
     ${SRC}/src/loooop/display/LoopWaveformRenderer.cpp
     # beads DSP (Particules)
-    ${SRC}/src/vendor/beads_dsp/src/beads_processor.cpp
-    ${SRC}/src/vendor/beads_dsp/src/buffer/recording_buffer.cpp
-    ${SRC}/src/vendor/beads_dsp/src/fx/reverb.cpp
-    ${SRC}/src/vendor/beads_dsp/src/fx/saturation.cpp
-    ${SRC}/src/vendor/beads_dsp/src/grain/grain_engine.cpp
-    ${SRC}/src/vendor/beads_dsp/src/grain/grain_scheduler.cpp
-    ${SRC}/src/vendor/beads_dsp/src/grain/grain.cpp
-    ${SRC}/src/vendor/beads_dsp/src/input/auto_gain.cpp
-    ${SRC}/src/vendor/beads_dsp/src/pitch/pitch_quantizer.cpp
-    ${SRC}/src/vendor/beads_dsp/src/quality/quality_processor.cpp
-    ${SRC}/src/vendor/beads_dsp/src/random/attenurandomizer.cpp
-    ${SRC}/src/vendor/beads_dsp/src/random/random.cpp
+    ${SRC}/src/particules/dsp/src/beads_processor.cpp
+    ${SRC}/src/particules/dsp/src/buffer/recording_buffer.cpp
+    ${SRC}/src/particules/dsp/src/fx/reverb.cpp
+    ${SRC}/src/particules/dsp/src/fx/saturation.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain_engine.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain_scheduler.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain.cpp
+    ${SRC}/src/particules/dsp/src/input/auto_gain.cpp
+    ${SRC}/src/particules/dsp/src/pitch/pitch_quantizer.cpp
+    ${SRC}/src/particules/dsp/src/quality/quality_processor.cpp
+    ${SRC}/src/particules/dsp/src/random/attenurandomizer.cpp
+    ${SRC}/src/particules/dsp/src/random/random.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
     ${SRC}/src/loooop
     ${SRC}/src/mf20
     ${SRC}/src/particules
-    ${SRC}/src/vendor/beads_dsp/include
+    ${SRC}/src/particules/dsp/include
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
