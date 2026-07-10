@@ -2,40 +2,49 @@
 
 **Date:** 2026-07-09
 **Source:** `code-review-2026-07-08.md`, §"Still to do" → "New features" (items 1–5) and "Performance improvements" (items 1–2).
-**Status:** decision document. Nothing here is committed work; each spec is meant to be accepted, deferred, or rejected individually. All code references verified against the current tree on `code-review-fixes`.
+**Status:** DECIDED 2026-07-10 — all items reviewed with the user; per-item decisions below. Accepted items await implementation plans. All code references verified against the current tree on `code-review-fixes`.
 
 **Effort scale:** S = a couple of hours, M = about a day, L = multiple days.
 
 ## Summary table
 
-| # | Item | Value | Effort | Risk | Recommendation |
-|---|------|-------|--------|------|----------------|
-| F1 | Loooop overdub feedback (sound-on-sound) | High — the missing looper feature; also bounds the overdub sum | S–M | Low | **Do** |
-| F2 | Loooop overdub start/stop ramps | High — fixes the permanent punch-out click | S | Low | **Do with F1** (same code region) |
-| F3 | Particules scale-aware pitch lock | High — engine side already done and tested | M | Low | **Do** |
-| F4 | MF-20 HP output jack | Medium | S code + panel art | Low | **Do** (one panel slot is free) |
-| F5 | Particules grain-count LED | Low–medium | S | None | **Do** |
-| F6 | Particules input-level readout | Low | S | None | **Do** |
-| F7 | Particules grain-trigger pulse separation | Medium (patch correctness) | S | Low | **Do** |
-| F8 | Particules menu undo (VCV-only) | Low | S | None | **Do** |
-| Q1 | Loooop cubic (Hermite) interpolation | High — biggest fidelity win at fractional speeds | M | Medium (seam edge cases) | **Do** |
-| Q2 | Loooop one-shot fade-out | Medium | S | Low | **Do** |
-| Q3 | Loooop smoothed level/pan/dry-wet | Medium | S | Low | **Do** |
-| Q4 | Loooop 2-tap anti-aliasing above 1× | Low–medium | S | Low | **Defer** — listen after Q1 lands |
-| Q5 | Loooop display rebinning for short loops | Low (cosmetic) | M | Medium (GUI-thread buffer scan) | **Defer** |
-| Q6 | MF-20 clip-knee rounding — tier 1 (K35 forward clip) | Medium | S | Low | **Do** |
-| Q7 | MF-20 clip-knee rounding — tier 2 (loop clips) | Medium | M | Medium | **Decide after listening to Q6** |
-| Q8 | MF-20 2× oversampling HQ menu option | Medium | L | Medium | **Defer** |
-| Q9 | beads post-gain dry tap | Decision needed | S–M | Medium (changes bypass semantics) | **Menu option, default off** |
-| Q10 | beads kMidi burst spreading | Medium; also closes a test gap | S–M | Low | **Do** |
-| P1 | beads reverb idle sleep | Medium–high (MetaModule CPU) | M | Medium (tail-cut audibility) | **Do** |
-| P2 | Loooop batched waveform-revision bump | Unknown until profiled | S | Low | **Profile first**, per the review |
+| # | Item | Value | Effort | Risk | Decision (2026-07-10) |
+|---|------|-------|--------|------|------------------------|
+| F1 | Loooop overdub feedback (sound-on-sound) | High — the missing looper feature; also bounds the overdub sum | S–M | Low | **Accepted, redesigned** — four write modes (see item) |
+| F2 | Loooop overdub start/stop ramps | High — fixes the permanent punch-out click | S | Low | **Accepted** — with F1 (same code region) |
+| F3 | Particules scale-aware pitch lock | High — engine side already done and tested | M | Low | **Accepted** |
+| F4 | MF-20 HP output jack | Medium | S code + panel art | Low | **Rejected** — keep the MS-20's fixed HPF→LPF→out topology |
+| F5 | Particules grain-count LED | Low–medium | S | None | **Accepted** |
+| F6 | Particules input-level readout | Low | S | None | **Accepted** |
+| F7 | Particules grain-trigger pulse separation | Medium (patch correctness) | S | Low | **Accepted** |
+| F8 | Particules menu undo (VCV-only) | Low | S | None | **Accepted** — slider excluded |
+| Q1 | Loooop cubic (Hermite) interpolation | High — biggest fidelity win at fractional speeds | M | Medium (seam edge cases) | **Accepted** |
+| Q2 | Loooop one-shot fade-out | Medium | S | Low | **Accepted** |
+| Q3 | Loooop smoothed level/pan/dry-wet | Medium | S | Low | **Accepted** |
+| Q4 | Loooop 2-tap anti-aliasing above 1× | Low–medium | S | Low | **Deferred** — listen after Q1 lands |
+| Q5 | Loooop display rebinning for short loops | Low (cosmetic) | M | Medium (GUI-thread buffer scan) | **Deferred** — future display round |
+| Q6 | MF-20 clip-knee rounding — tier 1 (K35 forward clip) | Medium | S | Low | **Accepted** |
+| Q7 | MF-20 clip-knee rounding — tier 2 (loop clips) | Medium | M | Medium | **Gated** — decide after listening to Q6 |
+| Q8 | MF-20 2× oversampling HQ menu option | Medium | L | Medium | **Deferred** |
+| Q9 | beads post-gain dry tap | Decision needed | S–M | Medium (changes bypass semantics) | **Accepted, modified** — menu option, **default ON** |
+| Q10 | beads kMidi burst spreading | Medium; also closes a test gap | S–M | Low | **Skipped** — kMidi is unreachable; consider removing it |
+| P1 | beads reverb idle sleep | Medium–high (MetaModule CPU) | M | Medium (tail-cut audibility) | **Accepted** |
+| P2 | Loooop batched waveform-revision bump | Unknown until profiled | S | Low | **Skipped** — benefit ceiling too low to bother |
 
 ---
 
 # Features
 
 ## F1. Loooop/Lop overdub feedback (sound-on-sound)
+
+> **DECISION 2026-07-10: accepted, redesigned as a write-mode selector.** Instead of a feedback slider, a four-way context-menu **write mode** (inspired by Gloop's WRTE/DEGR controls — manual and video transcript in `\~/Dev/GloopResources`):
+>
+> - **Replace** — each new recording destructively replaces the buffer's contents.
+> - **Add** — current overdub behavior: new recording sums into the existing buffer at full gain.
+> - **Layer** — sound-on-sound: previous layers get quieter as new layers are added.
+> - **Decay** — Layer plus high-end rolloff per pass (Gloop's "degrade").
+>
+> Constraints decided: the decay amount is a **fixed constant** (no user control; tune by ear), so the `OD_FEEDBACK_PARAM` / MetaModule param-sync work below is dropped — mode persistence can be a JSON key or param, decided at implementation time. Layer/Decay degradation applies **only while overdubbing** (an idle loop never fades — deliberately unlike Gloop, whose DEGR degrades every pass) and to the **whole pass** (everything the write head crosses fades, including during input silence — classic sound-on-sound). Decay's HF rolloff is new DSP (e.g. a gentle one-pole lowpass in the feedback path) to be spec'd at implementation. Future, out of scope: a panel control for mode; an effects insert in the Decay path.
 
 **What/why.** Overdub currently sums input into the buffer at full gain forever: `bufL_[writeIdx_] += inL` (`src/loooop/dsp/LoopEngine.cpp:332-333`). There is no decay control, and the sum is unbounded (a long overdub session can grow without limit). Sound-on-sound feedback — `buf = buf * feedback + in` — is the looper feature users will look for first, and any feedback < 1 also bounds the sum.
 
@@ -55,6 +64,8 @@
 
 ## F2. Loooop/Lop overdub start/stop ramps (punch declick)
 
+> **DECISION 2026-07-10: accepted**, implemented together with F1. The ramps should apply across all four F1 write modes (a Replace punch-in/out clicks just like an overdub one), with the F1 interaction formula below generalizing per mode.
+
 **What/why.** `toggleRecord()` (`LoopEngine.cpp:50-67`) just flips `recording_`; input enters and leaves the loop as a step. The punch-out step is *recorded into the buffer* — it clicks on every subsequent pass. The review calls this the one remaining recorded-artifact bug-adjacent item.
 
 **Design.**
@@ -68,6 +79,8 @@
 **Trade-offs.** Punch timing becomes \~5 ms soft on both edges — inaudible as timing, and it's exactly what hardware loopers do.
 
 ## F3. Particules scale-aware pitch lock
+
+> **DECISION 2026-07-10: accepted** as spec'd.
 
 **What/why.** The engine already has a complete, tested scale quantizer the wrapper never calls: `BeadsProcessor::LoadScale(const double* ratios, uint32_t n)` / `ClearScale()` / `SetScaleRoot(int midi)` (`src/vendor/beads_dsp/include/beads/beads.h:43-46`), backed by `PitchQuantizer` (`src/pitch/pitch_quantizer.h`, tested in `tests/beads/test_pitch_quantizer.cpp`). The wrapper currently exposes only the cruder `pitch_lock` (off / octaves / octaves+5ths, `Particules.cpp:566-570`).
 
@@ -86,6 +99,8 @@
 
 ## F4. MF-20 HP output jack
 
+> **DECISION 2026-07-10: rejected.** Checked against the original MS-20 owner's manual: the hardware has no HP output and no tap between the filters at all — the only voice output is post-LPF/post-VCA SIGNAL OUT. An HP jack would be an extension beyond the hardware, not a recreation, and MF-20 keeps the authentic fixed in → HPF → LPF → out topology instead.
+
 **What/why.** The core computes LP/BP/HP every sample and discards all but LP: `struct Out { float lp, bp, hp; }` (`src/mf20/MF20Filter.hpp:105`); the module reads only `.lp` (`MF20Filter.cpp:220,231,235`). An HP jack is free DSP-wise. The module chains HP-stage → LP-stage; the natural tap is the HP stage's `hp` output (post-HP, pre-LP) — the MS-20-style HP out.
 
 **Design.**
@@ -99,6 +114,8 @@
 
 ## F5. Particules grain-count LED
 
+> **DECISION 2026-07-10: accepted** as spec'd (LED level continuously tracks active-grain count: count-scaled flashes when sparse, steady density glow when dense; constants tuned by ear on the simulator).
+
 **What/why.** `ActiveGrainCount()` exists and is unused (`beads_processor.cpp:290-291`, counts up to `kMaxGrains = 30`). The current LED is a boolean flash: any grain this block → full brightness, then exponential decay (`Particules.cpp:407-418`, `particules_block_runtime.h:64-81`). Scaling brightness by grain count makes the LED read as density.
 
 **Design.** At the same block boundary, replace the boolean with: `count = processor_.ActiveGrainCount(); if (count > 0) SetGrainLed(max(GrainLed(), clamp(0.25 + 0.75·count/10, 0, 1)))`. One grain still visibly flashes (floor 0.25); \~10+ concurrent grains reads full-bright. Decay machinery unchanged. `GrainTriggeredThisBlock()` can stay as the "any activity" OR-in so sparse single grains at high pitch (short lifetimes that might straddle the block check) still register.
@@ -109,6 +126,8 @@
 
 ## F6. Particules input-level readout in the gain menu
 
+> **DECISION 2026-07-10: accepted** as spec'd.
+
 **What/why.** `InputLevel()` exists and is unused (`beads_processor.cpp:298-299`) — a linear peak envelope, ±5 V → 1.0, \~500 ms release. The gain menu already shows the current auto-gain in dB (`AutoGainItem`, `Particules.cpp:486-511`); showing the input level next to it turns the menu into a proper gain-staging view.
 
 **Design.** Add a display-only menu entry "Input: −18.4 dB" (or "Input: silent" below −60 dB), `20·log10(InputLevel())`. On VCV, a custom `MenuItem` whose `step()` refreshes the label live while the menu is open (same pattern as `AutoGainItem`'s rightText). On MetaModule, a static label computed at menu-open time (menus there don't animate) — acceptable.
@@ -118,6 +137,8 @@
 **Trade-offs.** None.
 
 ## F7. Particules grain-trigger pulse separation
+
+> **DECISION 2026-07-10: accepted** as spec'd. (Only affects patches with the opt-in "Grain trigger on R output" menu option enabled — verified the pulse path is fully gated on `grain_trigger_out_`.)
 
 **What/why.** `StartGrainTriggerPulse()` *overwrites* the remaining-samples counter (`particules_block_runtime.h:52-54`), and the pulse is 1 ms while blocks are \~1.33 ms — so back-to-back block triggers re-arm the counter before it empties and the R output stays continuously high (`Particules.cpp:365-372, 409-414`). Downstream trigger inputs see one event instead of many; a dense cloud produces a DC-ish gate.
 
@@ -131,6 +152,8 @@
 **Trade-offs.** A retrigger arriving mid-pulse now *extends* total high time by the gap + new pulse rather than silently merging — that's the point.
 
 ## F8. Particules menu undo (VCV-only)
+
+> **DECISION 2026-07-10: accepted** as spec'd — discrete menu items only, manual-gain slider excluded. The F3 scale/root items and the Q9 dry-tap option join the wrapped list. Manual Ctrl-Z verification goes on the user-run checklist.
 
 **What/why.** None of the context-menu options push undo actions (`history::` appears nowhere in `src/`). Rack convention is that module-menu changes are undoable.
 
@@ -148,6 +171,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q1. Loooop cubic (Hermite) interpolation
 
+> **DECISION 2026-07-10: accepted** as spec'd.
+
 **What/why.** `readInterpolated` is linear (`LoopEngine.cpp:184-208`); at fractional speeds and V/oct melodies linear interpolation is the dominant fidelity limit (HF rolloff + intermodulation). 4-point Catmull-Rom is the single biggest win available. The review rates it "still modest on MetaModule" CPU-wise: reads go 2 → 8 per stereo head-sample plus a short polynomial; worst case 4 heads ≈ 32 reads + 4 polys per sample.
 
 **Design.**
@@ -163,6 +188,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q2. Loooop one-shot fade-out
 
+> **DECISION 2026-07-10: accepted** as spec'd.
+
 **What/why.** A one-shot ends by hard-stopping the head (`advanceHead`, `LoopEngine.cpp:277,291`), and one-shots explicitly disable the seam crossfade (`fadeLen()` returns 0 when `h.oneShot`, `:225`). The re-slicer patch clicks at every one-shot end.
 
 **Design.** In `readHead`, when a one-shot head is within `xfadeSamples_ · |speed|` of its endpoint (winEnd forward / winStart reverse), apply the existing smoothstep gain (`t·t·(3−2t)`, the same curve at `LoopEngine.cpp:265-267`) as a fade-to-zero instead of a crossfade-to-seam. The stop logic in `advanceHead` is unchanged — by the time `playing = false`, the gain has already reached \~0. Retrigger during the fade (`triggerOneShot` calls `restartHead`) would snap from partial gain back to full — so `restartHead` on a fading one-shot starts the new pass with a fast (\~1 ms) gain ramp-in instead. Keep both under the existing `xfadeSamples_` machinery; no new constants.
@@ -172,6 +199,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 **Trade-offs.** The last \~5 ms of a one-shot is attenuated — that's the feature.
 
 ## Q3. Loooop smoothed head level / pan / dry-wet
+
+> **DECISION 2026-07-10: accepted** as spec'd.
 
 **What/why.** Head level is a raw multiply in the engine (`LoopEngine.cpp:347-348`); pan and dry/wet are raw per-sample maps in the modules (`Loooop.cpp:157-167`, `LooperModuleDSP.hpp:48-58`). A square LFO into Level/Pan/Mix CV produces hard steps. Nothing in `src/loooop/` has any smoothing utility today.
 
@@ -187,6 +216,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q4. Loooop 2-tap anti-aliasing above 1× — defer
 
+> **DECISION 2026-07-10: deferred**, per the recommendation — revisit with a listening check after Q1 lands.
+
 **What/why.** No anti-aliasing above 1× speed; the review's pragmatic half-measure is averaging two reads spaced `sp/2` when `|speed| > 1` (`advanceHead`/`fadeLen` already compute `sp = fabs(speed)`, `LoopEngine.cpp:226,286`).
 
 **Design (if taken).** In `readHead`, when `sp > 1`: `out = 0.5·(read(pos) + read(pos − sp/2))`, with the second-tap weight blended in over speed 1→1.5 to avoid a tone discontinuity when crossing 1×. It's a 2-tap boxcar — a crude comb lowpass, first null at `fs/sp` — not real band-limiting.
@@ -195,6 +226,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q5. Loooop display rebinning for short loops — defer
 
+> **DECISION 2026-07-10: deferred**, per the recommendation — bundle with a future display-focused round.
+
 **What/why.** Peak bins are sized against `maxSamples_` (`peakBinSize_ = maxSamples_/4096`, `LoopEngine.cpp:18-19`), so a 2-second loop at the default 60 s buffer occupies only \~136 of 4096 bins and renders blocky. Note the renderer already scales the axis to true loop length (`axisLen`, `LoopWaveformRenderer.cpp:24`) — the blockiness is bin *granularity*, not axis mapping, contrary to the review's one-line phrasing.
 
 **Design (if taken).** GUI-side, not engine-side: when `axisLen / peakBinSize < threshold` (\~256 bins on screen), `renderWaveform` bypasses the peak arrays and builds per-pixel min/max by scanning the audio buffer directly (new `const float*` accessors on the engine). Rationale for GUI-side: an engine-side re-bin at freeze time scans `loopLen_` samples on the audio thread — exactly the class of stall that crashed a MetaModule patch in `clear()` before. GUI reads of a buffer being overdubbed are racy-but-benign, consistent with the documented unlatched-peaks design (`LoopEngine.hpp:58-65`). The scan is bounded by the threshold (≤ \~180k samples/render at defaults) and only runs on revision change, but MetaModule's renderer budget is tight — this needs a simulator check.
@@ -202,6 +235,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 **Recommendation: defer.** Cosmetic; the display is already correct, just coarse. Bundle it with the next display-focused round where the simulator check (user-run, per checklist policy) is happening anyway.
 
 ## Q6. MF-20 clip-knee rounding, tier 1: K35 forward clip
+
+> **DECISION 2026-07-10: accepted** as spec'd. Aliasing improvement verified by ear (user-run VCV listening check).
 
 **What/why.** The K35 forward-path clip is a *static* piecewise-linear waveshaper on the drive-scaled input (`MF20Filter.hpp:224-237`: slope 1 → 0.25 with a hard corner at +1.0 / −0.85). Hard corners in a drive-scaled static nonlinearity are the cheapest aliasing source to fix — and unlike the loop clips, this one is **not** inside the closed-form solve, so rounding it is a local change with no algebra.
 
@@ -213,6 +248,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q7. MF-20 clip-knee rounding, tier 2: loop clips — decide after Q6
 
+> **DECISION 2026-07-10: gated on Q6** — revisit with listening evidence at high drive/screech-register settings after Q6 lands.
+
 **What/why.** The OTA diode clip and the K35 feedback clip are *inside* the closed-form per-sample solve (`MF20Filter.hpp:179-214` OTA, `:247-275` K35 loop): each region (linear / saturated) has its own linear solve for `x1`, selected by threshold checks. Rounding those knees means adding a third, quadratic region — the solve in that region becomes a quadratic equation in `x1` (solvable closed-form, one `sqrt`, region-selection logic grows from 2 to 3 branches per stage per sample).
 
 **Design (if taken).** Quadratic knee of half-width `w` around `clipThreshold` (OTA) / `kFbThreshold` (K35 loop); in-knee solve via the quadratic formula with the numerically stable form; region selection ordered linear → knee → saturated so the common (linear) case stays the fast path. Discriminant is provably non-negative in the knee construction; still guard with the existing NaN-recovery net (`sanitize()` at `MF20Filter.cpp:148`).
@@ -221,13 +258,17 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## Q8. MF-20 2× oversampling HQ option — defer
 
+> **DECISION 2026-07-10: deferred**, per the recommendation — revisit only on listening evidence after Q6/Q7.
+
 **What/why.** A VCV-only "HQ" menu option running the filter at 2× is the brute-force alternative to Q6/Q7.
 
 **Design (if taken).** Wrap the two cascade calls in `processChannel` (`MF20Filter.cpp:218-230`): halfband-interpolate input to 2×, run the filter twice per host sample, halfband-decimate. **Not** as trivial as it sounds: `g` targets are computed at modulate rate from the *host* rate (`cutoffToG`, `MF20Filter.hpp:135-138`); HQ mode must compute `g` against `2·fs` and keep the g-domain smoothers consistent when toggled — an SR-change-like transition. Menu + JSON flag follows the existing `_filterMode` pattern (`MF20Filter.cpp:90-103, 290-302`). No spectrum-test tooling exists; correctness tests would be equivalence-at-low-drive (RMS) plus the existing suite run in HQ mode.
 
 **Recommendation: defer.** L-sized, VCV-only, and redundant if Q6 (+ possibly Q7) already kills the audible aliasing. Revisit only on listening evidence.
 
-## Q9. beads post-gain dry tap — make it a menu option, default off
+## Q9. beads post-gain dry tap — menu option, default ON
+
+> **DECISION 2026-07-10: accepted, modified — menu option "Dry signal follows input gain," default ON** (post-gain dry is the out-of-box behavior; the menu restores exact-bypass dry). Two consequences accepted deliberately: (1) existing saved patches have no JSON key for the option, so they load with the new default — DRY/WET=0 is no longer a bit-exact bypass unless the user turns the option off; (2) the exact-bypass test flips — the default-path test asserts dry = auto-gained input, with a companion test for the menu-off bit-exact path. Note: the spec's claim that hardware Beads crossfades post-gain could not be verified — the firmware is not open source and the manual doesn't specify — but the decision stands on the mid-knob level-mismatch argument alone.
 
 **What/why.** The dry path is tapped before auto-gain (`beads_processor.cpp:178-179`, deliberate: DRY/WET = 0 equals bypass), but auto-gain can add up to +32 dB (`auto_gain.h:27-29`) to the wet side — mid-knob mixes can have a gross dry/wet level mismatch. Hardware Beads crossfades post-gain. Both behaviors are defensible; this is a taste decision, not a bug.
 
@@ -238,6 +279,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 **Tests:** processor-level Catch2: with the flag on, DRY/WET = 0 output equals the auto-gained input (not the raw input); flag off preserves the current exact-bypass test.
 
 ## Q10. beads kMidi burst spreading
+
+> **DECISION 2026-07-10: skipped.** Investigation found `kMidi` is unreachable: the Particules wrapper only ever selects `kClocked`, `kLatched`, or `kGated` (`Particules.cpp:330-335`), so this would polish and test a code path no user can trigger. Follow-up noted instead: **consider refactoring the beads engine to remove `kMidi`** (and its `midi_pitch_offset` / `midi_velocity_gain` params) in a future round.
 
 **What/why.** In kMidi mode with density < 0.5, a gate edge emits up to 15 burst grains *inside one ≤64-sample block* (\~1.3 ms) — `grain_scheduler.cpp:212-222` — which clumps into a thud rather than a burst, and can momentarily saturate the 30-grain pool. kMidi is also the one scheduler mode with zero test coverage; this feature would bring its first tests.
 
@@ -257,6 +300,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## P1. beads reverb idle sleep
 
+> **DECISION 2026-07-10: accepted** as spec'd.
+
 **What/why.** The reverb gates its *input* at `amount_ == 0` (`reverb.cpp:143`) but the full Dattorro tank — 12 delay lines, 8 allpasses, 2 modulated interpolated taps, LFO, LPs, DC blockers, per-sample `fb` recompute — runs unconditionally per sample (`reverb.cpp:98-231`, called from the per-sample output loop at `beads_processor.cpp:280`). `params.reverb` defaults to 0 (`parameters.h:21`), so most patches pay the full tank for silence. This is the biggest single MetaModule CPU item left.
 
 **Design.**
@@ -272,6 +317,8 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ## P2. Loooop batched waveform-revision bump — profile first
 
+> **DECISION 2026-07-10: skipped**, without profiling. Napkin math on the ceiling: the bump is one `dmb ish` + store per recorded sample on the Cortex-A7 (\~10–60 cycles of \~16,700 per sample at 48 kHz) — at most a few tenths of a percent of the core, recording-state only. Too small to justify either the on-device profiling session or the weaker revision invariant. Per-sample bump stays.
+
 **What/why.** `writePeak` calls `bumpWaveformRevision()` on every recorded sample (`LoopEngine.cpp:365-379`), i.e. one `memory_order_release` atomic store — a `dmb ish` on Cortex-A7 — per sample while recording. The review's own verdict: profile before doing anything; a predictable store to a hot cache line may be noise.
 
 **Design.**
@@ -285,11 +332,12 @@ Because the snapshot is whole-module JSON, one helper covers every field with no
 
 ---
 
-# Suggested packaging, if approved
+# Packaging (updated with 2026-07-10 decisions)
 
 Independent tracks — any subset can proceed, each its own plan/branch:
 
-1. **Loooop track:** F1 + F2 (one unit — same write path), then Q1, Q2, Q3. P2 profile gate alongside.
-2. **Particules track:** F3, F5, F6, F7, F8 (all small, one plan), Q10, P1 (both beads-engine, Catch2-covered).
-3. **MF-20 track:** F4 + Q6 (small pair); Q7/Q8 held for listening evidence.
-4. **Deferred:** Q4, Q5, Q8 — revisit with evidence (post-Q1 listening, display round, post-Q6 listening respectively).
+1. **Loooop track:** F1 + F2 (one unit — write modes + ramps, same write path), then Q1, Q2, Q3.
+2. **Particules track:** F3, F5, F6, F7, F8 (all small, one plan), Q9 (option, default ON), P1.
+3. **MF-20 track:** Q6 alone (F4 rejected); Q7/Q8 held for listening evidence.
+4. **Deferred/gated:** Q4 (post-Q1 listening), Q5 (display round), Q7 (post-Q6 listening), Q8 (post-Q6/Q7 listening).
+5. **Skipped:** Q10 (kMidi unreachable — future refactor candidate: remove kMidi from the beads engine), P2 (benefit ceiling too low). F4 rejected on hardware-authenticity grounds.
