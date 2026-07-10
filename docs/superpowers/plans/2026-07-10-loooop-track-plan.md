@@ -18,7 +18,7 @@
 - Fast single-test loop (from `tests/`): `mkdir -p ../build/tests && g++ -std=c++20 -O2 -I../src -I../src/loooop -I../src/mf20 -I../src/particules -I../src/vendor/beads_dsp/include -o ../build/tests/test_loop_engine loooop/test_loop_engine.cpp ../src/loooop/dsp/LoopEngine.cpp && ../build/tests/test_loop_engine`
 - `LoopEngine` stays Rack-free (no `rack::` / `plugin.hpp` includes) — it must keep compiling in the headless lane and MetaModule build.
 - No GUI/simulator/listening steps in tasks — anything needing eyes/ears goes in the USER CHECK section at the end.
-- Never weaken an existing test's assertions, EXCEPT the two Q1-sanctioned expectation changes listed in Task 4 (seam-adjacent interpolation values change by design; each new value is derived in the task).
+- Never weaken an existing test's assertions, EXCEPT the three Q1-sanctioned expectation changes listed in Task 4 (seam-adjacent interpolation values change by design; each new value is derived in the task).
 - Sanctioned behavior changes only: overdub write path per mode (F1); recording stop becomes \~5 ms soft on overdub passes (F2); interpolated read values near loop/window seams (Q1); one-shot final \~5 ms attenuated (Q2); level/pan/mix steps glide over \~2 ms (Q3). Everything else behavior-preserving.
 
 ---
@@ -478,7 +478,18 @@ In `clear()` and `reset()`, add: `stopPending_ = false; odGain_ = 1.f; odGainSte
 
 **Tap rules (the whole design):** taps sit on the integer grid `floor(p) + k`, k = −1…+2. The base tap (k=0) reads clamped and never wraps (identical to the old `i0` read). Any tap outside `[winStart, winStart+winLen)` wraps by whole window lengths (`± winLen`, direction-preserving) and is then read via `readRaw` — a fractional `winStart` therefore gets a position-preserving interpolated read, keeping tap spacing uniform across the seam (uniform Catmull-Rom assumes equidistant taps). This is a deliberate refinement of the old wrap rule, which snapped the wrap target to exactly `winStart`; the two sanctioned expectation changes below follow from it.
 
-- [ ] **Step 1: Update the two sanctioned expectations** in `tests/loooop/test_loop_engine.cpp`:
+- [ ] **Step 1: Update the three sanctioned expectations** in `tests/loooop/test_loop_engine.cpp`:
+  - `test_subloop_window`: window [1.5, 3.5) over the ramp 1..8. At pos 1.5 (frac 0.5) the k=−1 tap at 0 wraps to 0+2=2 → buf[2]=3, so taps are (3, 2, 3, 4):
+    `CR(0.5) = 0.5·(2·2 + (3−3)·0.5 + (6−10+12−4)·0.25 + (6−9+4−3)·0.125) = 2.375`.
+    out[0] and out[2] (the wrapped repeat of pos 1.5) change 2.5 → 2.375; out[1] (pos 2.5, taps (4,3,4,3)) stays 3.5. Same window-seam phenomenon as the other two changes — a sub-window loops with period winLen, and its content isn't a ramp across that seam.
+    ```cpp
+    // Cubic: k=-1 tap at 0 wraps to 2 (window period 2), taps (3,2,3,4) -> 2.375
+    check(near(e.process(0.f), 2.375f), "subloop: out[0]==2.375 (window start, cubic)");
+    // advance by 1 -> pos 2.5 -> taps (4,3,4,3) -> 3.5 (unchanged from linear)
+    check(near(e.process(0.f), 3.5f), "subloop: out[1]==3.5");
+    // advance -> pos 3.5 >= winEnd 3.5 -> wraps to 1.5 -> 2.375 again
+    check(near(e.process(0.f), 2.375f), "subloop: out[2]==2.375 (wrapped in window)");
+    ```
   - `test_half_speed`: at pos 0.5 the k=−1 tap wraps to buf[3]=4 (a loop's sample "before" 0 is its last), so taps are (4,1,2,3):
     `CR(0.5) = 0.5·(2·1 + (2−4)·0.5 + (2·4−5·1+4·2−3)·0.25 + (3·1−3·2+3−4)·0.125) = 1.25`.
     Change the `out[1]` line to:
@@ -645,7 +656,7 @@ float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& 
 }
 ```
 
-- [ ] **Step 5: Run the full loooop test binary.** Everything passes, including the untouched seam/crossfade/window suite (`test_crossfade_declicks_seam`, `test_jitter_crossfade_continuity`, `test_subloop_window` — the last one's values are invariant under these tap rules; if it fails, the tap rules were implemented differently than specified, do not adjust the test).
+- [ ] **Step 5: Run the full loooop test binary.** Everything passes, including the untouched seam/crossfade suite (`test_crossfade_declicks_seam`, `test_jitter_crossfade_continuity`). Any OTHER existing test failing means the tap rules were implemented differently than specified — fix the code, not the test.
 - [ ] **Step 6: Full lanes.**
 - [ ] **Step 7: Commit:** `feat: Catmull-Rom playback interpolation in LoopEngine`
 
