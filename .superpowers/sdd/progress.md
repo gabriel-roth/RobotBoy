@@ -81,3 +81,9 @@ R3 Task 6: complete (commits e490138..cff03a9, review Approved, opus; adjudicate
 R3 FINAL REVIEW (fable): found 2 Important cross-cutting (NaN density permanently silences scheduler phasor; NaN test masked it — never spawned grains). Fixed c669d1b (density/density_cv fence + liveness/recovery REQUIREs + VoiceEngine target reset), re-verified by reviewer: ALL FINDINGS CLOSED, READY TO MERGE. Open follow-ups logged in doc: grain-overflow design question, fence ordering, pitch-NaN direct test, kMidi tests. ALL 6 R3 TASKS + FINAL REVIEW + FIX COMPLETE.
 USER CHECK 1 (display cache canvas persistence): PASSED, verified by user in built-in sim 2026-07-09.
 USER CHECKS 2+3 (grain overlap listening; 64-block feel): PASSED, verified by user in VCV 2026-07-09. All manual checks complete.
+
+=== MF-20 Q6 EXECUTION (plan: 2026-07-10-mf20-q6-plan.md, 3 tasks; base 0404c85) ===
+Q6 Task 1: complete (34dec42, k35ForwardClip extracted as static helper, equivalence maxErr=0, all lanes green).
+Q6 Task 2: complete (5b980c0, C1 quadratic knees w=0.1 on both corners, tests 25-27 green, existing K35 suite unchanged, all lanes green).
+Q6 Task 3: complete (clean-state lanes green, one commit per task verified).
+Q6 USER CHECKS (aliasing reduction at high drive+cutoff; clip character preserved): PASSED, verified by user in VCV 2026-07-10.

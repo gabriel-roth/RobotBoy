@@ -940,6 +940,107 @@ static void test_processG_matches_process() {
     }
 }
 
+// K35 forward clip, extracted as a static helper (Q6 groundwork).
+// Full-range equivalence against the previous inline piecewise expression.
+static void test_k35_forward_clip_helper_equivalence() {
+    printf("\n24. k35ForwardClip helper matches the inline piecewise clip\n");
+    auto oldClip = [](float in_n) -> float {
+        constexpr float kSatSlope = 0.25f;
+        if (in_n >= 0.f)
+            return (in_n <= 1.f) ? in_n : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
+        constexpr float T_neg_n = 0.85f;   // 1 - kK35Asymmetry
+        return (in_n >= -T_neg_n) ? in_n : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
+    };
+    bool ok = true;
+    float maxErr = 0.f;
+    for (int i = -30000; i <= 30000; ++i) {           // x in [-3, 3], step 1e-4
+        float x = i * 1e-4f;
+        const bool inPosKnee = x > 0.9f && x < 1.1f;
+        const bool inNegKnee = x > -0.95f && x < -0.75f;
+        if (inPosKnee || inNegKnee) continue;
+        float err = std::fabs(MF20Filter::k35ForwardClip(x) - oldClip(x));
+        if (err > maxErr) maxErr = err;
+        if (err > 1e-6f) ok = false;
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "maxErr=%.3g", maxErr);
+    report(ok, "k35ForwardClip == previous inline clip outside knee regions", buf);
+}
+
+// 25. Q6: the clip must be C1 (no slope jumps) everywhere. The old hard
+//     corner has a one-sided derivative jump of 0.75 at x=1.0 and x=-0.85;
+//     the quadratic knee's derivative changes by at most 2q·step ≈ 0.004
+//     between adjacent probes at this resolution.
+static void test_k35_clip_is_c1() {
+    printf("\n25. K35 forward clip is C1 (rounded knees)\n");
+    const float h = 1e-4f, step = 1e-3f;
+    float prevD = 1.f;   // slope well below any corner
+    float maxJump = 0.f;
+    for (int i = -3000; i <= 3000; ++i) {
+        float x = i * step;
+        float d = (MF20Filter::k35ForwardClip(x + h)
+                 - MF20Filter::k35ForwardClip(x - h)) / (2.f * h);
+        if (i > -3000) maxJump = std::fmax(maxJump, std::fabs(d - prevD));
+        prevD = d;
+    }
+    char buf[64];
+    snprintf(buf, sizeof(buf), "max derivative jump %.4f (corner would be ~0.375+)", maxJump);
+    report(maxJump < 0.02f, "no slope discontinuity across [-3, 3]", buf);
+}
+
+// 26. Q6: outside the two knee bands the curve is exactly the old clip.
+static void test_k35_clip_unchanged_outside_knees() {
+    printf("\n26. K35 forward clip unchanged outside the knee regions\n");
+    auto oldClip = [](float in_n) -> float {
+        constexpr float kSatSlope = 0.25f;
+        if (in_n >= 0.f)
+            return (in_n <= 1.f) ? in_n : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
+        constexpr float T_neg_n = 0.85f;
+        return (in_n >= -T_neg_n) ? in_n : kSatSlope * in_n - (1.f - kSatSlope) * T_neg_n;
+    };
+    bool ok = true;
+    for (int i = -30000; i <= 30000; ++i) {
+        float x = i * 1e-4f;
+        const bool inPosKnee = x > 0.9f && x < 1.1f;
+        const bool inNegKnee = x > -0.95f && x < -0.75f;
+        if (inPosKnee || inNegKnee) continue;
+        if (std::fabs(MF20Filter::k35ForwardClip(x) - oldClip(x)) > 1e-6f) ok = false;
+    }
+    report(ok, "identical to hard clip for |x - corner| >= 0.1");
+}
+
+// 27. Q6: inside each knee the curve is monotone and hugs the corner's
+//     two-line envelope. Geometry: at the POSITIVE corner slope drops 1 ->
+//     0.25 (concave), so the knee sits at or BELOW min(linear, sat), by at
+//     most q·w² = 0.01875 (the depth at the corner itself). At the NEGATIVE
+//     corner the mirror holds: the knee sits at or ABOVE max(linear, sat),
+//     by at most the same 0.01875.
+static void test_k35_clip_knee_sanity() {
+    printf("\n27. K35 forward clip knee regions well-behaved\n");
+    const float kDepth = 0.01875f + 1e-5f;   // q·w² plus float slack
+    bool monotone = true, bounded = true;
+    float prev = MF20Filter::k35ForwardClip(0.9f);
+    for (int i = 1; i <= 200; ++i) {
+        float x = 0.9f + i * 1e-3f;                     // (0.9, 1.1]
+        float v = MF20Filter::k35ForwardClip(x);
+        if (v < prev) monotone = false;
+        float env = std::fmin(x, 0.25f * x + 0.75f);    // lower envelope of the corner
+        if (v > env + 1e-6f || v < env - kDepth) bounded = false;
+        prev = v;
+    }
+    prev = MF20Filter::k35ForwardClip(-0.95f);
+    for (int i = 1; i <= 200; ++i) {
+        float x = -0.95f + i * 1e-3f;                   // (-0.95, -0.75]
+        float v = MF20Filter::k35ForwardClip(x);
+        if (v < prev) monotone = false;
+        float env = std::fmax(x, 0.25f * x - 0.75f * 0.85f);   // upper envelope
+        if (v < env - 1e-6f || v > env + kDepth) bounded = false;
+        prev = v;
+    }
+    report(monotone, "knee output is monotone increasing");
+    report(bounded,  "knee output hugs the corner envelope (within q*w^2)");
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 int main() {
@@ -973,6 +1074,10 @@ int main() {
     test_k35_forward_clip_isolation();
     test_mode_switch_mid_stream();
     test_k35_asymmetric_clip();
+    test_k35_forward_clip_helper_equivalence();
+    test_k35_clip_is_c1();
+    test_k35_clip_unchanged_outside_knees();
+    test_k35_clip_knee_sanity();
     test_nan_recovery();
     test_voice_sanitize();
     test_engine_pool_reset_on_growth();
