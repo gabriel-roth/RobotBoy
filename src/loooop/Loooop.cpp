@@ -241,7 +241,7 @@ struct LoooopWidget : ModuleWidget {
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 75.05)), module, Loooop::LEVEL1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 46.35)), module, Loooop::SIZE2_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(87.227, 75.05)), module, Loooop::LEVEL2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(127.75, 116.05)), module, Loooop::DRYWET_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.82, 116.05)), module, Loooop::DRYWET_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(105.81, 46.35)), module, Loooop::SIZE3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.99, 75.05)), module, Loooop::LEVEL3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(153.57, 46.35)), module, Loooop::SIZE4_PARAM));
@@ -250,7 +250,7 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.467, 87.4)), module, Loooop::LEVEL1_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(58.053, 58.7)), module, Loooop::SIZE2_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(87.227, 87.4)), module, Loooop::LEVEL2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(140.1, 116.05)), module, Loooop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(156.17, 116.05)), module, Loooop::DRYWET_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.81, 58.7)), module, Loooop::SIZE3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.99, 87.4)), module, Loooop::LEVEL3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 58.7)), module, Loooop::SIZE4_CV_INPUT));
@@ -265,32 +265,32 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(168.16, 87.4)), module, Loooop::PAN4_CV_INPUT));
 
         // Per-head jack row: Trig, Jump, Out L, Out R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.47, 102.1)), module, Loooop::TRIG1_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.41, 102.1)), module, Loooop::JUMP1_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.97, 102.1)), module, Loooop::HEAD1_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.67, 102.1)), module, Loooop::HEAD1_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(56.23, 102.1)), module, Loooop::TRIG2_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(67.17, 102.1)), module, Loooop::JUMP2_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(78.73, 102.1)), module, Loooop::HEAD2_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(88.43, 102.1)), module, Loooop::HEAD2_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(103.99, 102.1)), module, Loooop::TRIG3_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(114.93, 102.1)), module, Loooop::JUMP3_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(126.49, 102.1)), module, Loooop::HEAD3_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(136.19, 102.1)), module, Loooop::HEAD3_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(151.75, 102.1)), module, Loooop::TRIG4_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(162.69, 102.1)), module, Loooop::JUMP4_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(174.25, 102.1)), module, Loooop::HEAD4_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(183.95, 102.1)), module, Loooop::HEAD4_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 102.1)), module, Loooop::TRIG1_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.03, 102.1)), module, Loooop::JUMP1_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.71, 102.1)), module, Loooop::HEAD1_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.41, 102.1)), module, Loooop::HEAD1_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(55.11, 102.1)), module, Loooop::TRIG2_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(67.79, 102.1)), module, Loooop::JUMP2_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(80.47, 102.1)), module, Loooop::HEAD2_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(90.17, 102.1)), module, Loooop::HEAD2_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.87, 102.1)), module, Loooop::TRIG3_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(115.55, 102.1)), module, Loooop::JUMP3_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(128.23, 102.1)), module, Loooop::HEAD3_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.93, 102.1)), module, Loooop::HEAD3_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(150.63, 102.1)), module, Loooop::TRIG4_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(163.31, 102.1)), module, Loooop::JUMP4_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 102.1)), module, Loooop::HEAD4_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 102.1)), module, Loooop::HEAD4_R_OUTPUT));
 
         // Global bottom row: In L/R, Record (LED button) + trig, Clear + trig, Mix L/R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(16.854, 116.05)), module, Loooop::AUDIO_L_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.554, 116.05)), module, Loooop::AUDIO_R_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(53.687, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(64.537, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(91.095, 116.05)), module, Loooop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(101.95, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(166.49, 116.05)), module, Loooop::MIX_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(176.19, 116.05)), module, Loooop::MIX_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Loooop::AUDIO_L_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.118, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.968, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(90.785, 116.05)), module, Loooop::CLEAR_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(101.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 116.05)), module, Loooop::MIX_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 116.05)), module, Loooop::MIX_R_OUTPUT));
     }
 
     void appendContextMenu(Menu* menu) override {
