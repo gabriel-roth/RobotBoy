@@ -490,6 +490,66 @@ static void test_one_shot_reverse() {
     check(near(e.process(0.f), 0.f), "oneshot_rev: stops after one pass");
 }
 
+static void test_one_shot_fade_out() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);            // crossfade on (default)
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);      // constant loop
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    static float out[2000];
+    for (int i = 0; i < 2000; ++i) out[i] = e.process(0.f);
+    check(near(out[1000], 1.f, 0.01f), "osfade: full level mid-pass");
+    check(std::fabs(out[1999]) < 0.05f, "osfade: last sample faded to ~0");
+    bool mono = true, smooth = true;
+    for (int i = 1761; i < 2000; ++i) {
+        if (out[i] > out[i-1] + 1e-3f) mono = false;
+        if (std::fabs(out[i] - out[i-1]) > 0.05f) smooth = false;
+    }
+    check(mono,   "osfade: fade is monotonic");
+    check(smooth, "osfade: no step at the end");
+    check(near(e.process(0.f), 0.f), "osfade: silent after the pass");
+}
+
+static void test_one_shot_fade_out_reverse() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setSpeed(0, -1.f);
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    static float out[2000];
+    for (int i = 0; i < 2000; ++i) out[i] = e.process(0.f);
+    check(near(out[1000], 1.f, 0.01f),  "osfade_rev: full level mid-pass");
+    check(std::fabs(out[1999]) < 0.05f, "osfade_rev: fades to ~0 at window start");
+    bool smooth = true;
+    for (int i = 1761; i < 2000; ++i)
+        if (std::fabs(out[i] - out[i-1]) > 0.05f) smooth = false;
+    check(smooth, "osfade_rev: no step at the end");
+}
+
+static void test_one_shot_retrigger_mid_fade() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    for (int i = 0; i < 1880; ++i) e.process(0.f);      // ~120 samples into the fade
+    float before = e.process(0.f);
+    e.triggerOneShot(0);                                 // retrigger during the fade
+    float maxDelta = 0.f, prev = before;
+    for (int i = 0; i < 100; ++i) {
+        float v = e.process(0.f);
+        maxDelta = std::max(maxDelta, std::fabs(v - prev));
+        prev = v;
+    }
+    check(before < 0.7f,             "osretrig: was mid-fade before retrigger");
+    check(maxDelta < 0.1f,           "osretrig: no gain snap (ramps back in)");
+    check(near(prev, 1.f, 0.05f),    "osretrig: back to full level after ~1 ms ramp");
+}
+
 static void test_jump_head() {
     LoopEngine e; record_ramp(e, 4);       // winLen 4 -> pos = t * 3
     e.jumpHead(0, 2.f / 3.f);
@@ -911,6 +971,9 @@ int main() {
     test_restart_head();
     test_one_shot();
     test_one_shot_reverse();
+    test_one_shot_fade_out();
+    test_one_shot_fade_out_reverse();
+    test_one_shot_retrigger_mid_fade();
     test_jump_head();
     test_one_shot_survives_clear();
     test_triggers_no_loop();

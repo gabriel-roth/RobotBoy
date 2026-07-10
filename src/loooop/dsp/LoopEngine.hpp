@@ -93,6 +93,7 @@ private:
         float speed = 1.f, level = 1.f, centre = 0.5f, size = 1.f;
         bool oneShot = false, playing = true;
         float jitter = 0.f, jitterOff = 0.f, jitterNext = 0.f;
+        float osRamp = 1.f;   // retrigger ramp-in gain (Q2)
     };
 
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
@@ -108,6 +109,10 @@ private:
     // Crossfade length in output samples for this head/window, capped to half the
     // window's output-period; 0 disables (window too short, or crossfade off).
     int fadeLen(const PlayHead& h, double winLen) const;
+    // One-shot end-of-pass fade length/gain (Q2): same sizing as fadeLen but
+    // without the oneShot exclusion.
+    int oneShotFadeLen(const PlayHead& h, double winLen) const;
+    float oneShotFadeGain(const PlayHead& h, double winStart, double winLen, int F) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
     void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
@@ -149,6 +154,7 @@ private:
         }
     }
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
+    float osRampStep_ = 1.f;   // ~1 ms retrigger ramp-in; set with xfadeSamples_
     double minWinLen_ = 48.0;   // ceil(sampleRate · 1 ms); set in reset()/setSampleRate()
     float sampleRate_ = 48000.f;
     float maxSeconds_ = 60.f;

@@ -11,6 +11,7 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     // 10 Hz test rate), which disables the crossfade and preserves seam-exact
     // behavior there.
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    osRampStep_ = 1.f / std::max(1.f, 0.001f * sampleRate);
     // Underflows to exactly 1.0 (passthrough) at very low test rates.
     decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
     decayLpL_ = decayLpR_ = 0.f;
@@ -49,6 +50,7 @@ void LoopEngine::setSampleRate(float sampleRate) {
     }
     sampleRate_ = sampleRate;
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    osRampStep_ = 1.f / std::max(1.f, 0.001f * sampleRate);
     // Underflows to exactly 1.0 (passthrough) at very low test rates.
     decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
     minWinLen_ = std::ceil(
@@ -185,6 +187,17 @@ void LoopEngine::triggerOneShot(int head) {
     if (head < 0 || head >= numHeads_ || loopLen_ == 0) return;
     PlayHead& h = heads_[head];
     if (!h.oneShot) return;
+    if (h.playing) {
+        // Retrigger during the tail fade: start the new pass from the current
+        // fade gain and ramp back to unity instead of snapping (Q2).
+        double winStart, winLen;
+        windowBounds(h, winStart, winLen);
+        const int Fo = oneShotFadeLen(h, winLen);
+        if (Fo >= 1) {
+            const float g = oneShotFadeGain(h, winStart, winLen, Fo);
+            if (g < 1.f) h.osRamp = g;
+        }
+    }
     restartHead(head);
     h.playing = true;
 }
@@ -272,6 +285,33 @@ int LoopEngine::fadeLen(const PlayHead& h, double winLen) const {
     return F < 1 ? 0 : F;
 }
 
+// One-shot end fade length: same sizing as the seam crossfade but WITHOUT
+// the oneShot exclusion — one-shots skip the seam fade and instead fade to
+// zero at the end of the pass (Q2). Gated on the same Crossfade option.
+int LoopEngine::oneShotFadeLen(const PlayHead& h, double winLen) const {
+    if (!crossfade_ || xfadeSamples_ == 0) return 0;
+    const double sp = std::fabs(static_cast<double>(h.speed));
+    if (sp < 1e-9) return 0;
+    const int cap = static_cast<int>((winLen / sp) * 0.5);
+    int F = static_cast<int>(xfadeSamples_);
+    if (F > cap) F = cap;
+    return F < 1 ? 0 : F;
+}
+
+// Positional fade gain: 1 outside the final F output-samples of the pass,
+// smoothstep down to 0 at the endpoint (winEnd forward / winStart reverse).
+float LoopEngine::oneShotFadeGain(const PlayHead& h, double winStart,
+                                  double winLen, int F) const {
+    const double sp = std::fabs(static_cast<double>(h.speed));
+    const double outToEnd = (h.speed >= 0.f)
+        ? (winStart + winLen - h.pos) / sp
+        : (h.pos - winStart) / sp;
+    if (outToEnd < 0.0) return 0.f;
+    if (outToEnd >= static_cast<double>(F)) return 1.f;
+    const float t = static_cast<float>(outToEnd / F);   // 0 at end -> 1 at fade start
+    return t * t * (3.f - 2.f * t);
+}
+
 // Interpolated read for one head with the seam crossfade applied. The primary
 // (window-clamped) reader supplies the tail; within the last F output-samples
 // before the loop point it is equal-power-crossfaded with the loop head read
@@ -281,6 +321,12 @@ void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
                           float& outL, float& outR) const {
     outL = readInterpolated(h, bufL_, winStart, winLen);
     outR = readInterpolated(h, bufR_, winStart, winLen);
+    if (h.oneShot) {
+        const int Fo = oneShotFadeLen(h, winLen);
+        float g = (Fo >= 1) ? oneShotFadeGain(h, winStart, winLen, Fo) : 1.f;
+        if (h.osRamp < 1.f) g *= h.osRamp;   // retrigger ramp-in (~1 ms)
+        if (g < 1.f) { outL *= g; outR *= g; }
+    }
     const int F = fadeLen(h, winLen);
     if (F < 1) return;
     const double sp = std::fabs(static_cast<double>(h.speed));
@@ -311,6 +357,10 @@ void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
 }
 
 void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLen) {
+    if (h.osRamp < 1.f) {
+        h.osRamp += osRampStep_;
+        if (h.osRamp > 1.f) h.osRamp = 1.f;
+    }
     const double winEnd = winStart + winLen;
     if (h.pos < winStart || h.pos >= winEnd) h.pos = winStart;   // snap in if params moved
     h.pos += h.speed;
