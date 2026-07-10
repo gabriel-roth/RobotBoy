@@ -101,6 +101,8 @@ private:
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
     float readRaw(double p, const std::vector<float>& buf) const;
+    float tapWrapped(double x, double winStart, double winLen,
+                     const std::vector<float>& buf) const;
     void readHead(const PlayHead& h, double winStart, double winLen,
                   float& outL, float& outR) const;
     // Crossfade length in output samples for this head/window, capped to half the

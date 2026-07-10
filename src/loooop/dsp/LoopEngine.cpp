@@ -215,30 +215,37 @@ void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
     if (winStart < 0.0) winStart = 0.0;
 }
 
+// Wrap a tap position into [winStart, winStart + winLen) by whole window
+// lengths (taps sit at most 2 samples outside; bounded iterations since
+// winLen >= 1), then read it. A fractional winStart lands the wrapped tap on
+// a fractional position — readRaw's lerp handles it, keeping tap spacing
+// uniform across the seam.
+float LoopEngine::tapWrapped(double x, double winStart, double winLen,
+                             const std::vector<float>& buf) const {
+    while (x >= winStart + winLen) x -= winLen;
+    while (x < winStart) x += winLen;
+    return readRaw(x, buf);
+}
+
+// 4-point Catmull-Rom read for one head, window-aware (Q1). The base tap
+// keeps the old linear reader's clamped semantics; neighbors wrap via
+// tapWrapped. Reproduces linear ramps exactly when all taps are interior,
+// so exact-value ramp tests hold away from seams. readRaw (the seam-
+// crossfade feeder) deliberately stays linear.
 float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                                    double winStart, double winLen) const {
     double p = h.pos;
     if (p < winStart || p >= winStart + winLen) p = winStart;   // honor a just-moved window on this read (advanceHead snaps h.pos after)
-    std::size_t i0 = static_cast<std::size_t>(std::floor(p));
-    const double frac = p - std::floor(p);
-    std::size_t i1 = i0 + 1;
-    double v1;
-    if (static_cast<double>(i1) >= winStart + winLen) {
-        // Wrap target: interpolate at the (possibly fractional) window start
-        // instead of truncating it — a fractional winStart still needs its
-        // own lerp between the two samples straddling it.
-        std::size_t ws0 = static_cast<std::size_t>(std::floor(winStart));
-        std::size_t ws1 = ws0 + 1;
-        if (ws0 >= loopLen_) ws0 = loopLen_ ? loopLen_ - 1 : 0;
-        if (ws1 >= loopLen_) ws1 = loopLen_ ? loopLen_ - 1 : 0;
-        const double wsFrac = winStart - std::floor(winStart);
-        v1 = (1.0 - wsFrac) * buf[ws0] + wsFrac * buf[ws1];
-    } else {
-        if (i1 >= loopLen_) i1 = loopLen_ ? loopLen_ - 1 : 0;
-        v1 = buf[i1];
-    }
-    if (i0 >= loopLen_) i0 = loopLen_ ? loopLen_ - 1 : 0;
-    return static_cast<float>((1.0 - frac) * buf[i0] + frac * v1);
+    const double ip = std::floor(p);
+    const float frac = static_cast<float>(p - ip);
+    const float t0 = tapWrapped(ip - 1.0, winStart, winLen, buf);
+    const float t1 = readRaw(ip, buf);                    // base tap: in-window by construction
+    const float t2 = tapWrapped(ip + 1.0, winStart, winLen, buf);
+    const float t3 = tapWrapped(ip + 2.0, winStart, winLen, buf);
+    const float c1 = 0.5f * (t2 - t0);
+    const float c2 = t0 - 2.5f * t1 + 2.f * t2 - 0.5f * t3;
+    const float c3 = 1.5f * (t1 - t2) + 0.5f * (t3 - t0);
+    return ((c3 * frac + c2) * frac + c1) * frac + t1;
 }
 
 // Raw interpolated buffer read, clamped to [0, loopLen). Used by the seam

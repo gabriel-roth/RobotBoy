@@ -45,7 +45,8 @@ static void test_half_speed() {
     e.setSpeed(0, 0.5f);
     // pos 0 ->0.5 ->1.0 ->1.5 : reads 1, 1.5, 2, 2.5
     check(near(e.process(0.f), 1.0f), "half_speed: out[0]==1.0");
-    check(near(e.process(0.f), 1.5f), "half_speed: out[1]==1.5");
+    // Catmull-Rom: taps (buf[3],buf[0],buf[1],buf[2]) = (4,1,2,3), t=0.5 -> 1.25
+    check(near(e.process(0.f), 1.25f), "half_speed: out[1]==1.25 (cubic, seam tap wraps)");
     check(near(e.process(0.f), 2.0f), "half_speed: out[2]==2.0");
     check(near(e.process(0.f), 2.5f), "half_speed: out[3]==2.5");
 }
@@ -82,12 +83,12 @@ static void test_subloop_window() {
     // interpolation over [1.5, 3.5): the head starts snapped to winStart 1.5
     e.setSize(0, 0.25f);
     e.setPosition(0, 0.3125f);
-    // pos 1.5 -> read interp(buffer[1]=2, buffer[2]=3) = 2.5
-    check(near(e.process(0.f), 2.5f), "subloop: out[0]==2.5 (window start)");
-    // advance by 1 -> pos 2.5 -> interp(buffer[2]=3, buffer[3]=4) = 3.5
+    // Cubic: k=-1 tap at 0 wraps to 2 (window period 2), taps (3,2,3,4) -> 2.375
+    check(near(e.process(0.f), 2.375f), "subloop: out[0]==2.375 (window start, cubic)");
+    // advance by 1 -> pos 2.5 -> taps (4,3,4,3) -> 3.5 (unchanged from linear)
     check(near(e.process(0.f), 3.5f), "subloop: out[1]==3.5");
-    // advance -> pos 3.5 >= winEnd 3.5 -> wraps to 1.5 -> 2.5 again
-    check(near(e.process(0.f), 2.5f), "subloop: out[2]==2.5 (wrapped in window)");
+    // advance -> pos 3.5 >= winEnd 3.5 -> wraps to 1.5 -> 2.375 again
+    check(near(e.process(0.f), 2.375f), "subloop: out[2]==2.375 (wrapped in window)");
 }
 
 // When the read position's next tap (i1) spills past a fractional window
@@ -112,9 +113,110 @@ static void test_fractional_winstart_wrap_target() {
     // at 7.75 — i1=8 spills past winEnd here).
     float out = 0.f;
     for (int i = 0; i < 6; ++i) out = e.process(0.f);
-    // out = (1-.25)*buf[7](=8) + .25*lerp(buf[2](=3), buf[3](=4), .25)
-    //     = 6 + .25*3.25 = 6.8125  (truncated-wrap bug gives 6 + .25*3 = 6.75)
-    check(near(out, 6.8125f), "fractional winStart: wrap target interpolates at frac(winStart)");
+    // Cubic taps (7, 8, readRaw(2.5)=3.5, readRaw(3.5)=4.5), t=0.25 -> 7.1328125.
+    // The wrapped taps read at winStart + (tap − winEnd) — position-preserving —
+    // so a truncated (floor'd) winStart would give readRaw(2.0)=3.0 / readRaw(3.0)=4.0
+    // and a different value; the fractional-winStart property this test guards survives.
+    check(near(out, 7.1328125f), "fractional winStart: wrap taps interpolate at frac positions");
+}
+
+static void test_cubic_exact_on_interior_ramp() {
+    // Catmull-Rom reproduces linear ramps exactly when all 4 taps are interior.
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 8; ++i) e.process(static_cast<float>(i + 1));  // 1..8
+    e.toggleRecord();
+    e.setCrossfade(false);
+    e.setSpeed(0, 0.5f);
+    e.jumpHead(0, 0.f);
+    e.process(0.f);                       // pos 0 (seam-adjacent; skip)
+    float a = e.process(0.f);             // pos 0.5 (k=-1 wraps; skip exactness)
+    (void)a;
+    check(near(e.process(0.f), 2.0f), "cubic ramp: pos 1.0 exact");
+    check(near(e.process(0.f), 2.5f), "cubic ramp: pos 1.5 exact (interior taps)");
+    check(near(e.process(0.f), 3.0f), "cubic ramp: pos 2.0 exact");
+    check(near(e.process(0.f), 3.5f), "cubic ramp: pos 2.5 exact (interior taps)");
+}
+
+static void test_cubic_beats_linear_on_sine() {
+    // At speed 0.5 a sampled sine reconstructed with Catmull-Rom must be
+    // closer to the analytic sine than the linear baseline (computed here
+    // from the same buffer).
+    const int N = 512;                    // 8 whole cycles -> continuous seam
+    const double w = 2.0 * M_PI * 8.0 / N;
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    static float buf[N];
+    for (int i = 0; i < N; ++i) {
+        buf[i] = (float)std::sin(w * i);
+        e.process(buf[i]);
+    }
+    e.toggleRecord();
+    e.setSpeed(0, 0.5f);
+    e.jumpHead(0, 0.f);
+    double errCubic = 0.0, errLinear = 0.0;
+    for (int k = 0; k < 2 * N; ++k) {
+        const double pos = 0.5 * k - std::floor(0.5 * k / N) * N;   // pos of THIS read
+        float out = e.process(0.f);
+        double ideal = std::sin(w * pos);
+        errCubic += (out - ideal) * (out - ideal);
+        int i0 = (int)pos; int i1 = (i0 + 1) % N; double fr = pos - i0;
+        double lin = (1.0 - fr) * buf[i0] + fr * buf[i1];
+        errLinear += (lin - ideal) * (lin - ideal);
+    }
+    char msg[96];
+    std::snprintf(msg, sizeof(msg),
+        "cubic sine: rmsErr %.3g < 0.5 * linear %.3g", std::sqrt(errCubic), std::sqrt(errLinear));
+    check(errCubic < 0.25 * errLinear, msg);   // RMS at least 2x better
+}
+
+static void test_cubic_tiny_loop_taps_bounded() {
+    // 1- and 2-sample loops: the k=-1/+2 taps must wrap/clamp inside the
+    // window, never index outside [0, loopLen). Output stays within the
+    // recorded sample range.
+    for (int n : {1, 2}) {
+        LoopEngine e(1); e.reset(10.f, 100.f); e.setCrossfade(false);
+        e.toggleRecord();
+        for (int i = 0; i < n; ++i) e.process(i ? -1.f : 1.f);
+        e.toggleRecord();
+        e.setSpeed(0, 0.7f);              // fractional positions
+        bool ok = true;
+        for (int i = 0; i < 64; ++i) {
+            float v = e.process(0.f);
+            if (!std::isfinite(v) || v < -2.5f || v > 2.5f) ok = false;
+        }
+        check(ok, n == 1 ? "cubic tiny loop: 1-sample loop bounded"
+                         : "cubic tiny loop: 2-sample loop bounded");
+    }
+}
+
+static void test_cubic_reverse_matches_forward_at_position() {
+    // Tap selection depends only on position, not direction: reading the same
+    // fractional position forward and reverse gives the same value.
+    LoopEngine f(1), r(1);
+    for (LoopEngine* e : {&f, &r}) {
+        e->reset(10.f, 100.f);
+        e->setCrossfade(false);
+        e->toggleRecord();
+        for (int i = 0; i < 8; ++i) e->process((float)((i * 37) % 11));  // non-ramp content
+        e->toggleRecord();
+    }
+    f.setSpeed(0, 0.5f);  f.jumpHead(0, 2.f / 7.f);    // pos 2.0, then 2.5, 3.0...
+    r.setSpeed(0, -0.5f); r.jumpHead(0, 3.f / 7.f);    // pos 3.0, then 2.5, 2.0...
+    f.process(0.f); f.process(0.f);                    // consume pos 2.0 -> next read 2.5...
+    float fwd = f.process(0.f);                        // reads pos 3.0
+    r.process(0.f);                                    // reads pos 3.0
+    float rev  = r.process(0.f);                       // reads pos 2.5
+    float fwd25 = 0.f;
+    { LoopEngine g(1); g.reset(10.f, 100.f); g.setCrossfade(false);
+      g.toggleRecord();
+      for (int i = 0; i < 8; ++i) g.process((float)((i * 37) % 11));
+      g.toggleRecord();
+      g.setSpeed(0, 0.5f); g.jumpHead(0, 2.f / 7.f);
+      g.process(0.f);
+      fwd25 = g.process(0.f); }                        // reads pos 2.5
+    check(near(rev, fwd25), "cubic reverse: same position -> same value as forward");
+    (void)fwd;
 }
 
 static void test_overdub_sums() {
@@ -821,6 +923,10 @@ int main() {
     test_reverse();
     test_subloop_window();
     test_fractional_winstart_wrap_target();
+    test_cubic_exact_on_interior_ramp();
+    test_cubic_beats_linear_on_sine();
+    test_cubic_tiny_loop_taps_bounded();
+    test_cubic_reverse_matches_forward_at_position();
     test_overdub_sums();
     test_clear();
     test_buffer_ceiling_autoend();
