@@ -162,3 +162,54 @@ TEST_CASE("ParticulesBlockRuntime: seed gate latch is per-sample passthrough at 
     rt.NoteSeedGateSample(false);
     REQUIRE(rt.ConsumeSeedGateLatch() == false);
 }
+
+TEST_CASE("ParticulesBlockRuntime: back-to-back trigger pulses get one separating low sample", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(3);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    // Retrigger while the first pulse still has one sample to run.
+    runtime.StartGrainTriggerPulse(3);
+
+    // Current pulse runs down...
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    // ...then exactly one forced low sample...
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+    // ...then the pending pulse runs in full.
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: single trigger pulse behavior is unchanged", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(2);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+
+    // A pulse started when idle starts immediately (no spurious gap).
+    runtime.StartGrainTriggerPulse(1);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: retrigger during the gap replaces the pending pulse", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(2);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    runtime.StartGrainTriggerPulse(5);   // queued: pulse still running
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);   // first pulse drains
+    runtime.StartGrainTriggerPulse(3);   // arrives in the gap window: replaces the 5
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);  // the single gap sample
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
