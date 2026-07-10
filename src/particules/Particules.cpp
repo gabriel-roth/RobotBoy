@@ -4,6 +4,7 @@
 #include "particules_block_runtime.h"
 #include "particules_cv_conditioning.h"
 #include "particules_density_control.h"
+#include "particules_gain_display.h"
 #include "metamodule_fpu.h"
 
 #include <atomic>
@@ -550,6 +551,28 @@ struct ParticulesWidget : ModuleWidget {
 			auto* item = new ManualGainItem;
 			item->text = "Manual gain";
 			item->module = module;
+			menu->addChild(item);
+		}
+
+		// --- Input level readout (display-only) ---
+		// On VCV, step() refreshes the label live while the menu is open.
+		// On MetaModule menus don't animate, so the label is computed once
+		// at menu-open time — acceptable.
+		struct InputLevelItem : MenuItem {
+			Particules* module;
+#ifndef METAMODULE
+			void step() override {
+				rightText = FormatInputLevelDb(module->processor_.InputLevel());
+				MenuItem::step();
+			}
+#endif
+		};
+		{
+			auto* item = new InputLevelItem;
+			item->module = module;
+			item->text = "Input";
+			item->rightText = FormatInputLevelDb(module->processor_.InputLevel());
+			item->disabled = true;
 			menu->addChild(item);
 		}
 
