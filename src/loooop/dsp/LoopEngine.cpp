@@ -131,6 +131,13 @@ void LoopEngine::setPosition(int head, float c01){ if (head >= 0 && head < numHe
 void LoopEngine::setSize(int head, float s01)    { if (head >= 0 && head < numHeads_) heads_[head].size = clamp01(s01); }
 void LoopEngine::setLevel(int head, float g)     { if (head >= 0 && head < numHeads_) heads_[head].level = clamp01(g); }
 
+void LoopEngine::setGrid(int segments) {
+    const int g = segments < 2 ? 0 : segments;
+    if (g == grid_) return;
+    grid_ = g;
+    dispGrid_.store(static_cast<std::uint32_t>(g), std::memory_order_relaxed);
+}
+
 void LoopEngine::setJitter(int head, float j01) {
     if (head < 0 || head >= numHeads_) return;
     PlayHead& h = heads_[head];
@@ -224,6 +231,23 @@ void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
     if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
     double centre = static_cast<double>(clamp01(h.centre + jitterOff)) * L;
+    if (grid_ >= 2) {
+        // Grid: quantize the window to whole segments of seg = L/grid_ —
+        // length to a segment count (>= 1, grown to respect the minimum
+        // window), start to the nearest boundary. k + m <= grid_ keeps the
+        // window exactly inside the loop, so no edge correction is needed.
+        const double seg = L / static_cast<double>(grid_);
+        long m = std::lround(winLen / seg);
+        if (m < 1) m = 1;
+        if (m > grid_) m = grid_;
+        while (static_cast<double>(m) * seg < minWinLen && m < grid_) ++m;
+        winLen = static_cast<double>(m) * seg;
+        long k = std::lround((centre - winLen / 2.0) / seg);
+        if (k < 0) k = 0;
+        if (k > grid_ - m) k = grid_ - m;
+        winStart = static_cast<double>(k) * seg;
+        return;
+    }
     winStart = centre - winLen / 2.0;
     if (winStart < 0.0) winStart = 0.0;
     if (winStart + winLen > L) winStart = L - winLen;
@@ -505,6 +529,7 @@ LoopEngine::DisplaySnapshot LoopEngine::displaySnapshot() const {
     s.loopLen = dispLoopLen_.load(std::memory_order_relaxed);
     s.recordedLen = dispRecLen_.load(std::memory_order_relaxed);
     s.recording = dispRecording_.load(std::memory_order_relaxed);
+    s.grid = dispGrid_.load(std::memory_order_relaxed);
     for (int i = 0; i < NUM_HEADS; ++i) {
         s.headPos01[i] = dispPos01_[i].load(std::memory_order_relaxed);
         s.winStart01[i] = dispWinStart01_[i].load(std::memory_order_relaxed);

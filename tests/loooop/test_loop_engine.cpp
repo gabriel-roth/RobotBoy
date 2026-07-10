@@ -977,6 +977,108 @@ static void test_write_mode_peaks_track_decay() {
           "peaks: display peaks track decayed content");
 }
 
+static void test_grid_size_snaps_to_segments() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);                    // seg = 4 samples
+    e.setSize(0, 0.3f);              // 4.8 samples -> rounds to 1 segment (4)
+    // centre 0.5 -> continuous start 8-2=6 -> k = lround(6/4) = 2 -> window [8,12)
+    check(near(e.process(0.f), 9.f),  "grid_size: out[0]==9");
+    check(near(e.process(0.f), 10.f), "grid_size: out[1]==10");
+    check(near(e.process(0.f), 11.f), "grid_size: out[2]==11");
+    check(near(e.process(0.f), 12.f), "grid_size: out[3]==12");
+    check(near(e.process(0.f), 9.f),  "grid_size: out[4]==9 (wrapped)");
+    const auto s = e.displaySnapshot();
+    check(s.grid == 4, "grid_size: snapshot reports grid");
+    check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 0.75f),
+          "grid_size: snapshot window on segment bounds");
+}
+
+static void test_grid_position_snaps_to_boundaries() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.25f);             // exactly 1 segment
+    e.setPosition(0, 0.1f);          // continuous start -0.4 -> k=0 -> [0,4)
+    check(near(e.process(0.f), 1.f), "grid_pos: low position snaps to segment 0");
+    e.setPosition(0, 0.4f);          // continuous start 4.4 -> k=1 -> [4,8)
+    check(near(e.process(0.f), 5.f), "grid_pos: position snaps to segment 1");
+}
+
+static void test_grid_window_clamped_inside_loop() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.6f);              // 9.6 -> 2 segments (8 samples)
+    e.setPosition(0, 1.f);           // start 12 -> k clamped to 2 -> [8,16)
+    check(near(e.process(0.f), 9.f), "grid_clamp: window pinned inside loop");
+    const auto s = e.displaySnapshot();
+    check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 1.f),
+          "grid_clamp: snapshot [0.5,1.0]");
+}
+
+static void test_grid_min_one_segment() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.01f);             // under one segment -> grows to 1 segment
+    e.process(0.f);
+    const auto s = e.displaySnapshot();
+    check(near(s.winEnd01[0] - s.winStart01[0], 0.25f),
+          "grid_min: window grows to one segment");
+}
+
+static void test_grid_full_size_plays_whole_loop() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(8);
+    e.setPosition(0, 0.9f);          // size 1 -> all 8 segments, position moot
+    check(near(e.process(0.f), 1.f), "grid_full: out[0]==1");
+    for (int i = 1; i < 16; ++i) e.process(0.f);
+    check(near(e.process(0.f), 1.f), "grid_full: wraps at 16");
+}
+
+static void test_grid_off_matches_ungridded() {
+    LoopEngine a; record_ramp(a, 16);
+    LoopEngine b; record_ramp(b, 16);
+    b.setGrid(4); b.setGrid(0);      // enable then disable
+    a.setSize(0, 0.3f); a.setPosition(0, 0.37f);
+    b.setSize(0, 0.3f); b.setPosition(0, 0.37f);
+    bool same = true;
+    for (int i = 0; i < 40; ++i) same = same && near(a.process(0.f), b.process(0.f));
+    check(same, "grid_off: disabled grid matches ungridded engine");
+    check(a.displaySnapshot().grid == 0 && b.displaySnapshot().grid == 0,
+          "grid_off: snapshot reports off");
+}
+
+static void test_grid_invalid_values_mean_off() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(1);                    // <2 segments is meaningless -> off
+    e.setSize(0, 0.3f); e.setPosition(0, 0.37f);
+    e.process(0.f);
+    check(e.displaySnapshot().grid == 0, "grid_invalid: 1 segment reads as off");
+}
+
+static void test_grid_jitter_lands_on_boundaries() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.25f);
+    e.setJitter(0, 1.f);
+    bool onGrid = true;
+    for (int i = 0; i < 200; ++i) {
+        e.process(0.f);
+        const auto s = e.displaySnapshot();
+        const float k = s.winStart01[0] * 4.f;
+        onGrid = onGrid && near(k, std::round(k), 1e-3f);
+    }
+    check(onGrid, "grid_jitter: jittered windows stay on segment boundaries");
+}
+
+static void test_grid_respects_min_window() {
+    LoopEngine e; record_ramp(e, 3);     // seg = 0.75 < the 1-sample minimum
+    e.setGrid(4);
+    e.setSize(0, 0.01f);
+    e.process(0.f);
+    const auto s = e.displaySnapshot();
+    check(s.winEnd01[0] - s.winStart01[0] >= 1.f / 3.f - 1e-4f,
+          "grid_minwin: window grew to cover the minimum window");
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -996,6 +1098,15 @@ int main() {
     test_mono_convenience_matches_stereo();
     test_per_head_outs();
     test_record_play_1x();
+    test_grid_size_snaps_to_segments();
+    test_grid_position_snaps_to_boundaries();
+    test_grid_window_clamped_inside_loop();
+    test_grid_min_one_segment();
+    test_grid_full_size_plays_whole_loop();
+    test_grid_off_matches_ungridded();
+    test_grid_invalid_values_mean_off();
+    test_grid_jitter_lands_on_boundaries();
+    test_grid_respects_min_window();
     test_half_speed();
     test_double_speed();
     test_reverse();

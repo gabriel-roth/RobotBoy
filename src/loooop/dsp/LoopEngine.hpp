@@ -30,6 +30,7 @@ public:
     void clear();                 // erase loop
     void setOverdub(bool on) { overdubEnabled_ = on; }   // gate post-loop record toggles
     void setCrossfade(bool on) { crossfade_ = on; }      // declick each head's loop seam
+    void setGrid(int segments);   // snap windows to N equal loop segments; <2 = off
 
     // Overdub write mode (F1). Add must stay index 0: the MetaModule patch
     // loader zero-inits unset alt-params, so pre-existing patches must land
@@ -77,6 +78,7 @@ public:
         std::uint32_t loopLen;      // frozen loop length, samples; 0 = no loop yet
         std::uint32_t recordedLen;  // samples written so far in the initial record pass
         bool recording;
+        std::uint32_t grid;         // grid segments; 0 = off
         std::array<float, NUM_HEADS> headPos01;              // per-head position, 0..1
         std::array<float, NUM_HEADS> winStart01, winEnd01;   // per-head window, 0..1
     };
@@ -134,6 +136,7 @@ private:
     bool recording_ = false;
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
+    int grid_ = 0;                     // window snap grid, segments; 0 = off
     WriteMode writeMode_ = WriteMode::Add;
     // Decay-mode one-pole LP along the write path (HF rolloff per pass).
     // Corner is fixed (tune by ear); coefficient set from the sample rate.
@@ -172,6 +175,7 @@ private:
     std::atomic<std::uint32_t> dispLoopLen_{0};
     std::atomic<std::uint32_t> dispRecLen_{0};
     std::atomic<bool> dispRecording_{false};
+    std::atomic<std::uint32_t> dispGrid_{0};
     std::atomic<std::uint32_t> waveformRevision_{0};
     std::uint32_t waveformRevisionCounter_ = 0;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
