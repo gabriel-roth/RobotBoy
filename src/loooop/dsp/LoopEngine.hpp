@@ -31,6 +31,16 @@ public:
     void setOverdub(bool on) { overdubEnabled_ = on; }   // gate post-loop record toggles
     void setCrossfade(bool on) { crossfade_ = on; }      // declick each head's loop seam
 
+    // Overdub write mode (F1). Add must stay index 0: the MetaModule patch
+    // loader zero-inits unset alt-params, so pre-existing patches must land
+    // on the legacy sum-into-buffer behavior.
+    enum class WriteMode { Add = 0, Replace = 1, Layer = 2, Decay = 3 };
+    void setWriteMode(WriteMode m) { writeMode_ = m; }
+    WriteMode writeMode() const { return writeMode_; }
+    // Fixed sound-on-sound decay per overdub pass (Layer/Decay). No user
+    // control by design; tune by ear on the simulator.
+    static constexpr float LAYER_FEEDBACK = 0.9f;
+
     void setSpeed(int head, float x);        // 1=normal, <0=reverse
     void setPosition(int head, float c01);   // sub-loop centre, 0..1
     void setSize(int head, float s01);       // sub-loop size, 0..1
@@ -116,6 +126,20 @@ private:
     bool recording_ = false;
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
+    WriteMode writeMode_ = WriteMode::Add;
+    // Decay-mode one-pole LP along the write path (HF rolloff per pass).
+    // Corner is fixed (tune by ear); coefficient set from the sample rate.
+    static constexpr float DECAY_LP_HZ = 6000.f;
+    float decayLpL_ = 0.f, decayLpR_ = 0.f;
+    float decayLpA_ = 1.f;
+    float writeFeedback() const {
+        switch (writeMode_) {
+            case WriteMode::Replace: return 0.f;
+            case WriteMode::Layer:
+            case WriteMode::Decay:   return LAYER_FEEDBACK;
+            default:                 return 1.f;
+        }
+    }
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
     double minWinLen_ = 48.0;   // ceil(sampleRate · 1 ms); set in reset()/setSampleRate()
     float sampleRate_ = 48000.f;

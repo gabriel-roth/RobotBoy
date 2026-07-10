@@ -11,6 +11,9 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     // 10 Hz test rate), which disables the crossfade and preserves seam-exact
     // behavior there.
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    // Underflows to exactly 1.0 (passthrough) at very low test rates.
+    decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
+    decayLpL_ = decayLpR_ = 0.f;
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
@@ -43,6 +46,8 @@ void LoopEngine::setSampleRate(float sampleRate) {
     }
     sampleRate_ = sampleRate;
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    // Underflows to exactly 1.0 (passthrough) at very low test rates.
+    decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 }
@@ -58,6 +63,10 @@ void LoopEngine::toggleRecord() {
         lastPeakBin_ = UINT32_MAX;          // first write re-seeds its bin
         dispRecording_.store(true, std::memory_order_relaxed);
         dispRecLen_.store(0, std::memory_order_relaxed);
+        if (loopLen_ > 0 && writeMode_ == WriteMode::Decay) {
+            decayLpL_ = bufL_[0];
+            decayLpR_ = bufR_[0];
+        }
     } else {
         recording_ = false;
         if (loopLen_ == 0) loopLen_ = writeIdx_;   // freeze initial loop length
@@ -328,9 +337,17 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 dispRecording_.store(false, std::memory_order_relaxed);
                 dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
             }
-        } else {                             // overdub: sum, wrap at loop length
-            bufL_[writeIdx_] += inL;
-            bufR_[writeIdx_] += inR;
+        } else {                             // overdub: mode-dependent write, wrap at loop length
+            const float fb = writeFeedback();
+            const float oldL = bufL_[writeIdx_], oldR = bufR_[writeIdx_];
+            float fbL = oldL, fbR = oldR;
+            if (writeMode_ == WriteMode::Decay) {
+                decayLpL_ += decayLpA_ * (oldL - decayLpL_); fbL = decayLpL_;
+                decayLpR_ += decayLpA_ * (oldR - decayLpR_); fbR = decayLpR_;
+            }
+            // Add (fb=1) reduces to old + in — the legacy sum, bit-exact.
+            bufL_[writeIdx_] = oldL + (fb * fbL - oldL) + inL;
+            bufR_[writeIdx_] = oldR + (fb * fbR - oldR) + inR;
             writePeak(writeIdx_, bufL_[writeIdx_], bufR_[writeIdx_]);
             ++writeIdx_;
             if (writeIdx_ >= loopLen_) writeIdx_ = 0;

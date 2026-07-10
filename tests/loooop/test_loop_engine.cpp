@@ -634,6 +634,95 @@ static void test_sample_rate_change_empty_reallocates() {
     check(!e.isRecording(),    "sr_change empty: auto-stopped at new ceiling");
 }
 
+static void test_write_mode_replace() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);    // loop = 1,1,1,1
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Replace);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(2.f);    // full destructive pass
+    e.toggleRecord();
+    check(near(e.process(0.f), 2.f), "replace: out[0]==2 (old content gone)");
+    check(near(e.process(0.f), 2.f), "replace: out[1]==2");
+}
+
+static void test_write_mode_layer() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.setLevel(0, 0.f);                            // mute so overdub input is isolated
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.5f);   // buf -> 1*FB + 0.5
+    e.toggleRecord();
+    e.setLevel(0, 1.f);
+    const float expected = LoopEngine::LAYER_FEEDBACK + 0.5f;
+    check(near(e.process(0.f), expected), "layer: buf == old*FB + new");
+    // an idle loop never fades: play 20 more samples, value unchanged
+    float v = 0.f; for (int i = 0; i < 19; ++i) v = e.process(0.f);
+    check(near(v, expected), "layer: idle playback does not decay");
+}
+
+static void test_write_mode_decay_at_low_rate_matches_layer() {
+    // At the 10 Hz test rate the Decay LP coefficient saturates to 1
+    // (passthrough), so Decay == Layer sample-exactly there.
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Decay);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.5f);
+    e.toggleRecord();
+    check(near(e.process(0.f), LoopEngine::LAYER_FEEDBACK + 0.5f),
+          "decay@10Hz: identical to layer (LP is passthrough)");
+}
+
+static void test_write_mode_decay_rolls_off_highs() {
+    // Same per-pass feedback as Layer, plus a one-pole LP in the write path:
+    // a Nyquist-rate square must decay much faster in Decay than in Layer.
+    // Loop is 4800 samples; only the region past sample 1000 is measured so
+    // the Task-2 write-gain ramps (240 samples at each edge) can't touch it.
+    auto passRms = [](LoopEngine::WriteMode m) {
+        LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+        e.toggleRecord();
+        for (int i = 0; i < 4800; ++i) e.process((i & 1) ? -1.f : 1.f);
+        e.toggleRecord();
+        e.setWriteMode(m);
+        e.toggleRecord();
+        for (int i = 0; i < 4800; ++i) e.process(0.f);   // one silent overdub pass
+        e.toggleRecord();
+        for (int i = 0; i < 300; ++i) e.process(0.f);    // let any stop ramp finish
+        e.restartHead(0);
+        double acc = 0.0; int n = 0;
+        for (int i = 0; i < 4800; ++i) {
+            float v = e.process(0.f);
+            if (i >= 1000) { acc += double(v) * v; ++n; }
+        }
+        return std::sqrt(acc / n);
+    };
+    float rLayer = (float)passRms(LoopEngine::WriteMode::Layer);
+    float rDecay = (float)passRms(LoopEngine::WriteMode::Decay);
+    check(near(rLayer, LoopEngine::LAYER_FEEDBACK, 0.02f),
+          "decay_hf: layer pass keeps FB*amplitude at Nyquist");
+    check(rDecay < 0.5f * rLayer, "decay_hf: Decay kills HF much faster than Layer");
+}
+
+static void test_write_mode_peaks_track_decay() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);   // peakBinSize == 1
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.f);          // silent pass: buf *= FB
+    e.toggleRecord();
+    check(near(e.peakMaxs(0)[0], LoopEngine::LAYER_FEEDBACK),
+          "peaks: display peaks track decayed content");
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -667,6 +756,11 @@ int main() {
     test_display_snapshot_four_heads();
     test_waveform_revision_tracks_peak_changes_only();
     test_overdub_gate();
+    test_write_mode_replace();
+    test_write_mode_layer();
+    test_write_mode_decay_at_low_rate_matches_layer();
+    test_write_mode_decay_rolls_off_highs();
+    test_write_mode_peaks_track_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();
     test_sample_rate_change_mid_recording();
