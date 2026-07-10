@@ -1084,6 +1084,20 @@ static void test_grid_respects_min_window() {
           "grid_minwin: window grew to cover the minimum window");
 }
 
+static void test_grid_32_segments() {
+    LoopEngine e; record_ramp(e, 64);
+    e.setGrid(32);                    // seg = 2 samples
+    e.setSize(0, 0.02f);              // 1.28 samples -> rounds to 1 segment (2)
+    e.setPosition(0, 0.6f);           // start 38.4-1=37.4 -> k=lround(18.7)=19 -> [38,40)
+    check(near(e.process(0.f), 39.f), "grid32: out[0]==39");
+    check(near(e.process(0.f), 40.f), "grid32: out[1]==40");
+    check(near(e.process(0.f), 39.f), "grid32: out[2]==39 (wrapped)");
+    const auto s = e.displaySnapshot();
+    check(s.grid == 32, "grid32: snapshot reports grid");
+    check(near(s.winStart01[0], 38.f / 64.f) && near(s.winEnd01[0], 40.f / 64.f),
+          "grid32: snapshot window is one 1/32 segment on boundaries");
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -1112,6 +1126,7 @@ int main() {
     test_grid_invalid_values_mean_off();
     test_grid_jitter_lands_on_boundaries();
     test_grid_respects_min_window();
+    test_grid_32_segments();
     test_half_speed();
     test_double_speed();
     test_reverse();
