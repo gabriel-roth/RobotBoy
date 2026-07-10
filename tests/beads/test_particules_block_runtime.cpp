@@ -213,3 +213,35 @@ TEST_CASE("ParticulesBlockRuntime: retrigger during the gap replaces the pending
     REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
     REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
 }
+
+TEST_CASE("ParticulesBlockRuntime: grain LED scales with active grain count", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    // One grain: visible floor.
+    runtime.NoteGrainActivity(1, true);
+    REQUIRE(runtime.GrainLed() == Approx(0.25f + 0.75f / 10.0f));
+
+    // Ten or more grains: full bright, clamped at 1.
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(10, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(30, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+
+    // Triggered this block but count snapshot is 0 (grain died within the
+    // block): still registers at the floor.
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(0, true);
+    REQUIRE(runtime.GrainLed() == Approx(0.25f));
+
+    // No activity at all: LED untouched.
+    runtime.SetGrainLed(0.1f);
+    runtime.NoteGrainActivity(0, false);
+    REQUIRE(runtime.GrainLed() == Approx(0.1f));
+
+    // Never dims a brighter LED (decay machinery owns dimming).
+    runtime.SetGrainLed(1.0f);
+    runtime.NoteGrainActivity(1, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+}

@@ -406,12 +406,10 @@ struct Particules : Module {
 							   kWrapperBlockSize);
 			bool triggered = processor_.GrainTriggeredThisBlock();
 			block_runtime_.CommitProcessedBlock(scratch_output_buf_, kWrapperBlockSize);
-			if (triggered) {
-				block_runtime_.SetGrainLed(1.f);
-				if (grain_trigger_out_) {
-					block_runtime_.StartGrainTriggerPulse(
-						static_cast<int>(args.sampleRate * 0.001f));
-				}
+			block_runtime_.NoteGrainActivity(processor_.ActiveGrainCount(), triggered);
+			if (triggered && grain_trigger_out_) {
+				block_runtime_.StartGrainTriggerPulse(
+					static_cast<int>(args.sampleRate * 0.001f));
 			}
 			// Decay grain LED through the block runtime helper.
 			block_runtime_.DecayGrainLed();

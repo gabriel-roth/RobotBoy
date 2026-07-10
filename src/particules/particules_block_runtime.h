@@ -82,6 +82,21 @@ public:
     void SetGrainLed(float value) { grain_led_ = value; }
     float GrainLed() const { return grain_led_; }
 
+    // Grain-density LED: one grain still flashes visibly (floor 0.25),
+    // ~10+ concurrent grains reads full-bright. `triggered` is the
+    // any-activity OR-in so grains whose whole lifetime fits inside one
+    // block still register even when the count snapshot missed them.
+    // Only ever brightens — DecayGrainLed() owns dimming.
+    void NoteGrainActivity(int active_count, bool triggered) {
+        float target = 0.0f;
+        if (active_count > 0) {
+            target = std::min(1.0f, 0.25f + 0.75f * static_cast<float>(active_count) / 10.0f);
+        } else if (triggered) {
+            target = 0.25f;
+        }
+        if (target > grain_led_) grain_led_ = target;
+    }
+
     // Per-block LED decay factor for the current sample rate. Old code used a
     // fixed 0.9999^BlockSize, which decayed twice as fast (wall-clock) at 96 kHz.
     // f = 0.9999^(48000·BlockSize/sr) keeps the per-second decay constant.
