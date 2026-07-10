@@ -47,7 +47,9 @@ int main() {
     check(loooop::gridSegments(1) == 4,  "grid choice 1 = 4");
     check(loooop::gridSegments(2) == 8,  "grid choice 2 = 8");
     check(loooop::gridSegments(3) == 16, "grid choice 3 = 16");
-    check(loooop::gridSegments(-1) == 0 && loooop::gridSegments(4) == 0,
+    check(loooop::gridSegments(4) == 32, "grid choice 4 = 32");
+    check(loooop::gridSegments(5) == 64, "grid choice 5 = 64");
+    check(loooop::gridSegments(-1) == 0 && loooop::gridSegments(6) == 0,
           "grid choice out of range = off");
 
     loooop::OnePoleSmoother s;
