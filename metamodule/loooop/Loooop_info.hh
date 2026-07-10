@@ -29,9 +29,9 @@ struct LoooopInfo : ModuleInfoBase {
     // so the MetaModule mapping menu lists everything for one head together;
     // the VCV Param/Input enums (src/loooop/Loooop.cpp) mirror this exact order
     // so patch ids line up between the two builds. Trig-mode, Speed V/Oct,
-    // Overdub, Crossfade, and Write mode are menu-only (AltParamChoiceLabeled) so their
-    // position fields are unused.
-    static constexpr std::array<Element, 86> Elements{{
+    // Overdub, Crossfade, Write mode, and Grid are menu-only (AltParamChoiceLabeled)
+    // so their position fields are unused.
+    static constexpr std::array<Element, 87> Elements{{
         // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level, Trig mode, Speed V/Oct ──
         QlpKnob{{10.293f, 46.350f, Center, "Size 1", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{24.880f, 46.350f, Center, "Position 1", "", 9.f, 9.f}, 0.5f},
@@ -76,6 +76,7 @@ struct LoooopInfo : ModuleInfoBase {
         QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", ""}, 1},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
         QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", ""}},
+        QlpGridAlt{{0.f, 0.f, Center, "Grid", ""}},
 
         // ── Input jacks, grouped per head: Size CV, Pos CV, Speed CV, Jitter CV, Pan CV, Level CV, Trig, Jump ──
         QlpJackIn{{10.293f, 58.700f, Center, "Size 1 CV", "", 8.f, 8.f}},
@@ -142,7 +143,7 @@ struct LoooopInfo : ModuleInfoBase {
         Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob, TrigMode2Alt, SpeedVoct2Alt,
         Size3Knob, Position3Knob, Speed3Knob, Jitter3Knob, Pan3Knob, Level3Knob, TrigMode3Alt, SpeedVoct3Alt,
         Size4Knob, Position4Knob, Speed4Knob, Jitter4Knob, Pan4Knob, Level4Knob, TrigMode4Alt, SpeedVoct4Alt,
-        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch, WriteModeAlt,
+        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch, WriteModeAlt, GridAlt,
         // Input jacks, per head
         Size1CvIn, Position1CvIn, Speed1CvIn, Jitter1CvIn, Pan1CvIn, Level1CvIn, Trig1In, Jump1In,
         Size2CvIn, Position2CvIn, Speed2CvIn, Jitter2CvIn, Pan2CvIn, Level2CvIn, Trig2In, Jump2In,

@@ -38,6 +38,7 @@ public:
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
         engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
             (int)getState<WriteModeAlt>()));
+        engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
 
         // Record: momentary button OR trigger input (rising edge)
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
@@ -127,12 +128,14 @@ public:
         // persistent display canvas (dispBuf_) keeps last frame's pixels
         // otherwise. Rendered straight into the destination — no intermediate
         // cache buffer/copy needed.
-        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width || cachedWaveHeight_ != waveH) {
+        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width
+            || cachedWaveHeight_ != waveH || cachedWaveGrid_ != snap.grid) {
             LoopWaveformRenderer::renderWaveform(
                 dispBuf_.data(), width, waveH, engine_, packARGB);
             cachedWaveRevision_ = revision;
             cachedWaveWidth_ = width;
             cachedWaveHeight_ = waveH;
+            cachedWaveGrid_ = snap.grid;
         }
         LoopWaveformRenderer::renderLanes(
             dispBuf_.data() + size_t(waveH) * width,
@@ -202,6 +205,7 @@ private:
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;
     std::uint32_t cachedWaveRevision_ = UINT32_MAX;
+    std::uint32_t cachedWaveGrid_ = UINT32_MAX;
     int cachedWaveWidth_ = -1, cachedWaveHeight_ = -1;
 };
 
