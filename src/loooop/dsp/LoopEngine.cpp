@@ -217,6 +217,10 @@ void LoopEngine::triggerOneShot(int head) {
             const float g = oneShotFadeGain(h, winStart, winLen, Fo);
             if (g < 1.f) h.osRamp = g;
         }
+    } else {
+        // A ramp value left behind by an ended pass must not attenuate a
+        // fresh trigger; the head is silent here, so the snap is inaudible.
+        h.osRamp = 1.f;
     }
     restartHead(head);
     h.playing = true;

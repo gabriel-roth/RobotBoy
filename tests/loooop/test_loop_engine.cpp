@@ -555,6 +555,60 @@ static void test_one_shot_retrigger_mid_fade() {
     check(near(prev, 1.f, 0.05f),    "osretrig: back to full level after ~1 ms ramp");
 }
 
+// Q: a retrigger ramp value left behind by an ended pass must not
+// attenuate the next trigger (the !playing path never reset osRamp).
+static void test_one_shot_stale_ramp_cleared_on_fresh_trigger() {
+    auto runSequence = [](bool retriggerMidFade) {
+        LoopEngine e(1);
+        e.reset(48000.f, 1.f);
+        e.toggleRecord();
+        for (int i = 0; i < 2000; ++i) e.process(1.f);
+        e.toggleRecord();
+        e.setOneShot(0, true);
+        e.setSpeed(0, 50.f);              // pass ends in ~40 samples, inside the ~48-sample ramp
+        e.triggerOneShot(0);
+        for (int i = 0; i < 36; ++i) e.process(0.f);   // ~90% through the pass, into the fade
+        if (retriggerMidFade)
+            e.triggerOneShot(0);          // sets osRamp = fade gain < 1
+        for (int i = 0; i < 200; ++i) e.process(0.f);  // pass ends; head stops
+        // Fresh trigger from the armed, non-playing state:
+        e.triggerOneShot(0);
+        float first = e.process(0.f);
+        return first;
+    };
+    float withStaleRamp = runSequence(true);
+    float clean         = runSequence(false);
+    check(near(withStaleRamp, clean, 1e-4f),
+          "stale_osramp: fresh trigger opens at the same level as a clean trigger");
+}
+
+static void test_one_shot_short_fast_window_ramp_and_fade() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.setSpeed(0, 50.f);
+    bool allFinite = true;
+    bool haveFirst = false;
+    float maxDelta = 0.f, prev = 0.f;
+    for (int pass = 0; pass < 8; ++pass) {
+        e.triggerOneShot(0);
+        for (int i = 0; i < 20; ++i) {     // retrigger every 20 samples, mid-pass
+            float v = e.process(0.f);
+            if (!std::isfinite(v)) allFinite = false;
+            // Skip the very first sample: it jumps from true silence (no prior
+            // audio at all) to full level, which isn't a gain snap to detect.
+            if (haveFirst) maxDelta = std::max(maxDelta, std::fabs(v - prev));
+            haveFirst = true;
+            prev = v;
+        }
+    }
+    check(allFinite, "os_short_window: output stays finite under rapid retrigger");
+    check(maxDelta < 0.15f, "os_short_window: no hard gain snaps");
+}
+
 static void test_jump_head() {
     LoopEngine e; record_ramp(e, 4);       // winLen 4 -> pos = t * 3
     e.jumpHead(0, 2.f / 3.f);
@@ -1158,6 +1212,8 @@ int main() {
     test_one_shot_fade_out();
     test_one_shot_fade_out_reverse();
     test_one_shot_retrigger_mid_fade();
+    test_one_shot_stale_ramp_cleared_on_fresh_trigger();
+    test_one_shot_short_fast_window_ramp_and_fade();
     test_jump_head();
     test_one_shot_survives_clear();
     test_display_snapshot_armed();
