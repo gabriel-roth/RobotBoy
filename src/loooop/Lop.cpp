@@ -157,7 +157,7 @@ struct LopWidget : ModuleWidget {
         display->demoHeads = 1;
         // Screen rect (mm) from the SVG's screen rect element. Kept in sync
         // with vcv/res/Lop.svg and metamodule/Lop_info.hh by
-        // metamodule/sync_info_positions.py — run it after any panel change.
+        // metamodule/loooop/sync_info_positions.py — run it after any panel change.
         display->box.pos = mm2px(Vec(1.500, 10.400));
         display->box.size = mm2px(Vec(57.960, 22.350));
         addChild(display);

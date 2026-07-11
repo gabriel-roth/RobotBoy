@@ -217,7 +217,7 @@ struct LoooopWidget : ModuleWidget {
         display->engine = module ? &module->engine : nullptr;
         // Screen rect (mm) from the SVG's screen rect element. Kept in sync
         // with vcv/res/Loooop.svg and metamodule/Loooop_info.hh by
-        // metamodule/sync_info_positions.py — run it after any panel change.
+        // metamodule/loooop/sync_info_positions.py — run it after any panel change.
         display->box.pos = mm2px(Vec(1.500, 10.400));
         display->box.size = mm2px(Vec(190.040, 22.350));
         addChild(display);

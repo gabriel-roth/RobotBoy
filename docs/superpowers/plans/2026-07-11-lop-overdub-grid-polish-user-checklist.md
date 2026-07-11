@@ -4,6 +4,8 @@ Build installed to Rack2 plugins dir on 2026-07-11. In VCV Rack:
 
 - [ ] Löp panel: Overdub is now an LED button above Record, on the Size/D-W
       knob center line; Grid knob + grey value ring sit on the same line.
+      (Note: the OVERDUB/GRID text labels sit 1.5/1.0mm lower than SIZE/D-W's
+      — labels travel with the nudged controls. Confirm it reads OK.)
 - [ ] Clicking Overdub cycles Layer (blue) → Decay (amber) → Add (green) →
       Replace (red) → Lock (purple) → wraps to Layer. Colors match Loooop's.
 - [ ] With a loop recorded on Löp: each mode writes like Loooop's same mode;

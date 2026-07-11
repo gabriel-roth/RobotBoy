@@ -74,7 +74,7 @@ rows:
          widget: RoundSmallBlackSnapKnob,
          values: ["Ø", "4", "8", "16", "32", "64"]}
   # gap_above -9.0 tucks this row up into row 2's band: its Record/Clear
-  # columns are free there (row 2's right half holds only the Overdub switch
+  # columns are free there (row 2's right half holds only the Overdub button
   # and Grid knob, no stacks), and the tuck lands the buttons at cy 91.25 with
   # their trigger jacks at 102.1 — the committed panel's lines.
   - type: params
