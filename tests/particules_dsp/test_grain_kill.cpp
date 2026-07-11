@@ -295,3 +295,105 @@ TEST_CASE("GrainEngine: trigger at a full pool steals the oldest grain instead o
             oldest_gone = false;
     REQUIRE(oldest_gone);
 }
+
+// ── (d) CPU-cap saturation with pool headroom: click-free steal ─────────────
+//
+// The common production steal path: the dynamic max-active cap is hit while
+// free slots remain. The oldest grain must be marked for the click-free
+// pending-kill (NOT hard-replaced) and the new grain must start in a
+// previously-free slot, with the active count transiently at cap+1.
+//
+// At SIZE = 1.0 the grain duration is ~the full buffer duration, so
+// cached_max_active_ = buf_dur/grain_dur * 1.5 truncates to 1 and clamps to
+// its floor of 2 — a deterministic cap far below kMaxGrains.
+
+TEST_CASE("GrainEngine: CPU-cap saturation fades oldest grain and starts new one in a free slot",
+          "[engine][kill][steal]") {
+    const size_t num_frames = 48000 * 8;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);  // DC: the mono sum never crosses zero, so
+                                    // a pending kill cannot complete before
+                                    // its 32-sample deadline — keeping the
+                                    // victim observably pending below.
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kGated;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.density = 0.5f;  // noon = rate 0, only the rising-edge grain
+                             // fires per gate pulse.
+    params.gate = false;
+    params.size = 1.0f;     // max SIZE from the start, so the cached cap
+                             // settles at its floor of 2 during the burn.
+
+    std::vector<StereoFrame> block(64);
+
+    // Burn down the ~1s startup ramp.
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+
+    auto fire_one_grain = [&] {
+        params.gate = true;
+        engine.Process(params, block.data(), 64);
+        params.gate = false;
+        engine.Process(params, block.data(), 64);
+    };
+
+    // Two ~8s grains reach the cap (max_active == 2) with 28 slots free.
+    fire_one_grain();
+    fire_one_grain();
+    REQUIRE(engine.ActiveGrainCount() == 2);
+
+    // Capture pool state before the overflow trigger.
+    uint32_t oldest_serial = 0; int oldest_index = -1;
+    uint32_t max_serial_before = 0;
+    bool was_active[kMaxGrains];
+    for (int i = 0; i < kMaxGrains; ++i) {
+        was_active[i] = engine.ActiveAt(i);
+        if (!was_active[i]) continue;
+        uint32_t s = engine.SpawnSerialAt(i);
+        max_serial_before = std::max(max_serial_before, s);
+        if (oldest_index < 0 || s < oldest_serial) { oldest_serial = s; oldest_index = i; }
+    }
+    REQUIRE(oldest_index >= 0);
+
+    // Overflow trigger in a 16-sample block — shorter than the 32-sample
+    // zero-crossing deadline, so the victim's fade cannot have completed
+    // and the cap+1 transient is still observable.
+    params.gate = true;
+    engine.Process(params, block.data(), 16);
+    params.gate = false;
+
+    // (a) The oldest grain took the click-free path: still active, marked
+    //     pending-kill, serial unchanged (NOT hard-replaced) — and it is
+    //     the only pending kill.
+    REQUIRE(engine.ActiveAt(oldest_index));
+    REQUIRE(engine.PendingKillAt(oldest_index));
+    REQUIRE(engine.SpawnSerialAt(oldest_index) == oldest_serial);
+    int pending_kill_count = 0;
+    for (int i = 0; i < kMaxGrains; ++i)
+        if (engine.PendingKillAt(i)) ++pending_kill_count;
+    REQUIRE(pending_kill_count == 1);
+
+    // (b) The new grain started in a previously-free slot with a serial
+    //     newer than everything before the trigger.
+    int new_grain_index = -1;
+    for (int i = 0; i < kMaxGrains; ++i)
+        if (engine.ActiveAt(i) && engine.SpawnSerialAt(i) > max_serial_before)
+            new_grain_index = i;
+    REQUIRE(new_grain_index >= 0);
+    REQUIRE_FALSE(was_active[new_grain_index]);
+
+    // (c) Active count is transiently cap+1.
+    REQUIRE(engine.ActiveGrainCount() == 3);
+}
