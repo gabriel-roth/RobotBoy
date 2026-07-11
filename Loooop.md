@@ -129,6 +129,6 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
 ## Löp
 
-**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. Löp has no Overdub button or Grid knob on its panel; instead its context menu carries **Overdub** (On/Off), **Write mode**, and **Grid**, plus its playhead's **One-shot on trigger**, **Speed CV = V/Oct**, and **Crossfade** — all with the same behavior as Loooop's.
+**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. Löp has Loooop's **Overdub** button (same five modes: Layer, Decay, Add, Replace, Lock) and **Grid** knob on its panel; its context menu carries its playhead's **One-shot on trigger**, **Speed CV = V/Oct**, and **Crossfade** — all with the same behavior as Loooop's.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">
