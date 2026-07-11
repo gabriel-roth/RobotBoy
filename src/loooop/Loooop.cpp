@@ -222,11 +222,6 @@ struct LoooopWidget : ModuleWidget {
         display->box.size = mm2px(Vec(190.040, 22.350));
         addChild(display);
 
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
         // Per-head knobs and their CV jacks. On the panel each head is a
         // block: Size/Position/Speed on the upper knob row, Jitter/Pan/Level on
         // the lower, with a CV jack directly under each knob. These calls are

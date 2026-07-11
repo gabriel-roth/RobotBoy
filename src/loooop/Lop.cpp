@@ -162,11 +162,6 @@ struct LopWidget : ModuleWidget {
         display->box.size = mm2px(Vec(57.960, 22.350));
         addChild(display);
 
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-
         // Coords come from res/Lop.svg's hidden components layer (circle ids)
         // — regenerate the panel from panel-specs/lop.yaml and carry any
         // changed positions here by hand.
