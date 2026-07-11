@@ -24,6 +24,11 @@ struct LopInfo : ModuleInfoBase {
     // Trig-mode, Speed V/Oct, then globals; input jacks follow the same order.
     // Keep this array and the Elem enum below in the SAME order, mirroring the
     // VCV enums in src/loooop/Lop.cpp.
+    // Exception: WriteModeAlt below is a menu-only extra with no VCV
+    // counterpart (VCV absorbed Write mode into its 5-state Overdub button;
+    // this build keeps the alt-param for MM patch compat), so ids after
+    // CrossfadeSwitch are offset by one from the VCV enums — the same
+    // arrangement as Loooop_info.hh.
     static constexpr std::array<Element, 27> Elements{{
         // ── Params: Size, Pos, Speed, Jitter, Trig-mode, Speed V/Oct ──
         QlpKnob{{9.870f, 75.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},

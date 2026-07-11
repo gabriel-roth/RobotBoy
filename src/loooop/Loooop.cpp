@@ -2,6 +2,7 @@
 #include "dsp/LoopEngine.hpp"
 #include "LoopDisplay.hpp"
 #include "LooperModuleDSP.hpp"
+#include "OverdubControl.hpp"
 #include <cmath>
 #include <array>
 #include <vector>
@@ -122,16 +123,8 @@ struct Loooop : Module {
             for (auto& s : panSm) s.alpha = a;
             mixSm.alpha = a;
         }
-        // Overdub is one 5-state control: four write modes + Lock (= overdub
-        // off, loop untouchable). While Locked the last write mode stays set;
-        // the engine ignores it with overdub off.
-        static constexpr LoopEngine::WriteMode kOverdubModes[4] = {
-            LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
-            LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
         int od = (int)std::round(params[OVERDUB_PARAM].getValue());
-        engine.setOverdub(od != 4);   // 4 = Lock
-        if (od >= 0 && od < 4)
-            engine.setWriteMode(kOverdubModes[od]);
+        loooop::applyOverdub(engine, od);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setGrid(loooop::gridSegments(
             (int)std::round(params[GRID_PARAM].getValue())));
@@ -209,28 +202,9 @@ struct Loooop : Module {
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button
-        // style: an RGB LED in the bezel driven from a color table.
-        static constexpr float kOverdubColors[5][3] = {
-            {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
-            {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
-            {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
-            {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
-            {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
-        };
-        lights[OVERDUB_R_LIGHT].setBrightness(kOverdubColors[od][0]);
-        lights[OVERDUB_G_LIGHT].setBrightness(kOverdubColors[od][1]);
-        lights[OVERDUB_B_LIGHT].setBrightness(kOverdubColors[od][2]);
-    }
-};
-
-// Five-state overdub button, Quality-button style (see Particules): the
-// stock light bezel with an RGB LED, made non-momentary so a click cycles
-// the stepped param Layer/Decay/Add/Replace/Lock with wraparound. The
-// module drives the LED color from the state in process().
-struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
-    OverdubButton() {
-        momentary = false;
+        lights[OVERDUB_R_LIGHT].setBrightness(loooop::kOverdubColors[od][0]);
+        lights[OVERDUB_G_LIGHT].setBrightness(loooop::kOverdubColors[od][1]);
+        lights[OVERDUB_B_LIGHT].setBrightness(loooop::kOverdubColors[od][2]);
     }
 };
 

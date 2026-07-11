@@ -2,6 +2,7 @@
 #include "LoopDisplay.hpp"
 #include "dsp/LoopEngine.hpp"
 #include "LooperModuleDSP.hpp"
+#include "OverdubControl.hpp"
 #include <array>
 #include <cmath>
 #include <string>
@@ -9,15 +10,18 @@
 
 struct Lop : Module {
     // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
-    // lacks) so the two modules' MetaModule menus read the same and patch ids
-    // line up with metamodule/loooop/Lop_info.hh.
+    // lacks) so the two modules' MetaModule menus read the same. Exception:
+    // the MM build (Lop_info.hh) keeps an extra menu-only WriteModeAlt between
+    // CrossfadeSwitch and GridAlt (MM patch compat; VCV absorbed Write mode
+    // into the 5-state Overdub button), so MM ids after Crossfade are offset
+    // by one — the same arrangement as Loooop.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, GRID_PARAM, PARAMS_LEN };
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM, PARAMS_LEN };
     enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
-    enum LightId { RECORD_LIGHT, LIGHTS_LEN };
+    enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
     LoopEngine engine{1};      // single playhead; head level stays at its 1.0 default
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
@@ -37,8 +41,8 @@ struct Lop : Module {
         // Mode switches — panel (Overdub, Grid) and menu alike — opt out of
         // Randomize (matches Loooop): a randomized one-shot with no trigger
         // patched silences the loop with nothing on the panel to show why.
-        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub",
-            {"Off", "On"})->randomizeEnabled = false;
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+            {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
         configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
             {"Loop start", "One-shot"})->randomizeEnabled = false;
         configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct",
@@ -47,8 +51,6 @@ struct Lop : Module {
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade",
             {"On", "Off"})->randomizeEnabled = false;
-        configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
-            {"Add", "Replace", "Layer", "Decay"})->randomizeEnabled = false;
         configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
             {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
@@ -83,10 +85,9 @@ struct Lop : Module {
             smootherRate = args.sampleRate;
             mixSm.alpha = loooop::smootherAlpha(smootherRate, 0.002f);
         }
-        engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
+        int od = (int)std::round(params[OVERDUB_PARAM].getValue());
+        loooop::applyOverdub(engine, od);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
-        engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
-            (int)std::round(params[WRITE_MODE_PARAM].getValue())));
         engine.setGrid(loooop::gridSegments(
             (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
@@ -140,6 +141,9 @@ struct Lop : Module {
         outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
         outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
+        lights[OVERDUB_R_LIGHT].setBrightness(loooop::kOverdubColors[od][0]);
+        lights[OVERDUB_G_LIGHT].setBrightness(loooop::kOverdubColors[od][1]);
+        lights[OVERDUB_B_LIGHT].setBrightness(loooop::kOverdubColors[od][2]);
     }
 };
 
@@ -174,8 +178,8 @@ struct LopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 58.7)), module, Lop::JITTER_CV_INPUT));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 75.05)), module, Lop::SIZE_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 75.05)), module, Lop::DRYWET_PARAM));
-        addParam(createParamCentered<CKSS>(mm2px(Vec(37.968, 73.55)), module, Lop::OVERDUB_PARAM));
-        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 74.05)), module, Lop::GRID_PARAM));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(37.968, 75.05)), module, Lop::OVERDUB_PARAM, Lop::OVERDUB_R_LIGHT));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 75.05)), module, Lop::GRID_PARAM));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 87.4)), module, Lop::SIZE_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 87.4)), module, Lop::DRYWET_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Lop::AUDIO_L_INPUT));
@@ -194,12 +198,8 @@ struct LopWidget : ModuleWidget {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        // Overdub and Grid are panel controls (switch and snap knob); only
-        // the modes with no panel control live in the menu.
-        static const std::vector<std::string> kWriteModes = {"Add", "Replace", "Layer", "Decay"};
-        menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
-            [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::WRITE_MODE_PARAM]->setValue((float)v); }));
+        // Overdub (incl. write modes) and Grid are panel controls; only the
+        // modes with no panel control live in the menu.
         // Same item language and order as Loooop's menu tail; One-shot is a
         // checkmark (unchecked, a trigger restarts the playhead at its
         // window start — that mode has no name in the interface).
