@@ -99,6 +99,8 @@ By default, a trigger at a head's **Trig** input simply restarts that head at th
 
 Checking a playhead under **One-shot** in the context menu changes that: the head stays silent until triggered, then plays **through its window exactly once and stops**, ending with a short fade so it doesn't click. This turns a head into a sample-triggered one-shot player.
 
+While a one-shot head is waiting for a trigger — armed but not yet fired, or finished with its pass — its lane on the display **dims**: a faint window bar with a dimmed marker means the head is silent on purpose. If a playhead ever seems dead (no sound, no movement, knobs doing nothing), check whether its lane is dimmed — it's probably in one-shot mode with nothing patched into its Trig jack.
+
 ---
 
 ## Context menu

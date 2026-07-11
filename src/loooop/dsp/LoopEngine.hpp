@@ -82,6 +82,10 @@ public:
         std::uint32_t grid;         // grid segments; 0 = off
         std::array<float, NUM_HEADS> headPos01;              // per-head position, 0..1
         std::array<float, NUM_HEADS> winStart01, winEnd01;   // per-head window, 0..1
+        // false = head is silent awaiting a trigger (one-shot armed, or its
+        // pass finished); displays draw the lane asleep so an armed head
+        // doesn't look broken.
+        std::array<bool, NUM_HEADS> playing;
     };
     DisplaySnapshot displaySnapshot() const;
     std::uint32_t waveformRevision() const {
@@ -183,4 +187,5 @@ private:
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};
+    std::array<std::atomic<bool>, NUM_HEADS> dispPlaying_{};
 };

@@ -582,6 +582,24 @@ static void test_one_shot_survives_clear() {
     check(near(e.process(0.f), 1.f), "oneshot_clear: trigger works on new loop");
 }
 
+static void test_display_snapshot_armed() {
+    LoopEngine e; record_ramp(e, 4);
+    check(e.displaySnapshot().playing[0], "armsnap: looping head reports playing");
+    e.setOneShot(0, true);
+    check(!e.displaySnapshot().playing[0], "armsnap: armed one-shot reports not playing");
+    e.triggerOneShot(0);
+    check(e.displaySnapshot().playing[0], "armsnap: triggered one-shot reports playing");
+    for (int i = 0; i < 5; ++i) e.process(0.f);   // pass ends
+    check(!e.displaySnapshot().playing[0], "armsnap: finished pass reports not playing");
+    e.setOneShot(0, false);
+    check(e.displaySnapshot().playing[0], "armsnap: leaving one-shot resumes playing");
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    e.clear();
+    check(!e.displaySnapshot().playing[0], "armsnap: clear re-arms one-shot silent");
+    check(e.displaySnapshot().playing[1], "armsnap: other heads unaffected");
+}
+
 static void test_triggers_no_loop() {
     LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
     e.restartHead(0);
@@ -1142,6 +1160,7 @@ int main() {
     test_one_shot_retrigger_mid_fade();
     test_jump_head();
     test_one_shot_survives_clear();
+    test_display_snapshot_armed();
     test_triggers_no_loop();
     test_stereo_record_play();
     test_mono_convenience_matches_stereo();

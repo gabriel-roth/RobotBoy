@@ -165,6 +165,33 @@ static void test_moved_window_lane() {
     check(px(16, 32) == laneBright(0), "lane0: playhead at 1/4");
 }
 
+static uint32_t laneArmed(int i) {
+    const uint8_t* c = LoopWaveformRenderer::HEAD_COLORS[i];
+    auto a = [](uint8_t v) {
+        return uint8_t(int(v) * LoopWaveformRenderer::ARMED_NUM / LoopWaveformRenderer::ARMED_DEN);
+    };
+    return pack(a(c[0]), a(c[1]), a(c[2]), 0xFF);
+}
+
+static void test_armed_head_lane() {
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
+    e.toggleRecord();                        // loop of 4; heads at pos 0
+    e.setOneShot(0, true);                   // arm head 0, no trigger
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    // Lane 0 rows 32..38: asleep look — window bar at the armed dim level,
+    // playhead marker at the normal window-dim level, nothing bright.
+    check(px(5, 32) == laneArmed(0),  "armed: window bar extra-dim");
+    check(px(0, 32) == laneDim(0),    "armed: playhead marker at window-dim level");
+    check(countColor(laneBright(0)) == 0, "armed: no bright pixels in armed lane");
+    check(px(0, 40) == laneBright(1), "armed: other lanes still bright");
+    e.triggerOneShot(0);                     // playing again
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    check(px(0, 32) == laneBright(0), "armed: triggered head back to bright");
+    check(px(5, 32) == laneDim(0),    "armed: triggered window bar back to dim");
+}
+
 static void test_recording_view() {
     LoopEngine e; e.reset(10.f, 100.f);
     e.toggleRecord();
@@ -366,6 +393,7 @@ int main() {
     test_stereo_bands();
     test_phase_cancellation();
     test_moved_window_lane();
+    test_armed_head_lane();
     test_recording_view();
     test_level_aware_height();
     test_tiny_display_combined();

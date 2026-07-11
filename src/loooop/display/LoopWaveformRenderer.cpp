@@ -141,17 +141,25 @@ void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
                                    uint8_t(int(c[1]) * DIM_NUM / DIM_DEN),
                                    uint8_t(int(c[2]) * DIM_NUM / DIM_DEN), 0xFF);
         const uint32_t brightC = pack(c[0], c[1], c[2], 0xFF);
+        const uint32_t armedC = pack(uint8_t(int(c[0]) * ARMED_NUM / ARMED_DEN),
+                                     uint8_t(int(c[1]) * ARMED_NUM / ARMED_DEN),
+                                     uint8_t(int(c[2]) * ARMED_NUM / ARMED_DEN), 0xFF);
+        // Non-playing (armed/finished one-shot) lanes draw asleep: every
+        // element one dim level down, so a silent head reads as waiting
+        // for its trigger rather than broken.
+        const uint32_t winC  = s.playing[i] ? dimC : armedC;
+        const uint32_t headC = s.playing[i] ? brightC : dimC;
         const int top = lanesTop + i * laneH;
         const int bot = top + laneH - 2;      // bottom row of each lane stays bg (gap)
         // Sub-loop window extent: dimmed bar from start to end.
         const int xs = int(std::lround(s.winStart01[i] * (width - 1)));
         const int xe = int(std::lround(s.winEnd01[i] * (width - 1)));
         for (int x = xs; x <= xe; ++x)
-            vline(buf, width, height, x, top, bot, dimC);
+            vline(buf, width, height, x, top, bot, winC);
         // Playhead: bright bar on top of the window bar.
         const int hx = int(std::lround(s.headPos01[i] * (width - 1)));
         for (int dx = 0; dx < hw; ++dx)
-            vline(buf, width, height, hx - hw / 2 + dx, top, bot, brightC);
+            vline(buf, width, height, hx - hw / 2 + dx, top, bot, headC);
     }
 }
 

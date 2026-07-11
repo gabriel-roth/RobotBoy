@@ -28,6 +28,10 @@ public:
     };
     // Window-extent bars use the head color dimmed by DIM_NUM/DIM_DEN.
     static constexpr int DIM_NUM = 2, DIM_DEN = 5;
+    // A non-playing head (one-shot armed or finished, awaiting a trigger)
+    // draws asleep: window bar dimmed to ARMED_NUM/ARMED_DEN, playhead
+    // marker at the window-dim level instead of bright.
+    static constexpr int ARMED_NUM = 1, ARMED_DEN = 5;
     // Preferred lane band height. Use geometry() to cap the complete lane
     // region to the actual destination height.
     static constexpr int laneHeight(int height) {
