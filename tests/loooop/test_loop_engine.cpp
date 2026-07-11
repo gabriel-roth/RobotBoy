@@ -1041,6 +1041,40 @@ static void test_write_mode_decay_rolls_off_highs() {
     check(rDecay < 0.5f * rLayer, "decay_hf: Decay kills HF much faster than Layer");
 }
 
+// Switching write mode to Decay mid-pass must seed the tone filter from
+// current buffer content, not stale state (previously only toggleRecord seeded).
+static void test_write_mode_decay_midpass_switch_seeds_lp() {
+    auto record = [](LoopEngine& e) {
+        e.reset(48000.f, 1.f); e.setCrossfade(false);
+        soloHead0(e);
+        e.toggleRecord();
+        for (int i = 0; i < 1000; ++i) e.process(1.f);
+        e.toggleRecord();
+    };
+    LoopEngine a(1), b(1);
+    record(a); record(b);
+    a.setWriteMode(LoopEngine::WriteMode::Decay);
+    b.setWriteMode(LoopEngine::WriteMode::Layer);
+    a.toggleRecord(); b.toggleRecord();          // start overdub pass on both
+    for (int i = 0; i < 400; ++i) { a.process(0.f); b.process(0.f); }  // past the 240-sample up-ramp
+    b.setWriteMode(LoopEngine::WriteMode::Decay);  // mid-pass switch
+    // Post-switch writes hit not-yet-rewritten indices (old == original 1.0
+    // in both engines) with the same odGain; only the LP state can differ.
+    for (int i = 0; i < 100; ++i) { a.process(0.f); b.process(0.f); }
+    a.toggleRecord(); b.toggleRecord();          // stop; ramps run out
+    for (int i = 0; i < 400; ++i) { a.process(0.f); b.process(0.f); }
+    // Both heads read the same buffer positions from here: restart them to
+    // window start so playback index lines up with buffer index directly
+    // (crossfade is off, so no seam blending to account for).
+    a.restartHead(0); b.restartHead(0);
+    bool matched = true;
+    for (int i = 0; i < 1000; ++i) {
+        float va = a.process(0.f), vb = b.process(0.f);
+        if (i >= 400 && i < 500 && std::fabs(va - vb) > 1e-3f) matched = false;
+    }
+    check(matched, "decay_midpass: post-switch writes match a pass-start-seeded engine");
+}
+
 static void test_write_mode_peaks_track_decay() {
     LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);   // peakBinSize == 1
     e.toggleRecord();
@@ -1261,6 +1295,7 @@ int main() {
     test_write_mode_layer();
     test_write_mode_decay_at_low_rate_matches_layer();
     test_write_mode_decay_rolls_off_highs();
+    test_write_mode_decay_midpass_switch_seeds_lp();
     test_write_mode_peaks_track_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();

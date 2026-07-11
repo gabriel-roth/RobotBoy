@@ -106,6 +106,17 @@ void LoopEngine::toggleRecord() {
     }
 }
 
+void LoopEngine::setWriteMode(WriteMode m) {
+    if (m == WriteMode::Decay && writeMode_ != WriteMode::Decay
+        && recording_ && loopLen_ != 0) {
+        // Mid-pass switch into Decay: seed the tone filter from the sample
+        // it will process next, matching the pass-start seed in toggleRecord.
+        decayLpL_ = bufL_[writeIdx_];
+        decayLpR_ = bufR_[writeIdx_];
+    }
+    writeMode_ = m;
+}
+
 void LoopEngine::clear() {
     // No need to zero bufL_/bufR_: with loopLen_ == 0 the buffer is never read
     // before it's overwritten (initial record pass overwrites each sample; the

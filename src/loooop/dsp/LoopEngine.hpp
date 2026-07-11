@@ -37,7 +37,7 @@ public:
     // loader zero-inits unset alt-params, so pre-existing patches must land
     // on the legacy sum-into-buffer behavior.
     enum class WriteMode { Add = 0, Replace = 1, Layer = 2, Decay = 3 };
-    void setWriteMode(WriteMode m) { writeMode_ = m; }
+    void setWriteMode(WriteMode m);
     WriteMode writeMode() const { return writeMode_; }
     // Fixed sound-on-sound decay per overdub pass (Layer/Decay). No user
     // control by design; tune by ear on the simulator.
