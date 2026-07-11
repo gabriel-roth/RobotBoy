@@ -59,8 +59,9 @@ struct Loooop : Module {
             // unity, matching the old single-head loudness.
             configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, n + " level");
             configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " jitter");
-            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " trigger",
-                {"Loop start", "One-shot"});
+            // 0 = restart-at-window-start (unnamed default), 1 = one-shot.
+            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " one-shot",
+                {"Off", "On"});
             configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
                 {"Off", "On"});
             configSwitch(EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f,
@@ -352,14 +353,15 @@ struct LoooopWidget : ModuleWidget {
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
         // Commands at the top level, playheads (by color) in the submenus.
-        static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
-        menu->addChild(createSubmenuItem("Trigger", "", [m](Menu* sub) {
+        // One-shot is a checkmark per playhead; unchecked (default) a trigger
+        // restarts the playhead at its window start — that mode has no name
+        // in the interface.
+        menu->addChild(createSubmenuItem("One-shot", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createIndexSubmenuItem(kHeadNames[h], kTrigModes,
-                    [m, h] { return (int)std::round(
-                        m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue()); },
-                    [m, h](int v) {
-                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue((float)v); }));
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
         }));
         menu->addChild(createSubmenuItem("Speed CV is V/Oct", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)

@@ -5,8 +5,10 @@ playheads, per-head Exclude from Grid). Engine change is test-covered; these
 are the GUI/listening checks. Record results here, then merge.
 
 - [ ] **1. Menu structure (VCV)** — right-click Loooop: Crossfade loop seams,
-  then **Trigger**, **Speed CV is V/Oct**, and **Exclude from Grid**, each
-  opening a submenu listing *Red / Green / Blue / Yellow playhead*.
+  then **One-shot**, **Speed CV is V/Oct**, and **Exclude from Grid**, each
+  opening a submenu listing *Red / Green / Blue / Yellow playhead* with
+  checkmarks (One-shot checked = one-shot; unchecked = restart-at-window-start,
+  which is deliberately unnamed).
 
 - [ ] **2. Tooltips** — hover per-head knobs and jacks: labels read
   "Red playhead size", "Green playhead pan CV", etc., and the colors match

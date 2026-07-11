@@ -77,6 +77,13 @@ Exclude from Grid             ▸ Red playhead    [bool]
 Command order: Trigger, Speed CV is V/Oct (existing order), then the new
 Exclude from Grid last.
 
+> **DECISION 2026-07-11:** the "Trigger" command became **"One-shot"** — a
+> per-playhead checkmark (bool) instead of a Loop start/One-shot index
+> submenu. Unchecked (default) = restart-at-window-start, which is
+> deliberately unnamed in the interface; the VCV param label is
+> "<Color> playhead one-shot" {Off, On}. MetaModule and Löp keep the
+> two-choice "Trig mode" (Loop start / One-shot) setting.
+
 ## MetaModule host
 
 - `QlpElements.hh`: new `QlpExcludeGridAlt` — `AltParamChoiceLabeled`,
