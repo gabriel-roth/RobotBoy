@@ -29,6 +29,10 @@ public:
     void Process(float left_in, float right_in,
                  float* left_out, float* right_out);
 
+    // True when the tank is asleep (amount held at 0 and the tail decayed):
+    // Process() is an exact dry passthrough. Exposed for tests/diagnostics.
+    bool IsAsleep() const { return asleep_; }
+
     // Minimum buffer size (in floats) required for Init
     static constexpr size_t kMinBufferSize = 12000;
 
@@ -47,6 +51,21 @@ private:
     // Equal-power crossfade gains, precomputed from amount_ in SetAmount.
     float dry_xfade_ = 1.0f;
     float wet_xfade_ = 0.0f;
+
+    // Idle sleep: when amount_ == 0 and the wet output has stayed below
+    // kSleepEnvThreshold for kSleepHoldSeconds, flush all tank state and
+    // short-circuit Process() to the dry path. SetAmount(> 0) wakes it;
+    // the flush at sleep entry means wake starts from a clean tank.
+    // The hold keeps brief CV zero-crossings from flushing an audible tail.
+    bool asleep_ = false;
+    float wet_env_ = 0.0f;              // abs-peak envelope of wet output
+    float wet_env_decay_ = 0.99896f;    // ~20 ms; recomputed in Init()
+    int quiet_samples_ = 0;
+    int sleep_hold_samples_ = 12000;    // 250 ms @ 48k; recomputed in Init()
+    static constexpr float kSleepEnvThreshold = 1e-4f;   // -80 dBFS
+    static constexpr float kSleepHoldSeconds = 0.25f;
+
+    void FlushTank();
 
     // LFO for chorus-like modulation in the tank
     float lfo_phase_ = 0.0f;

@@ -83,7 +83,7 @@ Lower-quality settings also give you a **longer recording buffer** to gather gra
 ### Lights
 
 - The **Freeze** button lights when freeze is active.
-- The white LED under the **Density** CV input **flashes on every grain**, so you can see the grain rate at a glance.
+- The white LED under the **Density** CV input **flashes on every grain**, brightening with the number of grains active at once — a single grain gives a dim flash, dense clouds glow near full brightness.
 
 ---
 
@@ -124,10 +124,13 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 
 - **Auto gain** — Particules normally sets its own input gain (0 to +32 dB) whenever you patch or unpatch, leaving headroom. Selecting this re-runs calibration; the menu shows the current gain.
 - **Manual gain** — turns auto gain off and lets you set a fixed input gain (0–32 dB). Useful when the source is silent or intermittent and auto gain would otherwise crank up the noise floor.
+- **Input** — a live readout of the input level in dB, shown next to the gain options; reads "silent" below −60 dB. On MetaModule the value is captured at the moment the menu opens rather than updating live.
 - **Seed CV mode** — **Triggers** (default) or **Gates**; see [Seed](#seed-clocking-grains).
-- **Lock pitch** — quantize the Pitch control: **Off**, **Octaves**, or **Octaves + 5ths**.
-- **Grain trigger on R output** — replaces the right output with a trigger pulse on every grain (a 1 ms gate), while the left output carries a mono sum of the audio. Handy for clocking other modules from the grain rate. Patch Out R for the triggers and take audio from Out L.
+- **Lock pitch** — quantize the Pitch control: **Off**, **Octaves**, **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic**, or **Minor pentatonic**. The five scale modes quantize grain pitch to a 12-tone scale; a **Root** submenu (C through B, default C) sets the scale root and applies only to the scale modes.
+- **Dry signal follows input gain** (default **on**) — takes the dry side of the Dry/Wet blend after the input gain stage, so mid-knob mixes stay level-matched with the wet path even while auto gain is boosting a quiet input. Turn it off to restore the previous behavior, where Dry/Wet at 0 is a bit-exact bypass of the raw input. With the option on, the dry path also passes through the input soft limiter, so at very hot input levels "dry" is no longer bit-clean.
+- **Grain trigger on R output** — replaces the right output with a trigger pulse on every grain (a 1 ms gate), while the left output carries a mono sum of the audio. Back-to-back triggers always leave a one-sample low gap between pulses, so downstream trigger inputs see separate events rather than one long gate. Handy for clocking other modules from the grain rate. Patch Out R for the triggers and take audio from Out L.
 - **Clear buffer** — empties the recording buffer immediately.
+- **Undo (VCV only)** — context-menu option changes can be undone with Ctrl-Z / Cmd-Z. The manual-gain slider and Clear buffer are not undoable.
 
 ---
 

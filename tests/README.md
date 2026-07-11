@@ -44,7 +44,7 @@ This repo has two independent test lanes:
   guard tests — plugin metadata, slug parity between `plugin.json` and
   `metamodule/plugin-mm.json`, and no-delay-mode symbol removal). Runs
   anywhere, no build system needed beyond a `python3` on `PATH`.
-- **Lane 2 — `tests/beads/run.sh`** — the vendored beads_dsp Catch2 suite
+- **Lane 2 — `tests/beads/run.sh`** — the beads_dsp Catch2 suite
   (CMake + CTest). Covers the granular / delay / reverb / quality / pitch DSP
   that powers Particules. Catch2 is vendored (amalgamated, v3.5.2), so the lane
   builds and runs fully offline. Run it with:
@@ -74,8 +74,8 @@ This repo has two independent test lanes:
 - **`~/Dev/particules/nosuch_texture/tests/`**: a much larger Catch2 suite
   (`test_grain.cpp`, `test_reverb.cpp`,
   `test_pitch_quantizer.cpp`, `test_auto_gain.cpp`, `test_buffer.cpp`, etc.)
-  covering the `beads_dsp` engine that's vendored into
-  `src/vendor/beads_dsp/`. It's real DSP coverage and squarely the kind of
+  covering the `beads_dsp` engine that lives in
+  `src/particules/dsp/`. It's real DSP coverage and squarely the kind of
   thing this task's "prefer pure-DSP tests" guidance points at — but it (a)
   wasn't in the brief's named paths, (b) depends on Catch2, which isn't
   wired into this repo's build at all, and (c) is ~14 files, materially
@@ -83,7 +83,7 @@ This repo has two independent test lanes:
   here as the best candidate for a dedicated follow-up task (vendor Catch2
   or rewrite the assertions against this repo's plain `check()`/`report()`
   harness style, fix its `beads/...` and `grain/...` include paths against
-  `src/vendor/beads_dsp/include` and `src/vendor/beads_dsp/src`).
+  `src/particules/dsp/include` and `src/particules/dsp/src`).
 - **Ondes/Retours-dependent tests**: none of the source repos' test
   directories referenced those excluded modules, so there was nothing to
   filter out on that basis.

@@ -53,6 +53,12 @@ struct BeadsParameters {
     // Pitch lock quantization (applied as the final step after AR and CV)
     // 0 = off, 1 = octaves only, 2 = octaves + perfect 5ths
     int pitch_lock = 0;
+
+    // Dry-path tap point for the DRY/WET crossfade. true (default): dry is
+    // tapped after auto/manual input gain (and its soft limit), so mid-knob
+    // mixes stay level-matched against the gained wet path. false: dry is
+    // the raw input, so DRY/WET=0 is a bit-exact bypass.
+    bool dry_post_gain = true;
 };
 
 // Quantize semitones to the nearest allowed value for pitch_lock mode.
