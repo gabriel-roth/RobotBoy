@@ -1,6 +1,6 @@
 #include "plugin.hpp"
 #include "particules_dsp/particules_dsp.h"
-#include "dsp/src/util/control_conditioner.h"
+#include <particules_dsp/control_conditioner.h>
 #include "particules_block_runtime.h"
 #include "particules_cv_conditioning.h"
 #include "particules_density_control.h"
@@ -251,6 +251,7 @@ struct Particules : Module {
 		auto_gain_           = true;
 		manual_gain_db_      = 0.f;
 		needs_calibration_   = true;
+		clear_requested_.store(false);   // reset clears now; drop any queued menu clear
 		processor_.ClearBuffer();   // 4 s buffer, feedback path, reverb tail
 		ResetControlConditioners();
 	}

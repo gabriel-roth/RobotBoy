@@ -9,7 +9,10 @@ endif()
 include(${METAMODULE_SDK_DIR}/plugin.cmake)
 
 set(SRC "${CMAKE_CURRENT_LIST_DIR}/..")
-project(RobotBoy VERSION 2.0.1 LANGUAGES C CXX ASM)
+
+file(READ ${CMAKE_CURRENT_LIST_DIR}/../plugin.json ROBOTBOY_PLUGIN_JSON)
+string(JSON ROBOTBOY_VERSION GET ${ROBOTBOY_PLUGIN_JSON} version)
+project(RobotBoy VERSION ${ROBOTBOY_VERSION} LANGUAGES C CXX ASM)
 
 add_library(RobotBoy STATIC)
 target_sources(RobotBoy PRIVATE
@@ -46,7 +49,7 @@ target_include_directories(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
-target_compile_options(RobotBoy PRIVATE -std=c++20)
+target_compile_options(RobotBoy PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=c++20>)
 
 create_plugin(
     SOURCE_LIB    RobotBoy

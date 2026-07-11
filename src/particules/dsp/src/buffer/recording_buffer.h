@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <cstddef>
 #include "../../include/particules_dsp/types.h"
 #include "../util/interpolation.h"
@@ -26,30 +27,21 @@ public:
     // Read a single channel with Hermite cubic interpolation.
     // |position| is in frames (0 .. size_-1), fractional part drives
     // the interpolation.
+    // Test-only reference implementation; production uses
+    // ReadHermiteStereoFast.
     float ReadHermite(int channel, float position) const;
 
     // Read both channels with Hermite interpolation in a single call.
     // Computes indices once for both channels (saves redundant wrapping
     // and index arithmetic compared to two separate ReadHermite calls).
+    // Test-only reference implementation; production uses
+    // ReadHermiteStereoFast.
     void ReadHermiteStereo(float position, float* out_l, float* out_r) const;
 
     // Read a single channel with linear interpolation (cheaper).
+    // Test-only reference implementation; production uses
+    // ReadHermiteStereoFast.
     float ReadLinear(int channel, float position) const;
-
-    // Fast stereo linear interpolation for per-grain hot loops.
-    // Precondition: position must be finite and in [0, size_).
-    // No guards or wrapping — caller must ensure validity.
-    // ~3x cheaper than ReadHermiteStereo (2 loads vs 4, no polynomial).
-    inline void ReadLinearStereoFast(float position, float* out_l, float* out_r) const {
-        int pos_int = static_cast<int>(position);
-        float frac = position - static_cast<float>(pos_int);
-        size_t i0 = static_cast<size_t>(pos_int);
-        size_t i1 = i0 + 1;  // tail guarantees valid data at size_
-        const float* p0 = &buffer_[i0 * channels_];
-        const float* p1 = &buffer_[i1 * channels_];
-        *out_l = p0[0] + frac * (p1[0] - p0[0]);
-        *out_r = p0[1] + frac * (p1[1] - p0[1]);
-    }
 
     // Fast stereo Hermite interpolation for per-grain hot loops.
     // Precondition: position must be finite and in [0, size_).
@@ -105,6 +97,22 @@ public:
                                 int channels = 2);
 
 private:
+    // Shared guard + wrap for the out-of-line readers: rejects an empty
+    // buffer and non-finite positions (read yields silence), wraps position
+    // into [0, size_) in O(1) via fmod, and splits into integer index +
+    // fraction. Tap-index wrapping stays per-reader (Hermite vs linear).
+    bool ResolveReadPosition(float position, size_t* i0, float* frac) const {
+        if (size_ == 0 || !buffer_) return false;
+        if (!std::isfinite(position)) return false;
+        float size_f = static_cast<float>(size_);
+        position = std::fmod(position, size_f);
+        if (position < 0.0f) position += size_f;
+        int pos_int = static_cast<int>(position);
+        *frac = position - static_cast<float>(pos_int);
+        *i0 = static_cast<size_t>(pos_int);
+        return true;
+    }
+
     float* buffer_ = nullptr;
     size_t size_ = 0;           // Number of frames (not samples)
     int channels_ = 2;

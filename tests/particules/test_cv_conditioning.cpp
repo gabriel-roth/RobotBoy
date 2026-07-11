@@ -1,5 +1,5 @@
 #include "../../src/particules/particules_cv_conditioning.h"
-#include "../../src/particules/dsp/src/util/control_conditioner.h"
+#include <particules_dsp/control_conditioner.h>
 #include <cstdio>
 #include <cmath>
 

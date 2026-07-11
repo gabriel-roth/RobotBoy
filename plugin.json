@@ -3,6 +3,8 @@
   "name": "Robot Boy",
   "version": "2.0.1",
   "license": "MIT",
+  "sourceUrl": "https://github.com/gabriel-roth/RobotBoy",
+  "manualUrl": "https://github.com/gabriel-roth/RobotBoy#readme",
   "brand": "Robot Boy",
   "author": "Gabriel Roth",
   "modules": [

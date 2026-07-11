@@ -113,13 +113,7 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
     // Crossfade from the unprocessed input to the new mode's output
     // when a mode switch just happened.  This avoids the abrupt timbral
     // jump (especially into/out of tape mode's mono sum + mu-law).
-    if (input_xfade_counter_ > 0) {
-        float mix = static_cast<float>(input_xfade_counter_) / static_cast<float>(kModeXfadeSamples);
-        // mix goes from 1 (all old = raw input) to 0 (all new mode)
-        result.l = input.l * mix + result.l * (1.0f - mix);
-        result.r = input.r * mix + result.r * (1.0f - mix);
-        input_xfade_counter_--;
-    }
+    ApplyModeXfade(input_xfade_counter_, input, result);
 
     return result;
 }
@@ -181,12 +175,7 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
     }
 
     // Crossfade from unprocessed input to new mode output on mode change
-    if (output_xfade_counter_ > 0) {
-        float mix = static_cast<float>(output_xfade_counter_) / static_cast<float>(kModeXfadeSamples);
-        result.l = input.l * mix + result.l * (1.0f - mix);
-        result.r = input.r * mix + result.r * (1.0f - mix);
-        output_xfade_counter_--;
-    }
+    ApplyModeXfade(output_xfade_counter_, input, result);
 
     return result;
 }

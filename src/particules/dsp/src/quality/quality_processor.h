@@ -81,6 +81,19 @@ private:
     static constexpr int kModeXfadeSamples = 64;
     int input_xfade_counter_ = 0;
     int output_xfade_counter_ = 0;
+
+    // Crossfade from the unprocessed input to the new mode's output for
+    // kModeXfadeSamples after a mode switch, avoiding the abrupt timbral
+    // jump (especially into/out of tape mode's mono sum + mu-law).
+    static void ApplyModeXfade(int& counter, const StereoFrame& input, StereoFrame& result) {
+        if (counter > 0) {
+            float mix = static_cast<float>(counter) / static_cast<float>(kModeXfadeSamples);
+            // mix goes from 1 (all old = raw input) to 0 (all new mode)
+            result.l = input.l * mix + result.l * (1.0f - mix);
+            result.r = input.r * mix + result.r * (1.0f - mix);
+            counter--;
+        }
+    }
 };
 
 } // namespace particules_dsp

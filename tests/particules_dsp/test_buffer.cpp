@@ -197,6 +197,46 @@ TEST_CASE("RecordingBuffer: freeze fade near frame 0 keeps the tail mirror in sy
     }
 }
 
+TEST_CASE("RecordingBuffer: fractional read across the size_ boundary sees post-wrap writes via the tail mirror",
+          "[buffer][tail]") {
+    // Small buffer; fill one full pass with a known ramp, then write 2 more
+    // frames (write_head_ wraps to 0, then 1 -- both < kInterpolationTail),
+    // overwriting frames 0 and 1 AND their tail mirrors.
+    size_t num_frames = 64;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+
+    const size_t N = num_frames;
+    for (size_t i = 0; i < N; ++i)
+        buf.Write(0.01f * static_cast<float>(i), 0.01f * static_cast<float>(i));
+    // Overwrite frames 0 and 1 with sentinel values after the wrap:
+    buf.Write(0.9f, 0.9f);   // frame 0
+    buf.Write(0.8f, 0.8f);   // frame 1
+
+    // Fractional Hermite read at position N - 0.5: taps are frames
+    // N-2, N-1, N (mirror of frame 0), N+1 (mirror of frame 1).
+    float l = 0.f, r = 0.f;
+    buf.ReadHermiteStereoFast(static_cast<float>(N) - 0.5f, &l, &r);
+
+    float expected = InterpolateHermite(
+        0.01f * static_cast<float>(N - 2),   // xm1: frame N-2
+        0.01f * static_cast<float>(N - 1),   // x0:  frame N-1
+        0.9f,                                // x1:  frame 0 via tail mirror
+        0.8f,                                // x2:  frame 1 via tail mirror
+        0.5f);
+    REQUIRE(l == Approx(expected).margin(1e-6f));
+    REQUIRE(r == Approx(expected).margin(1e-6f));
+
+    // The out-of-line reader must agree with the fast path here.
+    float l2 = 0.f, r2 = 0.f;
+    buf.ReadHermiteStereo(static_cast<float>(N) - 0.5f, &l2, &r2);
+    REQUIRE(l2 == Approx(l).margin(1e-6f));
+    REQUIRE(r2 == Approx(r).margin(1e-6f));
+}
+
 TEST_CASE("RecordingBuffer: leaving freeze blends writes from old content to live input",
           "[buffer][freeze]") {
     size_t num_frames = 1000;

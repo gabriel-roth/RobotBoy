@@ -99,30 +99,19 @@ void RecordingBuffer::SetDecimationFactor(int factor) {
 }
 
 // ---------------------------------------------------------------------------
-// ReadHermite
+// ReadHermite (test-only reference implementation; production uses
+// ReadHermiteStereoFast)
 // ---------------------------------------------------------------------------
 
 float RecordingBuffer::ReadHermite(int channel, float position) const {
-    if (size_ == 0 || !buffer_) return 0.0f;
-
-    // Guard against non-finite input (NaN or +/-Inf); Inf would never
-    // satisfy the wrap below and could spin forever.
-    if (!std::isfinite(position)) return 0.0f;
-
-    // Wrap position into [0, size_) in O(1) regardless of magnitude.
-    float size_f = static_cast<float>(size_);
-    position = std::fmod(position, size_f);
-    if (position < 0.0f) position += size_f;
-
-    // Integer and fractional parts.
-    int pos_int = static_cast<int>(position);
-    float frac = position - static_cast<float>(pos_int);
+    size_t i0;
+    float frac;
+    if (!ResolveReadPosition(position, &i0, &frac)) return 0.0f;
 
     // Four sample positions for Hermite: -1, 0, +1, +2 relative to pos_int.
     // Because the tail copies the first kInterpolationTail frames right after
     // the main buffer, indices 0/+1/+2 that land past size_ can read
     // directly from the tail. Only the -1 case needs explicit wrapping.
-    size_t i0 = static_cast<size_t>(pos_int);
     size_t i_1 = (i0 == 0) ? size_ - 1 : i0 - 1;
     // i1 and i2 can overflow into the tail region -- that is fine; the tail
     // holds valid data for up to kInterpolationTail frames past the end.
@@ -144,30 +133,25 @@ float RecordingBuffer::ReadHermite(int channel, float position) const {
 }
 
 // ---------------------------------------------------------------------------
-// ReadHermiteStereo
+// ReadHermiteStereo (test-only reference implementation; production uses
+// ReadHermiteStereoFast)
 // ---------------------------------------------------------------------------
 
 void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out_r) const {
-    if (size_ == 0 || !buffer_ || channels_ < 2) {
+    if (channels_ < 2) {
         *out_l = 0.0f;
         *out_r = 0.0f;
         return;
     }
 
-    if (!std::isfinite(position)) {
+    size_t i0;
+    float frac;
+    if (!ResolveReadPosition(position, &i0, &frac)) {
         *out_l = 0.0f;
         *out_r = 0.0f;
         return;
     }
 
-    float size_f = static_cast<float>(size_);
-    position = std::fmod(position, size_f);
-    if (position < 0.0f) position += size_f;
-
-    int pos_int = static_cast<int>(position);
-    float frac = position - static_cast<float>(pos_int);
-
-    size_t i0 = static_cast<size_t>(pos_int);
     size_t i_1 = (i0 == 0) ? size_ - 1 : i0 - 1;
     size_t i1 = i0 + 1;
     size_t i2 = i0 + 2;
@@ -186,25 +170,15 @@ void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out
 }
 
 // ---------------------------------------------------------------------------
-// ReadLinear
+// ReadLinear (test-only reference implementation; production uses
+// ReadHermiteStereoFast)
 // ---------------------------------------------------------------------------
 
 float RecordingBuffer::ReadLinear(int channel, float position) const {
-    if (size_ == 0 || !buffer_) return 0.0f;
+    size_t i0;
+    float frac;
+    if (!ResolveReadPosition(position, &i0, &frac)) return 0.0f;
 
-    // Guard against non-finite input (NaN or +/-Inf); Inf would never
-    // satisfy the wrap below and could spin forever.
-    if (!std::isfinite(position)) return 0.0f;
-
-    // Wrap position into [0, size_) in O(1) regardless of magnitude.
-    float size_f = static_cast<float>(size_);
-    position = std::fmod(position, size_f);
-    if (position < 0.0f) position += size_f;
-
-    int pos_int = static_cast<int>(position);
-    float frac = position - static_cast<float>(pos_int);
-
-    size_t i0 = static_cast<size_t>(pos_int);
     // The tail covers at least 1 frame past the end, so i0+1 == size_ is
     // fine -- it reads from the tail.
     size_t i1 = i0 + 1;
