@@ -23,7 +23,7 @@ A smaller single-playhead version, **Löp**, is described [at the end](#löp).
 
 ## The display
 
-The strip across the top shows the recorded audio as a waveform. While you record, it fills in left-to-right. Once you have a loop, you'll see up to four colored **playhead markers** sweeping across it — one per head — along with a shaded band showing each head's *window* (the slice of the loop that head is allowed to play). This is the easiest way to see what Position, Size, and Speed are actually doing.
+The strip across the top shows the recorded audio as a waveform. While you record, it fills in left-to-right. Once you have a loop, you'll see up to four colored **playhead markers** sweeping across it — **red, green, blue, and yellow**, one per head; the context menu refers to the playheads by these colors — along with a shaded band showing each head's *window* (the slice of the loop that head is allowed to play). This is the easiest way to see what Position, Size, and Speed are actually doing.
 
 ---
 
@@ -104,11 +104,14 @@ Each head's **Trig** input behaves in one of two ways, chosen per head in the co
 
 ## Context menu
 
-You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule:
+You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule. The per-playhead options name each playhead after its marker color on the display: the **Red**, **Green**, **Blue**, and **Yellow** playheads.
 
 - **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
-- **Per head → Trigger** — pick *Loop start* or *One-shot* for that head (see above).
-- **Per head → Speed CV is V/Oct** — makes that head's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
+- **Trigger → (playhead)** — pick *Loop start* or *One-shot* for that playhead (see above).
+- **Speed CV is V/Oct → (playhead)** — makes that playhead's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
+- **Exclude from Grid → (playhead)** — lets that playhead move freely even while **Grid** is on: its Size, Position, and Jitter stop snapping to segment boundaries, while the other playheads stay locked to the grid. Good for one drifting, texture-making playhead over an otherwise beat-sliced loop.
+
+> **On MetaModule** the per-playhead options appear in the options list numbered rather than by color — 1 = Red, 2 = Green, 3 = Blue, 4 = Yellow (e.g. "Grid 1 exclude" is the Red playhead's Exclude from Grid).
 
 ---
 

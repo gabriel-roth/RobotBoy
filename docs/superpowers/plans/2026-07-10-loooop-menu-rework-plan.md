@@ -31,7 +31,7 @@
 **Interfaces:**
 - Produces: `void LoopEngine::setGridExclude(int head, bool exclude)` — bounds-checked per-head setter, used by both hosts in Tasks 2–3.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Append after `test_grid_off_matches_ungridded()`:
 
@@ -69,12 +69,12 @@ static void test_grid_exclude_head() {
 
 Register in `main` next to the other grid tests: `test_grid_exclude_head();`
 
-- [ ] **Step 2: Run to verify it fails**
+- [x] **Step 2: Run to verify it fails**
 
 Run: `cd .worktrees/loooop-track/tests && ./run.sh`
 Expected: compile error — `no member named 'setGridExclude' in 'LoopEngine'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `LoopEngine.hpp` — PlayHead gains a field:
 
@@ -102,12 +102,12 @@ void LoopEngine::setGridExclude(int head, bool exclude) { if (head >= 0 && head 
     if (grid_ >= 2 && !h.gridExclude) {
 ```
 
-- [ ] **Step 4: Run tests**
+- [x] **Step 4: Run tests**
 
 Run: `cd .worktrees/loooop-track/tests && ./run.sh`
 Expected: exit 0, new checks print `ok:`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat: per-head grid exclusion in LoopEngine"
@@ -124,7 +124,7 @@ git add -A && git commit -m "feat: per-head grid exclusion in LoopEngine"
 - Consumes: `LoopEngine::setGridExclude(int, bool)` from Task 1.
 - Produces: `EXCLUDE_GRID1_PARAM` in the per-head block, `HEAD_PARAMS == 9`, `kHeadNames` table — Task 3 mirrors the same element order on MM.
 
-- [ ] **Step 1: Param enum + stride**
+- [x] **Step 1: Param enum + stride**
 
 In `ParamId`, append `EXCLUDE_GRID1_PARAM` (etc.) to each head's block after `SPEED_VOCT`:
 
@@ -140,7 +140,7 @@ In `ParamId`, append `EXCLUDE_GRID1_PARAM` (etc.) to each head's block after `SP
 and `static constexpr int HEAD_PARAMS = 9;` (update its trailing comment to
 `Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct,ExcludeGrid`).
 
-- [ ] **Step 2: Color names + config sweep**
+- [x] **Step 2: Color names + config sweep**
 
 Add above the ctor (file scope, near the other tables):
 
@@ -163,7 +163,7 @@ Add the new switch after the SPEED_VOCT one:
                 n + " exclude from Grid", {"Off", "On"});
 ```
 
-- [ ] **Step 3: process() wiring**
+- [x] **Step 3: process() wiring**
 
 In the per-head loop, after the `engine.setJitter(...)` call:
 
@@ -172,7 +172,7 @@ In the per-head loop, after the `engine.setJitter(...)` call:
                 params[EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f);
 ```
 
-- [ ] **Step 4: Menu rework**
+- [x] **Step 4: Menu rework**
 
 Replace the per-head submenu loop in `appendContextMenu` (keep the
 separator + Crossfade item) with:
@@ -207,12 +207,12 @@ Also update the enum header comment: the VCV/MM offset note from the
 globals-first commit still holds; extend the per-head stride description to
 include ExcludeGrid.
 
-- [ ] **Step 5: Build VCV**
+- [x] **Step 5: Build VCV**
 
 Run: `cd .worktrees/loooop-track/vcv && make -j8`
 Expected: clean build (only pre-existing Rack SDK deprecation warnings).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add -A && git commit -m "feat: commands-first Loooop menu, color playhead names, Exclude from Grid"
@@ -230,7 +230,7 @@ git add -A && git commit -m "feat: commands-first Loooop menu, color playhead na
 **Interfaces:**
 - Consumes: `LoopEngine::setGridExclude(int, bool)` (Task 1); element order mirroring Task 2's VCV per-head block.
 
-- [ ] **Step 1: Element type**
+- [x] **Step 1: Element type**
 
 `QlpElements.hh`, after `QlpGridAlt`:
 
@@ -243,7 +243,7 @@ struct QlpExcludeGridAlt : AltParamChoiceLabeled {
 };
 ```
 
-- [ ] **Step 2: Info header**
+- [x] **Step 2: Info header**
 
 `Loooop_info.hh`: array size `87` → `91`. In each head's param group, after
 that head's `QlpVoctAlt` line:
@@ -257,7 +257,7 @@ that head's `QlpVoctAlt` line:
 menu-only list in the header comment. `bypass_routes` unchanged (jack
 lists untouched).
 
-- [ ] **Step 3: Core wiring**
+- [x] **Step 3: Core wiring**
 
 `LoooopCore.cc`: add `Info::Elem XG` to the `updateHead` template parameter
 list (after `VO`), add to the body next to the V-Oct read:
@@ -269,14 +269,14 @@ list (after `VO`), add to the body next to the V-Oct read:
 and pass `ExcludeGrid1Alt`..`ExcludeGrid4Alt` at the four call sites
 (after `SpeedVoct1Alt` etc.).
 
-- [ ] **Step 4: Build MM + full lanes**
+- [x] **Step 4: Build MM + full lanes**
 
 Run: `cd .worktrees/loooop-track && cmake --build metamodule/build -j8`
 Expected: "All symbols found!", `.mmplugin` created.
 Run: `cd tests && ./run.sh`
 Expected: exit 0.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add -A && git commit -m "feat: MetaModule per-head Grid exclude alt-params"
