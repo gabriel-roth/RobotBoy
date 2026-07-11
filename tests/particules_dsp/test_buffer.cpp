@@ -4,11 +4,11 @@
 #include <cmath>
 #include <limits>
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 #include "buffer/recording_buffer.h"
 #include "util/interpolation.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;

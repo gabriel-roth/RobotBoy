@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 struct StereoFrame {
     float l, r;
@@ -69,4 +69,4 @@ static constexpr size_t kMaxBlockSize = 64;
 // Hermite interpolation requires 4 samples
 static constexpr int kInterpolationTail = 4;
 
-} // namespace beads
+} // namespace particules_dsp

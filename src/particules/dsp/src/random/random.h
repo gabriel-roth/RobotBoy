@@ -3,7 +3,7 @@
 #include <cstdint>
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 // Fast PRNG using xorshift128
 class Random {
@@ -72,4 +72,4 @@ private:
     uint32_t state_[4];
 };
 
-} // namespace beads
+} // namespace particules_dsp

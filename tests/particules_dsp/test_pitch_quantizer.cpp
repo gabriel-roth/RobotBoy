@@ -2,10 +2,10 @@
 #include <catch2/catch_approx.hpp>
 #include <cmath>
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 #include "pitch/pitch_quantizer.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 // Load a 12-note equal-temperament (chromatic) scale.

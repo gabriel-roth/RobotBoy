@@ -1,11 +1,11 @@
 #pragma once
 
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 #include "../util/dsp_utils.h"
 #include "../util/svf.h"
 #include "../random/random.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // Simulates the 4 quality mode characters via DSP.
 //
@@ -83,4 +83,4 @@ private:
     int output_xfade_counter_ = 0;
 };
 
-} // namespace beads
+} // namespace particules_dsp

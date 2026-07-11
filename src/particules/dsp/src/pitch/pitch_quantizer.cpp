@@ -3,7 +3,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace beads {
+namespace particules_dsp {
 namespace {
 
 // log2(x) via natural log -- avoids std::log2 which may not be available
@@ -112,4 +112,4 @@ float PitchQuantizer::quantize(float v_oct) const noexcept {
   return static_cast<float>(quantized + root_v_oct_);
 }
 
-}  // namespace beads
+}  // namespace particules_dsp

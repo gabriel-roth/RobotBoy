@@ -5,7 +5,7 @@
 #include "random/attenurandomizer.h"
 #include "random/random.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 TEST_CASE("Attenurandomizer: ar_amount=0 returns base unchanged", "[attenurandomizer]") {

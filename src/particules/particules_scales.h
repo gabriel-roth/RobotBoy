@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // Tables for the unified "Lock pitch" selector. Modes 0-2 are the legacy
-// engine-side pitch_lock modes (beads::QuantizePitchLock); modes 3-7 load
+// engine-side pitch_lock modes (particules_dsp::QuantizePitchLock); modes 3-7 load
 // the engine's PitchQuantizer with a 12-TET ratio table instead. The two
 // mechanisms are mutually exclusive by construction (the engine applies the
 // scale quantizer before pitch_lock, so setting both would double-quantize).

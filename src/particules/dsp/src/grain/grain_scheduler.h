@@ -2,11 +2,11 @@
 
 #include <cstddef>
 #include <cstdint>
-#include "../../include/beads/types.h"
-#include "../../include/beads/parameters.h"
+#include "../../include/particules_dsp/types.h"
+#include "../../include/particules_dsp/parameters.h"
 #include "../random/random.h"
 
-namespace beads {
+namespace particules_dsp {
 
 class GrainScheduler {
 public:
@@ -15,7 +15,7 @@ public:
     // Call once per block to compute trigger points.
     // Returns the number of triggers in this block, fills trigger_samples[]
     // with the sample offsets within the block where grains should start.
-    int Process(const BeadsParameters& params, size_t block_size,
+    int Process(const ParticulesParameters& params, size_t block_size,
                 int* trigger_samples, int max_triggers);
 
     bool GrainTriggeredThisBlock() const { return grain_triggered_; }
@@ -32,7 +32,7 @@ private:
 
     // Trigger mode as of the last Process() call, so a mode change can be
     // detected and the mode-specific timing state below reset (see
-    // Process()). Defaults to kLatched to match both BeadsParameters'
+    // Process()). Defaults to kLatched to match both ParticulesParameters'
     // default and Init()'s all-zero state, so the very first call never
     // spuriously looks like a "mode change".
     TriggerMode prev_trigger_mode_ = TriggerMode::kLatched;
@@ -53,4 +53,4 @@ private:
     bool grain_triggered_ = false;
 };
 
-} // namespace beads
+} // namespace particules_dsp

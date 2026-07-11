@@ -1,5 +1,5 @@
 #include "plugin.hpp"
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 #include "dsp/src/util/control_conditioner.h"
 #include "particules_block_runtime.h"
 #include "particules_cv_conditioning.h"
@@ -22,8 +22,8 @@
 // conditioning cadence) and amortizes updateSlowParams/SetParameters ~64×
 // on VCV. Costs 64 samples of I/O latency (1.3 ms @ 48 kHz).
 static constexpr size_t kWrapperBlockSize = 64;
-static_assert(kWrapperBlockSize <= beads::kMaxBlockSize,
-	"Particules wrapper block size must not exceed beads::kMaxBlockSize");
+static_assert(kWrapperBlockSize <= particules_dsp::kMaxBlockSize,
+	"Particules wrapper block size must not exceed particules_dsp::kMaxBlockSize");
 
 
 struct Particules;
@@ -83,15 +83,15 @@ struct Particules : Module {
 	};
 
 	// DSP
-	beads::BeadsProcessor processor_;
+	particules_dsp::ParticulesProcessor processor_;
 	void* dsp_memory_ = nullptr;
 
 	// Buffer pattern
 	ParticulesBlockRuntime<kWrapperBlockSize> block_runtime_;
-	beads::StereoFrame scratch_output_buf_[kWrapperBlockSize] = {};
+	particules_dsp::StereoFrame scratch_output_buf_[kWrapperBlockSize] = {};
 
 	// Cached params struct (populated by updateSlowParams, consumed by Process)
-	beads::BeadsParameters params_;
+	particules_dsp::ParticulesParameters params_;
 
 	// Module state
 	int quality_state_ = 0;   // 0–3
@@ -122,10 +122,10 @@ struct Particules : Module {
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
 	float cached_pitch_knob_      = -999.f;
 	float cached_pitch_semitones_ = 0.f;
-	beads::ControlConditioner time_cv_conditioner_;
-	beads::ControlConditioner size_cv_conditioner_;
-	beads::ControlConditioner shape_cv_conditioner_;
-	beads::ControlConditioner pitch_cv_conditioner_;
+	particules_dsp::ControlConditioner time_cv_conditioner_;
+	particules_dsp::ControlConditioner size_cv_conditioner_;
+	particules_dsp::ControlConditioner shape_cv_conditioner_;
+	particules_dsp::ControlConditioner pitch_cv_conditioner_;
 	// Last quality state written to LEDs — skip redundant setBrightness calls.
 	int   light_quality_state_    = -1;
 
@@ -174,7 +174,7 @@ struct Particules : Module {
 
 		// DSP init — also called on sample rate change via onSampleRateChange()
 		float sampleRate = APP->engine->getSampleRate();
-		auto req = beads::BeadsProcessor::GetMemoryRequirements(sampleRate);
+		auto req = particules_dsp::ParticulesProcessor::GetMemoryRequirements(sampleRate);
 #if defined(METAMODULE) && !defined(SIMULATOR)
 		dsp_memory_ = memalign(req.alignment, req.total_bytes);
 #elif defined(_WIN32)
@@ -185,7 +185,7 @@ struct Particules : Module {
 #endif
 		if (!dsp_memory_) {
 			// processor_.Init() below already no-ops safely on a null pointer
-			// (see BeadsProcessor::Init), but a failed allocation of this size
+			// (see ParticulesProcessor::Init), but a failed allocation of this size
 			// (~a few hundred KB) is worth surfacing instead of silently
 			// running with a dead DSP chain. WARN is defined identically by
 			// both hosts' logger.hpp (Rack SDK and MetaModule plugin SDK).
@@ -225,7 +225,7 @@ struct Particules : Module {
 		// Re-arm so a possibly-new audio thread gets FTZ configured.
 		metamodule_fpu_configured_ = false;
 		if (dsp_memory_) {
-			auto req = beads::BeadsProcessor::GetMemoryRequirements(e.sampleRate);
+			auto req = particules_dsp::ParticulesProcessor::GetMemoryRequirements(e.sampleRate);
 			processor_.Init(dsp_memory_, req.total_bytes, e.sampleRate);
 			// Init placement-news the Impl — quantizer state is gone.
 			scale_dirty_.store(true, std::memory_order_release);
@@ -370,12 +370,12 @@ struct Particules : Module {
 
 		if (seed_state_ == 0) {
 			params_.trigger_mode = inputs[SEED_INPUT].isConnected()
-				? beads::TriggerMode::kClocked
-				: beads::TriggerMode::kLatched;
+				? particules_dsp::TriggerMode::kClocked
+				: particules_dsp::TriggerMode::kLatched;
 		} else {
-			params_.trigger_mode = beads::TriggerMode::kGated;
+			params_.trigger_mode = particules_dsp::TriggerMode::kGated;
 		}
-		params_.quality_mode = static_cast<beads::QualityMode>(quality_state_);
+		params_.quality_mode = static_cast<particules_dsp::QualityMode>(quality_state_);
 
 		params_.auto_gain      = auto_gain_;
 		params_.manual_gain_db = auto_gain_ ? NAN : manual_gain_db_;
@@ -403,7 +403,7 @@ struct Particules : Module {
 		prev_quality_button_ = quality_pressed;
 
 		// Output from previously processed block
-		beads::StereoFrame out = block_runtime_.ReadOutputSample();
+		particules_dsp::StereoFrame out = block_runtime_.ReadOutputSample();
 		if (grain_trigger_out_) {
 			// R outputs grain trigger pulses; L always outputs mono mix
 			if (block_runtime_.ConsumeTriggerPulseSample()) {

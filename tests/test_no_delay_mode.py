@@ -9,14 +9,14 @@ class NoDelayModeTest(unittest.TestCase):
     def test_delay_engine_files_are_removed(self):
         self.assertFalse((ROOT / "src/particules/dsp/src/delay/delay_engine.h").exists())
         self.assertFalse((ROOT / "src/particules/dsp/src/delay/delay_engine.cpp").exists())
-        self.assertFalse((ROOT / "tests/beads/test_delay.cpp").exists())
+        self.assertFalse((ROOT / "tests/particules_dsp/test_delay.cpp").exists())
 
     def test_delay_mode_symbols_are_removed(self):
         paths = [
-            "src/particules/dsp/include/beads/parameters.h",
-            "src/particules/dsp/include/beads/beads.h",
-            "src/particules/dsp/src/beads_processor.h",
-            "src/particules/dsp/src/beads_processor.cpp",
+            "src/particules/dsp/include/particules_dsp/parameters.h",
+            "src/particules/dsp/include/particules_dsp/particules_dsp.h",
+            "src/particules/dsp/src/particules_processor.h",
+            "src/particules/dsp/src/particules_processor.cpp",
             "src/particules/dsp/src/grain/grain_engine.cpp",
             "metamodule/CMakeLists.txt",
         ]

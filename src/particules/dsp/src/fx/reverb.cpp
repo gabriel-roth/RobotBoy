@@ -2,7 +2,7 @@
 #include "../util/cosine_table.h"
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 void Reverb::Init(float* buffer, size_t buffer_size, float sample_rate) {
     // Guard: the shared buffer must hold all 12 partitioned delay lines
@@ -297,4 +297,4 @@ void Reverb::FlushTank() {
     quiet_samples_ = 0;
 }
 
-} // namespace beads
+} // namespace particules_dsp

@@ -3,10 +3,10 @@
 #include <vector>
 #include <cmath>
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 #include "input/auto_gain.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;

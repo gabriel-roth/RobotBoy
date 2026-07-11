@@ -1,6 +1,6 @@
 #pragma once
 
-namespace beads {
+namespace particules_dsp {
 
 static constexpr int kCosineTableSize = 256;
 
@@ -89,4 +89,4 @@ inline float CosLookup(float phase_0_to_1) {
     return kCosineTable[i] + frac * (kCosineTable[i + 1] - kCosineTable[i]);
 }
 
-} // namespace beads
+} // namespace particules_dsp

@@ -3,7 +3,7 @@
 #include "fx_engine.h"
 #include "../util/dsp_utils.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // Dattorro plate reverb with proper partitioned delay lines.
 //
@@ -13,7 +13,8 @@ namespace beads {
 //     modulated delay → 2 allpass → LP → delay
 //   Output tapped from multiple points in both tank paths
 //
-// Retuned for Beads (vs Clouds):
+// Retuned to match the character of the hardware Beads module (vs the earlier
+// Clouds hardware):
 //   Delay lengths ~15% shorter (smaller room / "Thoreau's cabin" character)
 //   Warmer tone: lower LP cutoff in feedback loop
 //   Quality mode shifts reverb LP coefficient
@@ -140,4 +141,4 @@ private:
     }
 };
 
-} // namespace beads
+} // namespace particules_dsp

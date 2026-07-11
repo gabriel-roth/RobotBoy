@@ -5,7 +5,7 @@
 #include <cmath>
 #include <cstring>
 
-namespace beads {
+namespace particules_dsp {
 
 void RecordingBuffer::Init(float* buffer, size_t num_frames, int num_channels) {
     buffer_ = buffer;
@@ -276,4 +276,4 @@ size_t RecordingBuffer::RequiredBytes(float sample_rate,
     return total_samples * sizeof(float);
 }
 
-} // namespace beads
+} // namespace particules_dsp

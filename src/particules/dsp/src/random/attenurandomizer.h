@@ -3,7 +3,7 @@
 #include "random.h"
 #include "../util/dsp_utils.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // Attenurandomizer: per-parameter CV/random modulation
 // One instance per grain parameter (time, size, shape, pitch)
@@ -48,4 +48,4 @@ private:
     Random* random_ = nullptr;
 };
 
-} // namespace beads
+} // namespace particules_dsp

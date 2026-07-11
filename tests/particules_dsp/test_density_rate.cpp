@@ -2,18 +2,18 @@
 #include <catch2/catch_approx.hpp>
 #include <cmath>
 
-#include "beads/types.h"
-#include "beads/parameters.h"
+#include "particules_dsp/types.h"
+#include "particules_dsp/parameters.h"
 #include "grain/grain_scheduler.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
 
 // Run the scheduler for the given number of samples with fixed params.
 // Returns the number of triggers fired.
-static int RunScheduler(GrainScheduler& sched, const BeadsParameters& params, int num_samples) {
+static int RunScheduler(GrainScheduler& sched, const ParticulesParameters& params, int num_samples) {
     int total = 0;
     int trigger_buf[32];
     for (int i = 0; i < num_samples; ++i) {
@@ -29,7 +29,7 @@ TEST_CASE("DensityToRate: full CCW density (0.0) triggers at the 80 Hz cap in la
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.0f;          // full CCW
     params.density_cv = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;
@@ -47,7 +47,7 @@ TEST_CASE("DensityToRate: full CW density (1.0) triggers near the 80 Hz cap aver
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 1.0f;          // full CW
     params.density_cv = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;
@@ -62,7 +62,7 @@ TEST_CASE("DensityToRate: noon density (0.5) produces silence in latched mode", 
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.5f;
     params.density_cv = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;
@@ -78,7 +78,7 @@ TEST_CASE("DensityToRate: density CV cannot drive the rate above the 80 Hz cap",
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.5f;              // knob at noon (would be silent alone)
     params.density_cv = 5.0f;           // large CV drives eff_density to 1.0
     params.density_cv_connected = true;
@@ -96,7 +96,7 @@ TEST_CASE("DensityToRate: block-size changes preserve long-run trigger count", "
     sched_small.Init(kSampleRate);
     sched_large.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.010f;
     params.density_cv = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;

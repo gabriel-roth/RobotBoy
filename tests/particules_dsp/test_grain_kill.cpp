@@ -3,13 +3,13 @@
 #include <vector>
 #include <cmath>
 
-#include "beads/types.h"
-#include "beads/parameters.h"
+#include "particules_dsp/types.h"
+#include "particules_dsp/parameters.h"
 #include "buffer/recording_buffer.h"
 #include "grain/grain.h"
 #include "grain/grain_engine.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -124,7 +124,7 @@ TEST_CASE("GrainEngine: kill-fallback victim is the true oldest grain, not array
     GrainEngine engine;
     engine.Init(kSampleRate, &buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kGated;
     params.time = 0.5f;
     params.shape = 0.5f;

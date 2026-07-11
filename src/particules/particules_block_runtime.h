@@ -1,6 +1,6 @@
 #pragma once
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 
 #include <algorithm>
 #include <array>
@@ -12,7 +12,7 @@ class ParticulesBlockRuntime {
 public:
     static_assert(BlockSize >= 1, "Particules block runtime requires BlockSize >= 1");
 
-    bool PushInputSample(beads::StereoFrame in) {
+    bool PushInputSample(particules_dsp::StereoFrame in) {
         input_buf_[input_index_] = in;
         ++input_index_;
         if (input_index_ >= BlockSize) {
@@ -28,10 +28,10 @@ public:
     size_t InputIndex() const { return input_index_; }
     size_t OutputIndex() const { return output_index_; }
 
-    beads::StereoFrame* InputBuffer() { return input_buf_.data(); }
-    const beads::StereoFrame* InputBuffer() const { return input_buf_.data(); }
+    particules_dsp::StereoFrame* InputBuffer() { return input_buf_.data(); }
+    const particules_dsp::StereoFrame* InputBuffer() const { return input_buf_.data(); }
 
-    void CommitProcessedBlock(const beads::StereoFrame* processed, size_t count) {
+    void CommitProcessedBlock(const particules_dsp::StereoFrame* processed, size_t count) {
         const size_t copy_count = std::min(count, BlockSize);
         for (size_t i = 0; i < copy_count; ++i) {
             output_buf_[i] = processed[i];
@@ -40,8 +40,8 @@ public:
         output_index_ = 0;
     }
 
-    beads::StereoFrame ReadOutputSample() {
-        beads::StereoFrame out = output_buf_[output_index_];
+    particules_dsp::StereoFrame ReadOutputSample() {
+        particules_dsp::StereoFrame out = output_buf_[output_index_];
         ++output_index_;
         if (output_index_ >= BlockSize) {
             output_index_ = 0;
@@ -125,8 +125,8 @@ public:
     }
 
 private:
-    std::array<beads::StereoFrame, BlockSize> input_buf_ {};
-    std::array<beads::StereoFrame, BlockSize> output_buf_ {};
+    std::array<particules_dsp::StereoFrame, BlockSize> input_buf_ {};
+    std::array<particules_dsp::StereoFrame, BlockSize> output_buf_ {};
     size_t input_index_ = 0;
     size_t output_index_ = 0;
     bool block_ready_ = false;

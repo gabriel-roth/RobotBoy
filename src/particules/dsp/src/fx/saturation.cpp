@@ -1,7 +1,7 @@
 #include "saturation.h"
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 void Saturation::Init() {
     // No persistent state needed
@@ -87,4 +87,4 @@ StereoFrame Saturation::LimitFeedback(StereoFrame input, QualityMode mode) {
     };
 }
 
-} // namespace beads
+} // namespace particules_dsp

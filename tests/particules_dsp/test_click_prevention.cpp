@@ -3,9 +3,9 @@
 #include <vector>
 #include <cmath>
 
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -14,10 +14,10 @@ static constexpr size_t kBlockSize = 256;
 // Helper to create and init a processor
 struct ClickTestProcessor {
     std::vector<uint8_t> memory;
-    BeadsProcessor processor;
+    ParticulesProcessor processor;
 
     ClickTestProcessor() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSampleRate);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSampleRate);
         memory.resize(req.total_bytes, 0);
         processor.Init(memory.data(), memory.size(), kSampleRate);
     }
@@ -47,7 +47,7 @@ static float MaxDelta(const StereoFrame* output, size_t count) {
 TEST_CASE("Click prevention: Freeze on/off produces no large discontinuities", "[click]") {
     ClickTestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.1f;
     params.dry_wet = 1.0f;
     params.size = 0.5f;
@@ -99,7 +99,7 @@ TEST_CASE("Click prevention: Freeze on/off produces no large discontinuities", "
 TEST_CASE("Click prevention: Mode crossfade when SIZE sweeps to delay", "[click]") {
     ClickTestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.3f;
     params.dry_wet = 1.0f;
     params.shape = 0.5f;
@@ -141,7 +141,7 @@ TEST_CASE("Click prevention: Mode crossfade when SIZE sweeps to delay", "[click]
 TEST_CASE("Click prevention: Quality mode switch mid-stream produces finite output", "[click]") {
     ClickTestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.2f;
     params.dry_wet = 1.0f;
     params.size = 0.5f;
@@ -188,7 +188,7 @@ TEST_CASE("Click prevention: Quality mode switch mid-stream produces finite outp
 TEST_CASE("Click prevention: Output is continuous with sine input", "[click]") {
     ClickTestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.1f;
     params.dry_wet = 1.0f;
     params.size = 0.5f;

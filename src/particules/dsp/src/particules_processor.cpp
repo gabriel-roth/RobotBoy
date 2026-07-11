@@ -1,4 +1,4 @@
-#include "beads_processor.h"
+#include "particules_processor.h"
 #include "util/dsp_utils.h"
 #include "util/cosine_table.h"
 #include <cstdint>
@@ -7,7 +7,7 @@
 #include <new>
 #include <algorithm>
 
-namespace beads {
+namespace particules_dsp {
 
 static constexpr size_t kImplAlignment = 16;
 
@@ -15,7 +15,7 @@ static size_t AlignUp(size_t size, size_t alignment = kImplAlignment) {
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
-BeadsProcessor::MemoryRequirements BeadsProcessor::GetMemoryRequirements(float sample_rate) {
+ParticulesProcessor::MemoryRequirements ParticulesProcessor::GetMemoryRequirements(float sample_rate) {
     (void)sample_rate;  // Frame budget is fixed; duration varies with rate.
     MemoryRequirements req;
 
@@ -29,7 +29,7 @@ BeadsProcessor::MemoryRequirements BeadsProcessor::GetMemoryRequirements(float s
     return req;
 }
 
-void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
+void ParticulesProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     if (!memory || memory_size == 0) return;
 
     // Verify the caller provided enough memory.
@@ -46,7 +46,7 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     ptr += AlignUp(sizeof(Impl));
 
     impl_->sample_rate = sample_rate;
-    impl_->params = BeadsParameters{};
+    impl_->params = ParticulesParameters{};
     impl_->prev_wet_len = 0;
     impl_->prev_freeze = false;
 
@@ -80,7 +80,7 @@ void BeadsProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     impl_->feedback_hp_r.SetQ(0.707f);
 }
 
-void BeadsProcessor::SetParameters(const BeadsParameters& params) {
+void ParticulesProcessor::SetParameters(const ParticulesParameters& params) {
     if (!impl_) return;
     impl_->params = params;
 
@@ -90,7 +90,7 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
     // smoothing state (smoothed_feedback, smoothed_dry_wet in ProcessBlock()),
     // the reverb's own persistent coefficients (amount_/decay_/diffusion_ in
     // Reverb::SetAmount/SetDecay/SetDiffusion), and the grain scheduler's
-    // persistent phasor (latched_phase_ in grain_scheduler.cpp). beads::Clamp()
+    // persistent phasor (latched_phase_ in grain_scheduler.cpp). particules_dsp::Clamp()
     // and rack::math::clamp() are both built on std::min/std::max, which leave
     // a NaN operand unclamped, so nothing upstream reliably sanitizes this.
     // Once one of those state variables is poisoned by a single NaN
@@ -136,7 +136,7 @@ void BeadsProcessor::SetParameters(const BeadsParameters& params) {
     impl_->reverb.SetLpCutoff(reverb_lp);
 }
 
-void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
+void ParticulesProcessor::Process(const StereoFrame* input, StereoFrame* output,
                               size_t num_frames) {
     if (!impl_) {
         for (size_t i = 0; i < num_frames; ++i) {
@@ -155,7 +155,7 @@ void BeadsProcessor::Process(const StereoFrame* input, StereoFrame* output,
     }
 }
 
-void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
+void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
                                    size_t num_frames) {
     auto& s = *impl_;  // shorthand
 
@@ -292,40 +292,40 @@ void BeadsProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* output,
     s.prev_wet_len = num_frames;
 }
 
-int BeadsProcessor::ActiveGrainCount() const {
+int ParticulesProcessor::ActiveGrainCount() const {
     return impl_ ? impl_->grain_engine.ActiveGrainCount() : 0;
 }
 
-bool BeadsProcessor::GrainTriggeredThisBlock() const {
+bool ParticulesProcessor::GrainTriggeredThisBlock() const {
     return impl_ ? impl_->grain_engine.GrainTriggeredThisBlock() : false;
 }
 
-float BeadsProcessor::InputLevel() const {
+float ParticulesProcessor::InputLevel() const {
     return impl_ ? impl_->auto_gain.InputLevel() : 0.0f;
 }
 
-float BeadsProcessor::AutoGainDb() const {
+float ParticulesProcessor::AutoGainDb() const {
     return impl_ ? impl_->auto_gain.GainDb() : 0.0f;
 }
 
-void BeadsProcessor::TriggerAutoGainCalibration() {
+void ParticulesProcessor::TriggerAutoGainCalibration() {
     if (impl_) impl_->auto_gain.StartCalibration();
 }
 
-void BeadsProcessor::ClearBuffer() {
+void ParticulesProcessor::ClearBuffer() {
     if (impl_) impl_->recording_buffer.ImmediateClear();
 }
 
-void BeadsProcessor::LoadScale(const double* ratios, uint32_t num_notes) {
+void ParticulesProcessor::LoadScale(const double* ratios, uint32_t num_notes) {
     if (impl_) impl_->grain_engine.LoadScale(ratios, num_notes);
 }
 
-void BeadsProcessor::ClearScale() {
+void ParticulesProcessor::ClearScale() {
     if (impl_) impl_->grain_engine.ClearScale();
 }
 
-void BeadsProcessor::SetScaleRoot(int midi_note) {
+void ParticulesProcessor::SetScaleRoot(int midi_note) {
     if (impl_) impl_->grain_engine.SetScaleRoot(midi_note);
 }
 
-} // namespace beads
+} // namespace particules_dsp

@@ -4,7 +4,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace beads {
+namespace particules_dsp {
 
 // Derived once at load time (before audio starts) rather than as a
 // function-local magic static on the audio path.
@@ -31,7 +31,7 @@ float GrainScheduler::DensityToRate(float density) {
     return 0.25f * std::exp2(distance * kRateExponent);
 }
 
-int GrainScheduler::Process(const BeadsParameters& params, size_t block_size,
+int GrainScheduler::Process(const ParticulesParameters& params, size_t block_size,
                             int* trigger_samples, int max_triggers) {
     int trigger_count = 0;
 
@@ -231,4 +231,4 @@ int GrainScheduler::Process(const BeadsParameters& params, size_t block_size,
     return trigger_count;
 }
 
-} // namespace beads
+} // namespace particules_dsp

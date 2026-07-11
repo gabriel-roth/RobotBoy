@@ -3,18 +3,18 @@
 #include <cmath>
 #include <cstdint>
 
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 
 static constexpr float kSR = 48000.0f;
 
 namespace {
 struct Proc {
     std::vector<uint8_t> memory;
-    BeadsProcessor p;
+    ParticulesProcessor p;
     Proc() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSR);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSR);
         memory.resize(req.total_bytes, 0);
         p.Init(memory.data(), memory.size(), kSR);
     }
@@ -43,7 +43,7 @@ struct TailStats { double energy; double roughness; };
 
 TailStats FeedbackTailStats(float feedback) {
     Proc proc;
-    BeadsParameters params{};
+    ParticulesParameters params{};
     params.dry_wet = 1.0f;          // full wet
     params.auto_gain = false;
     params.manual_gain_db = 0.0f;
@@ -117,7 +117,7 @@ TailStats FeedbackTailStats(float feedback) {
 // not lower. The roughness/energy ratio above is scale-invariant and
 // directly targets the discontinuity the bug actually introduces, so it
 // reliably distinguishes the two implementations regardless of loudness.
-TEST_CASE("BeadsProcessor: feedback recirculates per-sample at 64-frame cadence",
+TEST_CASE("ParticulesProcessor: feedback recirculates per-sample at 64-frame cadence",
           "[processor][feedback]") {
     TailStats s = FeedbackTailStats(0.9f);
     REQUIRE(s.energy > 0.0);  // sanity: the feedback loop actually produced tail audio
@@ -141,7 +141,7 @@ TEST_CASE("BeadsProcessor: feedback recirculates per-sample at 64-frame cadence"
 // future change that makes feedback "leak" when the knob is fully off
 // (e.g. a mixed-up smoothing target or an always-on feedback tap) would
 // turn this exact-zero baseline into nonzero tail energy.
-TEST_CASE("BeadsProcessor: feedback=0 control produces silent tail",
+TEST_CASE("ParticulesProcessor: feedback=0 control produces silent tail",
           "[processor][feedback]") {
     TailStats s = FeedbackTailStats(0.0f);
     INFO("tail energy: " << s.energy << "  roughness: " << s.roughness);

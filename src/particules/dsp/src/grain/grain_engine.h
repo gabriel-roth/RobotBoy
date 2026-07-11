@@ -1,15 +1,15 @@
 #pragma once
 
 #include <cstddef>
-#include "../../include/beads/types.h"
-#include "../../include/beads/parameters.h"
+#include "../../include/particules_dsp/types.h"
+#include "../../include/particules_dsp/parameters.h"
 #include "../random/random.h"
 #include "../random/attenurandomizer.h"
 #include "../pitch/pitch_quantizer.h"
 #include "grain.h"
 #include "grain_scheduler.h"
 
-namespace beads {
+namespace particules_dsp {
 
 class RecordingBuffer;
 
@@ -18,7 +18,7 @@ public:
     void Init(float sample_rate, RecordingBuffer* buffer);
 
     // Process one block of audio
-    void Process(const BeadsParameters& params, StereoFrame* output,
+    void Process(const ParticulesParameters& params, StereoFrame* output,
                  size_t num_frames);
 
     // Set pitch modulation ratio (tape mode wow/flutter). 1.0 = no modulation.
@@ -91,9 +91,9 @@ private:
     // Allocate a grain from the pool (returns nullptr if full after stealing)
     Grain* AllocateGrain();
 
-    // Compute grain parameters from BeadsParameters + attenurandomizers
-    Grain::GrainParameters ComputeGrainParams(const BeadsParameters& params,
+    // Compute grain parameters from ParticulesParameters + attenurandomizers
+    Grain::GrainParameters ComputeGrainParams(const ParticulesParameters& params,
                                                int pre_delay);
 };
 
-} // namespace beads
+} // namespace particules_dsp

@@ -3,12 +3,12 @@
 #include <vector>
 #include <cmath>
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 #include "fx/reverb.h"
 #include "fx/saturation.h"
 #include "quality/quality_processor.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -242,8 +242,8 @@ TEST_CASE("Reverb: amount 0 is exact dry passthrough", "[reverb]") {
 }
 
 TEST_CASE("Reverb: sleeps after amount sits at 0 and the tail decays", "[reverb][sleep]") {
-    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
-    beads::Reverb rv;
+    std::vector<float> buffer(particules_dsp::Reverb::kMinBufferSize + 1000, 0.0f);
+    particules_dsp::Reverb rv;
     rv.Init(buffer.data(), buffer.size(), 48000.0f);
     rv.SetDecay(0.5f);
     rv.SetDiffusion(0.7f);
@@ -272,8 +272,8 @@ TEST_CASE("Reverb: sleeps after amount sits at 0 and the tail decays", "[reverb]
 }
 
 TEST_CASE("Reverb: brief amount=0 dip keeps the tail ringing", "[reverb][sleep]") {
-    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
-    beads::Reverb rv;
+    std::vector<float> buffer(particules_dsp::Reverb::kMinBufferSize + 1000, 0.0f);
+    particules_dsp::Reverb rv;
     rv.Init(buffer.data(), buffer.size(), 48000.0f);
     rv.SetDecay(0.9f);
     rv.SetDiffusion(0.7f);
@@ -300,8 +300,8 @@ TEST_CASE("Reverb: brief amount=0 dip keeps the tail ringing", "[reverb][sleep]"
 }
 
 TEST_CASE("Reverb: wake from sleep is clean and functional", "[reverb][sleep]") {
-    std::vector<float> buffer(beads::Reverb::kMinBufferSize + 1000, 0.0f);
-    beads::Reverb rv;
+    std::vector<float> buffer(particules_dsp::Reverb::kMinBufferSize + 1000, 0.0f);
+    particules_dsp::Reverb rv;
     rv.Init(buffer.data(), buffer.size(), 48000.0f);
     rv.SetDecay(0.5f);
     rv.SetDiffusion(0.7f);

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace beads {
+namespace particules_dsp {
 
 // Linear interpolation between two samples
 inline float InterpolateLinear(float y0, float y1, float frac) {
@@ -22,4 +22,4 @@ inline float InterpolateHermite(float y_1, float y0, float y1, float y2, float f
     return ((c3 * frac + c2) * frac + c1) * frac + c0;
 }
 
-} // namespace beads
+} // namespace particules_dsp

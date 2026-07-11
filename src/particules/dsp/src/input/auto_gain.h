@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 
-namespace beads {
+namespace particules_dsp {
 
 class AutoGain {
 public:
@@ -49,4 +49,4 @@ private:
     int silence_threshold_samples_ = 0; // 10 seconds worth of samples
 };
 
-} // namespace beads
+} // namespace particules_dsp

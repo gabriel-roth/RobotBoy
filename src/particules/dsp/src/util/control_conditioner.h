@@ -2,7 +2,7 @@
 
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 class ControlConditioner {
 public:
@@ -55,4 +55,4 @@ private:
     bool initialized_ = false;
 };
 
-}  // namespace beads
+}  // namespace particules_dsp

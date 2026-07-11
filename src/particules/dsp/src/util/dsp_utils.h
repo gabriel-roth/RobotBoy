@@ -2,10 +2,10 @@
 
 #include <cmath>
 #include <algorithm>
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 #include "cosine_table.h"
 
-namespace beads {
+namespace particules_dsp {
 
 static constexpr float kPi = 3.14159265358979323846f;
 static constexpr float kTwoPi = 2.0f * kPi;
@@ -77,4 +77,4 @@ inline float MuLawExpand(float x, float mu = 255.0f) {
     return sign * (expf(abs_x * log_1_plus_mu) - 1.0f) / mu;
 }
 
-} // namespace beads
+} // namespace particules_dsp

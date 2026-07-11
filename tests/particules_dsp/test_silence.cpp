@@ -2,18 +2,18 @@
 #include <catch2/catch_approx.hpp>
 #include <vector>
 #include <cmath>
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 
 static constexpr float kSampleRate = 48000.0f;
 static constexpr size_t kBlockSize = 256;
 
 struct TestProcessor {
     std::vector<uint8_t> memory;
-    BeadsProcessor processor;
+    ParticulesProcessor processor;
     TestProcessor() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSampleRate);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSampleRate);
         memory.resize(req.total_bytes, 0);
         processor.Init(memory.data(), memory.size(), kSampleRate);
     }
@@ -30,7 +30,7 @@ TEST_CASE("Silence hunt: grain mode output level per quality mode", "[silence]")
     for (int m = 0; m < 4; ++m) {
         TestProcessor tp;
 
-        BeadsParameters params;
+        ParticulesParameters params;
         params.quality_mode = modes[m];
         params.density = 0.1f;
         params.dry_wet = 1.0f;  // Full wet to isolate wet path
@@ -78,7 +78,7 @@ TEST_CASE("Silence hunt: delay mode output level per quality mode", "[silence]")
     for (int m = 0; m < 4; ++m) {
         TestProcessor tp;
 
-        BeadsParameters params;
+        ParticulesParameters params;
         params.quality_mode = modes[m];
         params.density = 0.3f;
         params.dry_wet = 1.0f;
@@ -124,7 +124,7 @@ TEST_CASE("Silence hunt: dry signal passthrough", "[silence]") {
     for (int m = 0; m < 4; ++m) {
         TestProcessor tp;
 
-        BeadsParameters params;
+        ParticulesParameters params;
         params.quality_mode = modes[m];
         params.density = 0.5f;  // No triggers
         params.dry_wet = 0.5f;  // 50/50 dry/wet

@@ -4,9 +4,9 @@
 #include <cmath>
 #include <cstring>
 
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -15,17 +15,17 @@ static constexpr size_t kBlockSize = 256;
 // Helper to create and init a processor
 struct TestProcessor {
     std::vector<uint8_t> memory;
-    BeadsProcessor processor;
+    ParticulesProcessor processor;
 
     TestProcessor() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSampleRate);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSampleRate);
         memory.resize(req.total_bytes, 0);
         processor.Init(memory.data(), memory.size(), kSampleRate);
     }
 };
 
-TEST_CASE("BeadsProcessor: GetMemoryRequirements returns sensible values", "[processor]") {
-    auto req = BeadsProcessor::GetMemoryRequirements(kSampleRate);
+TEST_CASE("ParticulesProcessor: GetMemoryRequirements returns sensible values", "[processor]") {
+    auto req = ParticulesProcessor::GetMemoryRequirements(kSampleRate);
     REQUIRE(req.total_bytes > 0);
     REQUIRE(req.alignment > 0);
     // Should be roughly 1.5MB with 192K-frame buffer (4s at 48kHz)
@@ -33,16 +33,16 @@ TEST_CASE("BeadsProcessor: GetMemoryRequirements returns sensible values", "[pro
     REQUIRE(req.total_bytes < 10000000);
 }
 
-TEST_CASE("BeadsProcessor: Init does not crash", "[processor]") {
+TEST_CASE("ParticulesProcessor: Init does not crash", "[processor]") {
     TestProcessor tp;
     // If we got here, Init succeeded
     REQUIRE(tp.processor.ActiveGrainCount() == 0);
 }
 
-TEST_CASE("BeadsProcessor: Process with silence input", "[processor]") {
+TEST_CASE("ParticulesProcessor: Process with silence input", "[processor]") {
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     tp.processor.SetParameters(params);
 
     std::vector<StereoFrame> input(kBlockSize, {0.0f, 0.0f});
@@ -57,10 +57,10 @@ TEST_CASE("BeadsProcessor: Process with silence input", "[processor]") {
     }
 }
 
-TEST_CASE("BeadsProcessor: Process with sine input produces output", "[processor]") {
+TEST_CASE("ParticulesProcessor: Process with sine input produces output", "[processor]") {
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.1f;  // Far left of noon = fast grain trigger rate
     params.dry_wet = 1.0f;  // Full wet
     params.time = 0.95f;    // Read near write head (where data has been written)
@@ -95,10 +95,10 @@ TEST_CASE("BeadsProcessor: Process with sine input produces output", "[processor
     REQUIRE(max_level > 0.001f);
 }
 
-TEST_CASE("BeadsProcessor: No NaN in output with extreme parameters", "[processor]") {
+TEST_CASE("ParticulesProcessor: No NaN in output with extreme parameters", "[processor]") {
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 1.0f;
     params.feedback = 0.99f;
     params.dry_wet = 1.0f;
@@ -126,10 +126,10 @@ TEST_CASE("BeadsProcessor: No NaN in output with extreme parameters", "[processo
     }
 }
 
-TEST_CASE("BeadsProcessor: Freeze stops recording", "[processor]") {
+TEST_CASE("ParticulesProcessor: Freeze stops recording", "[processor]") {
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.3f;
     params.size = 0.5f;
     params.dry_wet = 0.5f;
@@ -162,11 +162,11 @@ TEST_CASE("BeadsProcessor: Freeze stops recording", "[processor]") {
     }
 }
 
-TEST_CASE("BeadsProcessor: All quality modes work without NaN", "[processor]") {
+TEST_CASE("ParticulesProcessor: All quality modes work without NaN", "[processor]") {
     for (int mode = 0; mode < 4; ++mode) {
         TestProcessor tp;
 
-        BeadsParameters params;
+        ParticulesParameters params;
         params.quality_mode = static_cast<QualityMode>(mode);
         params.density = 0.3f;
         params.size = 0.5f;
@@ -190,7 +190,7 @@ TEST_CASE("BeadsProcessor: All quality modes work without NaN", "[processor]") {
     }
 }
 
-TEST_CASE("BeadsProcessor: Mode transitions produce no NaN", "[processor][decimation]") {
+TEST_CASE("ParticulesProcessor: Mode transitions produce no NaN", "[processor][decimation]") {
     TestProcessor tp;
 
     std::vector<StereoFrame> input(kBlockSize);
@@ -208,7 +208,7 @@ TEST_CASE("BeadsProcessor: Mode transitions produce no NaN", "[processor][decima
     };
 
     for (auto mode : modes) {
-        BeadsParameters params;
+        ParticulesParameters params;
         params.quality_mode = mode;
         params.density = 0.3f;
         params.size = 0.5f;
@@ -226,13 +226,13 @@ TEST_CASE("BeadsProcessor: Mode transitions produce no NaN", "[processor][decima
     }
 }
 
-TEST_CASE("BeadsProcessor: LoFi delay mode produces output", "[processor][decimation]") {
+TEST_CASE("ParticulesProcessor: LoFi delay mode produces output", "[processor][decimation]") {
     // Verify LoFi delay mode (8x decimation) works correctly end-to-end.
     // The buffer-level "Effective duration scales with decimation" test
     // verifies the >2s retention property directly.
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.quality_mode = QualityMode::kCleanLoFi;
     params.size = 1.0f;      // Delay mode
     params.density = 0.3f;   // Moderate base delay
@@ -270,17 +270,17 @@ TEST_CASE("BeadsProcessor: LoFi delay mode produces output", "[processor][decima
     REQUIRE(max_level > 0.001f);
 }
 
-TEST_CASE("BeadsProcessor: Memory requirements unchanged with decimation", "[processor][decimation]") {
+TEST_CASE("ParticulesProcessor: Memory requirements unchanged with decimation", "[processor][decimation]") {
     // Decimation doesn't change the physical buffer size — verify requirements
     // are the same regardless of what mode we'll use
-    auto req = BeadsProcessor::GetMemoryRequirements(kSampleRate);
+    auto req = ParticulesProcessor::GetMemoryRequirements(kSampleRate);
 
     // Fixed 192K-frame buffer (~1.5MB stereo float + overhead)
     REQUIRE(req.total_bytes > 1000000);
     REQUIRE(req.total_bytes < 10000000);
 }
 
-TEST_CASE("BeadsProcessor: Output levels match Eurorack input levels", "[processor][levels]") {
+TEST_CASE("ParticulesProcessor: Output levels match Eurorack input levels", "[processor][levels]") {
     // Eurorack audio is ±5V. The plugin scales input ×0.2 (→ ±1.0 internal)
     // and output ×5.0 (→ ±5V). The DSP chain should maintain roughly unity
     // gain so that output amplitudes match input amplitudes.
@@ -306,7 +306,7 @@ TEST_CASE("BeadsProcessor: Output levels match Eurorack input levels", "[process
     // -- Grain mode: 100% wet, 0dB gain, no reverb, no feedback --
     SECTION("Grain mode at 100% wet") {
         TestProcessor tp;
-        BeadsParameters params;
+        ParticulesParameters params;
         params.density = 0.2f;            // Regular grain triggers
         params.size = 0.5f;               // Medium grains
         params.time = 0.0f;               // Read from most recent audio
@@ -349,7 +349,7 @@ TEST_CASE("BeadsProcessor: Output levels match Eurorack input levels", "[process
     // -- Dry pass-through: should be unity --
     SECTION("Dry pass-through") {
         TestProcessor tp;
-        BeadsParameters params;
+        ParticulesParameters params;
         params.dry_wet = 0.0f;            // Full dry
         params.reverb = 0.0f;
         params.manual_gain_db = 0.0f;
@@ -384,10 +384,10 @@ TEST_CASE("BeadsProcessor: Output levels match Eurorack input levels", "[process
     }
 }
 
-TEST_CASE("BeadsProcessor: High density + large size produces continuous audio", "[processor][stress]") {
+TEST_CASE("ParticulesProcessor: High density + large size produces continuous audio", "[processor][stress]") {
     TestProcessor tp;
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.density = 0.1f;    // Fast grain triggers
     params.size = 0.9f;       // Long grains (many active)
     params.dry_wet = 1.0f;
@@ -425,7 +425,7 @@ TEST_CASE("BeadsProcessor: High density + large size produces continuous audio",
     REQUIRE(had_output);
 }
 
-TEST_CASE("BeadsProcessor: Feedback affects output when source is present", "[processor]") {
+TEST_CASE("ParticulesProcessor: Feedback affects output when source is present", "[processor]") {
     // Run two processors with the same source: one with feedback=0, one with feedback=0.9.
     // After enough blocks for the feedback to propagate through the buffer round-trip,
     // their outputs should diverge.
@@ -437,7 +437,7 @@ TEST_CASE("BeadsProcessor: Feedback affects output when source is present", "[pr
     // diff > 0 after several round-trips → test passes.
 
     auto make_params = [](float fb) {
-        BeadsParameters p;
+        ParticulesParameters p;
         p.density = 0.2f;          // Left of noon = fast constant grain triggers
         p.time = 0.0f;             // Read near write head (short round-trip)
         p.size = 0.3f;             // ~130ms grains; min_offset ~260ms
@@ -491,9 +491,9 @@ static void make_scaled_sine_block(StereoFrame* buf, size_t n, int block_index,
     }
 }
 
-TEST_CASE("BeadsProcessor: dry tap follows input gain when dry_post_gain is set", "[processor][drytap]") {
+TEST_CASE("ParticulesProcessor: dry tap follows input gain when dry_post_gain is set", "[processor][drytap]") {
     TestProcessor tp;
-    BeadsParameters params;
+    ParticulesParameters params;
     params.dry_wet = 0.0f;            // Full dry
     params.reverb = 0.0f;
     params.auto_gain = false;
@@ -527,9 +527,9 @@ TEST_CASE("BeadsProcessor: dry tap follows input gain when dry_post_gain is set"
     }
 }
 
-TEST_CASE("BeadsProcessor: dry_post_gain=false keeps the pre-gain bypass dry", "[processor][drytap]") {
+TEST_CASE("ParticulesProcessor: dry_post_gain=false keeps the pre-gain bypass dry", "[processor][drytap]") {
     TestProcessor tp;
-    BeadsParameters params;
+    ParticulesParameters params;
     params.dry_wet = 0.0f;
     params.reverb = 0.0f;
     params.auto_gain = false;

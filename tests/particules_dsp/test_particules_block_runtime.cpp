@@ -24,7 +24,7 @@ TEST_CASE("ParticulesBlockRuntime: outputs samples in processed-block order", "[
     runtime.PushInputSample({4.0f, 40.0f});
     REQUIRE(runtime.BlockReady() == true);
 
-    beads::StereoFrame processed[4] = {
+    particules_dsp::StereoFrame processed[4] = {
         {0.1f, 1.1f},
         {0.2f, 1.2f},
         {0.3f, 1.3f},
@@ -32,7 +32,7 @@ TEST_CASE("ParticulesBlockRuntime: outputs samples in processed-block order", "[
     };
     runtime.CommitProcessedBlock(processed, 4);
 
-    beads::StereoFrame out = runtime.ReadOutputSample();
+    particules_dsp::StereoFrame out = runtime.ReadOutputSample();
     REQUIRE(out.l == Approx(0.1f));
     REQUIRE(out.r == Approx(1.1f));
 

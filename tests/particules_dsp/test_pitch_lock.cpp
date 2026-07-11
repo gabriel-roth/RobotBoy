@@ -1,9 +1,9 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
-#include "beads/parameters.h"
+#include "particules_dsp/parameters.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 TEST_CASE("QuantizePitchLock: mode 0 is pass-through", "[pitch_lock]") {

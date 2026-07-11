@@ -3,7 +3,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace beads {
+namespace particules_dsp {
 
 void Grain::Init() {
     active_ = false;
@@ -105,4 +105,4 @@ void Grain::Start(const GrainParameters& params) {
     pre_delay_ = std::max(params.pre_delay, 0);
 }
 
-} // namespace beads
+} // namespace particules_dsp

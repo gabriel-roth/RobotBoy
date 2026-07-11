@@ -4,15 +4,15 @@
 #include <cmath>
 #include <limits>
 
-#include "beads/types.h"
-#include "beads/parameters.h"
+#include "particules_dsp/types.h"
+#include "particules_dsp/parameters.h"
 #include "buffer/recording_buffer.h"
 #include "grain/grain.h"
 #include "grain/grain_scheduler.h"
 #include "grain/grain_engine.h"
 #include "util/dsp_utils.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -157,7 +157,7 @@ TEST_CASE("GrainScheduler: Latched mode produces triggers", "[scheduler]") {
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.2f;  // Left of noon = regular triggers
 
@@ -178,7 +178,7 @@ TEST_CASE("GrainScheduler: Latched at noon is silent", "[scheduler]") {
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.5f;  // Noon = silent
 
@@ -205,7 +205,7 @@ TEST_CASE("GrainEngine: Decimation scales grain pitch and duration", "[engine][d
     engine_1x.Init(kSampleRate, &tb_1x.buffer);
     engine_4x.Init(kSampleRate, &tb_4x.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.1f;    // Fast triggers
     params.size = 0.8f;       // Large grain size → near max duration
@@ -236,7 +236,7 @@ TEST_CASE("GrainEngine: high active-grain load switches to cheaper render tier",
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.05f;
     params.size = 0.90f;
@@ -335,7 +335,7 @@ TEST_CASE("GrainEngine: Negative SIZE produces reverse output", "[engine]") {
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.1f;
     params.size = -0.5f;  // Negative = reverse grains
@@ -375,7 +375,7 @@ TEST_CASE("GrainEngine: NaN TIME CV can't reach the buffer read as a NaN positio
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.1f;   // fast trigger rate
     params.size = 0.5f;
@@ -405,7 +405,7 @@ TEST_CASE("GrainEngine: Produces output with active grains", "[engine]") {
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.1f;    // Far left of noon = fast trigger rate
     params.size = 0.5f;
@@ -433,7 +433,7 @@ TEST_CASE("GrainEngine: 30 active grains produce valid output", "[engine][stress
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.density = 0.1f;    // Fast triggers to fill all grain slots
     params.size = 0.9f;       // Long grains (many active simultaneously)
@@ -469,7 +469,7 @@ TEST_CASE("GrainEngine: size=-0.2 (11 o'clock) gives ~30ms grain duration", "[en
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kGated;
     params.gate = true;
     params.size = -0.2f;   // 11 o'clock boundary
@@ -520,7 +520,7 @@ TEST_CASE("GrainEngine: size=-0.1 (between boundary and noon) is forward", "[eng
     GrainEngine engine;
     engine.Init(kSampleRate, &ramp_buf);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kGated;
     params.gate = true;
     params.size = -0.1f;   // forward with new code, reverse with old
@@ -609,7 +609,7 @@ TEST_CASE("OnePole: exact block coefficient matches n per-sample updates", "[gra
 // The old code approximated this same update with a strided per-sample
 // loop (stride 4 in the "high load" render tier, i.e. only n/4 OnePole
 // calls per block) instead of the exact closed form. At the real-world
-// block size (kMaxBlockSize == 64, see beads/types.h) and the slow-fall
+// block size (kMaxBlockSize == 64, see particules_dsp/types.h) and the slow-fall
 // coefficient (0.2, used while the overlap count is settling down), that
 // under-shoots convergence by several percent per block — exactly the
 // kind of per-block error that would accumulate into audible stepping
@@ -666,15 +666,15 @@ TEST_CASE("GrainEngine: dense cloud density sweep has bounded per-block RMS step
     GrainEngine engine;
     engine.Init(kSampleRate, &tb.buffer);
 
-    BeadsParameters params;
+    ParticulesParameters params;
     params.trigger_mode = TriggerMode::kLatched;
     params.size = 0.3f;      // mid SIZE
     params.time = 0.5f;
     params.shape = 0.5f;
     params.pitch = 0.0f;
 
-    // kMaxBlockSize (64, see beads/types.h) is the largest block GrainEngine
-    // ever actually sees in production — BeadsProcessor::Process chunks any
+    // kMaxBlockSize (64, see particules_dsp/types.h) is the largest block GrainEngine
+    // ever actually sees in production — ParticulesProcessor::Process chunks any
     // larger host block into <=64-frame pieces before calling in here.
     constexpr size_t kBlockSize = 64;
     constexpr int kNumBlocks = 3000;

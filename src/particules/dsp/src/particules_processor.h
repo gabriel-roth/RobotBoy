@@ -1,9 +1,9 @@
 #pragma once
 
-// Internal header — defines BeadsProcessor::Impl
+// Internal header — defines ParticulesProcessor::Impl
 // Not part of the public API.
 
-#include "../include/beads/beads.h"
+#include "../include/particules_dsp/particules_dsp.h"
 #include "buffer/recording_buffer.h"
 #include "grain/grain_engine.h"
 #include "fx/reverb.h"
@@ -12,11 +12,11 @@
 #include "input/auto_gain.h"
 #include "util/svf.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // The Impl struct holds all sub-processors. It is placement-new'd into
 // the front of the user-provided memory block by Init().
-struct BeadsProcessor::Impl {
+struct ParticulesProcessor::Impl {
     // Sub-processors
     RecordingBuffer recording_buffer;
     GrainEngine grain_engine;
@@ -30,13 +30,13 @@ struct BeadsProcessor::Impl {
     StateVariableFilter feedback_hp_r;
 
     // Current parameters
-    BeadsParameters params;
+    ParticulesParameters params;
     float sample_rate = 48000.0f;
 
     // Previous block's wet output (post-quality-processing, pre-reverb,
     // NaN-guarded). The next block's input stage mixes prev_wet_buf[i] in
     // per-sample — a one-block feedback delay (1 frame in VCV, 64 on MM),
-    // matching the original Beads design instead of a block-rate hold.
+    // matching the hardware Beads behavior instead of a block-rate hold.
     StereoFrame prev_wet_buf[kMaxBlockSize] = {};
     size_t prev_wet_len = 0;
 
@@ -70,4 +70,4 @@ struct BeadsProcessor::Impl {
     static constexpr size_t kAlignment = 16;
 };
 
-} // namespace beads
+} // namespace particules_dsp

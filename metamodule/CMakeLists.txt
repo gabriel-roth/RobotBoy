@@ -23,8 +23,8 @@ target_sources(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
     ${SRC}/src/loooop/dsp/LoopEngine.cpp
     ${SRC}/src/loooop/display/LoopWaveformRenderer.cpp
-    # beads DSP (Particules)
-    ${SRC}/src/particules/dsp/src/beads_processor.cpp
+    # granular DSP engine (Particules)
+    ${SRC}/src/particules/dsp/src/particules_processor.cpp
     ${SRC}/src/particules/dsp/src/buffer/recording_buffer.cpp
     ${SRC}/src/particules/dsp/src/fx/reverb.cpp
     ${SRC}/src/particules/dsp/src/fx/saturation.cpp

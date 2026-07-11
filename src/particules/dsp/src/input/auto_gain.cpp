@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 // Fast dB-to-linear approximation using exp2.
 // pow(10, db/20) = exp2(db * log2(10)/20) = exp2(db * 0.16609640474)
@@ -155,4 +155,4 @@ float AutoGain::GainDb() const {
     return FastGainToDb(gain_);
 }
 
-} // namespace beads
+} // namespace particules_dsp

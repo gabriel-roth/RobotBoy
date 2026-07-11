@@ -5,7 +5,7 @@
 #include <cmath>
 #include <algorithm>
 
-namespace beads {
+namespace particules_dsp {
 
 // Boundary at 11 o'clock on the -1..1 knob (120° from fully CCW in a 300° sweep).
 // At this value abs_size=0 → 30ms minimum grain (hardware Beads manual).
@@ -112,7 +112,7 @@ Grain* GrainEngine::AllocateGrain() {
 }
 
 Grain::GrainParameters GrainEngine::ComputeGrainParams(
-        const BeadsParameters& params, int pre_delay) {
+        const ParticulesParameters& params, int pre_delay) {
     Grain::GrainParameters gp;
 
     // --- SIZE → grain duration + direction ---
@@ -132,7 +132,7 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     gp.size = duration * sample_rate_;
 
     // --- TIME → buffer read position ---
-    // Matches original Beads manual:
+    // Matches the hardware Beads manual:
     //   0.0 (fully CCW) → most recent audio (near write head)
     //   1.0 (fully CW)  → oldest audio (far from write head)
     float mod_time = ar_time_.Process(params.time, params.time_ar,
@@ -219,7 +219,7 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     return gp;
 }
 
-void GrainEngine::Process(const BeadsParameters& params,
+void GrainEngine::Process(const ParticulesParameters& params,
                           StereoFrame* output, size_t num_frames) {
     if (!buffer_ || buffer_->size() == 0) {
         for (size_t i = 0; i < num_frames; ++i) {
@@ -324,4 +324,4 @@ void GrainEngine::Process(const BeadsParameters& params,
     }
 }
 
-} // namespace beads
+} // namespace particules_dsp

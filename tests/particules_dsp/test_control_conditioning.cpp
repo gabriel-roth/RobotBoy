@@ -3,7 +3,7 @@
 
 #include "util/control_conditioner.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 TEST_CASE("ControlConditioner: decimation holds value between refreshes", "[control_conditioning]") {

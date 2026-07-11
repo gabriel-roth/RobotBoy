@@ -4,7 +4,7 @@
 
 #include <cstdint>
 
-using namespace beads;
+using namespace particules_dsp;
 
 TEST_CASE("Random: uint32 conversion is half-open", "[random]") {
     REQUIRE(Random::Uint32ToFloat(0u) == 0.0f);

@@ -1,9 +1,9 @@
-#ifndef BEADS_PITCH_QUANTIZER_H_
-#define BEADS_PITCH_QUANTIZER_H_
+#ifndef PARTICULES_DSP_PITCH_QUANTIZER_H_
+#define PARTICULES_DSP_PITCH_QUANTIZER_H_
 
 #include <cstdint>
 
-namespace beads {
+namespace particules_dsp {
 
 // Platform-agnostic pitch quantizer that snaps V/oct values to the nearest
 // degree of a loaded scale.  Works with pre-computed double ratios so the
@@ -37,6 +37,6 @@ class PitchQuantizer {
   double root_v_oct_;         // root offset in V/oct from C4
 };
 
-}  // namespace beads
+}  // namespace particules_dsp
 
-#endif  // BEADS_PITCH_QUANTIZER_H_
+#endif  // PARTICULES_DSP_PITCH_QUANTIZER_H_

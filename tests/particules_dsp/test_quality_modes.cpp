@@ -3,11 +3,11 @@
 #include <vector>
 #include <cmath>
 
-#include "beads/types.h"
+#include "particules_dsp/types.h"
 #include "quality/quality_processor.h"
 #include "fx/saturation.h"
 
-using namespace beads;
+using namespace particules_dsp;
 using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
@@ -356,7 +356,7 @@ TEST_CASE("QualityModes: Tape feedback loop converges with low feedback", "[qual
 
     // Simulate the actual feedback loop sample-by-sample:
     // input + feedback → ProcessInput → LimitFeedback → [buffer] → ProcessOutput → capture feedback
-    float feedback_gain = 0.1f * 0.1f;  // feedback param 0.1 squared (matches beads_processor)
+    float feedback_gain = 0.1f * 0.1f;  // feedback param 0.1 squared (matches particules_processor)
     StereoFrame feedback_sample = {0.0f, 0.0f};
 
     // Run for 2 seconds with constant input

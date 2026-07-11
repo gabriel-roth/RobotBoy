@@ -1,13 +1,13 @@
 #pragma once
 
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 #include "../buffer/recording_buffer.h"
 #include "../util/cosine_table.h"
 #include "../util/dsp_utils.h"
 
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 class Grain {
 public:
@@ -243,4 +243,4 @@ private:
     }
 };
 
-} // namespace beads
+} // namespace particules_dsp

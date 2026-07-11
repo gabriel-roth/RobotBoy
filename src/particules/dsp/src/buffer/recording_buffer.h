@@ -1,10 +1,10 @@
 #pragma once
 
 #include <cstddef>
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 #include "../util/interpolation.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // Circular stereo recording buffer with interpolated reads.
 //
@@ -123,4 +123,4 @@ private:
     static constexpr int kCrossfadeSamples = 32;
 };
 
-} // namespace beads
+} // namespace particules_dsp

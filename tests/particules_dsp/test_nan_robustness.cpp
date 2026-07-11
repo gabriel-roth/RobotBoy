@@ -3,9 +3,9 @@
 #include <cmath>
 #include <cstdint>
 
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 
 static constexpr float kSR = 48000.0f;
 static constexpr size_t kBlock = 64;  // MetaModule's Process() cadence
@@ -13,9 +13,9 @@ static constexpr size_t kBlock = 64;  // MetaModule's Process() cadence
 namespace {
 struct Proc {
     std::vector<uint8_t> memory;
-    BeadsProcessor p;
+    ParticulesProcessor p;
     Proc() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSR);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSR);
         memory.resize(req.total_bytes, 0);
         p.Init(memory.data(), memory.size(), kSR);
     }
@@ -24,10 +24,10 @@ struct Proc {
 
 // A malformed host (or a momentarily-glitched CV chain upstream of the
 // wrapper's own clamp()) can hand the engine NaN in any of the CV-ish
-// BeadsParameters fields. The wrapper's `clamp()` does not sanitize NaN
+// ParticulesParameters fields. The wrapper's `clamp()` does not sanitize NaN
 // (std::min/std::max leave a NaN operand unclamped -- see rack::math::clamp
-// and beads::Clamp, both built on std::min/std::max), so nothing upstream
-// of BeadsProcessor is a reliable backstop. This test drives BeadsParameters
+// and particules_dsp::Clamp, both built on std::min/std::max), so nothing upstream
+// of ParticulesProcessor is a reliable backstop. This test drives ParticulesParameters
 // directly, bypassing the wrapper entirely, to pin that the DSP engine
 // itself never emits a non-finite sample no matter what garbage lands in
 // its parameter struct.
@@ -37,11 +37,11 @@ struct Proc {
 // short-circuits to the unmodulated base value when ar_amount == 0.0f, so
 // time_ar/size_ar/shape_ar/pitch_ar are all engaged here specifically to
 // exercise the time_cv/size_cv/shape_cv/pitch_cv NaN paths.
-TEST_CASE("BeadsProcessor: NaN in every CV-ish parameter field yields finite output",
+TEST_CASE("ParticulesProcessor: NaN in every CV-ish parameter field yields finite output",
           "[processor][nan]") {
     Proc proc;
 
-    BeadsParameters params{};
+    ParticulesParameters params{};
     params.dry_wet = NAN;
     params.feedback = NAN;
     params.reverb = NAN;
@@ -113,7 +113,7 @@ TEST_CASE("BeadsProcessor: NaN in every CV-ish parameter field yields finite out
     // a fence applied too late (e.g. only sanitizing on read, after the
     // persistent phasor state was already NaN) could pass the checks above
     // yet leave the scheduler dead for the rest of the object's lifetime.
-    BeadsParameters recovered = params;
+    ParticulesParameters recovered = params;
     recovered.time_cv = 0.0f;
     recovered.size_cv = 0.0f;
     recovered.shape_cv = 0.0f;

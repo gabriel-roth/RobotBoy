@@ -44,13 +44,13 @@ This repo has two independent test lanes:
   guard tests — plugin metadata, slug parity between `plugin.json` and
   `metamodule/plugin-mm.json`, and no-delay-mode symbol removal). Runs
   anywhere, no build system needed beyond a `python3` on `PATH`.
-- **Lane 2 — `tests/beads/run.sh`** — the beads_dsp Catch2 suite
-  (CMake + CTest). Covers the granular / delay / reverb / quality / pitch DSP
-  that powers Particules. Catch2 is vendored (amalgamated, v3.5.2), so the lane
-  builds and runs fully offline. Run it with:
+- **Lane 2 — `tests/particules_dsp/run.sh`** — the Particules granular-DSP
+  Catch2 suite (CMake + CTest). Covers the granular / delay / reverb / quality
+  / pitch DSP that powers Particules. Catch2 is vendored (amalgamated, v3.5.2),
+  so the lane builds and runs fully offline. Run it with:
 
   ```
-  ./tests/beads/run.sh
+  ./tests/particules_dsp/run.sh
   ```
 
 ## What was intentionally skipped, and why

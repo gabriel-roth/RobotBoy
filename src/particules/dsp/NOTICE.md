@@ -7,6 +7,11 @@ recreation of Mutable Instruments Beads, design by Émilie Gillet) and has
 since been heavily modified for VCV Rack / MetaModule use in this repo; it is
 maintained here as first-party code and no longer tracks upstream.
 
+Neither this engine nor its upstream contains any Mutable Instruments Beads
+source code: `nosuch_texture` was an independent recreation of the hardware's
+behavior, written without access to the original firmware, and this engine
+inherits that provenance.
+
 The original code is MIT-licensed:
 
 MIT License — Copyright (c) 2026 Neal Sanche

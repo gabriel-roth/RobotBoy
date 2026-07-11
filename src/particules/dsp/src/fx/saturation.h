@@ -1,9 +1,9 @@
 #pragma once
 
-#include "../../include/beads/types.h"
+#include "../../include/particules_dsp/types.h"
 #include "../util/dsp_utils.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // Soft-clip / tape saturation curves per quality mode.
 //
@@ -30,4 +30,4 @@ private:
     static float AsymmetricSoftClip(float x);
 };
 
-} // namespace beads
+} // namespace particules_dsp

@@ -1,7 +1,7 @@
 #pragma once
 #include <cstddef>
 
-namespace beads {
+namespace particules_dsp {
 
 // Individual delay line for use in reverb and other effects.
 // Operates on a sub-region of a shared buffer.
@@ -79,4 +79,4 @@ private:
     size_t write_ptr_ = 0;
 };
 
-} // namespace beads
+} // namespace particules_dsp

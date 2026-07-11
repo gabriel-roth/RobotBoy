@@ -3,25 +3,25 @@
 #include <cmath>
 #include <cstdint>
 
-#include "beads/beads.h"
+#include "particules_dsp/particules_dsp.h"
 
-using namespace beads;
+using namespace particules_dsp;
 
 static constexpr float kSR = 48000.0f;
 
 namespace {
 struct Proc {
     std::vector<uint8_t> memory;
-    BeadsProcessor p;
+    ParticulesProcessor p;
     Proc() {
-        auto req = BeadsProcessor::GetMemoryRequirements(kSR);
+        auto req = ParticulesProcessor::GetMemoryRequirements(kSR);
         memory.resize(req.total_bytes, 0);
         p.Init(memory.data(), memory.size(), kSR);
     }
 };
 
-BeadsParameters DryParams() {
-    BeadsParameters params{};
+ParticulesParameters DryParams() {
+    ParticulesParameters params{};
     params.dry_wet = 0.0f;          // full dry — routes through dry_input_buf
     params.auto_gain = false;
     params.manual_gain_db = 12.0f;  // makes recorded (gained) audio differ from dry
@@ -35,7 +35,7 @@ BeadsParameters DryParams() {
 // calls on an identically-initialized processor fed the same stream.
 // Before the chunking fix, the 256-frame call read dry_input_buf (a 64-frame
 // array) out of bounds for frames 64-255, so the dry path diverged.
-TEST_CASE("BeadsProcessor: Process is block-size invariant (256 vs 4x64)",
+TEST_CASE("ParticulesProcessor: Process is block-size invariant (256 vs 4x64)",
           "[processor][blocksize]") {
     constexpr size_t kTotal = 2048;
     std::vector<StereoFrame> input(kTotal), outBig(kTotal), outSmall(kTotal);

@@ -4,7 +4,7 @@
 
 // CV-conditioner settings for the Particules wrapper.
 //
-// The wrapper steps each beads::ControlConditioner once per wrapper block —
+// The wrapper steps each particules_dsp::ControlConditioner once per wrapper block —
 // every 64 samples, on both VCV and MetaModule. These helpers convert
 // per-sample-tuned constants into equivalents for the actual block size so
 // both platforms condition CVs on the same timescale.

@@ -3,7 +3,7 @@
 #include <cmath>
 #include "dsp_utils.h"
 
-namespace beads {
+namespace particules_dsp {
 
 // State Variable Filter - provides simultaneous LP, HP, BP outputs
 class StateVariableFilter {
@@ -75,4 +75,4 @@ private:
     float state2_ = 0.0f;
 };
 
-} // namespace beads
+} // namespace particules_dsp

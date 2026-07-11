@@ -38,7 +38,7 @@ int main() {
     check(kPitchCvQuantizeStep == 0.0f, "pitch quantize step is 0");
 
     // A one-semitone CV step survives a pitch-configured conditioner exactly.
-    beads::ControlConditioner c;
+    particules_dsp::ControlConditioner c;
     c.Init(1, 1.0f, kPitchCvQuantizeStep, 0.0f);
     float semitone = 1.f / 12.f;
     check(c.Process(semitone) == semitone,
@@ -47,7 +47,7 @@ int main() {
     // Wrapper-cadence settling (block=64, shared by VCV and MetaModule): a
     // step input reaches >99% of target after one conditioned block, vs 35%
     // with the old per-sample coefficient.
-    beads::ControlConditioner wrapper_block;
+    particules_dsp::ControlConditioner wrapper_block;
     wrapper_block.Init(CvDecimationForBlock(64), CvSmoothingForBlock(0.35f, 64),
             kPitchCvQuantizeStep, 0.0f);
     wrapper_block.Process(0.0f);

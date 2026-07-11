@@ -2,9 +2,9 @@
 
 #include "types.h"
 
-namespace beads {
+namespace particules_dsp {
 
-struct BeadsParameters {
+struct ParticulesParameters {
     // Primary grain controls (0-1 normalized, except size which is -1..1)
     float time = 0.5f;
     float size = -0.2f;  // -1..1; boundary at -0.2 (11 o'clock): abs_size=0 → 30ms, forward.
@@ -80,4 +80,4 @@ inline float QuantizePitchLock(float semitones, int mode) {
     return semitones;
 }
 
-} // namespace beads
+} // namespace particules_dsp

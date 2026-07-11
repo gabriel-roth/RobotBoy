@@ -1,7 +1,7 @@
 #include "quality_processor.h"
 #include <cmath>
 
-namespace beads {
+namespace particules_dsp {
 
 void QualityProcessor::Init(float sample_rate) {
     sample_rate_ = sample_rate;
@@ -220,4 +220,4 @@ float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples)
     return SemitonesToRatio(wow_st + flutter_st);
 }
 
-} // namespace beads
+} // namespace particules_dsp
