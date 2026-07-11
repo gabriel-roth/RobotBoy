@@ -213,6 +213,14 @@ struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
     }
 };
 
+// Rack ships no small snap knob; the Grid selector wants the small body so
+// its printed value ring can sit close in.
+struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
+    RoundSmallBlackSnapKnob() {
+        snap = true;
+    }
+};
+
 struct LoooopWidget : ModuleWidget {
     LoooopWidget(Loooop* module) {
         setModule(module);
@@ -269,7 +277,7 @@ struct LoooopWidget : ModuleWidget {
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 75.05)), module, Loooop::LEVEL1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 46.35)), module, Loooop::SIZE2_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(87.227, 75.05)), module, Loooop::LEVEL2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.82, 116.05)), module, Loooop::DRYWET_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.49, 116.05)), module, Loooop::DRYWET_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(105.81, 46.35)), module, Loooop::SIZE3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.99, 75.05)), module, Loooop::LEVEL3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(153.57, 46.35)), module, Loooop::SIZE4_PARAM));
@@ -278,7 +286,7 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.467, 87.4)), module, Loooop::LEVEL1_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(58.053, 58.7)), module, Loooop::SIZE2_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(87.227, 87.4)), module, Loooop::LEVEL2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(156.17, 116.05)), module, Loooop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(155.84, 116.05)), module, Loooop::DRYWET_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.81, 58.7)), module, Loooop::SIZE3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.99, 87.4)), module, Loooop::LEVEL3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 58.7)), module, Loooop::SIZE4_CV_INPUT));
@@ -313,12 +321,12 @@ struct LoooopWidget : ModuleWidget {
         // Global bottom row: In L/R, Record (LED button) + trig, Clear + trig, Mix L/R.
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Loooop::AUDIO_L_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.118, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.968, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
-        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(68.877, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
-        addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(121.63, 116.05)), module, Loooop::GRID_PARAM));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(90.785, 116.05)), module, Loooop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(101.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.452, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.302, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(69.543, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(122.69, 116.05)), module, Loooop::GRID_PARAM));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(91.785, 116.05)), module, Loooop::CLEAR_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 116.05)), module, Loooop::MIX_L_OUTPUT));
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 116.05)), module, Loooop::MIX_R_OUTPUT));
     }

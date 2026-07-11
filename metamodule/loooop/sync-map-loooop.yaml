@@ -29,3 +29,6 @@ SpeedVoct3Alt: null
 SpeedVoct4Alt: null
 WriteModeAlt: null
 GridAlt: null
+# The Grid knob exists only on the VCV panel; on MetaModule grid is the
+# menu-only GridAlt above, so the SVG component has no element to sync.
+ignore: [GRID_PARAM, OVERDUB_PARAM]
