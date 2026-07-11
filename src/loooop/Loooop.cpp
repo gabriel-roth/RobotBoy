@@ -234,14 +234,6 @@ struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
     }
 };
 
-// Rack ships no small snap knob; the Grid selector wants the small body so
-// its printed value ring can sit close in.
-struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
-    RoundSmallBlackSnapKnob() {
-        snap = true;
-    }
-};
-
 struct LoooopWidget : ModuleWidget {
     LoooopWidget(Loooop* module) {
         setModule(module);

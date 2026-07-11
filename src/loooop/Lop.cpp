@@ -34,9 +34,9 @@ struct Lop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
-        // Menu switches opt out of Randomize (matches Loooop): a randomized
-        // one-shot with no trigger patched silences the loop with nothing on
-        // the panel to show why.
+        // Mode switches — panel (Overdub, Grid) and menu alike — opt out of
+        // Randomize (matches Loooop): a randomized one-shot with no trigger
+        // patched silences the loop with nothing on the panel to show why.
         configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub",
             {"Off", "On"})->randomizeEnabled = false;
         configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
@@ -163,8 +163,9 @@ struct LopWidget : ModuleWidget {
         addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
         addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        // Placeholder Vec() coords — scripts/sync_positions.py patches them
-        // from res/Lop.svg circle ids.
+        // Coords come from res/Lop.svg's hidden components layer (circle ids)
+        // — regenerate the panel from panel-specs/lop.yaml and carry any
+        // changed positions here by hand.
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 46.35)), module, Lop::SPEED_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(30.48, 46.35)), module, Lop::POSITION_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(48.8, 46.35)), module, Lop::JITTER_PARAM));
@@ -173,35 +174,32 @@ struct LopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 58.7)), module, Lop::JITTER_CV_INPUT));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 75.05)), module, Lop::SIZE_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 75.05)), module, Lop::DRYWET_PARAM));
+        addParam(createParamCentered<CKSS>(mm2px(Vec(37.968, 73.55)), module, Lop::OVERDUB_PARAM));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 74.05)), module, Lop::GRID_PARAM));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 87.4)), module, Lop::SIZE_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 87.4)), module, Lop::DRYWET_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.89, 116.05)), module, Lop::AUDIO_L_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(21.59, 116.05)), module, Lop::AUDIO_R_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Lop::AUDIO_L_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Lop::AUDIO_R_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 102.1)), module, Lop::TRIG_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 102.1)), module, Lop::JUMP_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(37.35, 91.25)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.35, 102.1)), module, Lop::RECORD_TRIG_INPUT));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(51.09, 91.25)), module, Lop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.09, 102.1)), module, Lop::CLEAR_TRIG_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(39.37, 116.05)), module, Lop::OUT_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.07, 116.05)), module, Lop::OUT_R_OUTPUT));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(37.968, 91.25)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.968, 102.1)), module, Lop::RECORD_TRIG_INPUT));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(51.708, 91.25)), module, Lop::CLEAR_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.708, 102.1)), module, Lop::CLEAR_TRIG_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(43.91, 116.05)), module, Lop::OUT_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(53.61, 116.05)), module, Lop::OUT_R_OUTPUT));
     }
 
     void appendContextMenu(Menu* menu) override {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Overdub", "",
-            [m] { return m->params[Lop::OVERDUB_PARAM].getValue() > 0.5f; },
-            [m](bool v) { m->paramQuantities[Lop::OVERDUB_PARAM]->setValue(v ? 1.f : 0.f); }));
+        // Overdub and Grid are panel controls (switch and snap knob); only
+        // the modes with no panel control live in the menu.
         static const std::vector<std::string> kWriteModes = {"Add", "Replace", "Layer", "Decay"};
         menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
             [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Lop::WRITE_MODE_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16", "32", "64"};
-        menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
-            [m] { return (int)std::round(m->params[Lop::GRID_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::GRID_PARAM]->setValue((float)v); }));
         // Same item language and order as Loooop's menu tail; One-shot is a
         // checkmark (unchecked, a trigger restarts the playhead at its
         // window start — that mode has no name in the interface).

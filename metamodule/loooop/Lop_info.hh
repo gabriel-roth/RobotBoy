@@ -34,8 +34,8 @@ struct LopInfo : ModuleInfoBase {
         QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
         // ── Global params ──
         QlpKnob{{23.610f, 75.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
-        QlpButtonLight{{37.350f, 91.250f, Center, "Record", "", 5.f, 5.f}},
-        QlpButton{{51.090f, 91.250f, Center, "Clear", "", 5.f, 5.f}},
+        QlpButtonLight{{37.968f, 91.250f, Center, "Record", "", 5.f, 5.f}},
+        QlpButton{{51.708f, 91.250f, Center, "Clear", "", 5.f, 5.f}},
         QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", "", 0.f, 0.f}, 1},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
         QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", "", 0.f, 0.f}},
@@ -48,14 +48,14 @@ struct LopInfo : ModuleInfoBase {
         QlpJackIn{{9.870f, 102.100f, Center, "Trig", "", 6.f, 6.f}},
         QlpJackIn{{23.610f, 102.100f, Center, "Jump", "", 6.f, 6.f}},
         // ── Global input jacks ──
-        QlpJackIn{{11.890f, 116.050f, Center, "In L", "", 6.f, 6.f}},
-        QlpJackIn{{21.590f, 116.050f, Center, "In R", "", 6.f, 6.f}},
-        QlpJackIn{{37.350f, 102.100f, Center, "Rec Trig", "", 6.f, 6.f}},
-        QlpJackIn{{51.090f, 102.100f, Center, "Clear Trig", "", 6.f, 6.f}},
+        QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 6.f, 6.f}},
+        QlpJackIn{{17.050f, 116.050f, Center, "In R", "", 6.f, 6.f}},
+        QlpJackIn{{37.968f, 102.100f, Center, "Rec Trig", "", 6.f, 6.f}},
+        QlpJackIn{{51.708f, 102.100f, Center, "Clear Trig", "", 6.f, 6.f}},
         QlpJackIn{{23.610f, 87.400f, Center, "Dry/Wet CV", "", 6.f, 6.f}},
         // ── Output jacks ──
-        QlpJackOut{{39.370f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
-        QlpJackOut{{49.070f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
+        QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
+        QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};
 
