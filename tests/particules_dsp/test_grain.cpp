@@ -435,6 +435,43 @@ TEST_CASE("GrainEngine: NaN TIME CV with reverse playback stays finite and termi
     REQUIRE(engine.ActiveGrainCount() > 0);
 }
 
+TEST_CASE("GrainEngine: NaN PITCH CV can't reach the grain as a NaN pitch ratio",
+          "[engine][nan]") {
+    // Mirror of the TIME-CV NaN test: a NaN pitch CV poisons pitch_ratio in
+    // ComputeGrainParams; the isfinite fence must land it on ±1.0 so grains
+    // keep firing and output stays finite (liveness AND recovery).
+    TestBuffer tb(48000);
+    GrainEngine engine;
+    engine.Init(kSampleRate, &tb.buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.density = 0.1f;
+    params.size = 0.5f;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.pitch_ar = 1.0f;
+    params.pitch_cv = std::numeric_limits<float>::quiet_NaN();
+    params.pitch_cv_connected = true;
+
+    std::vector<StereoFrame> output(256, {0.0f, 0.0f});
+    bool all_finite = true;
+    for (int block = 0; block < 200; ++block) {
+        engine.Process(params, output.data(), 256);
+        for (auto& f : output)
+            if (!std::isfinite(f.l) || !std::isfinite(f.r)) all_finite = false;
+    }
+    REQUIRE(all_finite);
+    REQUIRE(engine.ActiveGrainCount() > 0);
+
+    // Recovery: clear the NaN and confirm grains still fire.
+    params.pitch_cv = 0.0f;
+    for (int block = 0; block < 50; ++block)
+        engine.Process(params, output.data(), 256);
+    REQUIRE(engine.ActiveGrainCount() > 0);
+}
+
 TEST_CASE("GrainEngine: Produces output with active grains", "[engine]") {
     TestBuffer tb;
 
