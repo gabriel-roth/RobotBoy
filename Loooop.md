@@ -57,9 +57,22 @@ Each head has these controls, laid out in its own column:
 
 ## Recording controls
 
-- **Record** — Starts and stops recording. The first press records a fresh loop. Once a loop exists, pressing Record again **overdubs** — what happens to the audio already in the loop depends on the **Write mode** menu setting (see below). Punch-in and punch-out are softened with a \~5 ms ramp, so starting and stopping an overdub doesn't record a click into the loop. The red light shows when Loooop is recording.
+The bottom row holds the global controls, left to right:
+
+- **Record** — Starts and stops recording. The first press records a fresh loop. Once a loop exists, pressing Record again **overdubs** — what happens to the audio already in the loop depends on the **Overdub** button (next). Punch-in and punch-out are softened with a \~5 ms ramp, so starting and stopping an overdub doesn't record a click into the loop. The red light shows when Loooop is recording.
+- **Overdub** — A five-way button that sets what an overdub pass does to the audio already in the loop. Click it to cycle through the modes; the LED color shows the current one:
+  - **Layer** (blue, the default) — sound-on-sound: each overdub pass turns the existing material down slightly (about 1 dB per pass), so older layers gradually sink underneath what you're playing now.
+  - **Decay** (amber) — like Layer, but older layers also lose a little high end on every pass — tape-style degradation the longer you keep overdubbing.
+  - **Add** (green) — new audio sums with what's there at full level, forever. The classic build-up-layers overdub.
+  - **Replace** (red) — new audio **overwrites** the loop as the record head passes. Punch in a new phrase over an old one.
+  - **Lock** (purple) — overdubbing off. The Record button does nothing while a loop exists — the loop is untouchable until you **Clear** it or leave Lock.
+
+  Layer and Decay only act **while you're recording** — a loop that's just playing back never fades on its own.
 - **Clear** — Erases the loop and starts over.
+- **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Dry/Wet** — Global blend between your incoming audio (dry) and the loop playback (wet) at the Mix output. Fully clockwise = loop only.
+
+> **On MetaModule**, Overdub and Grid live in the options list (scroll down past the jacks) instead of on the panel, and Overdub is split into two settings: **Overdub** (On/Off — Off is Lock) and **Write mode** (Add / Replace / Layer / Decay).
 
 ---
 
@@ -93,16 +106,7 @@ Each head's **Trig** input behaves in one of two ways, chosen per head in the co
 
 You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule:
 
-- **Overdub** — When on (the default), pressing Record over an existing loop records into it again, using the current **Write mode**. When off, the Record button does nothing while a loop exists — the loop is locked, and you'll need to **Clear** it before you can record again.
-- **Write mode** — What an overdub pass does to the audio already in the loop:
-  - **Add** (default) — new audio sums with what's there at full level, forever. The classic build-up-layers overdub.
-  - **Replace** — new audio **overwrites** the loop as the record head passes. Punch in a new phrase over an old one.
-  - **Layer** — sound-on-sound: each overdub pass turns the existing material down slightly (about 1 dB per pass), so older layers gradually sink underneath what you're playing now.
-  - **Decay** — like Layer, but older layers also lose a little high end on every pass — tape-style degradation the longer you keep overdubbing.
-
-  Layer and Decay only act **while you're recording** — a loop that's just playing back never fades on its own.
 - **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
-- **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Per head → Trigger** — pick *Loop start* or *One-shot* for that head (see above).
 - **Per head → Speed CV is V/Oct** — makes that head's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
 
@@ -121,6 +125,6 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
 ## Löp
 
-**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. The context-menu options, including **Grid**, work the same as Loooop's.
+**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. Löp has no Overdub button or Grid knob on its panel; instead its context menu carries **Overdub** (On/Off), **Write mode**, **Grid**, and **Crossfade loop seams**, plus the per-head **Trigger** and **Speed CV is V/Oct** options — all with the same behavior as Loooop's.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">
