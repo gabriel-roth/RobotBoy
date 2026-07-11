@@ -5,6 +5,7 @@ Full-repo review at commit `f222f8a`, followed by three fix rounds, a codex-bran
 **In flight (unmerged branches):**
 - `loooop-track` (worktree): Loooop/Löp menu polish (Randomize opt-out, dimmed armed one-shot heads, reorder/rename) + the user's Löp Overdub/Grid panel work **and** round-4 Stream A (commits 7d63539, 42dd120, bf28267, 74b80a1 — the two Loooop follow-up minors, MM `set_samplerate` loop preservation, stop-ramp corner tests). Final-reviewed ready-to-merge; gates on the pending USER CHECKS.
 - `review-round-4` (worktree, 9 commits off `main`): round-4 Stream B — grain steal-and-replace, fence-ordering hardening, three new dsp tests, two behavior-preserving refactors, wrapper hygiene, and the build/metadata cleanups. Final-reviewed ready-to-merge; no pending checks.
+- `mf20-track` (worktree, 1 commit off `main`): MF-20 cutoff-floor fix (CV can now sweep below 20 Hz to the core's 1 Hz limit). Tests + VCV build green; gates on one GUI user check (deep negative CV audibly closes the filter).
 - `loooop-display-overlay-wontmerge` (5 commits): full-height waveform with translucent per-head lane overlay — **rejected July 11** (user didn't like it); branch kept for reference, will not merge.
 
 **Round history:**
@@ -31,10 +32,9 @@ Full-repo review at commit `f222f8a`, followed by three fix rounds, a codex-bran
 
 ### Bugs
 
-1. **[minor, judgment call] K35's asymmetric input clip creates DC that the LP output passes.**
-   `src/mf20/MF20Filter.hpp` (forward-path clip, T_neg = 0.85). Hot input + high drive in K35 puts a DC offset on the LP outputs. The hardware arguably does this too; if unwanted, a one-pole DC blocker on the LP output fixes it.
+1. ~~K35's asymmetric input clip creates DC that the LP output passes.~~ **kept as-is (decided July 11):** the hardware does this too, so it's intentional character — not adding a DC blocker.
 
-2. **[nit] Cutoff floor is 20 Hz even under CV** (`MF20Filter.cpp`, `modulate()`) though the core supports 1 Hz — deep negative CV can't close the filter the way an MS-20 can. Intentional? If not, lower the clamp.
+2. ~~Cutoff floor is 20 Hz even under CV~~ **done (July 11 — `mf20-track` commit 3a9647c):** the post-CV clamp floor in `MF20Filter.cpp modulate()` was lowered from 20 Hz to a named `kCutoffFloorHz = 1.f` (the core's low limit), so deep negative CV can nearly close the filter like an MS-20. The knob's own range still floors at 20 Hz (`configParam`). Core stability below 20 Hz is pinned by a new test; the CV-sweep behavior itself is a GUI/user check (the Module clamp needs a Rack context).
 
 ### DSP improvements
 
