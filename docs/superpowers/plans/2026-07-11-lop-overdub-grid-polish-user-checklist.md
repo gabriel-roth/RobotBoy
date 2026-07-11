@@ -22,3 +22,14 @@ Build installed to Rack2 plugins dir on 2026-07-11. In VCV Rack:
 - [ ] MetaModule: no behavior change (Overdub/Write mode/Grid stay menu
       params there); rebuild the .mmplugin whenever you next cut one so the
       updated faceplate PNG ships.
+
+## Round 2 (same day): layout rework, screws, display strip
+
+- [ ] Löp rows now read Speed/Pos/Jitter, then Trig/Jump/Overdub/Grid, then
+      Size/D-W/Clear/Record — labels, control centers, and jacks each on
+      shared lines per row.
+- [ ] Both modules show dark screws in Rack (stock ScrewBlack widgets — the
+      SVG's drawn dots were invisible against the background).
+- [ ] Löp's loop display: lane strip twice Loooop's height, waveform
+      correspondingly shorter, strip purple (#bf5af2) — on VCV and on the
+      rebuilt .mmplugin (metamodule/metamodule-plugins/RobotBoy.mmplugin).

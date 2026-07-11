@@ -26,26 +26,34 @@ public:
         {0x3F, 0x8C, 0xFF},
         {0xFF, 0xF7, 0x0A},
     };
+    // Löp's single lane draws purple — a color no Loooop head uses, so the
+    // two modules' displays can't be mistaken for each other — and at twice
+    // Loooop's lane height (height/4 vs height/8), the waveform giving up
+    // the difference. Both platforms (VCV widget, MM core) pass these.
+    static constexpr uint8_t LOP_LANE_COLOR[1][3] = {{0xBF, 0x5A, 0xF2}};
+    static constexpr int LANE_DIV = 8;
+    static constexpr int LOP_LANE_DIV = 4;
     // Window-extent bars use the head color dimmed by DIM_NUM/DIM_DEN.
     static constexpr int DIM_NUM = 2, DIM_DEN = 5;
     // A non-playing head (one-shot armed or finished, awaiting a trigger)
     // draws asleep: window bar dimmed to ARMED_NUM/ARMED_DEN, playhead
     // marker at the window-dim level instead of bright.
     static constexpr int ARMED_NUM = 1, ARMED_DEN = 5;
-    // Preferred lane band height. Use geometry() to cap the complete lane
-    // region to the actual destination height.
-    static constexpr int laneHeight(int height) {
-        return height / 8 < 3 ? 3 : height / 8;
+    // Preferred lane band height (height/laneDiv). Use geometry() to cap the
+    // complete lane region to the actual destination height.
+    static constexpr int laneHeight(int height, int laneDiv = LANE_DIV) {
+        return height / laneDiv < 3 ? 3 : height / laneDiv;
     }
     struct Geometry {
         int laneHeight;
         int lanesHeight;
         int waveHeight;
     };
-    static constexpr Geometry geometry(int height, int numHeads) {
+    static constexpr Geometry geometry(int height, int numHeads,
+                                       int laneDiv = LANE_DIV) {
         if (height <= 0 || numHeads <= 0) return {0, 0, 0};
-        const int laneH = laneHeight(height) < height / numHeads
-            ? laneHeight(height) : height / numHeads;
+        const int laneH = laneHeight(height, laneDiv) < height / numHeads
+            ? laneHeight(height, laneDiv) : height / numHeads;
         const int lanesH = numHeads * laneH;
         return {laneH, lanesH, height - lanesH};
     }
@@ -72,5 +80,6 @@ public:
     static void renderWaveform(uint32_t* buf, int width, int height,
                                const LoopEngine& engine, PackFn pack);
     static void renderLanes(uint32_t* buf, int width, int height, int laneHeight,
-                            const LoopEngine& engine, PackFn pack);
+                            const LoopEngine& engine, PackFn pack,
+                            const uint8_t (*headColors)[3] = HEAD_COLORS);
 };

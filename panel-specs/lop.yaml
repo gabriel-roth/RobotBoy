@@ -1,16 +1,16 @@
 # Lop (display name Löp) — single-playhead lightweight Loooop. 12 HP, no
 # group tints: one flat set of controls. Dark panel; screen up top, bleeding to
-# 1.5mm from the panel edges; 3mm side margins; centered title; CV under every
-# knob. Row 2 is a four-column row: Size and D/W knob+cv stacks on the left,
-# the Overdub mode button and Grid knob on the right, nudged down to
-# center-align with the knobs. Grid
-# mirrors Loooop's: a small 6-position snap knob (Off/4/8/16/32/64) with its
-# values printed close around it (Ø = off); RoundSmallBlackSnapKnob is shared
-# from src/loooop. Row 3 is four columns too: Trig and Jump jacks on the left
-# (nudged down to sit on the trigger-jack line), the Record and Clear buttons
-# on the right as stacked button+trig groups — the button sits just above its
-# jack, tied by the params-row connecting bar. Stereo In and Out pairs share
-# the last row under single labels.
+# 1.5mm from the panel edges; 3mm side margins; centered title. Three control
+# rows under the screen, all four-column below row 1, every row center-aligned
+# (labels on one line, control centers on one line, jacks on one line):
+#   row 1: Speed / Pos / Jitter knob+cv stacks;
+#   row 2: Trig and Jump jacks, then the Overdub mode button and Grid knob —
+#          Grid mirrors Loooop's: a small 6-position snap knob
+#          (Off/4/8/16/32/64) with its values printed close around it
+#          (Ø = off); RoundSmallBlackSnapKnob is shared from src/loooop;
+#   row 3: Size and D/W knob+cv stacks, then Clear and Record as stacked
+#          button+trig groups (button over jack, tied by the connecting bar).
+# Stereo In and Out pairs share the last row under single labels.
 #
 # metamodule/loooop/Lop_info.hh is HAND-MAINTAINED — regenerate only the SVG,
 # then carry positions to the MetaModule header and the VCV display rect with:
@@ -36,19 +36,11 @@ title_logo: lop-logo.svg
 # and unified since Löp has one flat control set (no channels to distinguish).
 zones:
   - {x: 1.5, y: 35.15, w: 57.96, h: 73.6}
-# Trig/Jump drop to the Record/Clear trigger-jack line (the stacked groups'
-# jack row, cy 102.1) so the four jacks read as one row. The In/Out row nudge
-# keeps its jacks at the same height (cy 116.05) as Loooop's bottom In/Out
-# jacks.
-# Overdub/Grid drop 1.5/1.0mm from the label-line default so their centers
-# sit on the knob row's center line (cy 75.05).
+# The In/Out row drops to sit at the same height (cy 116.05) as Loooop's
+# bottom In/Out jacks.
 nudges:
-  TRIG_INPUT: [0, 11.0]
-  JUMP_INPUT: [0, 11.0]
-  AUDIO_L_INPUT: [0, 3.95]
-  OUT_L_OUTPUT: [0, 3.95]
-  OVERDUB_PARAM: [0, 1.5]
-  GRID_PARAM: [0, 1.0]
+  AUDIO_L_INPUT: [0, 2.65]
+  OUT_L_OUTPUT: [0, 2.65]
 rows:
   - type: screen
     height: 22.35
@@ -62,30 +54,28 @@ rows:
       - {label: Jitter, name: JITTER_PARAM,   cv: JITTER_CV_INPUT}
   # Column 3 borrows width from column 4 (weights 1.09/0.91, mirrored in the
   # row below to keep the columns aligned) so the OVERDUB label fits; columns
-  # 1-2 keep their equal width and the Size/D/W stacks don't move.
+  # 1-2 keep their equal width.
   - type: params
+    align: center
     gap_above: 2.0
     items:
-      - {label: Size,    name: SIZE_PARAM,    cv: SIZE_CV_INPUT}
-      - {label: D/W,     name: DRYWET_PARAM,  cv: DRYWET_CV_INPUT}
+      - {label: Trig,    name: TRIG_INPUT, type: inputs}
+      - {label: Jump,    name: JUMP_INPUT, type: inputs}
       - {label: Overdub, name: OVERDUB_PARAM, control: button, weight: 1.09,
          widget: OverdubButton}
       - {label: Grid,    name: GRID_PARAM,    small: true, weight: 0.91,
          widget: RoundSmallBlackSnapKnob,
          values: ["Ø", "4", "8", "16", "32", "64"]}
-  # gap_above -9.0 tucks this row up into row 2's band: its Record/Clear
-  # columns are free there (row 2's right half holds only the Overdub button
-  # and Grid knob, no stacks), and the tuck lands the buttons at cy 91.25 with
-  # their trigger jacks at 102.1 — the committed panel's lines.
   - type: params
-    gap_above: -9.0
+    align: center
+    gap_above: 2.0
     items:
-      - {label: Trig,   name: TRIG_INPUT, type: inputs}
-      - {label: Jump,   name: JUMP_INPUT, type: inputs}
-      - {label: Record, name: RECORD_PARAM, control: button, weight: 1.09,
-         trig: RECORD_TRIG_INPUT}
-      - {label: Clear,  name: CLEAR_PARAM,  control: button, weight: 0.91,
+      - {label: Size,   name: SIZE_PARAM,   cv: SIZE_CV_INPUT}
+      - {label: D/W,    name: DRYWET_PARAM, cv: DRYWET_CV_INPUT}
+      - {label: Clear,  name: CLEAR_PARAM,  control: button, weight: 1.09,
          trig: CLEAR_TRIG_INPUT}
+      - {label: Record, name: RECORD_PARAM, control: button, weight: 0.91,
+         trig: RECORD_TRIG_INPUT}
   - type: inputs
     gap_above: 1.3
     items:

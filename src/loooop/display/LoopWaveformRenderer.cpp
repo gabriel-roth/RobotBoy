@@ -122,7 +122,8 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
 }
 
 void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
-                                       int laneH, const LoopEngine& engine, PackFn pack) {
+                                       int laneH, const LoopEngine& engine, PackFn pack,
+                                       const uint8_t (*headColors)[3]) {
     if (width <= 0 || height <= 0 || laneH <= 0) return;
     const uint32_t bg = pack(BG[0], BG[1], BG[2], 0xFF);
     std::fill(buf, buf + std::size_t(width) * height, bg);
@@ -136,7 +137,7 @@ void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
     const int lanesTop = 0;
     const int hw = std::max(2, width / 90);   // playhead bar width
     for (int i = 0; i < nHeads; ++i) {
-        const uint8_t* c = HEAD_COLORS[i];
+        const uint8_t* c = headColors[i];
         const uint32_t dimC = pack(uint8_t(int(c[0]) * DIM_NUM / DIM_DEN),
                                    uint8_t(int(c[1]) * DIM_NUM / DIM_DEN),
                                    uint8_t(int(c[2]) * DIM_NUM / DIM_DEN), 0xFF);

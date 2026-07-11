@@ -291,6 +291,36 @@ static void test_single_head_single_lane() {
           "single_head: wave region extends over old lane rows");
 }
 
+// Löp's display style: LOP_LANE_DIV doubles the lane band relative to
+// Loooop's, the waveform gives up the difference, and the lane draws in the
+// purple LOP_LANE_COLOR — never a Loooop head color.
+static void test_lop_style_double_purple_lane() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 4800; ++i)
+        e.process(std::sin(6.2831853f * i / 480.f) * 0.8f);
+    e.toggleRecord();
+    e.process(0.f);                       // one tick so the lane atomics update
+    const int W2 = 60, H2 = 48;
+    const auto g = LoopWaveformRenderer::geometry(
+        H2, 1, LoopWaveformRenderer::LOP_LANE_DIV);
+    check(g.laneHeight == 2 * LoopWaveformRenderer::laneHeight(H2),
+          "lop_style: lane band is twice Loooop's");
+    check(g.waveHeight == H2 - g.laneHeight,
+          "lop_style: waveform gives up the difference");
+    std::vector<uint32_t> lanes(W2 * g.lanesHeight);
+    LoopWaveformRenderer::renderLanes(lanes.data(), W2, g.lanesHeight,
+                                      g.laneHeight, e, pack,
+                                      LoopWaveformRenderer::LOP_LANE_COLOR);
+    check(countColorInRows(lanes, W2, 0, g.lanesHeight,
+                           LoopWaveformRenderer::LOP_LANE_COLOR[0]) > 0,
+          "lop_style: purple lane drawn");
+    check(countColorInRows(lanes, W2, 0, g.lanesHeight,
+                           LoopWaveformRenderer::HEAD_COLORS[0]) == 0,
+          "lop_style: no head-1 red anywhere");
+}
+
 // The split render (renderWaveform + renderLanes into adjoining regions) must
 // be byte-identical to the thin composed render() — the host caches call the
 // split entry points directly, so any divergence would silently change what
@@ -398,6 +428,7 @@ int main() {
     test_level_aware_height();
     test_tiny_display_combined();
     test_single_head_single_lane();
+    test_lop_style_double_purple_lane();
     test_split_render_matches_composed_render();
     test_tiny_heights_stay_within_destination();
     test_grid_bars();
