@@ -15,7 +15,8 @@
 # (master — enum names stay MIX_*). Overdub is a 5-state cycling color
 # button (OverdubButton, custom widget): Layer / Decay / Add / Replace /
 # Lock, default Layer — it absorbs the old Overdub on/off (Lock = off) and
-# Write mode menu params. Grid is a 6-position snap knob (Off/4/8/16/32/64).
+# Write mode menu params. Grid is a 6-position snap knob (Off/4/8/16/32/64)
+# with its values printed around it (Ø = off).
 # Neither gets a companion jack. Crossfade, trigger flavor, and V/Oct remain
 # context-menu params with no panel control. Component `name`s match the
 # VCV enum ids exactly. Tints must match LoopWaveformRenderer::HEAD_COLORS.
@@ -100,6 +101,7 @@ rows:
       - {label: Record,  name: RECORD_PARAM,  type: buttons, trig: RECORD_TRIG_INPUT}
       - {label: Overdub, name: OVERDUB_PARAM, type: buttons, widget: OverdubButton}
       - {label: Clear,   name: CLEAR_PARAM,   type: buttons, trig: CLEAR_TRIG_INPUT}
-      - {label: Grid,    name: GRID_PARAM,    type: knobs,   widget: RoundBlackSnapKnob}
+      - {label: Grid,    name: GRID_PARAM,    type: knobs,   widget: RoundBlackSnapKnob,
+         values: ["Ø", "4", "8", "16", "32", "64"]}
       - {label: D/W,     name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
       - {label: Out,     name: MIX_L_OUTPUT,  pair: MIX_R_OUTPUT, type: outputs, weight: 1}
