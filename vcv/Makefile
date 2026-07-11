@@ -7,7 +7,10 @@ RACK_DIR ?= $(HOME)/Dev/Rack-SDK
 # git-ignored and regenerated on every invocation, so they can't drift from the
 # canonical root files. Symlinks won't do: this platform's rsync silently skips
 # symlinked distributables during `make dist`.
-_sync := $(shell cp ../plugin.json plugin.json && rm -rf res && cp -R ../res res)
+_sync := $(shell (cp ../plugin.json plugin.json && rm -rf res && cp -R ../res res) || echo SYNC_FAILED)
+ifneq (,$(findstring SYNC_FAILED,$(_sync)))
+$(error failed to sync plugin.json/res from repo root)
+endif
 
 FLAGS += -I../src -I../src/loooop -I../src/mf20 -I../src/particules \
          -I../src/particules/dsp/include
@@ -27,3 +30,10 @@ include $(RACK_DIR)/plugin.mk
 
 # Modules require C++17/20 (std::clamp, structured bindings, etc.)
 CXXFLAGS := $(filter-out -std=c++11 -std=c++14, $(CXXFLAGS)) -std=c++20
+
+# Rack's compile.mk maps our ../src/... sources to build/../src/....o, which
+# normalizes to vcv/src/ — outside build/, so plugin.mk's clean misses them.
+clean: clean-escaped-objects
+.PHONY: clean-escaped-objects
+clean-escaped-objects:
+	@if [ -d src ]; then find src \( -name '*.o' -o -name '*.d' \) -delete; find src -type d -empty -delete; fi
