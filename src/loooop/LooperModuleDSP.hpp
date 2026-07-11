@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include "dsp/LoopEngine.hpp"
 
 namespace loooop {
 
@@ -61,6 +62,19 @@ inline float panRightGain(float pan) {
 inline int gridSegments(int choiceIdx) {
     constexpr int kGridChoices[6] = {0, 4, 8, 16, 32, 64};
     return (choiceIdx < 0 || choiceIdx > 5) ? 0 : kGridChoices[choiceIdx];
+}
+
+// Engine write mode for an overdub choice index, in the 5-state Overdub order
+// (Layer, Decay, Add, Replace); index 4 (Lock) has no write mode and clamps to
+// Layer. Shared so VCV's Overdub button and MetaModule's Write-mode alt-param
+// map a given index to the same behavior — the write-mode analogue of
+// gridSegments. Both hosts default to index 0 = Layer (MM's alt-param loader
+// zero-inits unset params, so index 0 is the fresh/legacy default).
+inline LoopEngine::WriteMode overdubWriteMode(int choiceIdx) {
+    constexpr LoopEngine::WriteMode kModes[4] = {
+        LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
+        LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
+    return kModes[(choiceIdx < 0 || choiceIdx > 3) ? 0 : choiceIdx];
 }
 
 // One-pole smoother for zipper-noise suppression (mirrors mf20/dsp_utils.hpp

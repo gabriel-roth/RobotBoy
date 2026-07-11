@@ -106,9 +106,9 @@ void LoopEngine::toggleRecord() {
     }
 }
 
-void LoopEngine::setWriteMode(WriteMode m) {
-    if (m == WriteMode::Decay && writeMode_ != WriteMode::Decay
-        && recording_ && loopLen_ != 0) {
+void LoopEngine::changeWriteMode(WriteMode m) {
+    // Reached only when m != writeMode_ (setWriteMode filters no-ops inline).
+    if (m == WriteMode::Decay && recording_ && loopLen_ != 0) {
         // Mid-pass switch into Decay: seed the tone filter from the sample
         // it will process next, matching the pass-start seed in toggleRecord.
         decayLpL_ = bufL_[writeIdx_];

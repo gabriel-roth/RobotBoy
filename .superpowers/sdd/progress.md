@@ -124,7 +124,7 @@ Docs committed: cb18fdc
 NOTE: tests/loooop/test_loop_engine.cpp has an uncommitted mid-pass-Decay test from a parallel session (mtime 11:04, passes) — leave uncommitted, do not sweep into task commits.
 NOTE: a parallel session (code-review round 4, Stream A) is committing to loooop-track concurrently (7d63539 osRamp, 42dd120 Decay LP seed + test). Keep commits path-scoped; re-check git status before each commit; record BASE per task.
 Task 1: complete (vcv-panel-gen 98081f8..1bcc6ce, review clean/Approved, 302 tests pass)
-Task 2: complete (commit 88af932, base 42dd120, review clean/Approved; geometry exact, Loooop fill-only). Minors (final-review triage): (a) lop.yaml line ~77 comment still says "Overdub switch" — now a button; (b) nudges move labels with controls, so OVERDUB/GRID labels sit 1.5/1.0mm below the SIZE/D-W label line (no collision; flag for user's visual judgment).
+Task 2: complete (commit 88af932, base 42dd120, review clean/Approved; geometry exact, Loooop fill-only). Minors (final-review triage): (a) lop.yaml line \~77 comment still says "Overdub switch" — now a button; (b) nudges move labels with controls, so OVERDUB/GRID labels sit 1.5/1.0mm below the SIZE/D-W label line (no collision; flag for user's visual judgment).
 Task 3: complete (commit fb3f5f7, base 88af932, review clean/Approved; OverdubControl.hpp shared, WRITE_MODE_PARAM gone, MM comments-only)
 Task 4: complete (commit bcc3ae4, base fb3f5f7, review clean/Approved; reviewer note: MF-20/Particules never had ScrewSilver — spec premise moot, no action)
 Task 5: complete (commit f5366e9, base bcc3ae4, review clean/Approved; controller verified install dylib byte-identical + fresh, commit body trailer-free)

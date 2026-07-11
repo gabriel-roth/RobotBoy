@@ -202,9 +202,7 @@ struct Loooop : Module {
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        lights[OVERDUB_R_LIGHT].setBrightness(loooop::kOverdubColors[od][0]);
-        lights[OVERDUB_G_LIGHT].setBrightness(loooop::kOverdubColors[od][1]);
-        lights[OVERDUB_B_LIGHT].setBrightness(loooop::kOverdubColors[od][2]);
+        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od);
     }
 };
 

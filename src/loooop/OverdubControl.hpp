@@ -1,15 +1,15 @@
 #pragma once
 #include "plugin.hpp"
 #include "dsp/LoopEngine.hpp"
+#include "LooperModuleDSP.hpp"
 
 namespace loooop {
 
 // Overdub is one 5-state control shared by Loooop and Löp: four write modes
 // + Lock (= overdub off, loop untouchable). While Locked the last write mode
-// stays set; the engine ignores it with overdub off.
-static constexpr LoopEngine::WriteMode kOverdubWriteModes[4] = {
-    LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
-    LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
+// stays set; the engine ignores it with overdub off. The index->write-mode
+// map lives in LooperModuleDSP.hpp (overdubWriteMode) so the MetaModule cores
+// share it.
 
 // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button style:
 // an RGB LED in the bezel, driven from this table in each module's process().
@@ -24,7 +24,18 @@ static constexpr float kOverdubColors[5][3] = {
 inline void applyOverdub(LoopEngine& engine, int od) {
     engine.setOverdub(od != 4);   // 4 = Lock
     if (od >= 0 && od < 4)
-        engine.setWriteMode(kOverdubWriteModes[od]);
+        engine.setWriteMode(overdubWriteMode(od));
+}
+
+// Drive the Overdub RGB bezel LED from kOverdubColors. rLight is the module's
+// OVERDUB_R_LIGHT id; the G and B lights must follow it consecutively (they do
+// in both Loooop and Löp). Keeps the two modules' LEDs in lockstep the way
+// applyOverdub does for the engine side.
+template <typename Lights>
+inline void setOverdubLED(Lights& lights, int rLight, int od) {
+    lights[rLight + 0].setBrightness(kOverdubColors[od][0]);
+    lights[rLight + 1].setBrightness(kOverdubColors[od][1]);
+    lights[rLight + 2].setBrightness(kOverdubColors[od][2]);
 }
 
 } // namespace loooop
