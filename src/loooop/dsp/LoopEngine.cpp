@@ -39,6 +39,7 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     for (auto& a : dispPos01_)      a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinStart01_) a.store(0.f, std::memory_order_relaxed);
     for (auto& a : dispWinEnd01_)   a.store(1.f, std::memory_order_relaxed);
+    for (auto& a : dispPlaying_)    a.store(true, std::memory_order_relaxed);
     bumpWaveformRevision();
 }
 
@@ -105,6 +106,17 @@ void LoopEngine::toggleRecord() {
     }
 }
 
+void LoopEngine::changeWriteMode(WriteMode m) {
+    // Reached only when m != writeMode_ (setWriteMode filters no-ops inline).
+    if (m == WriteMode::Decay && recording_ && loopLen_ != 0) {
+        // Mid-pass switch into Decay: seed the tone filter from the sample
+        // it will process next, matching the pass-start seed in toggleRecord.
+        decayLpL_ = bufL_[writeIdx_];
+        decayLpR_ = bufR_[writeIdx_];
+    }
+    writeMode_ = m;
+}
+
 void LoopEngine::clear() {
     // No need to zero bufL_/bufR_: with loopLen_ == 0 the buffer is never read
     // before it's overwritten (initial record pass overwrites each sample; the
@@ -117,7 +129,11 @@ void LoopEngine::clear() {
     stopPending_ = false;
     odGain_ = 1.f;
     odGainStep_ = 0.f;
-    for (auto& h : heads_) { h.pos = 0.0; h.playing = !h.oneShot; }   // re-arm one-shots
+    for (int i = 0; i < numHeads_; ++i) {   // re-arm one-shots
+        heads_[i].pos = 0.0;
+        heads_[i].playing = !heads_[i].oneShot;
+        dispPlaying_[i].store(heads_[i].playing, std::memory_order_relaxed);
+    }
     peakMinL_.fill(0.f); peakMaxL_.fill(0.f);
     peakMinR_.fill(0.f); peakMaxR_.fill(0.f);
     lastPeakBin_ = UINT32_MAX;
@@ -195,6 +211,7 @@ void LoopEngine::setOneShot(int head, bool on) {
     if (on == h.oneShot) return;   // hosts call this every sample; act on change only
     h.oneShot = on;
     h.playing = !on;               // entering: arm (silent); leaving: resume looping
+    dispPlaying_[head].store(h.playing, std::memory_order_relaxed);
 }
 
 void LoopEngine::triggerOneShot(int head) {
@@ -211,9 +228,14 @@ void LoopEngine::triggerOneShot(int head) {
             const float g = oneShotFadeGain(h, winStart, winLen, Fo);
             if (g < 1.f) h.osRamp = g;
         }
+    } else {
+        // A ramp value left behind by an ended pass must not attenuate a
+        // fresh trigger; the head is silent here, so the snap is inaudible.
+        h.osRamp = 1.f;
     }
     restartHead(head);
     h.playing = true;
+    dispPlaying_[head].store(true, std::memory_order_relaxed);
 }
 
 void LoopEngine::jumpHead(int head, float t01) {
@@ -429,6 +451,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
     dispPos01_[idx].store(static_cast<float>(h.pos) * invL, std::memory_order_relaxed);
     dispWinStart01_[idx].store(static_cast<float>(winStart) * invL, std::memory_order_relaxed);
     dispWinEnd01_[idx].store(static_cast<float>(winStart + winLen) * invL, std::memory_order_relaxed);
+    dispPlaying_[idx].store(h.playing, std::memory_order_relaxed);   // publishes a one-shot pass ending
 }
 
 void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads) {
@@ -544,6 +567,7 @@ LoopEngine::DisplaySnapshot LoopEngine::displaySnapshot() const {
         s.headPos01[i] = dispPos01_[i].load(std::memory_order_relaxed);
         s.winStart01[i] = dispWinStart01_[i].load(std::memory_order_relaxed);
         s.winEnd01[i] = dispWinEnd01_[i].load(std::memory_order_relaxed);
+        s.playing[i] = dispPlaying_[i].load(std::memory_order_relaxed);
     }
     return s;
 }

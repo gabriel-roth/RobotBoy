@@ -2,6 +2,7 @@
 #include "LoopDisplay.hpp"
 #include "dsp/LoopEngine.hpp"
 #include "LooperModuleDSP.hpp"
+#include "OverdubControl.hpp"
 #include <array>
 #include <cmath>
 #include <string>
@@ -9,15 +10,18 @@
 
 struct Lop : Module {
     // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
-    // lacks) so the two modules' MetaModule menus read the same and patch ids
-    // line up with metamodule/loooop/Lop_info.hh.
+    // lacks) so the two modules' MetaModule menus read the same. Exception:
+    // the MM build (Lop_info.hh) keeps an extra menu-only WriteModeAlt between
+    // CrossfadeSwitch and GridAlt (MM patch compat; VCV absorbed Write mode
+    // into the 5-state Overdub button), so MM ids after Crossfade are offset
+    // by one — the same arrangement as Loooop.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, WRITE_MODE_PARAM, GRID_PARAM, PARAMS_LEN };
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM, PARAMS_LEN };
     enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
-    enum LightId { RECORD_LIGHT, LIGHTS_LEN };
+    enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
     LoopEngine engine{1};      // single playhead; head level stays at its 1.0 default
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
@@ -34,15 +38,21 @@ struct Lop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
-        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub", {"Off", "On"});
-        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger", {"Loop start", "One-shot"});
-        configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct", {"Off", "On"});
+        // Mode switches — panel (Overdub, Grid) and menu alike — opt out of
+        // Randomize (matches Loooop): a randomized one-shot with no trigger
+        // patched silences the loop with nothing on the panel to show why.
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+            {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
+        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
+            {"Loop start", "One-shot"})->randomizeEnabled = false;
+        configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct",
+            {"Off", "On"})->randomizeEnabled = false;
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
-        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
-        configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
-            {"Add", "Replace", "Layer", "Decay"});
-        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
+        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade",
+            {"On", "Off"})->randomizeEnabled = false;
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
+            {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -75,10 +85,9 @@ struct Lop : Module {
             smootherRate = args.sampleRate;
             mixSm.alpha = loooop::smootherAlpha(smootherRate, 0.002f);
         }
-        engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
+        int od = (int)std::round(params[OVERDUB_PARAM].getValue());
+        loooop::applyOverdub(engine, od);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
-        engine.setWriteMode(static_cast<LoopEngine::WriteMode>(
-            (int)std::round(params[WRITE_MODE_PARAM].getValue())));
         engine.setGrid(loooop::gridSegments(
             (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
@@ -132,6 +141,7 @@ struct Lop : Module {
         outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
         outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
+        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od);
     }
 };
 
@@ -143,67 +153,67 @@ struct LopWidget : ModuleWidget {
         auto* display = new LoopDisplayWidget();
         display->engine = module ? &module->engine : nullptr;
         display->demoHeads = 1;
+        display->laneDiv = LoopWaveformRenderer::LOP_LANE_DIV;
+        display->laneColors = LoopWaveformRenderer::LOP_LANE_COLOR;
         // Screen rect (mm) from the SVG's screen rect element. Kept in sync
         // with vcv/res/Lop.svg and metamodule/Lop_info.hh by
-        // metamodule/sync_info_positions.py — run it after any panel change.
+        // metamodule/loooop/sync_info_positions.py — run it after any panel change.
         display->box.pos = mm2px(Vec(1.500, 10.400));
         display->box.size = mm2px(Vec(57.960, 22.350));
         addChild(display);
 
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        // Dark screws per the panel theme (the SVG's drawn screw dots are
+        // near-invisible against the background; the widgets carry the look).
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        // Placeholder Vec() coords — scripts/sync_positions.py patches them
-        // from res/Lop.svg circle ids.
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 46.35)), module, Lop::SPEED_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(30.48, 46.35)), module, Lop::POSITION_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(48.8, 46.35)), module, Lop::JITTER_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 58.7)), module, Lop::SPEED_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 58.7)), module, Lop::POSITION_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 58.7)), module, Lop::JITTER_CV_INPUT));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 75.05)), module, Lop::SIZE_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 75.05)), module, Lop::DRYWET_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 87.4)), module, Lop::SIZE_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 87.4)), module, Lop::DRYWET_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.89, 116.05)), module, Lop::AUDIO_L_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(21.59, 116.05)), module, Lop::AUDIO_R_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 102.1)), module, Lop::TRIG_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 102.1)), module, Lop::JUMP_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(37.35, 91.25)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.35, 102.1)), module, Lop::RECORD_TRIG_INPUT));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(51.09, 91.25)), module, Lop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.09, 102.1)), module, Lop::CLEAR_TRIG_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(39.37, 116.05)), module, Lop::OUT_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.07, 116.05)), module, Lop::OUT_R_OUTPUT));
+        // Coords come from res/Lop.svg's hidden components layer (circle ids)
+        // — regenerate the panel from panel-specs/lop.yaml and carry any
+        // changed positions here by hand.
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 46.05)), module, Lop::SIZE_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 46.05)), module, Lop::POSITION_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(37.35, 46.05)), module, Lop::SPEED_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(51.09, 46.05)), module, Lop::JITTER_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 58.0)), module, Lop::SIZE_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 58.0)), module, Lop::POSITION_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.35, 58.0)), module, Lop::SPEED_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.09, 58.0)), module, Lop::JITTER_CV_INPUT));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 74.05)), module, Lop::DRYWET_PARAM));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(30.48, 74.05)), module, Lop::CLEAR_PARAM));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(48.8, 74.05)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 86.0)), module, Lop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 86.0)), module, Lop::CLEAR_TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 86.0)), module, Lop::RECORD_TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.252, 102.15)), module, Lop::TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(22.992, 102.15)), module, Lop::JUMP_INPUT));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(37.968, 102.15)), module, Lop::OVERDUB_PARAM, Lop::OVERDUB_R_LIGHT));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 102.15)), module, Lop::GRID_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Lop::AUDIO_L_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Lop::AUDIO_R_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(43.91, 116.05)), module, Lop::OUT_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(53.61, 116.05)), module, Lop::OUT_R_OUTPUT));
     }
 
     void appendContextMenu(Menu* menu) override {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Overdub", "",
-            [m] { return m->params[Lop::OVERDUB_PARAM].getValue() > 0.5f; },
-            [m](bool v) { m->paramQuantities[Lop::OVERDUB_PARAM]->setValue(v ? 1.f : 0.f); }));
-        menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
-            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        static const std::vector<std::string> kWriteModes = {"Add", "Replace", "Layer", "Decay"};
-        menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
-            [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::WRITE_MODE_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kGridLabels = {"Off", "4", "8", "16", "32", "64"};
-        menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
-            [m] { return (int)std::round(m->params[Lop::GRID_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::GRID_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
-        menu->addChild(createIndexSubmenuItem("Trigger", kTrigModes,
-            [m] { return (int)std::round(m->params[Lop::TRIG_MODE_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::TRIG_MODE_PARAM]->setValue((float)v); }));
-        menu->addChild(createBoolMenuItem("Speed CV is V/Oct", "",
+        // Overdub (incl. write modes) and Grid are panel controls; only the
+        // modes with no panel control live in the menu.
+        // Same item language and order as Loooop's menu tail; One-shot is a
+        // checkmark (unchecked, a trigger restarts the playhead at its
+        // window start — that mode has no name in the interface).
+        menu->addChild(createBoolMenuItem("One-shot on trigger", "",
+            [m] { return m->params[Lop::TRIG_MODE_PARAM].getValue() > 0.5f; },
+            [m](bool v) { m->paramQuantities[Lop::TRIG_MODE_PARAM]->setValue(v ? 1.f : 0.f); }));
+        menu->addChild(createBoolMenuItem("Speed CV = V/Oct", "",
             [m] { return m->params[Lop::SPEED_VOCT_PARAM].getValue() > 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::SPEED_VOCT_PARAM]->setValue(v ? 1.f : 0.f); }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
     }
 };
 

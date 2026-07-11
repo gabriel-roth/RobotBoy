@@ -36,8 +36,7 @@ public:
 
         engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
-        engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
-            (int)getState<WriteModeAlt>()));
+        engine_.setWriteMode(loooop::overdubWriteMode((int)getState<WriteModeAlt>()));
         engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
 
         // Record: momentary button OR trigger input (rising edge)
@@ -91,7 +90,7 @@ public:
     }
 
     void set_samplerate(float sr) override {
-        engine_.reset(sr);
+        engine_.setSampleRate(sr);   // preserve a recorded loop (matches VCV onSampleRateChange)
         const float a = loooop::smootherAlpha(sr, 0.002f);
         mixSm_.alpha = a;
         for (auto& s : panSm_) s.alpha = a;

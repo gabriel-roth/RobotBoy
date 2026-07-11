@@ -15,3 +15,7 @@ TrigModeAlt: null
 SpeedVoctAlt: null
 WriteModeAlt: null
 GridAlt: null
+# The Overdub switch and Grid knob exist only on the VCV panel; on MetaModule
+# both stay menu-only (the null alt-params above), so the SVG components have
+# no elements to sync — same arrangement as Loooop.
+ignore: [GRID_PARAM, OVERDUB_PARAM]

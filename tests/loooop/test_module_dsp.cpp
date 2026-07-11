@@ -52,6 +52,17 @@ int main() {
     check(loooop::gridSegments(-1) == 0 && loooop::gridSegments(6) == 0,
           "grid choice out of range = off");
 
+    // Overdub choice index -> engine write mode, in the 5-state Overdub order
+    // (Layer, Decay, Add, Replace); both hosts share this map, so index 0 =
+    // Layer is the fresh default on VCV and MetaModule alike.
+    using WM = LoopEngine::WriteMode;
+    check(loooop::overdubWriteMode(0) == WM::Layer,   "overdub choice 0 = Layer");
+    check(loooop::overdubWriteMode(1) == WM::Decay,   "overdub choice 1 = Decay");
+    check(loooop::overdubWriteMode(2) == WM::Add,     "overdub choice 2 = Add");
+    check(loooop::overdubWriteMode(3) == WM::Replace, "overdub choice 3 = Replace");
+    check(loooop::overdubWriteMode(-1) == WM::Layer && loooop::overdubWriteMode(4) == WM::Layer,
+          "overdub choice out of range = Layer");
+
     loooop::OnePoleSmoother s;
     s.reset(0.f);
     s.alpha = loooop::smootherAlpha(48000.f, 0.002f);

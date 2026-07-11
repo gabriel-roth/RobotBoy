@@ -49,12 +49,13 @@ struct QlpCrossfadeAlt : AltParamChoiceLabeled {
     constexpr QlpCrossfadeAlt(BaseElement b, unsigned defaultValue)
         : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"On", "Off"}} {}
 };
-// Choice order pins Add to index 0: the MM patch loader zero-inits unset
-// alt-params, so patches saved before this param must load in Add (the
-// legacy overdub-sum behavior).
+// Choice order matches the VCV 5-state Overdub button (minus Lock) and
+// loooop::overdubWriteMode, so a given index means the same write mode on both
+// hosts. Index 0 = Layer: the MM loader zero-inits unset alt-params, so a
+// fresh module defaults to Layer, matching VCV's Overdub default.
 struct QlpWriteModeAlt : AltParamChoiceLabeled {
     constexpr QlpWriteModeAlt(BaseElement b)
-        : AltParamChoiceLabeled{{{b}, 4, 0}, {"Add", "Replace", "Layer", "Decay"}} {}
+        : AltParamChoiceLabeled{{{b}, 4, 0}, {"Layer", "Decay", "Add", "Replace"}} {}
 };
 // Index 0 = Off so patches saved before this param (loader zero-inits unset
 // alt-params) keep the ungridded behavior.

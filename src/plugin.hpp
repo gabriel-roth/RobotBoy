@@ -12,6 +12,13 @@ extern Model* modelLop;
 extern Model* modelMF20Filter;
 extern Model* modelParticules;
 
+// Rack has no stock small snap knob; Loooop and Löp both use it for Grid.
+struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
+	RoundSmallBlackSnapKnob() {
+		snap = true;
+	}
+};
+
 // --- Shared helpers pulled from particules/plugin.hpp (needed by Particules.cpp) ---
 struct PitchParamQuantity : ParamQuantity {
 	float getDisplayValue() override { return pitchKnobToSemitones(getValue()); }

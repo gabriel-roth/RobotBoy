@@ -33,8 +33,7 @@ public:
 
         engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
-        engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
-            (int)getState<WriteModeAlt>()));
+        engine_.setWriteMode(loooop::overdubWriteMode((int)getState<WriteModeAlt>()));
         engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
 
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
@@ -96,7 +95,7 @@ public:
     }
 
     void set_samplerate(float sr) override {
-        engine_.reset(sr);
+        engine_.setSampleRate(sr);   // preserve a recorded loop (matches VCV onSampleRateChange)
         mixSm_.alpha = loooop::smootherAlpha(sr, 0.002f);
     }
 
@@ -121,7 +120,10 @@ public:
         dispDirty_ = active;    // one final repaint after going idle (e.g. clear)
         const int width = int(dispWidth_);
         const int height = int(dispBuf_.size() / dispWidth_);
-        const auto geometry = LoopWaveformRenderer::geometry(height, engine_.numHeads());
+        // Löp display style: double-height purple lane (see LOP_LANE_* in
+        // LoopWaveformRenderer.hpp) — must match the VCV widget.
+        const auto geometry = LoopWaveformRenderer::geometry(
+            height, engine_.numHeads(), LoopWaveformRenderer::LOP_LANE_DIV);
         const int laneH = geometry.laneHeight;
         const int lanesH = geometry.lanesHeight;
         const int waveH = geometry.waveHeight;
@@ -142,7 +144,8 @@ public:
         }
         LoopWaveformRenderer::renderLanes(
             dispBuf_.data() + size_t(waveH) * width,
-            width, lanesH, laneH, engine_, packARGB);
+            width, lanesH, laneH, engine_, packARGB,
+            LoopWaveformRenderer::LOP_LANE_COLOR);
         return true;
     }
 

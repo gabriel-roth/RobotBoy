@@ -555,6 +555,60 @@ static void test_one_shot_retrigger_mid_fade() {
     check(near(prev, 1.f, 0.05f),    "osretrig: back to full level after ~1 ms ramp");
 }
 
+// Q: a retrigger ramp value left behind by an ended pass must not
+// attenuate the next trigger (the !playing path never reset osRamp).
+static void test_one_shot_stale_ramp_cleared_on_fresh_trigger() {
+    auto runSequence = [](bool retriggerMidFade) {
+        LoopEngine e(1);
+        e.reset(48000.f, 1.f);
+        e.toggleRecord();
+        for (int i = 0; i < 2000; ++i) e.process(1.f);
+        e.toggleRecord();
+        e.setOneShot(0, true);
+        e.setSpeed(0, 50.f);              // pass ends in ~40 samples, inside the ~48-sample ramp
+        e.triggerOneShot(0);
+        for (int i = 0; i < 36; ++i) e.process(0.f);   // ~90% through the pass, into the fade
+        if (retriggerMidFade)
+            e.triggerOneShot(0);          // sets osRamp = fade gain < 1
+        for (int i = 0; i < 200; ++i) e.process(0.f);  // pass ends; head stops
+        // Fresh trigger from the armed, non-playing state:
+        e.triggerOneShot(0);
+        float first = e.process(0.f);
+        return first;
+    };
+    float withStaleRamp = runSequence(true);
+    float clean         = runSequence(false);
+    check(near(withStaleRamp, clean, 1e-4f),
+          "stale_osramp: fresh trigger opens at the same level as a clean trigger");
+}
+
+static void test_one_shot_short_fast_window_ramp_and_fade() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.setSpeed(0, 50.f);
+    bool allFinite = true;
+    bool haveFirst = false;
+    float maxDelta = 0.f, prev = 0.f;
+    for (int pass = 0; pass < 8; ++pass) {
+        e.triggerOneShot(0);
+        for (int i = 0; i < 20; ++i) {     // retrigger every 20 samples, mid-pass
+            float v = e.process(0.f);
+            if (!std::isfinite(v)) allFinite = false;
+            // Skip the very first sample: it jumps from true silence (no prior
+            // audio at all) to full level, which isn't a gain snap to detect.
+            if (haveFirst) maxDelta = std::max(maxDelta, std::fabs(v - prev));
+            haveFirst = true;
+            prev = v;
+        }
+    }
+    check(allFinite, "os_short_window: output stays finite under rapid retrigger");
+    check(maxDelta < 0.15f, "os_short_window: no hard gain snaps");
+}
+
 static void test_jump_head() {
     LoopEngine e; record_ramp(e, 4);       // winLen 4 -> pos = t * 3
     e.jumpHead(0, 2.f / 3.f);
@@ -580,6 +634,24 @@ static void test_one_shot_survives_clear() {
     check(near(e.process(0.f), 0.f), "oneshot_clear: re-armed after clear");
     e.triggerOneShot(0);
     check(near(e.process(0.f), 1.f), "oneshot_clear: trigger works on new loop");
+}
+
+static void test_display_snapshot_armed() {
+    LoopEngine e; record_ramp(e, 4);
+    check(e.displaySnapshot().playing[0], "armsnap: looping head reports playing");
+    e.setOneShot(0, true);
+    check(!e.displaySnapshot().playing[0], "armsnap: armed one-shot reports not playing");
+    e.triggerOneShot(0);
+    check(e.displaySnapshot().playing[0], "armsnap: triggered one-shot reports playing");
+    for (int i = 0; i < 5; ++i) e.process(0.f);   // pass ends
+    check(!e.displaySnapshot().playing[0], "armsnap: finished pass reports not playing");
+    e.setOneShot(0, false);
+    check(e.displaySnapshot().playing[0], "armsnap: leaving one-shot resumes playing");
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    e.clear();
+    check(!e.displaySnapshot().playing[0], "armsnap: clear re-arms one-shot silent");
+    check(e.displaySnapshot().playing[1], "armsnap: other heads unaffected");
 }
 
 static void test_triggers_no_loop() {
@@ -763,6 +835,45 @@ static void test_sample_rate_change_preserves_loop() {
     check(near(e.process(0.f), 4.f), "sr_change: out[3]==4");
 }
 
+static void test_sample_rate_change_multi_head_nondefault_speed() {
+    LoopEngine e;                       // default 4 heads
+    e.reset(10.f, 100.f);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f, 8.f}) e.process(x);
+    e.toggleRecord();
+    // Non-default per-head state that must survive the retune:
+    e.setSpeed(0, 2.f);
+    e.setSpeed(1, -1.f);
+    e.setLevel(2, 0.f);
+    e.setLevel(3, 0.f);
+    e.setSampleRate(20.f);
+    check(e.loopLength() == 8, "sr_multi: loop length preserved");
+    // Head 0 at speed 2 reads every other sample; head 1 reads in reverse.
+    // Just assert content survived and output is finite and nonzero:
+    bool finite = true; float energy = 0.f;
+    for (int i = 0; i < 16; ++i) {
+        float v = e.process(0.f);
+        if (!std::isfinite(v)) finite = false;
+        energy += std::fabs(v);
+    }
+    check(finite, "sr_multi: output finite after retune");
+    check(energy > 0.1f, "sr_multi: loop content audible after retune");
+}
+
+static void test_sample_rate_change_redundant_same_rate() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f}) e.process(x);
+    e.toggleRecord();
+    e.setSampleRate(10.f);   // same rate — must be a no-op for the loop
+    e.setSampleRate(10.f);   // and again
+    check(e.loopLength() == 4, "sr_same: loop survives redundant same-rate calls");
+    check(near(e.process(0.f), 1.f), "sr_same: out[0]==1");
+    check(near(e.process(0.f), 2.f), "sr_same: out[1]==2");
+}
+
 static void test_sample_rate_change_mid_recording() {
     LoopEngine e;
     e.reset(10.f, 100.f);
@@ -870,6 +981,71 @@ static void test_stop_ramp_rearm() {
     check(noSnap, "rearm: per-sample write-gain delta never exceeds the ramp step");
 }
 
+static void test_clear_during_stop_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();                       // loop closed
+    e.toggleRecord();                       // start overdub (up-ramp)
+    for (int i = 0; i < 400; ++i) e.process(0.5f);
+    e.toggleRecord();                       // request stop -> down-ramp pending
+    for (int i = 0; i < 100; ++i) e.process(0.5f);   // mid down-ramp
+    e.clear();                              // clear during the pending stop-ramp
+    check(!e.isRecording(), "clear_stopramp: not recording after clear");
+    check(e.loopLength() == 0, "clear_stopramp: loop erased");
+    bool finite = true;
+    for (int i = 0; i < 500; ++i)
+        if (!std::isfinite(e.process(0.f))) finite = false;
+    check(finite, "clear_stopramp: output finite after clear");
+    // Engine must be able to record a fresh loop cleanly:
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(1.f);
+    e.toggleRecord();
+    check(e.loopLength() == 500, "clear_stopramp: fresh loop records normally");
+    check(near(e.process(0.f), 1.f), "clear_stopramp: fresh loop plays back");
+}
+
+static void test_reset_during_stop_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.toggleRecord();                       // overdub
+    for (int i = 0; i < 400; ++i) e.process(0.5f);
+    e.toggleRecord();                       // stop pending
+    for (int i = 0; i < 100; ++i) e.process(0.5f);
+    e.reset(48000.f, 1.f);                  // full reset mid down-ramp
+    check(!e.isRecording(), "reset_stopramp: not recording after reset");
+    check(e.loopLength() == 0, "reset_stopramp: loop gone after reset");
+    e.toggleRecord();
+    for (int i = 0; i < 300; ++i) e.process(1.f);
+    e.toggleRecord();
+    check(e.loopLength() == 300, "reset_stopramp: records normally after reset");
+}
+
+static void test_record_off_mid_up_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();                       // loop closed: all 1.0
+    e.toggleRecord();                       // overdub: up-ramp starts (240 samples)
+    for (int i = 0; i < 100; ++i) e.process(1.f);   // mid up-ramp
+    e.toggleRecord();                       // stop while still ramping in
+    bool finite = true;
+    for (int i = 0; i < 2000; ++i)
+        if (!std::isfinite(e.process(0.f))) finite = false;
+    check(finite, "up_ramp_off: output finite");
+    check(!e.isRecording(), "up_ramp_off: recording ended");
+    // The partially-ramped overdub wrote at most ~2x content briefly; loop
+    // content must stay bounded (constant-1 loop + up-to-unity ramped add of 1.0):
+    float peak = 0.f;
+    for (int i = 0; i < 1000; ++i) peak = std::max(peak, std::fabs(e.process(0.f)));
+    check(peak <= 2.f + 1e-3f, "up_ramp_off: overdubbed content bounded");
+}
+
 static void test_ramp_layer_combined_expression() {
     // Mid-ramp the write must follow buf = old + g·(fb·old − old) + g·in.
     LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
@@ -967,6 +1143,40 @@ static void test_write_mode_decay_rolls_off_highs() {
     check(near(rLayer, LoopEngine::LAYER_FEEDBACK, 0.02f),
           "decay_hf: layer pass keeps FB*amplitude at Nyquist");
     check(rDecay < 0.5f * rLayer, "decay_hf: Decay kills HF much faster than Layer");
+}
+
+// Switching write mode to Decay mid-pass must seed the tone filter from
+// current buffer content, not stale state (previously only toggleRecord seeded).
+static void test_write_mode_decay_midpass_switch_seeds_lp() {
+    auto record = [](LoopEngine& e) {
+        e.reset(48000.f, 1.f); e.setCrossfade(false);
+        soloHead0(e);
+        e.toggleRecord();
+        for (int i = 0; i < 1000; ++i) e.process(1.f);
+        e.toggleRecord();
+    };
+    LoopEngine a(1), b(1);
+    record(a); record(b);
+    a.setWriteMode(LoopEngine::WriteMode::Decay);
+    b.setWriteMode(LoopEngine::WriteMode::Layer);
+    a.toggleRecord(); b.toggleRecord();          // start overdub pass on both
+    for (int i = 0; i < 400; ++i) { a.process(0.f); b.process(0.f); }  // past the 240-sample up-ramp
+    b.setWriteMode(LoopEngine::WriteMode::Decay);  // mid-pass switch
+    // Post-switch writes hit not-yet-rewritten indices (old == original 1.0
+    // in both engines) with the same odGain; only the LP state can differ.
+    for (int i = 0; i < 100; ++i) { a.process(0.f); b.process(0.f); }
+    a.toggleRecord(); b.toggleRecord();          // stop; ramps run out
+    for (int i = 0; i < 400; ++i) { a.process(0.f); b.process(0.f); }
+    // Both heads read the same buffer positions from here: restart them to
+    // window start so playback index lines up with buffer index directly
+    // (crossfade is off, so no seam blending to account for).
+    a.restartHead(0); b.restartHead(0);
+    bool matched = true;
+    for (int i = 0; i < 1000; ++i) {
+        float va = a.process(0.f), vb = b.process(0.f);
+        if (i >= 400 && i < 500 && std::fabs(va - vb) > 1e-3f) matched = false;
+    }
+    check(matched, "decay_midpass: post-switch writes match a pass-start-seeded engine");
 }
 
 static void test_write_mode_peaks_track_decay() {
@@ -1140,8 +1350,11 @@ int main() {
     test_one_shot_fade_out();
     test_one_shot_fade_out_reverse();
     test_one_shot_retrigger_mid_fade();
+    test_one_shot_stale_ramp_cleared_on_fresh_trigger();
+    test_one_shot_short_fast_window_ramp_and_fade();
     test_jump_head();
     test_one_shot_survives_clear();
+    test_display_snapshot_armed();
     test_triggers_no_loop();
     test_stereo_record_play();
     test_mono_convenience_matches_stereo();
@@ -1181,14 +1394,20 @@ int main() {
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
+    test_clear_during_stop_ramp();
+    test_reset_during_stop_ramp();
+    test_record_off_mid_up_ramp();
     test_ramp_layer_combined_expression();
     test_write_mode_replace();
     test_write_mode_layer();
     test_write_mode_decay_at_low_rate_matches_layer();
     test_write_mode_decay_rolls_off_highs();
+    test_write_mode_decay_midpass_switch_seeds_lp();
     test_write_mode_peaks_track_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();
+    test_sample_rate_change_multi_head_nondefault_speed();
+    test_sample_rate_change_redundant_same_rate();
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();

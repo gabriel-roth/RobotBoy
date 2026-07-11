@@ -2,6 +2,7 @@
 #include "dsp/LoopEngine.hpp"
 #include "LoopDisplay.hpp"
 #include "LooperModuleDSP.hpp"
+#include "OverdubControl.hpp"
 #include <cmath>
 #include <array>
 #include <vector>
@@ -60,12 +61,15 @@ struct Loooop : Module {
             configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, n + " level");
             configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " jitter");
             // 0 = restart-at-window-start (unnamed default), 1 = one-shot.
+            // Menu switches opt out of Randomize: a randomized one-shot with
+            // no trigger patched silences the head with nothing on the panel
+            // to show why.
             configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " one-shot",
-                {"Off", "On"});
+                {"Off", "On"})->randomizeEnabled = false;
             configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
-                {"Off", "On"});
+                {"Off", "On"})->randomizeEnabled = false;
             configSwitch(EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f,
-                n + " exclude from Grid", {"Off", "On"});
+                n + " exclude from Grid", {"Off", "On"})->randomizeEnabled = false;
             configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, n + " speed CV");
             configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, n + " position CV");
             configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, n + " size CV");
@@ -81,12 +85,16 @@ struct Loooop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
+        // Mode switches opt out of Randomize like the per-head menu switches:
+        // Lock overdub gates the Record button, and randomized Grid/Crossfade
+        // read as broken behavior, not as an inspiring patch variation.
         configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
-            {"Layer", "Decay", "Add", "Replace", "Lock"});
+            {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
-        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
-        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
+        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"})->randomizeEnabled = false;
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
+            {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -115,16 +123,8 @@ struct Loooop : Module {
             for (auto& s : panSm) s.alpha = a;
             mixSm.alpha = a;
         }
-        // Overdub is one 5-state control: four write modes + Lock (= overdub
-        // off, loop untouchable). While Locked the last write mode stays set;
-        // the engine ignores it with overdub off.
-        static constexpr LoopEngine::WriteMode kOverdubModes[4] = {
-            LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
-            LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
         int od = (int)std::round(params[OVERDUB_PARAM].getValue());
-        engine.setOverdub(od != 4);   // 4 = Lock
-        if (od >= 0 && od < 4)
-            engine.setWriteMode(kOverdubModes[od]);
+        loooop::applyOverdub(engine, od);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setGrid(loooop::gridSegments(
             (int)std::round(params[GRID_PARAM].getValue())));
@@ -202,36 +202,7 @@ struct Loooop : Module {
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button
-        // style: an RGB LED in the bezel driven from a color table.
-        static constexpr float kOverdubColors[5][3] = {
-            {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
-            {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
-            {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
-            {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
-            {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
-        };
-        lights[OVERDUB_R_LIGHT].setBrightness(kOverdubColors[od][0]);
-        lights[OVERDUB_G_LIGHT].setBrightness(kOverdubColors[od][1]);
-        lights[OVERDUB_B_LIGHT].setBrightness(kOverdubColors[od][2]);
-    }
-};
-
-// Five-state overdub button, Quality-button style (see Particules): the
-// stock light bezel with an RGB LED, made non-momentary so a click cycles
-// the stepped param Layer/Decay/Add/Replace/Lock with wraparound. The
-// module drives the LED color from the state in process().
-struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
-    OverdubButton() {
-        momentary = false;
-    }
-};
-
-// Rack ships no small snap knob; the Grid selector wants the small body so
-// its printed value ring can sit close in.
-struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
-    RoundSmallBlackSnapKnob() {
-        snap = true;
+        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od);
     }
 };
 
@@ -244,15 +215,17 @@ struct LoooopWidget : ModuleWidget {
         display->engine = module ? &module->engine : nullptr;
         // Screen rect (mm) from the SVG's screen rect element. Kept in sync
         // with vcv/res/Loooop.svg and metamodule/Loooop_info.hh by
-        // metamodule/sync_info_positions.py — run it after any panel change.
+        // metamodule/loooop/sync_info_positions.py — run it after any panel change.
         display->box.pos = mm2px(Vec(1.500, 10.400));
         display->box.size = mm2px(Vec(190.040, 22.350));
         addChild(display);
 
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        // Dark screws per the panel theme (the SVG's drawn screw dots are
+        // near-invisible against the background; the widgets carry the look).
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
         // Per-head knobs and their CV jacks. On the panel each head is a
         // block: Size/Position/Speed on the upper knob row, Jitter/Pan/Level on
@@ -349,27 +322,9 @@ struct LoooopWidget : ModuleWidget {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
-            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        // Commands at the top level, playheads (by color) in the submenus.
-        // One-shot is a checkmark per playhead; unchecked (default) a trigger
-        // restarts the playhead at its window start — that mode has no name
-        // in the interface.
-        menu->addChild(createSubmenuItem("One-shot", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
-        }));
-        menu->addChild(createSubmenuItem("Speed CV is V/Oct", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
-        }));
+        // Playheads (by color) in the submenus. One-shot is a checkmark per
+        // playhead; unchecked (default) a trigger restarts the playhead at
+        // its window start — that mode has no name in the interface.
         menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
@@ -377,6 +332,23 @@ struct LoooopWidget : ModuleWidget {
                     [m, h](bool v) {
                         m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
         }));
+        menu->addChild(createSubmenuItem("One-shot on trigger", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createSubmenuItem("Speed CV = V/Oct", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
     }
 };
 

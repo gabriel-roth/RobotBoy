@@ -165,6 +165,33 @@ static void test_moved_window_lane() {
     check(px(16, 32) == laneBright(0), "lane0: playhead at 1/4");
 }
 
+static uint32_t laneArmed(int i) {
+    const uint8_t* c = LoopWaveformRenderer::HEAD_COLORS[i];
+    auto a = [](uint8_t v) {
+        return uint8_t(int(v) * LoopWaveformRenderer::ARMED_NUM / LoopWaveformRenderer::ARMED_DEN);
+    };
+    return pack(a(c[0]), a(c[1]), a(c[2]), 0xFF);
+}
+
+static void test_armed_head_lane() {
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
+    e.toggleRecord();                        // loop of 4; heads at pos 0
+    e.setOneShot(0, true);                   // arm head 0, no trigger
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    // Lane 0 rows 32..38: asleep look — window bar at the armed dim level,
+    // playhead marker at the normal window-dim level, nothing bright.
+    check(px(5, 32) == laneArmed(0),  "armed: window bar extra-dim");
+    check(px(0, 32) == laneDim(0),    "armed: playhead marker at window-dim level");
+    check(countColor(laneBright(0)) == 0, "armed: no bright pixels in armed lane");
+    check(px(0, 40) == laneBright(1), "armed: other lanes still bright");
+    e.triggerOneShot(0);                     // playing again
+    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    check(px(0, 32) == laneBright(0), "armed: triggered head back to bright");
+    check(px(5, 32) == laneDim(0),    "armed: triggered window bar back to dim");
+}
+
 static void test_recording_view() {
     LoopEngine e; e.reset(10.f, 100.f);
     e.toggleRecord();
@@ -262,6 +289,36 @@ static void test_single_head_single_lane() {
     check(countColorInRows(buf2, W2, lanesTop - laneH, lanesTop,
                            LoopWaveformRenderer::HEAD_COLORS[0]) == 0,
           "single_head: wave region extends over old lane rows");
+}
+
+// Löp's display style: LOP_LANE_DIV doubles the lane band relative to
+// Loooop's, the waveform gives up the difference, and the lane draws in the
+// purple LOP_LANE_COLOR — never a Loooop head color.
+static void test_lop_style_double_purple_lane() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 4800; ++i)
+        e.process(std::sin(6.2831853f * i / 480.f) * 0.8f);
+    e.toggleRecord();
+    e.process(0.f);                       // one tick so the lane atomics update
+    const int W2 = 60, H2 = 48;
+    const auto g = LoopWaveformRenderer::geometry(
+        H2, 1, LoopWaveformRenderer::LOP_LANE_DIV);
+    check(g.laneHeight == 2 * LoopWaveformRenderer::laneHeight(H2),
+          "lop_style: lane band is twice Loooop's");
+    check(g.waveHeight == H2 - g.laneHeight,
+          "lop_style: waveform gives up the difference");
+    std::vector<uint32_t> lanes(W2 * g.lanesHeight);
+    LoopWaveformRenderer::renderLanes(lanes.data(), W2, g.lanesHeight,
+                                      g.laneHeight, e, pack,
+                                      LoopWaveformRenderer::LOP_LANE_COLOR);
+    check(countColorInRows(lanes, W2, 0, g.lanesHeight,
+                           LoopWaveformRenderer::LOP_LANE_COLOR[0]) > 0,
+          "lop_style: purple lane drawn");
+    check(countColorInRows(lanes, W2, 0, g.lanesHeight,
+                           LoopWaveformRenderer::HEAD_COLORS[0]) == 0,
+          "lop_style: no head-1 red anywhere");
 }
 
 // The split render (renderWaveform + renderLanes into adjoining regions) must
@@ -366,10 +423,12 @@ int main() {
     test_stereo_bands();
     test_phase_cancellation();
     test_moved_window_lane();
+    test_armed_head_lane();
     test_recording_view();
     test_level_aware_height();
     test_tiny_display_combined();
     test_single_head_single_lane();
+    test_lop_style_double_purple_lane();
     test_split_render_matches_composed_render();
     test_tiny_heights_stay_within_destination();
     test_grid_bars();
