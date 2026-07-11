@@ -2,7 +2,8 @@
 # group tints: one flat set of controls. Dark panel; screen up top, bleeding to
 # 1.5mm from the panel edges; 3mm side margins; centered title; CV under every
 # knob. Row 2 is a four-column row: Size and D/W knob+cv stacks on the left,
-# the Overdub switch and Grid knob on the right, inline with the knobs. Grid
+# the Overdub mode button and Grid knob on the right, nudged down to
+# center-align with the knobs. Grid
 # mirrors Loooop's: a small 6-position snap knob (Off/4/8/16/32/64) with its
 # values printed close around it (Ø = off); RoundSmallBlackSnapKnob is shared
 # from src/loooop. Row 3 is four columns too: Trig and Jump jacks on the left
@@ -39,11 +40,15 @@ zones:
 # jack row, cy 102.1) so the four jacks read as one row. The In/Out row nudge
 # keeps its jacks at the same height (cy 116.05) as Loooop's bottom In/Out
 # jacks.
+# Overdub/Grid drop 1.5/1.0mm from the label-line default so their centers
+# sit on the knob row's center line (cy 75.05).
 nudges:
   TRIG_INPUT: [0, 11.0]
   JUMP_INPUT: [0, 11.0]
   AUDIO_L_INPUT: [0, 3.95]
   OUT_L_OUTPUT: [0, 3.95]
+  OVERDUB_PARAM: [0, 1.5]
+  GRID_PARAM: [0, 1.0]
 rows:
   - type: screen
     height: 22.35
@@ -63,7 +68,8 @@ rows:
     items:
       - {label: Size,    name: SIZE_PARAM,    cv: SIZE_CV_INPUT}
       - {label: D/W,     name: DRYWET_PARAM,  cv: DRYWET_CV_INPUT}
-      - {label: Overdub, name: OVERDUB_PARAM, control: switch, weight: 1.09}
+      - {label: Overdub, name: OVERDUB_PARAM, control: button, weight: 1.09,
+         widget: OverdubButton}
       - {label: Grid,    name: GRID_PARAM,    small: true, weight: 0.91,
          widget: RoundSmallBlackSnapKnob,
          values: ["Ø", "4", "8", "16", "32", "64"]}
