@@ -319,6 +319,32 @@ static void test_no_nan_inf() {
     report(ok, "no NaN or Inf across (fc, res, loud-input) sweep");
 }
 
+// 9b. Sub-20 Hz cutoff is stable and closes the filter further.
+//     The Module clamps CV-modulated cutoff to the core's low limit (lowered
+//     from 20 Hz to 1 Hz so deep negative CV can nearly close the filter like
+//     an MS-20). That clamp lives in the Module (needs a Rack context), so here
+//     we pin the *premise* directly on the core: below 20 Hz it stays finite and
+//     a fixed 200 Hz tone is attenuated monotonically more as cutoff drops.
+static void test_low_cutoff_below_20hz() {
+    printf("\n9b. Sub-20 Hz cutoff stability + closure\n");
+    MF20Filter f;
+    f.setSampleRate(44100.f);
+    const float sr = 44100.f, sig = 200.f, amp = 1.f, res = 0.f;
+    // Long settle: the LP transient decays over ~5·fs/(2π·fc); at 1 Hz that is
+    // ~35k samples.
+    const int settle = 40000, measure = 20000;
+    auto r1  = runSine(f, sig, amp, 1.f,  res, sr, settle, measure);
+    auto r5  = runSine(f, sig, amp, 5.f,  res, sr, settle, measure);
+    auto r20 = runSine(f, sig, amp, 20.f, res, sr, settle, measure);
+    bool finite = std::isfinite(r1.lpRMS) && std::isfinite(r5.lpRMS) && std::isfinite(r20.lpRMS);
+    report(finite, "sub-20 Hz cutoff: LP output stays finite at fc = 1 / 5 / 20 Hz");
+    char buf[160];
+    snprintf(buf, sizeof(buf), "lpRMS  fc1=%.4g  fc5=%.4g  fc20=%.4g  (in RMS≈%.4g)",
+             r1.lpRMS, r5.lpRMS, r20.lpRMS, amp / 1.41421356f);
+    report(r1.lpRMS < r5.lpRMS && r5.lpRMS < r20.lpRMS && r20.lpRMS < amp,
+           "lower cutoff closes the filter further (fc1 < fc5 < fc20 < input)", buf);
+}
+
 // 10. Sample-rate independence of cutoff frequency
 //     At both 44100 Hz and 48000 Hz, a sine at 500 Hz with fc=1000 Hz should
 //     produce approximately the same LP amplitude.  The bilinear prewarping
@@ -1056,6 +1082,7 @@ int main() {
     test_self_oscillation();
     test_stable_below_threshold();
     test_no_nan_inf();
+    test_low_cutoff_below_20hz();
     test_samplerate_independence();
     test_hp_blocks_dc();
     test_hp_12dboct();

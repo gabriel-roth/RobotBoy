@@ -35,6 +35,11 @@ struct MF20FilterModule : Module {
     // Per-voice DSP state (up to 16 voices).
     EnginePool _pool;
 
+    // Cutoff clamp floor (Hz). The knob's own range floors at 20 Hz (configParam),
+    // but CV-modulated cutoff may reach the filter core's low limit, so deep
+    // negative CV can nearly close the filter like an MS-20's "Total" sweep.
+    static constexpr float kCutoffFloorHz = 1.f;
+
     // Rate divider — modulate() runs every ~2.5 ms instead of every sample.
     int _modulationSteps = 100;
     int _steps = 100;  // ≥ _modulationSteps: first process() modulates immediately (saved K35 mode, g targets)
@@ -157,14 +162,14 @@ struct MF20FilterModule : Module {
             float voiceCutoffLog = cutoffLog + totalOffset;
             if (lpCvConn)
                 voiceCutoffLog += lpCvAtten * inputs[LP_CUTOFF_INPUT].getPolyVoltage(c);
-            float lpHz = clamp(std::exp2(voiceCutoffLog), 20.f, _sampleRate * 0.498f);
+            float lpHz = clamp(std::exp2(voiceCutoffLog), kCutoffFloorHz, _sampleRate * 0.498f);
             eng.lpGTarget = MF20Filter::cutoffToG(lpHz, _sampleRate);
 
             // HP cutoff target (log2 Hz): knob + Total + per-filter CV.
             float voiceHpLog = hpLog + totalOffset;
             if (hpCvConn)
                 voiceHpLog += hpCvAtten * inputs[HP_CUTOFF_INPUT].getPolyVoltage(c);
-            float hpHz = clamp(std::exp2(voiceHpLog), 20.f, _sampleRate * 0.498f);
+            float hpHz = clamp(std::exp2(voiceHpLog), kCutoffFloorHz, _sampleRate * 0.498f);
             eng.hpGTarget = MF20Filter::cutoffToG(hpHz, _sampleRate);
 
             // Resonance targets — knob only (the MS-20 has no resonance modulation).
