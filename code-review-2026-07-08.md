@@ -1,17 +1,21 @@
 # RobotBoy code review — July 8, 2026 (open items)
 
-Full-repo review at commit `f222f8a`, followed by three fix rounds and a codex-branch carry-over on branch `code-review-fixes`. Fixed items are removed from this document; what remains below is still open.
+Full-repo review at commit `f222f8a`, followed by three fix rounds and a codex-branch carry-over on branch `code-review-fixes`. Fixed items are removed from this document (or struck through with a "done" note when recently closed); what remains below is still open. **Last updated July 10, 2026**, after merging the Loooop and Particules feature tracks and MF-20 Q6.
 
 **Round history:**
 - **Round 1 (July 8):** the five highest-priority findings (`2026-07-08-code-review-fixes-spec.md`). Release note: FEEDBACK on MetaModule was nearly inert and now regenerates properly.
 - **Round 2 (July 9):** both remaining majors + priority items (`2026-07-08-code-review-fixes-2-spec.md`): SR-change loop preservation, MF-20 NaN recovery, NaN guards, Particules UX, transcendentals at modulate rate, dead-code sweeps.
 - **Codex carry-over (July 9):** SVF cache, MetaModule FTZ, CleanLoFi bound, MF-20 first-modulate/R-poly/drive smoothing, shared looper control math, the waveform display cache (−47%/−84% frozen raster), grain-timing dedup + exact overlap smoothing, SR-independent LED decay, deferred Clear (`2026-07-09-codex-carryover-spec.md`).
 - **Round 3 (July 9):** `2026-07-09-round-3-spec.md` — Initialize clears the loop; grain kill-fade/kill-order/mode-change fixes; MF-20 stale-voice reset; fractional seam wrap; the hardening sweep (fmod/isfinite wraps, NaN fences incl. density/pitch at ingestion, reverb Init guard, orphan deletions, hoists); **Particules now runs a 64-sample block on both hosts** (VCV gains 1.3 ms latency at 48 kHz, control behavior now identical to MetaModule); python tests wired into the lane, slug parity, beads NaN-robustness + recovery tests.
+- **MF-20 Q6 (July 10):** C1 quadratic knees on the K35 forward clip (the "clip knee aliases" item).
+- **Loooop track (July 10, merged):** overdub write modes (Add/Replace/Layer/Decay), punch-in/out write-gain ramps, Catmull-Rom playback interpolation, one-shot end fade, smoothed level/pan/dry-wet, **Grid mode** (Off/4/8/16/32/64, both hosts incl. Löp), panel rework (5-state Overdub button + Grid knob), globals-first param order.
+- **Particules track (July 10, merged):** grain-trigger pulse separation, grain-count LED, live input-level readout, scale-aware pitch lock with root selection, dry-follows-gain (post-gain dry tap, menu option), reverb idle sleep, context-menu undo (VCV), beads_dsp adopted as first-party code under `src/particules/dsp/`.
 
-**USER CHECKS: all passed (July 9).**
-1. **MetaModule simulator — waveform display cache:** waveform persists correctly across frames and module switches (canvas-persistence assumption holds).
-2. **VCV listening — grain overlap smoothing:** no pumping/stepping in a dense cloud under a Density sweep.
-3. **VCV feel — Particules 64-block batching:** passthrough and freeze responsiveness confirmed fine.
+**USER CHECKS:**
+- July 9 set: all passed (waveform display cache; grain overlap smoothing; 64-block feel).
+- July 10 Loooop track: **pending** — 8 items in the plan checklist (`docs/superpowers/plans/2026-07-10-loooop-track-plan.md`), incl. the MetaModule CPU check.
+- July 10 Particules track: **pending** — 8 items in `docs/superpowers/plans/2026-07-10-particules-track-user-checklist.md`.
+- Loooop/Löp **panel screenshots in the manual are stale** (panel gained the Overdub button and Grid knob) — retake `screenshots/Loooop.png` / `Lop.png` in VCV.
 
 ---
 
@@ -26,7 +30,7 @@ Full-repo review at commit `f222f8a`, followed by three fix rounds and a codex-b
 
 ### DSP improvements
 
-- **Hard clip knee aliases** at high drive/cutoff. Rounding the knee with a small quadratic transition region kills the worst high-order harmonics; 2× oversampling could be a VCV-only "HQ" menu option.
+- ~~Hard clip knee aliases~~ **done (Q6, July 10):** quadratic knees on the K35 forward clip. Remaining optional half: 2× oversampling as a VCV-only "HQ" menu option.
 
 ### Low-complexity features
 
@@ -34,18 +38,20 @@ Full-repo review at commit `f222f8a`, followed by three fix rounds and a codex-b
 
 ### Verified correct (don't re-investigate)
 
-TPT algebra both modes; K35 loop clip with bistable-band fallback; `processG` bit-identical at steady state; NaN recovery, first-modulate, R-poly, drive smoothing (no audio-path sqrt/divide), growth-reset voices (state AND targets) — all tested.
+TPT algebra both modes; K35 loop clip with bistable-band fallback; `processG` bit-identical at steady state; NaN recovery, first-modulate, R-poly, drive smoothing (no audio-path sqrt/divide), growth-reset voices (state AND targets); Q6 knee equivalence outside the knee region (maxErr = 0) — all tested.
 
 ---
 
 ## Loooop / Lop
 
+### Bugs / follow-ups (from the July 10 track's final review — none blocking)
+
+1. **[minor] Stale `osRamp` reset in `triggerOneShot`'s `!playing` path** (`LoopEngine.cpp`) — a leftover retrigger ramp value can survive into the next one-shot arm.
+2. **[minor] Mid-pass `setWriteMode` to Decay skips the Decay low-pass seed** — switching write mode during an active overdub pass starts the tone filter from stale state; self-heals next pass.
+3. **[pre-existing, backlog] MetaModule cores' `set_samplerate` calls `engine_.reset(sr)` (destroys a live loop)** while VCV's `setSampleRate` preserves it. Align MM with the VCV preserve path.
+
 ### DSP improvements
 
-- **Overdub punch-out records a permanent step into the loop** (`LoopEngine.cpp`, overdub write path): input sums at full gain from the first sample and stops dead at `toggleRecord()`; clicks on every subsequent pass. **Fix:** ramp an overdub-input gain over `xfadeSamples_` at start/stop (defer `recording_ = false` by the ramp length).
-- **Linear → 4-point cubic (Hermite) interpolation** (`readInterpolated`/`readRaw`) — the single biggest fidelity win available at fractional speeds/V-oct melodies; still modest on MetaModule.
-- **Head level/pan/dry-wet applied unsmoothed** — a square LFO into Level CV produces hard steps; a 1–5 ms one-pole each fixes it.
-- **One-shots end with a hard cut** — a gain-ramp fade-out over the last `xfadeSamples_` de-clicks the re-slicer patch.
 - No anti-aliasing above 1× speed; pragmatic half-measure: average two reads spaced `sp/2` when `|speed| > 1`. Optional.
 - Constant-power pan (note the center-unity law is load-bearing for the four-heads-sum-to-unity default).
 
@@ -59,12 +65,16 @@ TPT algebra both modes; K35 loop clip with bistable-band fallback; `processG` bi
 
 ### Low-complexity features
 
-- **Overdub feedback/decay (sound-on-sound):** `buf = buf * feedback + in` — the looper feature users will actually look for; also bounds the unbounded overdub sum.
 - Rejected as not-low-complexity: overdub phase alignment, undo-overdub, saving the loop with the patch.
 
 ### Verified correct (don't re-investigate)
 
-Everything in the bug list is now fixed and tested: SR-change preservation, NaN input guard, window-bounds hoist (bit-identical), shared control math (NaN-suppressing clampSafe = rack::clamp for all inputs), display-cache invalidation completeness, fractional seam wrap, Initialize-clears-loop, same-rate early-out, jitter-decrease clamp, trigger short-circuit fix.
+Everything in the old bug list is fixed and tested: SR-change preservation, NaN input guard, window-bounds hoist (bit-identical), shared control math (NaN-suppressing clampSafe = rack::clamp for all inputs), display-cache invalidation completeness, fractional seam wrap, Initialize-clears-loop, same-rate early-out, jitter-decrease clamp, trigger short-circuit fix. The July 10 track closed the whole former DSP-improvement list — overdub write modes incl. sound-on-sound Layer/Decay (Add-mode bit-exactness pinned), punch ramps, Catmull-Rom interpolation (seam values re-derived), one-shot end fade, \~2 ms level/pan/dry-wet smoothing — plus Grid quantization with engine window snapping tested at 32 segments, and VCV/MM param-order parity re-verified after the globals-first reorder.
+
+### Test gaps (logged by the track's final review)
+
+- clear()/reset() during a pending overdub stop-ramp; toggling record off mid-up-ramp.
+- Very short/fast one-shot window compounding retrigger ramp-in with end-fade (untested corner).
 
 ---
 
@@ -77,15 +87,15 @@ Everything in the bug list is now fixed and tested: SR-change preservation, NaN 
 ### Refactorings
 
 - `particules_density_control.h` — takes *raw* voltage but names the param `conditioned_density_cv`, and includes three headers it doesn't use. Rename or inline the `* 0.2f`.
-- `Particules.cpp` includes a vendored-library internal (`src/util/control_conditioner.h`); promote it to `include/beads/`.
+- `Particules.cpp` includes `dsp/src/util/control_conditioner.h` — a reach into the dsp library's internals (softened now that the library is first-party; promote to `dsp/include/beads/` if it ever bothers anyone).
 
 ### DSP improvements
 
-- **Grain trigger pulses merge on retrigger** (`particules_block_runtime.h`) — two grains < 1 ms apart produce one continuous high. Force one low sample between pulses.
+- ~~Grain trigger pulses merge on retrigger~~ **done (July 10):** one forced low sample between back-to-back pulses.
 
 ### Low-complexity features
 
-- **Scale-aware pitch lock** (engine hooks exist). **Grain-count-aware LED** (`ActiveGrainCount()` unused). **Input level readout** in the gain menu (`InputLevel()` unused). **Undo for context-menu options** (`history::ModuleChange`, VCV-only).
+**All four landed (July 10):** scale-aware pitch lock (with Root submenu), grain-count LED, input-level readout, menu undo (VCV). Nothing left on this list.
 
 ### Verified correct (don't re-investigate)
 
@@ -93,7 +103,7 @@ Block-runtime ordering at 1/64; 64-block unification verified to land exactly on
 
 ---
 
-## beads_dsp (vendored library)
+## Particules DSP library (`src/particules/dsp/`, formerly vendored beads_dsp)
 
 ### Bugs / open design questions
 
@@ -110,10 +120,10 @@ Block-runtime ordering at 1/64; 64-block unification verified to land exactly on
 
 ### DSP improvements
 
-- **Dry path taps pre-auto-gain input** (deliberate so DRY/WET = 0 equals bypass) — but with auto-gain boosting +32 dB, mid-knob mixes have a big dry/wet level mismatch; hardware Beads crossfades post-gain. Consider tapping post-gain, or document the trade-off.
+- ~~Dry path taps pre-auto-gain input~~ **done (July 10, Q9):** dry now taps post-gain by default ("Dry signal follows input gain", menu-off restores the bit-exact bypass). Documented caveat: with the option on, hot inputs pass the dry path through the input soft limiter.
+- ~~Reverb never sleeps~~ **done (July 10, P1):** energy-based sleep once amount sits at 0 and the tail decays; wake is bit-clean.
 - **Adaptive interpolation under load** — removed with the DTC path; re-add a load-tier check into `Grain::Process`/`ProcessBlock` only if grain-saturation CPU ever matters.
 - **kMidi burst mode clumps** (`grain_scheduler.cpp`): up to 15 burst grains inside one ≤1.3 ms block. Spread across blocks with a pending counter.
-- **Reverb never sleeps** (`reverb.cpp` gates input at `amount_ == 0` but the 12-delay-line tank runs forever). Add an energy-based sleep once the tail decays (MetaModule CPU).
 - Grain-rate cap at 80 Hz is deliberate; revisit only for "faithful recreation."
 - The overlap-normalization "slow fall" coefficient is 0.2/sample ≈ 5-sample time constant — not slow; if pumping is ever heard, it wants \~0.001. (Block application is now exact; the coefficient value is unchanged.)
 
@@ -144,35 +154,31 @@ Remaining items, all minor:
 ## Still to do, by category
 
 ### Fixes
-Nothing user-facing remains. Hardening nits only: fence-ordering hardening (§ beads #3), deferred-clear-on-bypass (§ Particules #1), and the grain-overflow design question (§ beads #1 — needs a decision, not just code).
+Nothing user-facing remains. Small items only: the two Loooop follow-up minors (stale `osRamp`, mid-pass Decay LP seed), MM `set_samplerate` loop destruction (§ Loooop follow-ups), fence-ordering hardening (§ dsp lib #3), deferred-clear-on-bypass (§ Particules #1), and the grain-overflow design question (§ dsp lib #1 — needs a decision, not just code).
 
 ### Performance improvements
-1. Reverb energy-based sleep when idle (MetaModule CPU). (§ beads DSP)
-2. Batched waveform-revision bump while recording — profile first. (§ Loooop Performance)
+1. Batched waveform-revision bump while recording — profile first. (§ Loooop Performance)
 
 ### Refactors
-1. beads duplications: quality-crossfade blocks, RecordingBuffer read-path consolidation. (§ beads Refactorings)
-2. `particules_density_control.h` naming/includes; promote `control_conditioner.h`. (§ Particules Refactorings)
+1. dsp-lib duplications: quality-crossfade blocks, RecordingBuffer read-path consolidation. (§ dsp lib Refactorings)
+2. `particules_density_control.h` naming/includes; `control_conditioner.h` include path. (§ Particules Refactorings)
 3. Build/meta cleanups: clean target, single version source, `sourceUrl`/`manualUrl`, misc nits. (§ Plugin glue)
 
-### New features (the remaining backlog — none started)
-1. **Loooop overdub feedback/decay (sound-on-sound)** — highest musical value.
-2. **Particules scale-aware pitch lock** (engine hooks exist).
-3. MF-20 HP output jack (panel room permitting).
-4. Particules: grain-count LED, input-level readout, menu undo; grain-trigger pulse separation.
-5. DSP-quality options: Loooop cubic interpolation, overdub ramps, one-shot fades, smoothed level/pan, optional anti-aliasing, display rebinning; MF-20 clip-knee rounding / HQ oversampling; beads post-gain dry tap, kMidi burst spreading.
+### New features (the remaining backlog)
+1. MF-20 HP output jack (panel room permitting).
+2. DSP-quality options: Loooop optional anti-aliasing above 1× speed, constant-power pan, display rebinning; MF-20 HQ 2× oversampling (VCV-only menu option); kMidi burst spreading.
 
 ### Other
-1. Test gaps: kMidi scheduler, interpolation-tail sync, dedicated pitch-NaN grain test, Loooop SR-change breadth. (§ beads test gaps)
-2. Pending USER CHECKS (top of this file) — three manual checks.
-3. Release checklist: `sourceUrl` for VCV Library; `plugin-mm.json` schema check; decide the grain-overflow design question before calling the beads engine "done."
+1. Test gaps: kMidi scheduler, interpolation-tail sync, dedicated pitch-NaN grain test, Loooop SR-change breadth (§ dsp lib test gaps); Loooop stop-ramp corners (§ Loooop test gaps).
+2. Pending USER CHECKS (top of this file) — the two July 10 track checklists, plus fresh manual screenshots.
+3. Release checklist: `sourceUrl` for VCV Library; `plugin-mm.json` schema check; decide the grain-overflow design question before calling the dsp engine "done."
 
 ---
 
 ## Suggested next steps
 
-Rounds 1–3 have cleared every open bug. What remains splits three ways — pick a direction:
+Every open bug from the July 8 review is cleared, and the July 10 tracks landed the entire high-value feature backlog (Loooop write modes/grid/panel, all four Particules features, both perf items). What remains:
 
-1. **Release prep:** the three USER CHECKS, `sourceUrl`/`manualUrl`, the glue nits, and a decision on grain-overflow behavior. Smallest path to shippable.
-2. **Features:** the "New features" list above, roughly in listed order of value (overdub feedback first — it also bounds the overdub sum, so it has a robustness angle too).
-3. **Polish/perf tail:** reverb sleep, the DSP-quality options, remaining refactors and test gaps — worthwhile but none urgent.
+1. **User checks first:** the two July 10 checklists gate calling the tracks done; screenshots for the manual while you're in VCV.
+2. **Release prep:** `sourceUrl`/`manualUrl`, the glue nits, a decision on grain-overflow behavior. Smallest path to shippable.
+3. **Polish tail:** the follow-up minors, refactors, test gaps, and optional DSP-quality features — worthwhile but none urgent.
