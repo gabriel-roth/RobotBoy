@@ -981,6 +981,71 @@ static void test_stop_ramp_rearm() {
     check(noSnap, "rearm: per-sample write-gain delta never exceeds the ramp step");
 }
 
+static void test_clear_during_stop_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();                       // loop closed
+    e.toggleRecord();                       // start overdub (up-ramp)
+    for (int i = 0; i < 400; ++i) e.process(0.5f);
+    e.toggleRecord();                       // request stop -> down-ramp pending
+    for (int i = 0; i < 100; ++i) e.process(0.5f);   // mid down-ramp
+    e.clear();                              // clear during the pending stop-ramp
+    check(!e.isRecording(), "clear_stopramp: not recording after clear");
+    check(e.loopLength() == 0, "clear_stopramp: loop erased");
+    bool finite = true;
+    for (int i = 0; i < 500; ++i)
+        if (!std::isfinite(e.process(0.f))) finite = false;
+    check(finite, "clear_stopramp: output finite after clear");
+    // Engine must be able to record a fresh loop cleanly:
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(1.f);
+    e.toggleRecord();
+    check(e.loopLength() == 500, "clear_stopramp: fresh loop records normally");
+    check(near(e.process(0.f), 1.f), "clear_stopramp: fresh loop plays back");
+}
+
+static void test_reset_during_stop_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.toggleRecord();                       // overdub
+    for (int i = 0; i < 400; ++i) e.process(0.5f);
+    e.toggleRecord();                       // stop pending
+    for (int i = 0; i < 100; ++i) e.process(0.5f);
+    e.reset(48000.f, 1.f);                  // full reset mid down-ramp
+    check(!e.isRecording(), "reset_stopramp: not recording after reset");
+    check(e.loopLength() == 0, "reset_stopramp: loop gone after reset");
+    e.toggleRecord();
+    for (int i = 0; i < 300; ++i) e.process(1.f);
+    e.toggleRecord();
+    check(e.loopLength() == 300, "reset_stopramp: records normally after reset");
+}
+
+static void test_record_off_mid_up_ramp() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);
+    e.toggleRecord();                       // loop closed: all 1.0
+    e.toggleRecord();                       // overdub: up-ramp starts (240 samples)
+    for (int i = 0; i < 100; ++i) e.process(1.f);   // mid up-ramp
+    e.toggleRecord();                       // stop while still ramping in
+    bool finite = true;
+    for (int i = 0; i < 2000; ++i)
+        if (!std::isfinite(e.process(0.f))) finite = false;
+    check(finite, "up_ramp_off: output finite");
+    check(!e.isRecording(), "up_ramp_off: recording ended");
+    // The partially-ramped overdub wrote at most ~2x content briefly; loop
+    // content must stay bounded (constant-1 loop + up-to-unity ramped add of 1.0):
+    float peak = 0.f;
+    for (int i = 0; i < 1000; ++i) peak = std::max(peak, std::fabs(e.process(0.f)));
+    check(peak <= 2.f + 1e-3f, "up_ramp_off: overdubbed content bounded");
+}
+
 static void test_ramp_layer_combined_expression() {
     // Mid-ramp the write must follow buf = old + g·(fb·old − old) + g·in.
     LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
@@ -1329,6 +1394,9 @@ int main() {
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
+    test_clear_during_stop_ramp();
+    test_reset_during_stop_ramp();
+    test_record_off_mid_up_ramp();
     test_ramp_layer_combined_expression();
     test_write_mode_replace();
     test_write_mode_layer();
