@@ -11,7 +11,8 @@
 # screen at top; four head groups (Size/Pos/Speed over Jitter/Pan/Level, CV
 # under every knob; Trig, Jump, stereo Out pair below, labels above the
 # jacks), each on its own generated tint; global bottom row: In pair,
-# Record+trig, Overdub button, Clear+trig, Grid knob, D/W knob+CV, Out pair
+# Record+trig, Overdub button, Clear+trig, Grid knob, Dry/Wet knob+CV, Out
+# pair
 # (master — enum names stay MIX_*). Overdub is a 5-state cycling color
 # button (OverdubButton, custom widget): Layer / Decay / Add / Replace /
 # Lock, default Layer — it absorbs the old Overdub on/off (Lock = off) and
@@ -105,5 +106,5 @@ rows:
       - {label: Grid,    name: GRID_PARAM,    type: knobs,   small: true,
          widget: RoundSmallBlackSnapKnob,
          values: ["Ø", "4", "8", "16", "32", "64"]}
-      - {label: D/W,     name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
+      - {label: Dry/Wet, name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
       - {label: Out,     name: MIX_L_OUTPUT,  pair: MIX_R_OUTPUT, type: outputs, weight: 1}

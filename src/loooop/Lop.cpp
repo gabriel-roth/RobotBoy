@@ -174,24 +174,24 @@ struct LopWidget : ModuleWidget {
         // Coords come from res/Lop.svg's hidden components layer (circle ids)
         // — regenerate the panel from panel-specs/lop.yaml and carry any
         // changed positions here by hand.
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 46.35)), module, Lop::SPEED_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(30.48, 46.35)), module, Lop::POSITION_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(48.8, 46.35)), module, Lop::JITTER_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 58.7)), module, Lop::SPEED_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 58.7)), module, Lop::POSITION_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 58.7)), module, Lop::JITTER_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 74.05)), module, Lop::TRIG_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 74.05)), module, Lop::JUMP_INPUT));
-        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(37.968, 74.05)), module, Lop::OVERDUB_PARAM, Lop::OVERDUB_R_LIGHT));
-        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 74.05)), module, Lop::GRID_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 91.05)), module, Lop::SIZE_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 91.05)), module, Lop::DRYWET_PARAM));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(37.968, 91.05)), module, Lop::CLEAR_PARAM));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(51.708, 91.05)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 103.4)), module, Lop::SIZE_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 103.4)), module, Lop::DRYWET_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.968, 103.4)), module, Lop::CLEAR_TRIG_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.708, 103.4)), module, Lop::RECORD_TRIG_INPUT));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(9.87, 46.05)), module, Lop::SIZE_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(23.61, 46.05)), module, Lop::POSITION_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(37.35, 46.05)), module, Lop::SPEED_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(51.09, 46.05)), module, Lop::JITTER_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.87, 58.0)), module, Lop::SIZE_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 58.0)), module, Lop::POSITION_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.35, 58.0)), module, Lop::SPEED_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.09, 58.0)), module, Lop::JITTER_CV_INPUT));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 74.05)), module, Lop::DRYWET_PARAM));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(30.48, 74.05)), module, Lop::CLEAR_PARAM));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(48.8, 74.05)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 86.0)), module, Lop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 86.0)), module, Lop::CLEAR_TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 86.0)), module, Lop::RECORD_TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.252, 102.15)), module, Lop::TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(22.992, 102.15)), module, Lop::JUMP_INPUT));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(37.968, 102.15)), module, Lop::OVERDUB_PARAM, Lop::OVERDUB_R_LIGHT));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(51.708, 102.15)), module, Lop::GRID_PARAM));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Lop::AUDIO_L_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Lop::AUDIO_R_INPUT));
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(43.91, 116.05)), module, Lop::OUT_L_OUTPUT));
