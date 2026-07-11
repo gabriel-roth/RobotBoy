@@ -7,6 +7,11 @@
 #include <vector>
 #include <string>
 
+// Playhead display names follow the head colors on the panel/display
+// (LoopWaveformRenderer::HEAD_COLORS): H1 red, H2 green, H3 blue, H4 yellow.
+static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
+    "Red playhead", "Green playhead", "Blue playhead", "Yellow playhead"};
+
 struct Loooop : Module {
     // Global params and jacks come FIRST (so the MetaModule manual lists them
     // at the top), then params and inputs grouped PER HEAD so the MetaModule
@@ -17,10 +22,10 @@ struct Loooop : Module {
     // HEAD_PARAMS params / HEAD_INPUTS inputs — index a head with
     // `X1_PARAM + HEAD_PARAMS * h`.
     enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM, CROSSFADE_PARAM,
-                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM,
-                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM,
-                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM,
-                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM,
+                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM, EXCLUDE_GRID1_PARAM,
+                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM, EXCLUDE_GRID2_PARAM,
+                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM, EXCLUDE_GRID3_PARAM,
+                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM, EXCLUDE_GRID4_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
@@ -28,7 +33,7 @@ struct Loooop : Module {
                    SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
                    SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
                    INPUTS_LEN };
-    static constexpr int HEAD_PARAMS = 8;   // per-head param stride: Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct
+    static constexpr int HEAD_PARAMS = 9;   // per-head param stride: Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct,ExcludeGrid
     static constexpr int HEAD_INPUTS = 8;   // per-head input stride: SizeCV,PosCV,SpeedCV,JitterCV,PanCV,LevelCV,Trig,Jump
     enum OutputId { MIX_L_OUTPUT, MIX_R_OUTPUT,
                     HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
@@ -46,29 +51,32 @@ struct Loooop : Module {
     Loooop() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            const std::string n = std::to_string(h + 1);
-            configParam(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, "Head " + n + " speed");
-            configParam(POSITION1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.5f, "Head " + n + " position");
-            configParam(SIZE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 1.f, "Head " + n + " size");
+            const std::string& n = kHeadNames[h];
+            configParam(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, n + " speed");
+            configParam(POSITION1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.5f, n + " position");
+            configParam(SIZE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 1.f, n + " size");
             // Level defaults to 0.25: four phase-locked heads at defaults sum to
             // unity, matching the old single-head loudness.
-            configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, "Head " + n + " level");
-            configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " jitter");
-            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " trigger",
-                {"Loop start", "One-shot"});
-            configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, "Head " + n + " speed CV V/Oct",
+            configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, n + " level");
+            configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " jitter");
+            // 0 = restart-at-window-start (unnamed default), 1 = one-shot.
+            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " one-shot",
                 {"Off", "On"});
-            configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " speed CV");
-            configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " position CV");
-            configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " size CV");
-            configInput(LEVEL1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " level CV");
-            configInput(JITTER1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " jitter CV");
-            configParam(PAN1_PARAM + HEAD_PARAMS * h, -1.f, 1.f, 0.f, "Head " + n + " pan");
-            configInput(PAN1_CV_INPUT + HEAD_INPUTS * h, "Head " + n + " pan CV");
-            configInput(TRIG1_INPUT + HEAD_INPUTS * h, "Head " + n + " trigger");
-            configInput(JUMP1_INPUT + HEAD_INPUTS * h, "Head " + n + " jump");
-            configOutput(HEAD1_L_OUTPUT + 2 * h, "Head " + n + " left");
-            configOutput(HEAD1_L_OUTPUT + 2 * h + 1, "Head " + n + " right");
+            configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
+                {"Off", "On"});
+            configSwitch(EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f,
+                n + " exclude from Grid", {"Off", "On"});
+            configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, n + " speed CV");
+            configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, n + " position CV");
+            configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, n + " size CV");
+            configInput(LEVEL1_CV_INPUT + HEAD_INPUTS * h, n + " level CV");
+            configInput(JITTER1_CV_INPUT + HEAD_INPUTS * h, n + " jitter CV");
+            configParam(PAN1_PARAM + HEAD_PARAMS * h, -1.f, 1.f, 0.f, n + " pan");
+            configInput(PAN1_CV_INPUT + HEAD_INPUTS * h, n + " pan CV");
+            configInput(TRIG1_INPUT + HEAD_INPUTS * h, n + " trigger");
+            configInput(JUMP1_INPUT + HEAD_INPUTS * h, n + " jump");
+            configOutput(HEAD1_L_OUTPUT + 2 * h, n + " left");
+            configOutput(HEAD1_L_OUTPUT + 2 * h + 1, n + " right");
         }
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
@@ -151,6 +159,8 @@ struct Loooop : Module {
             engine.setJitter(h, loooop::normalizedControl(
                 params[JITTER1_PARAM + HEAD_PARAMS * h].getValue(),
                 inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
+            engine.setGridExclude(h,
+                params[EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f);
 
             bool oneShot = params[TRIG_MODE1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f;
             engine.setOneShot(h, oneShot);
@@ -342,21 +352,31 @@ struct LoooopWidget : ModuleWidget {
         menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
-        for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            menu->addChild(createSubmenuItem("Head " + std::to_string(h + 1), "",
-                [m, h](Menu* sub) {
-                    sub->addChild(createIndexSubmenuItem("Trigger", kTrigModes,
-                        [m, h] { return (int)std::round(
-                            m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue()); },
-                        [m, h](int v) {
-                            m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue((float)v); }));
-                    sub->addChild(createBoolMenuItem("Speed CV is V/Oct", "",
-                        [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
-                        [m, h](bool v) {
-                            m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
-                }));
-        }
+        // Commands at the top level, playheads (by color) in the submenus.
+        // One-shot is a checkmark per playhead; unchecked (default) a trigger
+        // restarts the playhead at its window start — that mode has no name
+        // in the interface.
+        menu->addChild(createSubmenuItem("One-shot", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createSubmenuItem("Speed CV is V/Oct", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
     }
 };
 

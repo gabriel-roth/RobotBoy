@@ -134,6 +134,7 @@ void LoopEngine::setSpeed(int head, float x)     { if (head >= 0 && head < numHe
 void LoopEngine::setPosition(int head, float c01){ if (head >= 0 && head < numHeads_) heads_[head].centre = clamp01(c01); }
 void LoopEngine::setSize(int head, float s01)    { if (head >= 0 && head < numHeads_) heads_[head].size = clamp01(s01); }
 void LoopEngine::setLevel(int head, float g)     { if (head >= 0 && head < numHeads_) heads_[head].level = clamp01(g); }
+void LoopEngine::setGridExclude(int head, bool exclude) { if (head >= 0 && head < numHeads_) heads_[head].gridExclude = exclude; }
 
 void LoopEngine::setGrid(int segments) {
     const int g = segments < 2 ? 0 : segments;
@@ -235,7 +236,7 @@ void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
     if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
     double centre = static_cast<double>(clamp01(h.centre + jitterOff)) * L;
-    if (grid_ >= 2) {
+    if (grid_ >= 2 && !h.gridExclude) {
         // Grid: quantize the window to whole segments of seg = L/grid_ —
         // length to a segment count (>= 1, grown to respect the minimum
         // window), start to the nearest boundary. k + m <= grid_ keeps the

@@ -111,3 +111,9 @@ Task 9 (docs): complete (commit d79fcee — Particules.md feature docs incl. Q9 
 FINAL VERIFICATION: g++ lane exit 0; Catch2 100% (157 cases); VCV plugin.dylib clean; MetaModule RobotBoy.mmplugin built, all symbols found.
 FINAL WHOLE-BRANCH REVIEW (fable): READY TO MERGE. No Critical/Important. All 7 seams traced clean (F3 threading incl. release/acquire + undo replay; F8 JSON coherence; Q9×P1 bit-identity across sleep boundary via CosLookup(0)==1.0 exact; F5/F7 wrapper seam; P1 lifecycle incl. re-Init and setters-while-asleep; move grep-clean; MM ifdef seams). New minors (leave): 1-block pitch_scale_ race (matches existing UI→audio conventions, self-healing); stale tests/README.md binary count; settle-comment math (re-derived, conclusion correct). All accumulated task minors triaged LEAVE. USER CHECKS pending: plan Task 9 checklist items 1-7 + MM disabled-menu-item rendering + Root disabled-state refresh-on-reopen.
 ALL 9 TASKS + FINAL REVIEW COMPLETE.
+
+=== LOOOOP MENU REWORK (spec: 2026-07-10-loooop-menu-rework-design.md, plan: 2026-07-10-loooop-menu-rework-plan.md, 3 tasks; branch loooop-track, base 3173ca2) ===
+Task 1: complete (per-head LoopEngine::setGridExclude + windowBounds gate; TDD RED->GREEN, 4 new checks, suite exit 0).
+Task 2: complete (VCV: EXCLUDE_GRID per-head params, HEAD_PARAMS 8->9, "Head N" -> color playhead names, commands-first menu Trigger/V-Oct/Exclude-from-Grid; vcv build exit 0).
+Task 3: complete (MM: QlpExcludeGridAlt zero-init-safe, Elements 87->91, updateHead XG template param, 4 call sites; MM build "All symbols found!", full lanes exit 0).
+Executed inline (controller). USER CHECKS pending: 2026-07-10-loooop-menu-rework-user-checklist.md (4 items). Loooop.md updated for the new menu.

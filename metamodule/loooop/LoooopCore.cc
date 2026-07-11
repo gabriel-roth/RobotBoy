@@ -57,16 +57,16 @@ public:
 
         auto g0 = updateHead<Speed1Knob, Position1Knob, Size1Knob, Level1Knob, Jitter1Knob,
                    Speed1CvIn, Position1CvIn, Size1CvIn, Level1CvIn, Jitter1CvIn,
-                   Trig1In, Jump1In, TrigMode1Alt, SpeedVoct1Alt, Pan1Knob, Pan1CvIn>(0);
+                   Trig1In, Jump1In, TrigMode1Alt, SpeedVoct1Alt, ExcludeGrid1Alt, Pan1Knob, Pan1CvIn>(0);
         auto g1 = updateHead<Speed2Knob, Position2Knob, Size2Knob, Level2Knob, Jitter2Knob,
                    Speed2CvIn, Position2CvIn, Size2CvIn, Level2CvIn, Jitter2CvIn,
-                   Trig2In, Jump2In, TrigMode2Alt, SpeedVoct2Alt, Pan2Knob, Pan2CvIn>(1);
+                   Trig2In, Jump2In, TrigMode2Alt, SpeedVoct2Alt, ExcludeGrid2Alt, Pan2Knob, Pan2CvIn>(1);
         auto g2 = updateHead<Speed3Knob, Position3Knob, Size3Knob, Level3Knob, Jitter3Knob,
                    Speed3CvIn, Position3CvIn, Size3CvIn, Level3CvIn, Jitter3CvIn,
-                   Trig3In, Jump3In, TrigMode3Alt, SpeedVoct3Alt, Pan3Knob, Pan3CvIn>(2);
+                   Trig3In, Jump3In, TrigMode3Alt, SpeedVoct3Alt, ExcludeGrid3Alt, Pan3Knob, Pan3CvIn>(2);
         auto g3 = updateHead<Speed4Knob, Position4Knob, Size4Knob, Level4Knob, Jitter4Knob,
                    Speed4CvIn, Position4CvIn, Size4CvIn, Level4CvIn, Jitter4CvIn,
-                   Trig4In, Jump4In, TrigMode4Alt, SpeedVoct4Alt, Pan4Knob, Pan4CvIn>(3);
+                   Trig4In, Jump4In, TrigMode4Alt, SpeedVoct4Alt, ExcludeGrid4Alt, Pan4Knob, Pan4CvIn>(3);
 
         // Stereo in: an unpatched jack follows the patched one (mono -> both).
         auto inLOpt = getInput<AudioInL>(), inROpt = getInput<AudioInR>();
@@ -156,7 +156,7 @@ private:
     template<Info::Elem S, Info::Elem P, Info::Elem Z, Info::Elem L, Info::Elem J,
              Info::Elem SC, Info::Elem PC, Info::Elem ZC, Info::Elem LC, Info::Elem JC,
              Info::Elem TI, Info::Elem JI, Info::Elem TM, Info::Elem VO,
-             Info::Elem PN, Info::Elem PNC>
+             Info::Elem XG, Info::Elem PN, Info::Elem PNC>
     LoopEngine::HeadOut updateHead(int h) {
         float spKnob = (getState<S>() - 0.5f) * 4.f;
         float spCv = getInput<SC>().value_or(0.f);
@@ -171,6 +171,7 @@ private:
             getState<L>(), getInput<LC>().value_or(0.f)));
         engine_.setJitter(h, loooop::normalizedControl(
             getState<J>(), getInput<JC>().value_or(0.f)));
+        engine_.setGridExclude(h, getState<XG>() == 1);
 
         const bool oneShot = getState<TM>() == 1;
         engine_.setOneShot(h, oneShot);

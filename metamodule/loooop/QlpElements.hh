@@ -62,6 +62,12 @@ struct QlpGridAlt : AltParamChoiceLabeled {
     constexpr QlpGridAlt(BaseElement b)
         : AltParamChoiceLabeled{{{b}, 6, 0}, {"Off", "4", "8", "16", "32", "64"}} {}
 };
+// Index 0 = Off so patches saved before this param (loader zero-inits unset
+// alt-params) keep every head on the grid.
+struct QlpExcludeGridAlt : AltParamChoiceLabeled {
+    constexpr QlpExcludeGridAlt(BaseElement b)
+        : AltParamChoiceLabeled{{{b}, 2, 0}, {"Off", "On"}} {}
+};
 struct QlpJackIn : JackInput {
     constexpr QlpJackIn(BaseElement b) : JackInput{{b, "4ms/comp/jack_x.png"}} {}
 };
