@@ -191,12 +191,11 @@ TEST_CASE("GrainEngine: kill-fallback victim is the true oldest grain, not array
     // Slot 0 now holds the newest grain, not the oldest.
     REQUIRE(engine.SpawnSerialAt(0) > true_oldest_serial);
 
-    // The pool is now genuinely full (30/30). Force the full-pool
-    // fallback branch of AllocateGrain directly — GrainEngine::Process's
-    // separate CPU-based max-active-grain cap would otherwise drop any
-    // further trigger before AllocateGrain is even called once the pool
-    // is at capacity, so this test-only hook drives the same branch a
-    // real overflow trigger reaches.
+    // The pool is now genuinely full (30/30). Drive victim selection
+    // directly via the test hook, which marks the true oldest grain for
+    // pending-kill exactly as Process()'s steal path does at saturation —
+    // isolating FindOldestActiveGrain's ordering logic from the trigger
+    // machinery (the full steal path is covered by the steal test below).
     engine.ForceAllocateGrainForTest();
 
     int pending_kill_index = -1;
@@ -210,4 +209,89 @@ TEST_CASE("GrainEngine: kill-fallback victim is the true oldest grain, not array
     REQUIRE(pending_kill_count == 1);
     REQUIRE(pending_kill_index == true_oldest_index);
     REQUIRE(pending_kill_index != 0);  // the old array-index-based code picked slot 0
+}
+
+// ── (c) Overflow trigger at a full pool steals the oldest, never vanishes ───
+//
+// Decided 2026-07-11: at saturation the newest events must always sound. A
+// trigger arriving with the pool genuinely full (all kMaxGrains active) must
+// hard-replace the oldest grain's slot rather than being dropped. This test
+// drives the genuinely-full-pool path through the real Process() trigger
+// loop (not the test hook): fill the pool, then fire one more trigger.
+
+TEST_CASE("GrainEngine: trigger at a full pool steals the oldest grain instead of vanishing",
+          "[engine][kill][steal]") {
+    const size_t num_frames = 48000 * 8;  // 8s buffer: headroom so the
+                                           // dynamic max-active cap reaches
+                                           // kMaxGrains for the grain size used.
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kGated;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.density = 0.5f;  // noon = rate 0, only the rising-edge grain
+                             // fires per gate pulse.
+    params.gate = false;
+
+    std::vector<StereoFrame> block(64);
+
+    // Burn down the ~1s startup ramp before filling the pool.
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+
+    auto fire_one_grain = [&](float size) {
+        params.size = size;
+        params.gate = true;
+        engine.Process(params, block.data(), 64);
+        params.gate = false;
+        engine.Process(params, block.data(), 64);
+    };
+
+    // Fill every slot with long grains so the pool is genuinely full when
+    // the overflow trigger arrives.
+    for (int i = 0; i < kMaxGrains; ++i) {
+        fire_one_grain(0.2f);
+    }
+    REQUIRE(engine.ActiveGrainCount() == kMaxGrains);
+
+    // Capture pool state before the overflow trigger.
+    uint32_t oldest_serial = 0; int oldest_index = -1;
+    uint32_t max_serial_before = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        REQUIRE(engine.ActiveAt(i));
+        uint32_t s = engine.SpawnSerialAt(i);
+        max_serial_before = std::max(max_serial_before, s);
+        if (oldest_index < 0 || s < oldest_serial) { oldest_serial = s; oldest_index = i; }
+    }
+
+    // Fire one more trigger into the saturated engine.
+    fire_one_grain(0.2f);
+
+    // The new grain must exist: some slot now carries a serial newer than
+    // everything that existed before the trigger.
+    bool newest_sounds = false;
+    for (int i = 0; i < kMaxGrains; ++i)
+        if (engine.ActiveAt(i) && engine.SpawnSerialAt(i) > max_serial_before)
+            newest_sounds = true;
+    REQUIRE(newest_sounds);
+
+    // The oldest grain was retired: its serial is gone from the pool.
+    bool oldest_gone = true;
+    for (int i = 0; i < kMaxGrains; ++i)
+        if (engine.ActiveAt(i) && engine.SpawnSerialAt(i) == oldest_serial
+            && !engine.PendingKillAt(i))
+            oldest_gone = false;
+    REQUIRE(oldest_gone);
 }

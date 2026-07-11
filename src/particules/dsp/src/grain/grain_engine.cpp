@@ -70,45 +70,41 @@ int GrainEngine::ActiveGrainCount() const {
 }
 
 Grain* GrainEngine::AllocateGrain() {
-    // First pass: find an inactive grain.
     for (int i = 0; i < kMaxGrains; ++i) {
         if (!grains_[i].active()) {
             return &grains_[i];
         }
     }
+    return nullptr;
+}
 
-    // Pool is full — mark the true oldest grain (by spawn order) for
-    // zero-crossing kill. The grain will be killed at the next zero
-    // crossing (or after a short fallback fade), avoiding clicks without
-    // smearing transients. We do NOT return the grain for immediate
-    // reuse; the new trigger is simply dropped.
-    //
-    // Array index does NOT track spawn order: as grains finish, their
-    // slots free up and get reused by the first loop above, so a low
-    // array index can hold the *newest* grain in the pool. spawn_serial_
-    // is a monotonically increasing counter stamped on each grain at
-    // activation (see Process()); pick the active, not-yet-pending-kill
-    // grain with the lowest serial.
-    //
-    // spawn_serial_ wraps at 2^32 (~4.29 billion grains). Even under a
-    // sustained worst-case trigger rate (e.g. an audio-rate signal into a
-    // gate/clock input firing a grain on every rising edge, tens of kHz),
-    // that's still on the order of a day of continuous playing. Wraparound
-    // only affects *relative* ordering, and grains live at most a few
-    // hundred ms — far shorter than the wrap period — so no two
-    // simultaneously-active grains can ever straddle a wrap; ordering
-    // self-heals immediately.
+// Index of the active, not-yet-pending-kill grain with the lowest spawn
+// serial (the true oldest), or -1 if every grain is inactive or already
+// dying.
+//
+// Array index does NOT track spawn order: as grains finish, their slots
+// free up and get reused by AllocateGrain, so a low array index can hold
+// the *newest* grain in the pool. spawn_serial_ is a monotonically
+// increasing counter stamped on each grain at activation (see Process());
+// pick by serial, not by index.
+//
+// spawn_serial_ wraps at 2^32 (~4.29 billion grains). Even under a
+// sustained worst-case trigger rate (e.g. an audio-rate signal into a
+// gate/clock input firing a grain on every rising edge, tens of kHz),
+// that's still on the order of a day of continuous playing. Wraparound
+// only affects *relative* ordering, and grains live at most a few
+// hundred ms — far shorter than the wrap period — so no two
+// simultaneously-active grains can ever straddle a wrap; ordering
+// self-heals immediately.
+int GrainEngine::FindOldestActiveGrain() const {
     int victim = -1;
     for (int i = 0; i < kMaxGrains; ++i) {
-        if (grains_[i].pending_kill()) continue;
+        if (!grains_[i].active() || grains_[i].pending_kill()) continue;
         if (victim < 0 || grains_[i].spawn_serial() < grains_[victim].spawn_serial()) {
             victim = i;
         }
     }
-    if (victim >= 0) {
-        grains_[victim].StartPendingKill();
-    }
-    return nullptr;
+    return victim;
 }
 
 Grain::GrainParameters GrainEngine::ComputeGrainParams(
@@ -270,16 +266,35 @@ void GrainEngine::Process(const ParticulesParameters& params,
 
     int active_before = ActiveGrainCount();
 
-    // Start new grains at their trigger points.
+    // Start new grains at their trigger points. At saturation (CPU cap or
+    // full pool), steal-and-replace: retire the oldest grain and start the
+    // new one, so the newest events always sound (decided 2026-07-11).
     for (int t = 0; t < num_triggers; ++t) {
-        if (active_before >= max_active) break;
-        Grain* g = AllocateGrain();
-        if (g) {
-            auto gp = ComputeGrainParams(params, trigger_samples[t]);
-            g->Start(gp);
-            g->SetSpawnSerial(++spawn_serial_);
-            ++active_before;
+        Grain* g = nullptr;
+        bool reused_active_slot = false;
+        if (active_before < max_active) g = AllocateGrain();
+        if (!g) {
+            int victim = FindOldestActiveGrain();
+            if (victim < 0) break;   // every active grain is already dying; drop the rest
+            Grain* free_slot = AllocateGrain();
+            if (free_slot) {
+                // CPU-cap saturation with pool headroom: fade the victim out
+                // click-free and start the new grain in a free slot (active
+                // count exceeds the cap by 1 for <=36 samples).
+                grains_[victim].StartPendingKill();
+                g = free_slot;
+            } else {
+                // Pool truly full: hard-replace the victim. The new grain's
+                // envelope opens at zero; the victim's cut is the accepted
+                // cost of never dropping the newest event.
+                g = &grains_[victim];
+                reused_active_slot = true;
+            }
         }
+        auto gp = ComputeGrainParams(params, trigger_samples[t]);
+        g->Start(gp);
+        g->SetSpawnSerial(++spawn_serial_);
+        if (!reused_active_slot) ++active_before;
     }
 
     // --- Zero output buffer ---

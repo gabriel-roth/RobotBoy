@@ -28,21 +28,20 @@ public:
     bool GrainTriggeredThisBlock() const { return scheduler_.GrainTriggeredThisBlock(); }
 
     // Test-only accessors: expose per-slot spawn order and kill state to
-    // verify the kill-fallback picks the true oldest-by-spawn-order grain
-    // (see AllocateGrain), not just the first non-pending array slot.
+    // verify the steal path picks the true oldest-by-spawn-order grain
+    // (see FindOldestActiveGrain), not just the first non-pending array slot.
     bool ActiveAt(int index) const { return grains_[index].active(); }
     bool PendingKillAt(int index) const { return grains_[index].pending_kill(); }
     uint32_t SpawnSerialAt(int index) const { return grains_[index].spawn_serial(); }
 
-    // Test-only: directly exercises AllocateGrain's full-pool kill-
-    // fallback branch. In production this same branch is reached from
-    // Process() when a trigger arrives with no free grain slot; the
-    // separate CPU-based max-active-grain cap in Process() means that in
-    // practice a genuinely full pool (all kMaxGrains slots active) also
-    // has max_active <= kMaxGrains, so Process() drops the excess trigger
-    // before ever calling AllocateGrain again. This hook lets tests drive
-    // the fallback branch deterministically without depending on that cap.
-    void ForceAllocateGrainForTest() { AllocateGrain(); }
+    // Test-only: marks the pool's true oldest grain for the click-free
+    // pending-kill, exactly as Process()'s steal path does at saturation.
+    // Lets tests drive victim selection deterministically without depending
+    // on the CPU-based max-active cap in Process().
+    void ForceAllocateGrainForTest() {
+        int v = FindOldestActiveGrain();
+        if (v >= 0) grains_[v].StartPendingKill();
+    }
 
     // Scale quantization
     void LoadScale(const double* ratios, uint32_t num_notes) { pitch_quantizer_.loadRatios(ratios, num_notes); }
@@ -63,8 +62,8 @@ private:
     float sample_rate_ = 48000.0f;
 
     // Monotonically increasing spawn-order counter, stamped onto each
-    // grain at activation (see Process()). Used by AllocateGrain's kill-
-    // fallback to find the true oldest active grain.
+    // grain at activation (see Process()). Used by FindOldestActiveGrain
+    // to pick the true oldest active grain when stealing at saturation.
     uint32_t spawn_serial_ = 0;
 
     // Overlap normalization
@@ -88,8 +87,13 @@ private:
     // CPU spike when loading a patch with high density settings.
     int startup_samples_remaining_ = 0;
 
-    // Allocate a grain from the pool (returns nullptr if full after stealing)
+    // Allocate a free grain slot from the pool (returns nullptr if none free).
     Grain* AllocateGrain();
+
+    // Index of the active, not-yet-pending-kill grain with the lowest spawn
+    // serial (the true oldest), or -1 if none. Used by Process()'s saturation
+    // steal path and the test hook to pick a victim.
+    int FindOldestActiveGrain() const;
 
     // Compute grain parameters from ParticulesParameters + attenurandomizers
     Grain::GrainParameters ComputeGrainParams(const ParticulesParameters& params,
