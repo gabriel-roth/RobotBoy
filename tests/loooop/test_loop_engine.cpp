@@ -1059,6 +1059,36 @@ static void test_grid_invalid_values_mean_off() {
     check(e.displaySnapshot().grid == 0, "grid_invalid: 1 segment reads as off");
 }
 
+static void test_grid_exclude_head() {
+    // Excluded head matches an ungridded engine sample-for-sample.
+    LoopEngine a; record_ramp(a, 16);
+    LoopEngine b; record_ramp(b, 16);
+    b.setGrid(4); b.setGridExclude(0, true);
+    a.setSize(0, 0.3f); a.setPosition(0, 0.37f);
+    b.setSize(0, 0.3f); b.setPosition(0, 0.37f);
+    bool same = true;
+    for (int i = 0; i < 40; ++i) same = same && near(a.process(0.f), b.process(0.f));
+    check(same, "grid_excl: excluded head matches ungridded engine");
+    check(b.displaySnapshot().grid == 4, "grid_excl: grid still reported for display");
+
+    // Other heads still snap while head 0 is excluded (per-head gate).
+    LoopEngine c; record_ramp(c, 16);
+    c.setGrid(4); c.setGridExclude(0, true);
+    c.setSize(1, 0.3f); c.setPosition(1, 0.37f);   // would snap: 1 segment at [4,8)
+    c.process(0.f);
+    const auto s = c.displaySnapshot();
+    check(near(s.winStart01[1], 0.25f) && near(s.winEnd01[1], 0.5f),
+          "grid_excl: non-excluded head still snaps");
+
+    // Re-including restores snapping.
+    c.setGridExclude(0, false);
+    c.setSize(0, 0.3f); c.setPosition(0, 0.37f);
+    c.process(0.f);
+    const auto s2 = c.displaySnapshot();
+    check(near(s2.winStart01[0], 0.25f) && near(s2.winEnd01[0], 0.5f),
+          "grid_excl: re-included head snaps again");
+}
+
 static void test_grid_jitter_lands_on_boundaries() {
     LoopEngine e; record_ramp(e, 16);
     e.setGrid(4);
@@ -1123,6 +1153,7 @@ int main() {
     test_grid_min_one_segment();
     test_grid_full_size_plays_whole_loop();
     test_grid_off_matches_ungridded();
+    test_grid_exclude_head();
     test_grid_invalid_values_mean_off();
     test_grid_jitter_lands_on_boundaries();
     test_grid_respects_min_window();

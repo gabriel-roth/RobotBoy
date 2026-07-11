@@ -31,6 +31,7 @@ public:
     void setOverdub(bool on) { overdubEnabled_ = on; }   // gate post-loop record toggles
     void setCrossfade(bool on) { crossfade_ = on; }      // declick each head's loop seam
     void setGrid(int segments);   // snap windows to N equal loop segments; <2 = off
+    void setGridExclude(int head, bool exclude);   // head ignores the grid entirely
 
     // Overdub write mode (F1). Add must stay index 0: the MetaModule patch
     // loader zero-inits unset alt-params, so pre-existing patches must land
@@ -97,6 +98,7 @@ private:
         float jitter = 0.f, jitterOff = 0.f, jitterNext = 0.f;
         float osRamp = 1.f;   // retrigger ramp-in gain (Q2)
         float levelSm = 1.f;  // one-pole-smoothed level (Q3), matches the 1.0 level default
+        bool gridExclude = false;   // this head ignores Grid quantization
     };
 
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
