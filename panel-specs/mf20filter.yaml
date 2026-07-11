@@ -1,0 +1,68 @@
+# MF-20 panel spec — drives res/MF20Filter.svg via vcv-panel-gen.
+# Component `name`s are the FULL C++ enum names; the repo's helper.py reads the
+# id verbatim (splitting off "#Widget"), so these map straight into MF20Filter.cpp.
+#
+# Layout is a fixed 3-column grid (LP | center | HP). Spacers (blank captions)
+# hold columns open so every row auto-aligns without nudges; captions carry the
+# shared "Total"/"Peak" labels; connectors draw the knob→attenuverter line.
+slug: MF20Filter
+name: MF-20
+hp: 10
+side_margin: 5
+title_size: 9.5
+
+# Warm brown control zone behind the whole control area (the archived spec
+# predated this; geometry/color recovered from the committed SVG).
+zones:
+  - {x: 1.5, y: 15, w: 47.8, h: 92, fill: "#8a5a2c", opacity: 0.25}
+
+rows:
+  # Row 1 — cutoff hero knobs, outer columns; center held open by a spacer.
+  - type: knobs
+    items:
+      - {label: Lopass, name: CUTOFF_PARAM, hero: true}
+      - {label: "{blank}", name: SPACER_CUTOFF, caption: true}
+      - {label: Hipass, name: HP_CUTOFF_PARAM, hero: true}
+
+  # Row 2 — the three cutoff CV attenuverters (Trimpot) with jacks stacked below.
+  # Outer two unlabeled (named by the cutoff knob above); Total labeled, center.
+  - type: params
+    gap_above: 2
+    items:
+      - {label: "{blank}", name: LP_CUTOFF_CV_PARAM,    widget: Trimpot, cv: LP_CUTOFF_INPUT}
+      - {label: Total,     name: TOTAL_CUTOFF_CV_PARAM, widget: Trimpot, cv: TOTAL_CUTOFF_INPUT}
+      - {label: "{blank}", name: HP_CUTOFF_CV_PARAM,    widget: Trimpot, cv: HP_CUTOFF_INPUT}
+
+  # Row 3 — resonance knobs, aligned to the cutoff columns; "Peak" shared between.
+  - type: knobs
+    items:
+      - {label: "{blank}", name: RES_PARAM}
+      - {label: Peak,      name: PEAK, caption: true}
+      - {label: "{blank}", name: HP_RES_PARAM}
+
+  # Row 4 — drive hero, center column; outer columns held open by spacers.
+  # Label sits below the knob (so the knob rides higher in its band).
+  - type: knobs
+    label_side: below
+    items:
+      - {label: "{blank}", name: SPACER_DRIVE_L, caption: true}
+      - {label: Drive,     name: DRIVE_PARAM, hero: true}
+      - {label: "{blank}", name: SPACER_DRIVE_R, caption: true}
+
+  # Row 5 — audio I/O, stereo pairs sharing one label each.
+  - type: inputs
+    items:
+      - {label: In,  name: AUDIO_INPUT, pair: AUDIO_INPUT_R}
+      - {label: Out, name: LP_OUTPUT,   pair: LP_OUTPUT_R, type: outputs}
+
+# Vertical line tying each cutoff knob to its attenuverter (shared column).
+connectors:
+  - [CUTOFF_PARAM, LP_CUTOFF_CV_PARAM]
+  - [HP_CUTOFF_PARAM, HP_CUTOFF_CV_PARAM]
+
+# Per-panel positioning: drop the cutoff heroes toward the attenuverters, and
+# lift Drive to sit midway between the resonance knobs and the I/O row.
+nudges:
+  CUTOFF_PARAM: [0, 5]
+  HP_CUTOFF_PARAM: [0, 5]
+  DRIVE_PARAM: [0, -6]
