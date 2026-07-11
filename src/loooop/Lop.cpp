@@ -194,9 +194,6 @@ struct LopWidget : ModuleWidget {
         menu->addChild(createBoolMenuItem("Overdub", "",
             [m] { return m->params[Lop::OVERDUB_PARAM].getValue() > 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::OVERDUB_PARAM]->setValue(v ? 1.f : 0.f); }));
-        menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
-            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
         static const std::vector<std::string> kWriteModes = {"Add", "Replace", "Layer", "Decay"};
         menu->addChild(createIndexSubmenuItem("Write mode", kWriteModes,
             [m] { return (int)std::round(m->params[Lop::WRITE_MODE_PARAM].getValue()); },
@@ -205,13 +202,18 @@ struct LopWidget : ModuleWidget {
         menu->addChild(createIndexSubmenuItem("Grid", kGridLabels,
             [m] { return (int)std::round(m->params[Lop::GRID_PARAM].getValue()); },
             [m](int v) { m->paramQuantities[Lop::GRID_PARAM]->setValue((float)v); }));
-        static const std::vector<std::string> kTrigModes = {"Loop start", "One-shot"};
-        menu->addChild(createIndexSubmenuItem("Trigger", kTrigModes,
-            [m] { return (int)std::round(m->params[Lop::TRIG_MODE_PARAM].getValue()); },
-            [m](int v) { m->paramQuantities[Lop::TRIG_MODE_PARAM]->setValue((float)v); }));
-        menu->addChild(createBoolMenuItem("Speed CV is V/Oct", "",
+        // Same item language and order as Loooop's menu tail; One-shot is a
+        // checkmark (unchecked, a trigger restarts the playhead at its
+        // window start — that mode has no name in the interface).
+        menu->addChild(createBoolMenuItem("One-shot on trigger", "",
+            [m] { return m->params[Lop::TRIG_MODE_PARAM].getValue() > 0.5f; },
+            [m](bool v) { m->paramQuantities[Lop::TRIG_MODE_PARAM]->setValue(v ? 1.f : 0.f); }));
+        menu->addChild(createBoolMenuItem("Speed CV = V/Oct", "",
             [m] { return m->params[Lop::SPEED_VOCT_PARAM].getValue() > 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::SPEED_VOCT_PARAM]->setValue(v ? 1.f : 0.f); }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
     }
 };
 

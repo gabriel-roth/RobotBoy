@@ -97,7 +97,7 @@ Nearly every knob has a **CV input** right below or beside it, and a full ±10 V
 
 By default, a trigger at a head's **Trig** input simply restarts that head at the beginning of its window — use it to re-sync heads to a clock.
 
-Checking a playhead under **One-shot** in the context menu changes that: the head stays silent until triggered, then plays **through its window exactly once and stops**, ending with a short fade so it doesn't click. This turns a head into a sample-triggered one-shot player.
+Checking a playhead under **One-shot on trigger** in the context menu changes that: the head stays silent until triggered, then plays **through its window exactly once and stops**, ending with a short fade so it doesn't click. This turns a head into a sample-triggered one-shot player.
 
 While a one-shot head is waiting for a trigger — armed but not yet fired, or finished with its pass — its lane on the display **dims**: a faint window bar with a dimmed marker means the head is silent on purpose. If a playhead ever seems dead (no sound, no movement, knobs doing nothing), check whether its lane is dimmed — it's probably in one-shot mode with nothing patched into its Trig jack.
 
@@ -107,10 +107,10 @@ While a one-shot head is waiting for a trigger — armed but not yet fired, or f
 
 You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule. The per-playhead options name each playhead after its marker color on the display: the **Red**, **Green**, **Blue**, and **Yellow** playheads.
 
-- **Crossfade loop seams** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
-- **One-shot → (playhead)** — check a playhead to put it in one-shot mode (see above). Unchecked (the default), a trigger just restarts the playhead at the start of its window.
-- **Speed CV is V/Oct → (playhead)** — makes that playhead's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
 - **Exclude from Grid → (playhead)** — lets that playhead move freely even while **Grid** is on: its Size, Position, and Jitter stop snapping to segment boundaries, while the other playheads stay locked to the grid. Good for one drifting, texture-making playhead over an otherwise beat-sliced loop.
+- **One-shot on trigger → (playhead)** — check a playhead to put it in one-shot mode (see above). Unchecked (the default), a trigger just restarts the playhead at the start of its window.
+- **Speed CV = V/Oct → (playhead)** — makes that playhead's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
+- **Crossfade** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
 
 > **On MetaModule** the per-playhead options appear in the options list numbered rather than by color — 1 = Red, 2 = Green, 3 = Blue, 4 = Yellow (e.g. "Grid 1 exclude" is the Red playhead's Exclude from Grid) — and one-shot mode is a two-choice "Trig N mode" setting (*Loop start* / *One-shot*).
 
@@ -129,6 +129,6 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
 ## Löp
 
-**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. Löp has no Overdub button or Grid knob on its panel; instead its context menu carries **Overdub** (On/Off), **Write mode**, **Grid**, and **Crossfade loop seams**, plus its playhead's **Trigger** mode (*Loop start* / *One-shot*) and **Speed CV is V/Oct** — all with the same behavior as Loooop's.
+**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop — including the note above: turn **Size** down before **Position** and **Jitter** have anything to do. Löp has no Overdub button or Grid knob on its panel; instead its context menu carries **Overdub** (On/Off), **Write mode**, and **Grid**, plus its playhead's **One-shot on trigger**, **Speed CV = V/Oct**, and **Crossfade** — all with the same behavior as Loooop's.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">

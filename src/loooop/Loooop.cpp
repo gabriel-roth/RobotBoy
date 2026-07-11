@@ -356,27 +356,9 @@ struct LoooopWidget : ModuleWidget {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
-            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        // Commands at the top level, playheads (by color) in the submenus.
-        // One-shot is a checkmark per playhead; unchecked (default) a trigger
-        // restarts the playhead at its window start — that mode has no name
-        // in the interface.
-        menu->addChild(createSubmenuItem("One-shot", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
-        }));
-        menu->addChild(createSubmenuItem("Speed CV is V/Oct", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
-        }));
+        // Playheads (by color) in the submenus. One-shot is a checkmark per
+        // playhead; unchecked (default) a trigger restarts the playhead at
+        // its window start — that mode has no name in the interface.
         menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
@@ -384,6 +366,23 @@ struct LoooopWidget : ModuleWidget {
                     [m, h](bool v) {
                         m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
         }));
+        menu->addChild(createSubmenuItem("One-shot on trigger", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createSubmenuItem("Speed CV = V/Oct", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+        }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
     }
 };
 
