@@ -117,3 +117,15 @@ Task 1: complete (per-head LoopEngine::setGridExclude + windowBounds gate; TDD R
 Task 2: complete (VCV: EXCLUDE_GRID per-head params, HEAD_PARAMS 8->9, "Head N" -> color playhead names, commands-first menu Trigger/V-Oct/Exclude-from-Grid; vcv build exit 0).
 Task 3: complete (MM: QlpExcludeGridAlt zero-init-safe, Elements 87->91, updateHead XG template param, 4 call sites; MM build "All symbols found!", full lanes exit 0).
 Executed inline (controller). USER CHECKS pending: 2026-07-10-loooop-menu-rework-user-checklist.md (4 items). Loooop.md updated for the new menu.
+
+=== LÖP OVERDUB/GRID POLISH (branch loooop-track, 2026-07-11) ===
+Plan: docs/superpowers/plans/2026-07-11-lop-overdub-grid-polish-plan.md (5 tasks, sequential)
+Docs committed: cb18fdc
+NOTE: tests/loooop/test_loop_engine.cpp has an uncommitted mid-pass-Decay test from a parallel session (mtime 11:04, passes) — leave uncommitted, do not sweep into task commits.
+NOTE: a parallel session (code-review round 4, Stream A) is committing to loooop-track concurrently (7d63539 osRamp, 42dd120 Decay LP seed + test). Keep commits path-scoped; re-check git status before each commit; record BASE per task.
+Task 1: complete (vcv-panel-gen 98081f8..1bcc6ce, review clean/Approved, 302 tests pass)
+Task 2: complete (commit 88af932, base 42dd120, review clean/Approved; geometry exact, Loooop fill-only). Minors (final-review triage): (a) lop.yaml line ~77 comment still says "Overdub switch" — now a button; (b) nudges move labels with controls, so OVERDUB/GRID labels sit 1.5/1.0mm below the SIZE/D-W label line (no collision; flag for user's visual judgment).
+Task 3: complete (commit fb3f5f7, base 88af932, review clean/Approved; OverdubControl.hpp shared, WRITE_MODE_PARAM gone, MM comments-only)
+Task 4: complete (commit bcc3ae4, base fb3f5f7, review clean/Approved; reviewer note: MF-20/Particules never had ScrewSilver — spec premise moot, no action)
+Task 5: complete (commit f5366e9, base bcc3ae4, review clean/Approved; controller verified install dylib byte-identical + fresh, commit body trailer-free)
+FINAL WHOLE-BRANCH REVIEW (fable): READY TO MERGE. No Critical/Important findings. Verified: bit-identical table extraction, enum/id arithmetic, MM offset comments accurate vs element order, SVG<->widget coords match, generator change values-layer-only (302 tests re-run green), patch-compat break exactly as scoped, MM build can't see plugin.hpp (CMake compiles only engine/renderer from src/loooop). 3 Minors fixed post-review (commit 3b22e1c): lop.yaml "switch"->"button" comment, stale sync-script paths in Lop_info.hh/Loooop.cpp/Lop.cpp comments, user-checklist note on the 1.5/1.0mm label offset. Rebuilt + reinstalled dylib after comment edits. USER CHECKS pending: 2026-07-11-lop-overdub-grid-polish-user-checklist.md. Kept on loooop-track per user instruction — no merge.
