@@ -57,4 +57,24 @@ inline float panRightGain(float pan) {
     return pan >= 0.0f ? 1.0f : 1.0f + pan;
 }
 
+// Grid menu choice (0..5: Off/4/8/16/32/64) -> LoopEngine::setGrid segment count.
+inline int gridSegments(int choiceIdx) {
+    constexpr int kGridChoices[6] = {0, 4, 8, 16, 32, 64};
+    return (choiceIdx < 0 || choiceIdx > 5) ? 0 : kGridChoices[choiceIdx];
+}
+
+// One-pole smoother for zipper-noise suppression (mirrors mf20/dsp_utils.hpp
+// so the loooop headless lane stays self-contained). alpha 1 = passthrough.
+struct OnePoleSmoother {
+    float value = 0.f;
+    float alpha = 1.f;
+    float process(float target) { value += alpha * (target - value); return value; }
+    void reset(float v) { value = v; }
+};
+
+// One-pole alpha for a time constant (seconds); saturates to 1 at low rates.
+inline float smootherAlpha(float sampleRate, float tauSec) {
+    return 1.f - std::exp(-1.f / (tauSec * sampleRate));
+}
+
 }  // namespace loooop

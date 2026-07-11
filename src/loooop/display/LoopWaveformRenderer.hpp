@@ -17,6 +17,7 @@ public:
     // Colors, {r, g, b}
     static constexpr uint8_t BG[3]   = {0x10, 0x14, 0x18};   // near-black blue
     static constexpr uint8_t WAVE[3] = {0x51, 0x66, 0x7A};   // muted blue-gray (neutral)
+    static constexpr uint8_t GRID[3] = {0x2E, 0x3A, 0x46};   // segment bars: above BG, below WAVE
     // Per-head lane/cluster colors — must match the panel group tints
     // (vcv/panel-spec.yaml `groups.tints`): H1 red, H2 green, H3 blue, H4 yellow.
     static constexpr uint8_t HEAD_COLORS[LoopEngine::NUM_HEADS][3] = {

@@ -33,6 +33,9 @@ public:
 
         engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
+        engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
+            (int)getState<WriteModeAlt>()));
+        engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
 
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
         bool recTrig = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
@@ -85,14 +88,17 @@ public:
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
-        float w = loooop::normalizedControl(
-            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f));
+        float w = mixSm_.process(loooop::normalizedControl(
+            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
         setOutput<OutL>(loooop::dryWet(inL, hs[0].l, w) * 5.f);
         setOutput<OutR>(loooop::dryWet(inR, hs[0].r, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
-    void set_samplerate(float sr) override { engine_.reset(sr); }
+    void set_samplerate(float sr) override {
+        engine_.reset(sr);
+        mixSm_.alpha = loooop::smootherAlpha(sr, 0.002f);
+    }
 
     // Display callbacks — GUI context (audio runs concurrently; the engine's
     // display snapshot/atomics make the cross-thread reads safe).
@@ -125,12 +131,14 @@ public:
         // persistent display canvas (dispBuf_) keeps last frame's pixels
         // otherwise. Rendered straight into the destination — no intermediate
         // cache buffer/copy needed.
-        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width || cachedWaveHeight_ != waveH) {
+        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width
+            || cachedWaveHeight_ != waveH || cachedWaveGrid_ != snap.grid) {
             LoopWaveformRenderer::renderWaveform(
                 dispBuf_.data(), width, waveH, engine_, packARGB);
             cachedWaveRevision_ = revision;
             cachedWaveWidth_ = width;
             cachedWaveHeight_ = waveH;
+            cachedWaveGrid_ = snap.grid;
         }
         LoopWaveformRenderer::renderLanes(
             dispBuf_.data() + size_t(waveH) * width,
@@ -149,10 +157,12 @@ private:
     LoopEngine engine_;
     bool recPrev_ = false, clrPrev_ = false, clrTrigPrev_ = false, trigPrev_ = false;
     float lastJumpV_ = 0.f;
+    loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;
     std::uint32_t cachedWaveRevision_ = UINT32_MAX;
+    std::uint32_t cachedWaveGrid_ = UINT32_MAX;
     int cachedWaveWidth_ = -1, cachedWaveHeight_ = -1;
 };
 

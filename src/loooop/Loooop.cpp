@@ -8,33 +8,40 @@
 #include <string>
 
 struct Loooop : Module {
-    // Params and inputs are grouped PER HEAD so the MetaModule mapping menu
-    // lists everything for one head together; this mirrors the Elem order in
-    // metamodule/loooop/Loooop_info.hh so patch ids line up between the two
-    // builds. Each head is a contiguous block of HEAD_PARAMS params /
-    // HEAD_INPUTS inputs — index a head with `X1_PARAM + HEAD_PARAMS * h`.
-    enum ParamId { SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM,
+    // Global params and jacks come FIRST (so the MetaModule manual lists them
+    // at the top), then params and inputs grouped PER HEAD so the MetaModule
+    // mapping menu lists everything for one head together. This mirrors the
+    // Elem order in metamodule/loooop/Loooop_info.hh, except that build has an
+    // extra menu-only WriteModeAlt at the end of its globals, so ids after the
+    // globals are offset by one there. Each head is a contiguous block of
+    // HEAD_PARAMS params / HEAD_INPUTS inputs — index a head with
+    // `X1_PARAM + HEAD_PARAMS * h`.
+    enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM, CROSSFADE_PARAM,
+                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM,
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM,
                    SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM,
                    SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM,
                    PARAMS_LEN };
-    enum InputId { SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
+    enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
+                   SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
                    SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
                    SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
                    SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
-                   AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    INPUTS_LEN };
     static constexpr int HEAD_PARAMS = 8;   // per-head param stride: Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct
     static constexpr int HEAD_INPUTS = 8;   // per-head input stride: SizeCV,PosCV,SpeedCV,JitterCV,PanCV,LevelCV,Trig,Jump
-    enum OutputId { HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
+    enum OutputId { MIX_L_OUTPUT, MIX_R_OUTPUT,
+                    HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
                     HEAD3_L_OUTPUT, HEAD3_R_OUTPUT, HEAD4_L_OUTPUT, HEAD4_R_OUTPUT,
-                    MIX_L_OUTPUT, MIX_R_OUTPUT, OUTPUTS_LEN };
-    enum LightId { RECORD_LIGHT, LIGHTS_LEN };
+                    OUTPUTS_LEN };
+    enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
     LoopEngine engine;
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig[LoopEngine::NUM_HEADS];
     float lastJumpV[LoopEngine::NUM_HEADS] = {};
+    loooop::OnePoleSmoother panSm[LoopEngine::NUM_HEADS];
+    loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
+    float smootherRate = 0.f;
 
     Loooop() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -66,10 +73,12 @@ struct Loooop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
-        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub", {"Off", "On"});
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+            {"Layer", "Decay", "Add", "Replace", "Lock"});
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -92,8 +101,25 @@ struct Loooop : Module {
     }
 
     void process(const ProcessArgs& args) override {
-        engine.setOverdub(params[OVERDUB_PARAM].getValue() > 0.5f);
+        if (args.sampleRate != smootherRate) {
+            smootherRate = args.sampleRate;
+            const float a = loooop::smootherAlpha(smootherRate, 0.002f);
+            for (auto& s : panSm) s.alpha = a;
+            mixSm.alpha = a;
+        }
+        // Overdub is one 5-state control: four write modes + Lock (= overdub
+        // off, loop untouchable). While Locked the last write mode stays set;
+        // the engine ignores it with overdub off.
+        static constexpr LoopEngine::WriteMode kOverdubModes[4] = {
+            LoopEngine::WriteMode::Layer, LoopEngine::WriteMode::Decay,
+            LoopEngine::WriteMode::Add,   LoopEngine::WriteMode::Replace};
+        int od = (int)std::round(params[OVERDUB_PARAM].getValue());
+        engine.setOverdub(od != 4);   // 4 = Lock
+        if (od >= 0 && od < 4)
+            engine.setWriteMode(kOverdubModes[od]);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
+        engine.setGrid(loooop::gridSegments(
+            (int)std::round(params[GRID_PARAM].getValue())));
         // Evaluate both triggers into locals before OR-ing: `||` short-
         // circuits, so `a || b` would skip calling b.process() (and updating
         // its Schmitt state) on any sample where a is already true.
@@ -154,18 +180,48 @@ struct Loooop : Module {
             outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
             // Pan is a balance on each head's contribution to the mix only;
             // the individual head outputs above are unaffected. Center = unity.
-            const float pan = loooop::panControl(
+            const float pan = panSm[h].process(loooop::panControl(
                 params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage());
+                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
             const float gL = loooop::panLeftGain(pan);
             const float gR = loooop::panRightGain(pan);
             wetL += hs[h].l * gL; wetR += hs[h].r * gR;
         }
-        const float w = loooop::normalizedControl(
-            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage());
+        const float w = mixSm.process(loooop::normalizedControl(
+            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
+        // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button
+        // style: an RGB LED in the bezel driven from a color table.
+        static constexpr float kOverdubColors[5][3] = {
+            {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
+            {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
+            {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
+            {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
+            {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
+        };
+        lights[OVERDUB_R_LIGHT].setBrightness(kOverdubColors[od][0]);
+        lights[OVERDUB_G_LIGHT].setBrightness(kOverdubColors[od][1]);
+        lights[OVERDUB_B_LIGHT].setBrightness(kOverdubColors[od][2]);
+    }
+};
+
+// Five-state overdub button, Quality-button style (see Particules): the
+// stock light bezel with an RGB LED, made non-momentary so a click cycles
+// the stepped param Layer/Decay/Add/Replace/Lock with wraparound. The
+// module drives the LED color from the state in process().
+struct OverdubButton : VCVLightBezel<RedGreenBlueLight> {
+    OverdubButton() {
+        momentary = false;
+    }
+};
+
+// Rack ships no small snap knob; the Grid selector wants the small body so
+// its printed value ring can sit close in.
+struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
+    RoundSmallBlackSnapKnob() {
+        snap = true;
     }
 };
 
@@ -225,7 +281,7 @@ struct LoooopWidget : ModuleWidget {
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 75.05)), module, Loooop::LEVEL1_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 46.35)), module, Loooop::SIZE2_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(87.227, 75.05)), module, Loooop::LEVEL2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(127.75, 116.05)), module, Loooop::DRYWET_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.49, 116.05)), module, Loooop::DRYWET_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(105.81, 46.35)), module, Loooop::SIZE3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.99, 75.05)), module, Loooop::LEVEL3_PARAM));
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(153.57, 46.35)), module, Loooop::SIZE4_PARAM));
@@ -234,7 +290,7 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.467, 87.4)), module, Loooop::LEVEL1_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(58.053, 58.7)), module, Loooop::SIZE2_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(87.227, 87.4)), module, Loooop::LEVEL2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(140.1, 116.05)), module, Loooop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(155.84, 116.05)), module, Loooop::DRYWET_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.81, 58.7)), module, Loooop::SIZE3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.99, 87.4)), module, Loooop::LEVEL3_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 58.7)), module, Loooop::SIZE4_CV_INPUT));
@@ -249,41 +305,40 @@ struct LoooopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(168.16, 87.4)), module, Loooop::PAN4_CV_INPUT));
 
         // Per-head jack row: Trig, Jump, Out L, Out R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.47, 102.1)), module, Loooop::TRIG1_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.41, 102.1)), module, Loooop::JUMP1_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.97, 102.1)), module, Loooop::HEAD1_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.67, 102.1)), module, Loooop::HEAD1_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(56.23, 102.1)), module, Loooop::TRIG2_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(67.17, 102.1)), module, Loooop::JUMP2_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(78.73, 102.1)), module, Loooop::HEAD2_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(88.43, 102.1)), module, Loooop::HEAD2_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(103.99, 102.1)), module, Loooop::TRIG3_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(114.93, 102.1)), module, Loooop::JUMP3_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(126.49, 102.1)), module, Loooop::HEAD3_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(136.19, 102.1)), module, Loooop::HEAD3_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(151.75, 102.1)), module, Loooop::TRIG4_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(162.69, 102.1)), module, Loooop::JUMP4_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(174.25, 102.1)), module, Loooop::HEAD4_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(183.95, 102.1)), module, Loooop::HEAD4_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 102.1)), module, Loooop::TRIG1_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.03, 102.1)), module, Loooop::JUMP1_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.71, 102.1)), module, Loooop::HEAD1_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.41, 102.1)), module, Loooop::HEAD1_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(55.11, 102.1)), module, Loooop::TRIG2_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(67.79, 102.1)), module, Loooop::JUMP2_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(80.47, 102.1)), module, Loooop::HEAD2_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(90.17, 102.1)), module, Loooop::HEAD2_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.87, 102.1)), module, Loooop::TRIG3_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(115.55, 102.1)), module, Loooop::JUMP3_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(128.23, 102.1)), module, Loooop::HEAD3_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.93, 102.1)), module, Loooop::HEAD3_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(150.63, 102.1)), module, Loooop::TRIG4_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(163.31, 102.1)), module, Loooop::JUMP4_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 102.1)), module, Loooop::HEAD4_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 102.1)), module, Loooop::HEAD4_R_OUTPUT));
 
         // Global bottom row: In L/R, Record (LED button) + trig, Clear + trig, Mix L/R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(16.854, 116.05)), module, Loooop::AUDIO_L_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.554, 116.05)), module, Loooop::AUDIO_R_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(53.687, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(64.537, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(91.095, 116.05)), module, Loooop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(101.95, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(166.49, 116.05)), module, Loooop::MIX_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(176.19, 116.05)), module, Loooop::MIX_R_OUTPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Loooop::AUDIO_L_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.452, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.302, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
+        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(69.543, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
+        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(122.69, 116.05)), module, Loooop::GRID_PARAM));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(91.785, 116.05)), module, Loooop::CLEAR_PARAM));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 116.05)), module, Loooop::MIX_L_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 116.05)), module, Loooop::MIX_R_OUTPUT));
     }
 
     void appendContextMenu(Menu* menu) override {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createBoolMenuItem("Overdub", "",
-            [m] { return m->params[Loooop::OVERDUB_PARAM].getValue() > 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::OVERDUB_PARAM]->setValue(v ? 1.f : 0.f); }));
         menu->addChild(createBoolMenuItem("Crossfade loop seams", "",
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));

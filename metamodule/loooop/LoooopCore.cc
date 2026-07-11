@@ -21,7 +21,10 @@ public:
     using Info = LoooopInfo;
     using enum Info::Elem;
 
-    LoooopCore() { engine_.reset(48000.f); }
+    LoooopCore() {
+        engine_.reset(48000.f);
+        for (auto& s : panSm_) s.alpha = loooop::smootherAlpha(48000.f, 0.002f);
+    }
 
     void update() override {
         // Bypass: firmware sets `bypassed`; the core does the routing
@@ -33,6 +36,9 @@ public:
 
         engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
+        engine_.setWriteMode(static_cast<LoopEngine::WriteMode>(
+            (int)getState<WriteModeAlt>()));
+        engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
 
         // Record: momentary button OR trigger input (rising edge)
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
@@ -77,14 +83,19 @@ public:
         setOutput<Head4OutL>(hs[3].l * 5.f); setOutput<Head4OutR>(hs[3].r * 5.f);
         float wetL = hs[0].l*g0.l + hs[1].l*g1.l + hs[2].l*g2.l + hs[3].l*g3.l;
         float wetR = hs[0].r*g0.r + hs[1].r*g1.r + hs[2].r*g2.r + hs[3].r*g3.r;
-        float w = loooop::normalizedControl(
-            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f));
+        float w = mixSm_.process(loooop::normalizedControl(
+            getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
         setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);
         setOutput<MixOutR>(loooop::dryWet(inR, wetR, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
-    void set_samplerate(float sr) override { engine_.reset(sr); }
+    void set_samplerate(float sr) override {
+        engine_.reset(sr);
+        const float a = loooop::smootherAlpha(sr, 0.002f);
+        mixSm_.alpha = a;
+        for (auto& s : panSm_) s.alpha = a;
+    }
 
     // Display callbacks — GUI context (audio runs concurrently; the engine's
     // display snapshot/atomics make the cross-thread reads safe).
@@ -117,12 +128,14 @@ public:
         // persistent display canvas (dispBuf_) keeps last frame's pixels
         // otherwise. Rendered straight into the destination — no intermediate
         // cache buffer/copy needed.
-        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width || cachedWaveHeight_ != waveH) {
+        if (cachedWaveRevision_ != revision || cachedWaveWidth_ != width
+            || cachedWaveHeight_ != waveH || cachedWaveGrid_ != snap.grid) {
             LoopWaveformRenderer::renderWaveform(
                 dispBuf_.data(), width, waveH, engine_, packARGB);
             cachedWaveRevision_ = revision;
             cachedWaveWidth_ = width;
             cachedWaveHeight_ = waveH;
+            cachedWaveGrid_ = snap.grid;
         }
         LoopWaveformRenderer::renderLanes(
             dispBuf_.data() + size_t(waveH) * width,
@@ -173,8 +186,8 @@ private:
             lastJumpV_[h] = jv;
         }
 
-        float pan = loooop::panControl(
-            (getState<PN>() - 0.5f) * 2.f, getInput<PNC>().value_or(0.f));
+        float pan = panSm_[h].process(loooop::panControl(
+            (getState<PN>() - 0.5f) * 2.f, getInput<PNC>().value_or(0.f)));
         LoopEngine::HeadOut g;
         g.l = loooop::panLeftGain(pan);   // gain for L contribution to mix
         g.r = loooop::panRightGain(pan);  // gain for R contribution to mix
@@ -186,10 +199,13 @@ private:
     bool clrTrigPrev_ = false;
     bool headTrigPrev_[LoopEngine::NUM_HEADS] = {};
     float lastJumpV_[LoopEngine::NUM_HEADS] = {};
+    loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
+    loooop::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz in the constructor, refreshed in set_samplerate
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;
     std::uint32_t cachedWaveRevision_ = UINT32_MAX;
+    std::uint32_t cachedWaveGrid_ = UINT32_MAX;
     int cachedWaveWidth_ = -1, cachedWaveHeight_ = -1;
 };
 

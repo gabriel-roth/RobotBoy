@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- "Löp" wordmark in Shuttleblock Demi. Traced from ../Shuttleblock-Demi.png
+     (rendered on a machine with the real font, since the trial "Shuttleblock
+     Test Demi" installed here has no Ö glyph) with:
+         magick Shuttleblock-Demi.png -flatten -colorspace Gray -threshold 50% lop.pbm
+         potrace lop.pbm -s -o lop-logo.svg --tight -a 0 -t 2
+     Consumed by panel-gen's `title_logo:` key; fill is set by the generator. -->
+<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
+ width="366pt" height="154pt" viewBox="0 0 366 154"
+ preserveAspectRatio="xMidYMid meet">
+<g transform="translate(-73.000000,216.000000) scale(0.100000,-0.100000)"
+fill="#000000" stroke="none">
+<path d="M2070 2015 l0 -145 125 0 125 0 0 145 0 145 -125 0 -125 0 0 -145z"/>
+<path d="M2520 2015 l0 -145 125 0 125 0 0 145 0 145 -125 0 -125 0 0 -145z"/>
+<path d="M730 1375 l0 -755 525 0 525 0 0 140 0 140 -375 0 -375 0 0 615 0
+615 -150 0 -150 0 0 -755z"/>
+<path d="M3200 1375 l0 -755 150 0 150 0 0 275 0 275 343 0 342 0 103 103 102
+102 0 275 0 275 -102 102 -103 103 -492 0 -493 0 0 -755z m888 278 l2 -203
+-295 0 -295 0 0 198 0 199 7 6 7 7 285 -2 286 -3 3 -202z"/>
+<path d="M2002 1637 l-92 -92 0 -370 0 -370 93 -93 92 -92 325 0 325 0 87 87
+88 88 0 380 0 380 -88 88 -87 87 -325 0 -325 0 -93 -93z m638 -457 l0 -300
+-220 0 -220 0 0 300 0 300 220 0 220 0 0 -300z"/>
+</g>
+</svg>

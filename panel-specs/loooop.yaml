@@ -1,0 +1,109 @@
+# NOTE: metamodule/loooop/Loooop_info.hh is HAND-MAINTAINED (element names/
+# order are a contract with LoooopCore.cc). Regenerate only the SVG from this
+# spec, then carry positions to the MetaModule header and the VCV display
+# rect with:
+#     python3 metamodule/loooop/sync_info_positions.py
+# (header sync is delegated to ~/Dev/vcv-panel-gen/mm_sync.py --strict,
+# name-matched through metamodule/loooop/sync-map-loooop.yaml).
+
+# Loooop panel — 38 HP with 3mm side margins (tints run ~1.5mm from the
+# edges; the screen bleeds to match their outer edges). Centered title;
+# screen at top; four head groups (Size/Pos/Speed over Jitter/Pan/Level, CV
+# under every knob; Trig, Jump, stereo Out pair below, labels above the
+# jacks), each on its own generated tint; global bottom row: In pair,
+# Record+trig, Overdub button, Clear+trig, Grid knob, D/W knob+CV, Out pair
+# (master — enum names stay MIX_*). Overdub is a 5-state cycling color
+# button (OverdubButton, custom widget): Layer / Decay / Add / Replace /
+# Lock, default Layer — it absorbs the old Overdub on/off (Lock = off) and
+# Write mode menu params. Grid is a small 6-position snap knob
+# (Off/4/8/16/32/64) with its values printed close around it (Ø = off);
+# RoundSmallBlackSnapKnob is defined in Loooop.cpp (Rack has no stock one).
+# Neither gets a companion jack. Crossfade, trigger flavor, and V/Oct remain
+# context-menu params with no panel control. Component `name`s match the
+# VCV enum ids exactly. Tints must match LoopWaveformRenderer::HEAD_COLORS.
+#
+# Vertical rhythm: each function group (label + knob + CV jack) is a tight
+# stack — the generator's label/stack gaps — and the space saved there is
+# pinned between the groups (gap_above 2.0 on the Size/Level and
+# Trig/Jump/Out rows) so the functions read as separate bands inside each
+# head tint. Screen-to-tint stays 3.6 (minus the 1.2mm tint label headroom
+# = 2.4 visual); tint-to-bottom-row stays 1.3.
+slug: Loooop
+name: LOOOOP
+hp: 38
+title_size: 9
+side_margin: 3
+title_valign: center
+groups:
+  gutter: 4
+  # Yellow carries its own alpha (0x33 ≈ 0.2): at the shared 0.14 it renders
+  # gold/olive on the dark panel. Hue must still match HEAD_COLORS[3].
+  tints: ['#ff3b30', '#30d158', '#3f8cff', '#fff70a33']
+  opacity: 0.14
+rows:
+  - type: screen
+    height: 22.35
+    bleed: true
+    gap_above: 0.4
+  - type: params
+    gap_above: 3.6
+    groups:
+      - - {label: Size,  name: SIZE1_PARAM,     cv: SIZE1_CV_INPUT}
+        - {label: Pos,   name: POSITION1_PARAM, cv: POSITION1_CV_INPUT}
+        - {label: Speed, name: SPEED1_PARAM,    cv: SPEED1_CV_INPUT}
+      - - {label: Size,  name: SIZE2_PARAM,     cv: SIZE2_CV_INPUT}
+        - {label: Pos,   name: POSITION2_PARAM, cv: POSITION2_CV_INPUT}
+        - {label: Speed, name: SPEED2_PARAM,    cv: SPEED2_CV_INPUT}
+      - - {label: Size,  name: SIZE3_PARAM,     cv: SIZE3_CV_INPUT}
+        - {label: Pos,   name: POSITION3_PARAM, cv: POSITION3_CV_INPUT}
+        - {label: Speed, name: SPEED3_PARAM,    cv: SPEED3_CV_INPUT}
+      - - {label: Size,  name: SIZE4_PARAM,     cv: SIZE4_CV_INPUT}
+        - {label: Pos,   name: POSITION4_PARAM, cv: POSITION4_CV_INPUT}
+        - {label: Speed, name: SPEED4_PARAM,    cv: SPEED4_CV_INPUT}
+  - type: params
+    gap_above: 2.0
+    groups:
+      - - {label: Jitter, name: JITTER1_PARAM, cv: JITTER1_CV_INPUT}
+        - {label: Pan,    name: PAN1_PARAM,    cv: PAN1_CV_INPUT}
+        - {label: Level,  name: LEVEL1_PARAM,  cv: LEVEL1_CV_INPUT}
+      - - {label: Jitter, name: JITTER2_PARAM, cv: JITTER2_CV_INPUT}
+        - {label: Pan,    name: PAN2_PARAM,    cv: PAN2_CV_INPUT}
+        - {label: Level,  name: LEVEL2_PARAM,  cv: LEVEL2_CV_INPUT}
+      - - {label: Jitter, name: JITTER3_PARAM, cv: JITTER3_CV_INPUT}
+        - {label: Pan,    name: PAN3_PARAM,    cv: PAN3_CV_INPUT}
+        - {label: Level,  name: LEVEL3_PARAM,  cv: LEVEL3_CV_INPUT}
+      - - {label: Jitter, name: JITTER4_PARAM, cv: JITTER4_CV_INPUT}
+        - {label: Pan,    name: PAN4_PARAM,    cv: PAN4_CV_INPUT}
+        - {label: Level,  name: LEVEL4_PARAM,  cv: LEVEL4_CV_INPUT}
+  - type: inputs
+    label_side: above
+    gap_above: 2.0
+    groups:
+      - - {label: Trig, name: TRIG1_INPUT}
+        - {label: Jump, name: JUMP1_INPUT}
+        - {label: Out,  name: HEAD1_L_OUTPUT, pair: HEAD1_R_OUTPUT, type: outputs}
+      - - {label: Trig, name: TRIG2_INPUT}
+        - {label: Jump, name: JUMP2_INPUT}
+        - {label: Out,  name: HEAD2_L_OUTPUT, pair: HEAD2_R_OUTPUT, type: outputs}
+      - - {label: Trig, name: TRIG3_INPUT}
+        - {label: Jump, name: JUMP3_INPUT}
+        - {label: Out,  name: HEAD3_L_OUTPUT, pair: HEAD3_R_OUTPUT, type: outputs}
+      - - {label: Trig, name: TRIG4_INPUT}
+        - {label: Jump, name: JUMP4_INPUT}
+        - {label: Out,  name: HEAD4_L_OUTPUT, pair: HEAD4_R_OUTPUT, type: outputs}
+  - type: inputs
+    # All labels below, matching the companion-pair default the row already
+    # uses — a standalone button/knob would otherwise label above, adding
+    # headroom the 128.5mm panel doesn't have.
+    label_side: below
+    gap_above: 1.3
+    items:
+      - {label: In,      name: AUDIO_L_INPUT, pair: AUDIO_R_INPUT, weight: 1}
+      - {label: Record,  name: RECORD_PARAM,  type: buttons, trig: RECORD_TRIG_INPUT}
+      - {label: Overdub, name: OVERDUB_PARAM, type: buttons, widget: OverdubButton}
+      - {label: Clear,   name: CLEAR_PARAM,   type: buttons, trig: CLEAR_TRIG_INPUT}
+      - {label: Grid,    name: GRID_PARAM,    type: knobs,   small: true,
+         widget: RoundSmallBlackSnapKnob,
+         values: ["Ø", "4", "8", "16", "32", "64"]}
+      - {label: D/W,     name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
+      - {label: Out,     name: MIX_L_OUTPUT,  pair: MIX_R_OUTPUT, type: outputs, weight: 1}

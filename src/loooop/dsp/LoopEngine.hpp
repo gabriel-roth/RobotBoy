@@ -30,6 +30,17 @@ public:
     void clear();                 // erase loop
     void setOverdub(bool on) { overdubEnabled_ = on; }   // gate post-loop record toggles
     void setCrossfade(bool on) { crossfade_ = on; }      // declick each head's loop seam
+    void setGrid(int segments);   // snap windows to N equal loop segments; <2 = off
+
+    // Overdub write mode (F1). Add must stay index 0: the MetaModule patch
+    // loader zero-inits unset alt-params, so pre-existing patches must land
+    // on the legacy sum-into-buffer behavior.
+    enum class WriteMode { Add = 0, Replace = 1, Layer = 2, Decay = 3 };
+    void setWriteMode(WriteMode m) { writeMode_ = m; }
+    WriteMode writeMode() const { return writeMode_; }
+    // Fixed sound-on-sound decay per overdub pass (Layer/Decay). No user
+    // control by design; tune by ear on the simulator.
+    static constexpr float LAYER_FEEDBACK = 0.9f;
 
     void setSpeed(int head, float x);        // 1=normal, <0=reverse
     void setPosition(int head, float c01);   // sub-loop centre, 0..1
@@ -67,6 +78,7 @@ public:
         std::uint32_t loopLen;      // frozen loop length, samples; 0 = no loop yet
         std::uint32_t recordedLen;  // samples written so far in the initial record pass
         bool recording;
+        std::uint32_t grid;         // grid segments; 0 = off
         std::array<float, NUM_HEADS> headPos01;              // per-head position, 0..1
         std::array<float, NUM_HEADS> winStart01, winEnd01;   // per-head window, 0..1
     };
@@ -83,6 +95,8 @@ private:
         float speed = 1.f, level = 1.f, centre = 0.5f, size = 1.f;
         bool oneShot = false, playing = true;
         float jitter = 0.f, jitterOff = 0.f, jitterNext = 0.f;
+        float osRamp = 1.f;   // retrigger ramp-in gain (Q2)
+        float levelSm = 1.f;  // one-pole-smoothed level (Q3), matches the 1.0 level default
     };
 
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
@@ -91,11 +105,17 @@ private:
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
     float readRaw(double p, const std::vector<float>& buf) const;
+    float tapWrapped(double x, double winStart, double winLen,
+                     const std::vector<float>& buf) const;
     void readHead(const PlayHead& h, double winStart, double winLen,
                   float& outL, float& outR) const;
     // Crossfade length in output samples for this head/window, capped to half the
     // window's output-period; 0 disables (window too short, or crossfade off).
     int fadeLen(const PlayHead& h, double winLen) const;
+    // One-shot end-of-pass fade length/gain (Q2): same sizing as fadeLen but
+    // without the oneShot exclusion.
+    int oneShotFadeLen(const PlayHead& h, double winLen) const;
+    float oneShotFadeGain(const PlayHead& h, double winStart, double winLen, int F) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
     void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
@@ -116,7 +136,31 @@ private:
     bool recording_ = false;
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
+    int grid_ = 0;                     // window snap grid, segments; 0 = off
+    WriteMode writeMode_ = WriteMode::Add;
+    // Decay-mode one-pole LP along the write path (HF rolloff per pass).
+    // Corner is fixed (tune by ear); coefficient set from the sample rate.
+    static constexpr float DECAY_LP_HZ = 6000.f;
+    float decayLpL_ = 0.f, decayLpR_ = 0.f;
+    float decayLpA_ = 1.f;
+    // F2 overdub declick: write gain ramps 0->1 on overdub start, 1->0 on
+    // stop, over xfadeSamples_. Gain is applied write-then-advance, so the
+    // first sample of an overdub pass is written at gain 0.
+    float odGain_ = 1.f;
+    float odGainStep_ = 0.f;   // per-sample increment; 0 when xfadeSamples_==0
+    bool stopPending_ = false;
+    float writeFeedback() const {
+        switch (writeMode_) {
+            case WriteMode::Replace: return 0.f;
+            case WriteMode::Layer:
+            case WriteMode::Decay:   return LAYER_FEEDBACK;
+            default:                 return 1.f;
+        }
+    }
     std::uint32_t xfadeSamples_ = 0;   // ~5 ms at the current sample rate; set in reset()
+    float osRampStep_ = 1.f;   // ~1 ms retrigger ramp-in; set with xfadeSamples_
+    // Head-level one-pole smoothing coefficient (Q3), ~2 ms; ==1 at test rates.
+    float levelAlpha_ = 1.f;
     double minWinLen_ = 48.0;   // ceil(sampleRate · 1 ms); set in reset()/setSampleRate()
     float sampleRate_ = 48000.f;
     float maxSeconds_ = 60.f;
@@ -131,6 +175,7 @@ private:
     std::atomic<std::uint32_t> dispLoopLen_{0};
     std::atomic<std::uint32_t> dispRecLen_{0};
     std::atomic<bool> dispRecording_{false};
+    std::atomic<std::uint32_t> dispGrid_{0};
     std::atomic<std::uint32_t> waveformRevision_{0};
     std::uint32_t waveformRevisionCounter_ = 0;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};

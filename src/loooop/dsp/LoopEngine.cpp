@@ -11,6 +11,11 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     // 10 Hz test rate), which disables the crossfade and preserves seam-exact
     // behavior there.
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    osRampStep_ = 1.f / std::max(1.f, 0.001f * sampleRate);
+    // Underflows to exactly 1.0 (passthrough) at very low test rates.
+    decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
+    decayLpL_ = decayLpR_ = 0.f;
+    levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
@@ -23,6 +28,9 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     writeIdx_ = 0;
     loopLen_ = 0;
     recording_ = false;
+    stopPending_ = false;
+    odGain_ = 1.f;
+    odGainStep_ = 0.f;
     rng_ = 0x9E3779B9u;
     for (auto& h : heads_) h = PlayHead{};
     dispLoopLen_.store(0, std::memory_order_relaxed);
@@ -43,6 +51,10 @@ void LoopEngine::setSampleRate(float sampleRate) {
     }
     sampleRate_ = sampleRate;
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
+    osRampStep_ = 1.f / std::max(1.f, 0.001f * sampleRate);
+    // Underflows to exactly 1.0 (passthrough) at very low test rates.
+    decayLpA_ = 1.f - std::exp(-2.f * 3.14159265f * DECAY_LP_HZ / sampleRate);
+    levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 }
@@ -56,11 +68,38 @@ void LoopEngine::toggleRecord() {
         recording_ = true;
         writeIdx_ = 0;                  // record/overdub always starts at loop start (v1)
         lastPeakBin_ = UINT32_MAX;          // first write re-seeds its bin
+        if (loopLen_ == 0) {
+            odGain_ = 1.f; odGainStep_ = 0.f;   // initial pass: overwrite, no ramp
+        } else {
+            odGain_ = xfadeSamples_ ? 0.f : 1.f;
+            odGainStep_ = xfadeSamples_ ? 1.f / static_cast<float>(xfadeSamples_) : 0.f;
+            stopPending_ = false;
+            if (writeMode_ == WriteMode::Decay) {
+                decayLpL_ = bufL_[0];
+                decayLpR_ = bufR_[0];
+            }
+        }
         dispRecording_.store(true, std::memory_order_relaxed);
         dispRecLen_.store(0, std::memory_order_relaxed);
-    } else {
+    } else if (loopLen_ == 0) {
+        // Stopping the initial pass freezes immediately: there is no prior
+        // content to blend with, and the seam crossfade declicks the join.
         recording_ = false;
-        if (loopLen_ == 0) loopLen_ = writeIdx_;   // freeze initial loop length
+        loopLen_ = writeIdx_;
+        dispRecording_.store(false, std::memory_order_relaxed);
+        dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+        // The freeze changes what the waveform region shows (grid bars are
+        // drawn only over a frozen loop) even though no sample was written,
+        // so the hosts' waveform caches must be invalidated here too.
+        bumpWaveformRevision();
+    } else if (odGainStep_ > 0.f) {
+        // Overdub stop request: ramp the write gain down while continuing to
+        // write; recording_ clears when the gain reaches 0 (in process()).
+        // A second toggle during the stop ramp re-arms the up-ramp from the
+        // current gain — no snap.
+        stopPending_ = !stopPending_;
+    } else {
+        recording_ = false;   // xfadeSamples_ == 0: legacy step behavior
         dispRecording_.store(false, std::memory_order_relaxed);
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
     }
@@ -75,6 +114,9 @@ void LoopEngine::clear() {
     loopLen_ = 0;
     writeIdx_ = 0;
     recording_ = false;
+    stopPending_ = false;
+    odGain_ = 1.f;
+    odGainStep_ = 0.f;
     for (auto& h : heads_) { h.pos = 0.0; h.playing = !h.oneShot; }   // re-arm one-shots
     peakMinL_.fill(0.f); peakMaxL_.fill(0.f);
     peakMinR_.fill(0.f); peakMaxR_.fill(0.f);
@@ -92,6 +134,13 @@ void LoopEngine::setSpeed(int head, float x)     { if (head >= 0 && head < numHe
 void LoopEngine::setPosition(int head, float c01){ if (head >= 0 && head < numHeads_) heads_[head].centre = clamp01(c01); }
 void LoopEngine::setSize(int head, float s01)    { if (head >= 0 && head < numHeads_) heads_[head].size = clamp01(s01); }
 void LoopEngine::setLevel(int head, float g)     { if (head >= 0 && head < numHeads_) heads_[head].level = clamp01(g); }
+
+void LoopEngine::setGrid(int segments) {
+    const int g = segments < 2 ? 0 : segments;
+    if (g == grid_) return;
+    grid_ = g;
+    dispGrid_.store(static_cast<std::uint32_t>(g), std::memory_order_relaxed);
+}
 
 void LoopEngine::setJitter(int head, float j01) {
     if (head < 0 || head >= numHeads_) return;
@@ -151,6 +200,17 @@ void LoopEngine::triggerOneShot(int head) {
     if (head < 0 || head >= numHeads_ || loopLen_ == 0) return;
     PlayHead& h = heads_[head];
     if (!h.oneShot) return;
+    if (h.playing) {
+        // Retrigger during the tail fade: start the new pass from the current
+        // fade gain and ramp back to unity instead of snapping (Q2).
+        double winStart, winLen;
+        windowBounds(h, winStart, winLen);
+        const int Fo = oneShotFadeLen(h, winLen);
+        if (Fo >= 1) {
+            const float g = oneShotFadeGain(h, winStart, winLen, Fo);
+            if (g < 1.f) h.osRamp = g;
+        }
+    }
     restartHead(head);
     h.playing = true;
 }
@@ -175,36 +235,60 @@ void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
     if (winLen < minWinLen) winLen = minWinLen;
     if (winLen > L)   winLen = L;
     double centre = static_cast<double>(clamp01(h.centre + jitterOff)) * L;
+    if (grid_ >= 2) {
+        // Grid: quantize the window to whole segments of seg = L/grid_ —
+        // length to a segment count (>= 1, grown to respect the minimum
+        // window), start to the nearest boundary. k + m <= grid_ keeps the
+        // window exactly inside the loop, so no edge correction is needed.
+        const double seg = L / static_cast<double>(grid_);
+        long m = std::lround(winLen / seg);
+        if (m < 1) m = 1;
+        if (m > grid_) m = grid_;
+        while (static_cast<double>(m) * seg < minWinLen && m < grid_) ++m;
+        winLen = static_cast<double>(m) * seg;
+        long k = std::lround((centre - winLen / 2.0) / seg);
+        if (k < 0) k = 0;
+        if (k > grid_ - m) k = grid_ - m;
+        winStart = static_cast<double>(k) * seg;
+        return;
+    }
     winStart = centre - winLen / 2.0;
     if (winStart < 0.0) winStart = 0.0;
     if (winStart + winLen > L) winStart = L - winLen;
     if (winStart < 0.0) winStart = 0.0;
 }
 
+// Wrap a tap position into [winStart, winStart + winLen) by whole window
+// lengths (taps sit at most 2 samples outside; bounded iterations since
+// winLen >= 1), then read it. A fractional winStart lands the wrapped tap on
+// a fractional position — readRaw's lerp handles it, keeping tap spacing
+// uniform across the seam.
+float LoopEngine::tapWrapped(double x, double winStart, double winLen,
+                             const std::vector<float>& buf) const {
+    while (x >= winStart + winLen) x -= winLen;
+    while (x < winStart) x += winLen;
+    return readRaw(x, buf);
+}
+
+// 4-point Catmull-Rom read for one head, window-aware (Q1). The base tap
+// keeps the old linear reader's clamped semantics; neighbors wrap via
+// tapWrapped. Reproduces linear ramps exactly when all taps are interior,
+// so exact-value ramp tests hold away from seams. readRaw (the seam-
+// crossfade feeder) deliberately stays linear.
 float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                                    double winStart, double winLen) const {
     double p = h.pos;
     if (p < winStart || p >= winStart + winLen) p = winStart;   // honor a just-moved window on this read (advanceHead snaps h.pos after)
-    std::size_t i0 = static_cast<std::size_t>(std::floor(p));
-    const double frac = p - std::floor(p);
-    std::size_t i1 = i0 + 1;
-    double v1;
-    if (static_cast<double>(i1) >= winStart + winLen) {
-        // Wrap target: interpolate at the (possibly fractional) window start
-        // instead of truncating it — a fractional winStart still needs its
-        // own lerp between the two samples straddling it.
-        std::size_t ws0 = static_cast<std::size_t>(std::floor(winStart));
-        std::size_t ws1 = ws0 + 1;
-        if (ws0 >= loopLen_) ws0 = loopLen_ ? loopLen_ - 1 : 0;
-        if (ws1 >= loopLen_) ws1 = loopLen_ ? loopLen_ - 1 : 0;
-        const double wsFrac = winStart - std::floor(winStart);
-        v1 = (1.0 - wsFrac) * buf[ws0] + wsFrac * buf[ws1];
-    } else {
-        if (i1 >= loopLen_) i1 = loopLen_ ? loopLen_ - 1 : 0;
-        v1 = buf[i1];
-    }
-    if (i0 >= loopLen_) i0 = loopLen_ ? loopLen_ - 1 : 0;
-    return static_cast<float>((1.0 - frac) * buf[i0] + frac * v1);
+    const double ip = std::floor(p);
+    const float frac = static_cast<float>(p - ip);
+    const float t0 = tapWrapped(ip - 1.0, winStart, winLen, buf);
+    const float t1 = readRaw(ip, buf);                    // base tap: clamped, never wraps — matches the old linear base read
+    const float t2 = tapWrapped(ip + 1.0, winStart, winLen, buf);
+    const float t3 = tapWrapped(ip + 2.0, winStart, winLen, buf);
+    const float c1 = 0.5f * (t2 - t0);
+    const float c2 = t0 - 2.5f * t1 + 2.f * t2 - 0.5f * t3;
+    const float c3 = 1.5f * (t1 - t2) + 0.5f * (t3 - t0);
+    return ((c3 * frac + c2) * frac + c1) * frac + t1;
 }
 
 // Raw interpolated buffer read, clamped to [0, loopLen). Used by the seam
@@ -231,6 +315,33 @@ int LoopEngine::fadeLen(const PlayHead& h, double winLen) const {
     return F < 1 ? 0 : F;
 }
 
+// One-shot end fade length: same sizing as the seam crossfade but WITHOUT
+// the oneShot exclusion — one-shots skip the seam fade and instead fade to
+// zero at the end of the pass (Q2). Gated on the same Crossfade option.
+int LoopEngine::oneShotFadeLen(const PlayHead& h, double winLen) const {
+    if (!crossfade_ || xfadeSamples_ == 0) return 0;
+    const double sp = std::fabs(static_cast<double>(h.speed));
+    if (sp < 1e-9) return 0;
+    const int cap = static_cast<int>((winLen / sp) * 0.5);
+    int F = static_cast<int>(xfadeSamples_);
+    if (F > cap) F = cap;
+    return F < 1 ? 0 : F;
+}
+
+// Positional fade gain: 1 outside the final F output-samples of the pass,
+// smoothstep down to 0 at the endpoint (winEnd forward / winStart reverse).
+float LoopEngine::oneShotFadeGain(const PlayHead& h, double winStart,
+                                  double winLen, int F) const {
+    const double sp = std::fabs(static_cast<double>(h.speed));
+    const double outToEnd = (h.speed >= 0.f)
+        ? (winStart + winLen - h.pos) / sp
+        : (h.pos - winStart) / sp;
+    if (outToEnd < 0.0) return 0.f;
+    if (outToEnd >= static_cast<double>(F)) return 1.f;
+    const float t = static_cast<float>(outToEnd / F);   // 0 at end -> 1 at fade start
+    return t * t * (3.f - 2.f * t);
+}
+
 // Interpolated read for one head with the seam crossfade applied. The primary
 // (window-clamped) reader supplies the tail; within the last F output-samples
 // before the loop point it is equal-power-crossfaded with the loop head read
@@ -240,6 +351,12 @@ void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
                           float& outL, float& outR) const {
     outL = readInterpolated(h, bufL_, winStart, winLen);
     outR = readInterpolated(h, bufR_, winStart, winLen);
+    if (h.oneShot) {
+        const int Fo = oneShotFadeLen(h, winLen);
+        float g = (Fo >= 1) ? oneShotFadeGain(h, winStart, winLen, Fo) : 1.f;
+        if (h.osRamp < 1.f) g *= h.osRamp;   // retrigger ramp-in (~1 ms)
+        if (g < 1.f) { outL *= g; outR *= g; }
+    }
     const int F = fadeLen(h, winLen);
     if (F < 1) return;
     const double sp = std::fabs(static_cast<double>(h.speed));
@@ -270,6 +387,10 @@ void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
 }
 
 void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLen) {
+    if (h.osRamp < 1.f) {
+        h.osRamp += osRampStep_;
+        if (h.osRamp > 1.f) h.osRamp = 1.f;
+    }
     const double winEnd = winStart + winLen;
     if (h.pos < winStart || h.pos >= winEnd) h.pos = winStart;   // snap in if params moved
     h.pos += h.speed;
@@ -327,16 +448,50 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 writeIdx_ = 0;
                 dispRecording_.store(false, std::memory_order_relaxed);
                 dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+                // Re-bump AFTER the freeze is published: this sample's
+                // writePeak bumped before loopLen_ was set, so a GUI frame
+                // in that window could cache a bar-less waveform at the
+                // final revision and never repaint the grid bars.
+                bumpWaveformRevision();
             }
-        } else {                             // overdub: sum, wrap at loop length
-            bufL_[writeIdx_] += inL;
-            bufR_[writeIdx_] += inR;
+        } else {                             // overdub: mode-dependent write, wrap at loop length
+            const float fb = writeFeedback();
+            const float oldL = bufL_[writeIdx_], oldR = bufR_[writeIdx_];
+            float fbL = oldL, fbR = oldR;
+            if (writeMode_ == WriteMode::Decay) {
+                decayLpL_ += decayLpA_ * (oldL - decayLpL_); fbL = decayLpL_;
+                decayLpR_ += decayLpA_ * (oldR - decayLpR_); fbR = decayLpR_;
+            }
+            // odGain_ == 1 reduces to old + (fb·fbSrc − old) + in; Add (fb=1)
+            // further reduces to the legacy old + in, bit-exact.
+            bufL_[writeIdx_] = oldL + odGain_ * (fb * fbL - oldL) + odGain_ * inL;
+            bufR_[writeIdx_] = oldR + odGain_ * (fb * fbR - oldR) + odGain_ * inR;
             writePeak(writeIdx_, bufL_[writeIdx_], bufR_[writeIdx_]);
             ++writeIdx_;
             if (writeIdx_ >= loopLen_) writeIdx_ = 0;
+            if (stopPending_) {
+                odGain_ -= odGainStep_;
+                if (odGain_ <= 0.f) {
+                    odGain_ = 0.f;
+                    stopPending_ = false;
+                    recording_ = false;
+                    dispRecording_.store(false, std::memory_order_relaxed);
+                    dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+                }
+            } else if (odGain_ < 1.f) {
+                odGain_ += odGainStep_;
+                if (odGain_ > 1.f) odGain_ = 1.f;
+            }
         }
     }
     for (auto& o : heads) o = HeadOut{};
+    // Advance every head's level smoother every sample, regardless of
+    // loop/playing state, so levels are already settled when playback starts
+    // (no post-record bleed of a stale target).
+    for (int i = 0; i < numHeads_; ++i) {
+        PlayHead& h = heads_[i];
+        h.levelSm += levelAlpha_ * (h.level - h.levelSm);
+    }
     if (loopLen_ > 0) {
         for (int i = 0; i < numHeads_; ++i) {
             PlayHead& h = heads_[i];
@@ -344,8 +499,8 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             double winStart, winLen;
             windowBounds(h, winStart, winLen);
             float l, r; readHead(h, winStart, winLen, l, r);
-            heads[i].l = l * h.level;
-            heads[i].r = r * h.level;
+            heads[i].l = l * h.levelSm;
+            heads[i].r = r * h.levelSm;
             advanceHead(h, i, winStart, winLen);
         }
     }
@@ -383,6 +538,7 @@ LoopEngine::DisplaySnapshot LoopEngine::displaySnapshot() const {
     s.loopLen = dispLoopLen_.load(std::memory_order_relaxed);
     s.recordedLen = dispRecLen_.load(std::memory_order_relaxed);
     s.recording = dispRecording_.load(std::memory_order_relaxed);
+    s.grid = dispGrid_.load(std::memory_order_relaxed);
     for (int i = 0; i < NUM_HEADS; ++i) {
         s.headPos01[i] = dispPos01_[i].load(std::memory_order_relaxed);
         s.winStart01[i] = dispWinStart01_[i].load(std::memory_order_relaxed);

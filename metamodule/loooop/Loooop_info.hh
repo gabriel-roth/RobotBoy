@@ -24,14 +24,25 @@ struct LoooopInfo : ModuleInfoBase {
     // BaseElement: {x_mm, y_mm, coords, short_name, long_name, width_mm, height_mm}
     // Positions mirror the 38 HP VCV panel (res/Loooop.svg). Keep this array and
     // the Elem enum below in the SAME order — SmartCoreProcessor maps
-    // enum->element by index. Params and jacks are grouped PER HEAD (head 1's
-    // Size/Pos/Speed/Jitter/Pan/Level/Trig-mode/Speed-V/Oct, then head 2, etc.)
-    // so the MetaModule mapping menu lists everything for one head together;
-    // the VCV Param/Input enums (src/loooop/Loooop.cpp) mirror this exact order
-    // so patch ids line up between the two builds. Trig-mode, Speed V/Oct,
-    // Overdub, and Crossfade are menu-only (AltParamChoiceLabeled) so their
-    // position fields are unused.
-    static constexpr std::array<Element, 85> Elements{{
+    // enum->element by index. Global params and jacks come FIRST (so the
+    // MetaModule manual lists them at the top), then params and jacks grouped
+    // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level/Trig-mode/Speed-V/Oct,
+    // then head 2, etc.) so the MetaModule mapping menu lists everything for
+    // one head together. The VCV Param/Input enums (src/loooop/Loooop.cpp)
+    // mirror this order, except WriteModeAlt is MetaModule-only, so ids after
+    // the global params are offset by one between the two builds. Trig-mode,
+    // Speed V/Oct, Overdub, Crossfade, Write mode, and Grid are menu-only
+    // (AltParamChoiceLabeled) so their position fields are unused.
+    static constexpr std::array<Element, 87> Elements{{
+        // ── Global params ──
+        QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
+        QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", ""}, 1},
+        QlpButton{{91.785f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
+        QlpGridAlt{{0.f, 0.f, Center, "Grid", ""}},
+        QlpKnob{{143.488f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
+        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
+        QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", ""}},
+
         // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level, Trig mode, Speed V/Oct ──
         QlpKnob{{10.293f, 46.350f, Center, "Size 1", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{24.880f, 46.350f, Center, "Position 1", "", 9.f, 9.f}, 0.5f},
@@ -69,12 +80,14 @@ struct LoooopInfo : ModuleInfoBase {
         QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 4 mode", ""}},
         QlpVoctAlt{{0.f, 0.f, Center, "Speed 4 V/Oct", ""}},
 
-        // ── Global params ──
-        QlpKnob{{127.753f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
-        QlpButtonLight{{53.687f, 116.050f, Center, "Record", "", 7.f, 7.f}},
-        QlpButton{{91.095f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
-        QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", ""}, 1},
-        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
+        // ── Global jacks ──
+        QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 8.f, 8.f}},
+        QlpJackIn{{17.050f, 116.050f, Center, "In R", "", 8.f, 8.f}},
+        QlpJackIn{{47.302f, 116.050f, Center, "Rec Trig", "", 8.f, 8.f}},
+        QlpJackIn{{102.635f, 116.050f, Center, "Clear Trig", "", 8.f, 8.f}},
+        QlpJackIn{{155.838f, 116.050f, Center, "Dry/Wet CV", "", 8.f, 8.f}},
+        QlpJackOut{{175.990f, 116.050f, Center, "Mix L", "", 8.f, 8.f}},
+        QlpJackOut{{185.690f, 116.050f, Center, "Mix R", "", 8.f, 8.f}},
 
         // ── Input jacks, grouped per head: Size CV, Pos CV, Speed CV, Jitter CV, Pan CV, Level CV, Trig, Jump ──
         QlpJackIn{{10.293f, 58.700f, Center, "Size 1 CV", "", 8.f, 8.f}},
@@ -83,8 +96,8 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackIn{{10.293f, 87.400f, Center, "Jitter 1 CV", "", 8.f, 8.f}},
         QlpJackIn{{24.880f, 87.400f, Center, "Pan 1 CV", "", 8.f, 8.f}},
         QlpJackIn{{39.467f, 87.400f, Center, "Level 1 CV", "", 8.f, 8.f}},
-        QlpJackIn{{8.470f, 102.100f, Center, "Trig 1", "", 8.f, 8.f}},
-        QlpJackIn{{19.410f, 102.100f, Center, "Jump 1", "", 8.f, 8.f}},
+        QlpJackIn{{7.350f, 102.100f, Center, "Trig 1", "", 8.f, 8.f}},
+        QlpJackIn{{20.030f, 102.100f, Center, "Jump 1", "", 8.f, 8.f}},
 
         QlpJackIn{{58.053f, 58.700f, Center, "Size 2 CV", "", 8.f, 8.f}},
         QlpJackIn{{72.640f, 58.700f, Center, "Pos 2 CV", "", 8.f, 8.f}},
@@ -92,8 +105,8 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackIn{{58.053f, 87.400f, Center, "Jitter 2 CV", "", 8.f, 8.f}},
         QlpJackIn{{72.640f, 87.400f, Center, "Pan 2 CV", "", 8.f, 8.f}},
         QlpJackIn{{87.227f, 87.400f, Center, "Level 2 CV", "", 8.f, 8.f}},
-        QlpJackIn{{56.230f, 102.100f, Center, "Trig 2", "", 8.f, 8.f}},
-        QlpJackIn{{67.170f, 102.100f, Center, "Jump 2", "", 8.f, 8.f}},
+        QlpJackIn{{55.110f, 102.100f, Center, "Trig 2", "", 8.f, 8.f}},
+        QlpJackIn{{67.790f, 102.100f, Center, "Jump 2", "", 8.f, 8.f}},
 
         QlpJackIn{{105.813f, 58.700f, Center, "Size 3 CV", "", 8.f, 8.f}},
         QlpJackIn{{120.400f, 58.700f, Center, "Pos 3 CV", "", 8.f, 8.f}},
@@ -101,8 +114,8 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackIn{{105.813f, 87.400f, Center, "Jitter 3 CV", "", 8.f, 8.f}},
         QlpJackIn{{120.400f, 87.400f, Center, "Pan 3 CV", "", 8.f, 8.f}},
         QlpJackIn{{134.987f, 87.400f, Center, "Level 3 CV", "", 8.f, 8.f}},
-        QlpJackIn{{103.990f, 102.100f, Center, "Trig 3", "", 8.f, 8.f}},
-        QlpJackIn{{114.930f, 102.100f, Center, "Jump 3", "", 8.f, 8.f}},
+        QlpJackIn{{102.870f, 102.100f, Center, "Trig 3", "", 8.f, 8.f}},
+        QlpJackIn{{115.550f, 102.100f, Center, "Jump 3", "", 8.f, 8.f}},
 
         QlpJackIn{{153.573f, 58.700f, Center, "Size 4 CV", "", 8.f, 8.f}},
         QlpJackIn{{168.160f, 58.700f, Center, "Pos 4 CV", "", 8.f, 8.f}},
@@ -110,54 +123,46 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackIn{{153.573f, 87.400f, Center, "Jitter 4 CV", "", 8.f, 8.f}},
         QlpJackIn{{168.160f, 87.400f, Center, "Pan 4 CV", "", 8.f, 8.f}},
         QlpJackIn{{182.747f, 87.400f, Center, "Level 4 CV", "", 8.f, 8.f}},
-        QlpJackIn{{151.750f, 102.100f, Center, "Trig 4", "", 8.f, 8.f}},
-        QlpJackIn{{162.690f, 102.100f, Center, "Jump 4", "", 8.f, 8.f}},
+        QlpJackIn{{150.630f, 102.100f, Center, "Trig 4", "", 8.f, 8.f}},
+        QlpJackIn{{163.310f, 102.100f, Center, "Jump 4", "", 8.f, 8.f}},
 
-        // ── Global input jacks ──
-        QlpJackIn{{16.854f, 116.050f, Center, "In L", "", 8.f, 8.f}},
-        QlpJackIn{{26.554f, 116.050f, Center, "In R", "", 8.f, 8.f}},
-        QlpJackIn{{64.537f, 116.050f, Center, "Rec Trig", "", 8.f, 8.f}},
-        QlpJackIn{{101.945f, 116.050f, Center, "Clear Trig", "", 8.f, 8.f}},
-        QlpJackIn{{140.103f, 116.050f, Center, "Dry/Wet CV", "", 8.f, 8.f}},
-
-        // ── Output jacks ──
-        QlpJackOut{{30.970f, 102.100f, Center, "Out 1L", "", 8.f, 8.f}},
-        QlpJackOut{{40.670f, 102.100f, Center, "Out 1R", "", 8.f, 8.f}},
-        QlpJackOut{{78.730f, 102.100f, Center, "Out 2L", "", 8.f, 8.f}},
-        QlpJackOut{{88.430f, 102.100f, Center, "Out 2R", "", 8.f, 8.f}},
-        QlpJackOut{{126.490f, 102.100f, Center, "Out 3L", "", 8.f, 8.f}},
-        QlpJackOut{{136.190f, 102.100f, Center, "Out 3R", "", 8.f, 8.f}},
-        QlpJackOut{{174.250f, 102.100f, Center, "Out 4L", "", 8.f, 8.f}},
-        QlpJackOut{{183.950f, 102.100f, Center, "Out 4R", "", 8.f, 8.f}},
-        QlpJackOut{{166.486f, 116.050f, Center, "Mix L", "", 8.f, 8.f}},
-        QlpJackOut{{176.186f, 116.050f, Center, "Mix R", "", 8.f, 8.f}},
+        // ── Head output jacks ──
+        QlpJackOut{{32.710f, 102.100f, Center, "Out 1L", "", 8.f, 8.f}},
+        QlpJackOut{{42.410f, 102.100f, Center, "Out 1R", "", 8.f, 8.f}},
+        QlpJackOut{{80.470f, 102.100f, Center, "Out 2L", "", 8.f, 8.f}},
+        QlpJackOut{{90.170f, 102.100f, Center, "Out 2R", "", 8.f, 8.f}},
+        QlpJackOut{{128.230f, 102.100f, Center, "Out 3L", "", 8.f, 8.f}},
+        QlpJackOut{{137.930f, 102.100f, Center, "Out 3R", "", 8.f, 8.f}},
+        QlpJackOut{{175.990f, 102.100f, Center, "Out 4L", "", 8.f, 8.f}},
+        QlpJackOut{{185.690f, 102.100f, Center, "Out 4R", "", 8.f, 8.f}},
 
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
 
     enum class Elem {
+        // Global params
+        RecordButton, OverdubSwitch, ClearButton, GridAlt, DryWetKnob, CrossfadeSwitch, WriteModeAlt,
         // Params, per head
         Size1Knob, Position1Knob, Speed1Knob, Jitter1Knob, Pan1Knob, Level1Knob, TrigMode1Alt, SpeedVoct1Alt,
         Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob, TrigMode2Alt, SpeedVoct2Alt,
         Size3Knob, Position3Knob, Speed3Knob, Jitter3Knob, Pan3Knob, Level3Knob, TrigMode3Alt, SpeedVoct3Alt,
         Size4Knob, Position4Knob, Speed4Knob, Jitter4Knob, Pan4Knob, Level4Knob, TrigMode4Alt, SpeedVoct4Alt,
-        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch,
+        // Global jacks
+        AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn, MixOutL, MixOutR,
         // Input jacks, per head
         Size1CvIn, Position1CvIn, Speed1CvIn, Jitter1CvIn, Pan1CvIn, Level1CvIn, Trig1In, Jump1In,
         Size2CvIn, Position2CvIn, Speed2CvIn, Jitter2CvIn, Pan2CvIn, Level2CvIn, Trig2In, Jump2In,
         Size3CvIn, Position3CvIn, Speed3CvIn, Jitter3CvIn, Pan3CvIn, Level3CvIn, Trig3In, Jump3In,
         Size4CvIn, Position4CvIn, Speed4CvIn, Jitter4CvIn, Pan4CvIn, Level4CvIn, Trig4In, Jump4In,
-        AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
-        // Output jacks
+        // Head output jacks
         Head1OutL, Head1OutR, Head2OutL, Head2OutR,
         Head3OutL, Head3OutR, Head4OutL, Head4OutR,
-        MixOutL, MixOutR,
         Display,
     };
 
     // Bypass: audio ins route straight to the mix outs. Raw jack indices
-    // (Elem order among each type): inputs AudioInL=32, AudioInR=33 (they follow
-    // the 32 per-head input jacks); outputs MixOutL=8, MixOutR=9.
-    static constexpr std::array<BypassRoute, 2> bypass_routes{{{32, 8}, {33, 9}}};
+    // (Elem order among each type): inputs AudioInL=0, AudioInR=1; outputs
+    // MixOutL=0, MixOutR=1 (the global jacks lead both jack lists).
+    static constexpr std::array<BypassRoute, 2> bypass_routes{{{0, 0}, {1, 1}}};
 };
 } // namespace MetaModule

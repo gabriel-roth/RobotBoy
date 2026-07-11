@@ -45,7 +45,8 @@ static void test_half_speed() {
     e.setSpeed(0, 0.5f);
     // pos 0 ->0.5 ->1.0 ->1.5 : reads 1, 1.5, 2, 2.5
     check(near(e.process(0.f), 1.0f), "half_speed: out[0]==1.0");
-    check(near(e.process(0.f), 1.5f), "half_speed: out[1]==1.5");
+    // Catmull-Rom: taps (buf[3],buf[0],buf[1],buf[2]) = (4,1,2,3), t=0.5 -> 1.25
+    check(near(e.process(0.f), 1.25f), "half_speed: out[1]==1.25 (cubic, seam tap wraps)");
     check(near(e.process(0.f), 2.0f), "half_speed: out[2]==2.0");
     check(near(e.process(0.f), 2.5f), "half_speed: out[3]==2.5");
 }
@@ -82,12 +83,12 @@ static void test_subloop_window() {
     // interpolation over [1.5, 3.5): the head starts snapped to winStart 1.5
     e.setSize(0, 0.25f);
     e.setPosition(0, 0.3125f);
-    // pos 1.5 -> read interp(buffer[1]=2, buffer[2]=3) = 2.5
-    check(near(e.process(0.f), 2.5f), "subloop: out[0]==2.5 (window start)");
-    // advance by 1 -> pos 2.5 -> interp(buffer[2]=3, buffer[3]=4) = 3.5
+    // Cubic: k=-1 tap at 0 wraps to 2 (window period 2), taps (3,2,3,4) -> 2.375
+    check(near(e.process(0.f), 2.375f), "subloop: out[0]==2.375 (window start, cubic)");
+    // advance by 1 -> pos 2.5 -> taps (4,3,4,3) -> 3.5 (unchanged from linear)
     check(near(e.process(0.f), 3.5f), "subloop: out[1]==3.5");
-    // advance -> pos 3.5 >= winEnd 3.5 -> wraps to 1.5 -> 2.5 again
-    check(near(e.process(0.f), 2.5f), "subloop: out[2]==2.5 (wrapped in window)");
+    // advance -> pos 3.5 >= winEnd 3.5 -> wraps to 1.5 -> 2.375 again
+    check(near(e.process(0.f), 2.375f), "subloop: out[2]==2.375 (wrapped in window)");
 }
 
 // When the read position's next tap (i1) spills past a fractional window
@@ -112,9 +113,110 @@ static void test_fractional_winstart_wrap_target() {
     // at 7.75 — i1=8 spills past winEnd here).
     float out = 0.f;
     for (int i = 0; i < 6; ++i) out = e.process(0.f);
-    // out = (1-.25)*buf[7](=8) + .25*lerp(buf[2](=3), buf[3](=4), .25)
-    //     = 6 + .25*3.25 = 6.8125  (truncated-wrap bug gives 6 + .25*3 = 6.75)
-    check(near(out, 6.8125f), "fractional winStart: wrap target interpolates at frac(winStart)");
+    // Cubic taps (7, 8, readRaw(2.5)=3.5, readRaw(3.5)=4.5), t=0.25 -> 7.1328125.
+    // The wrapped taps read at winStart + (tap − winEnd) — position-preserving —
+    // so a truncated (floor'd) winStart would give readRaw(2.0)=3.0 / readRaw(3.0)=4.0
+    // and a different value; the fractional-winStart property this test guards survives.
+    check(near(out, 7.1328125f), "fractional winStart: wrap taps interpolate at frac positions");
+}
+
+static void test_cubic_exact_on_interior_ramp() {
+    // Catmull-Rom reproduces linear ramps exactly when all 4 taps are interior.
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 8; ++i) e.process(static_cast<float>(i + 1));  // 1..8
+    e.toggleRecord();
+    e.setCrossfade(false);
+    e.setSpeed(0, 0.5f);
+    e.jumpHead(0, 0.f);
+    e.process(0.f);                       // pos 0 (seam-adjacent; skip)
+    float a = e.process(0.f);             // pos 0.5 (k=-1 wraps; skip exactness)
+    (void)a;
+    check(near(e.process(0.f), 2.0f), "cubic ramp: pos 1.0 exact");
+    check(near(e.process(0.f), 2.5f), "cubic ramp: pos 1.5 exact (interior taps)");
+    check(near(e.process(0.f), 3.0f), "cubic ramp: pos 2.0 exact");
+    check(near(e.process(0.f), 3.5f), "cubic ramp: pos 2.5 exact (interior taps)");
+}
+
+static void test_cubic_beats_linear_on_sine() {
+    // At speed 0.5 a sampled sine reconstructed with Catmull-Rom must be
+    // closer to the analytic sine than the linear baseline (computed here
+    // from the same buffer).
+    const int N = 512;                    // 8 whole cycles -> continuous seam
+    const double w = 2.0 * M_PI * 8.0 / N;
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    static float buf[N];
+    for (int i = 0; i < N; ++i) {
+        buf[i] = (float)std::sin(w * i);
+        e.process(buf[i]);
+    }
+    e.toggleRecord();
+    e.setSpeed(0, 0.5f);
+    e.jumpHead(0, 0.f);
+    double errCubic = 0.0, errLinear = 0.0;
+    for (int k = 0; k < 2 * N; ++k) {
+        const double pos = 0.5 * k - std::floor(0.5 * k / N) * N;   // pos of THIS read
+        float out = e.process(0.f);
+        double ideal = std::sin(w * pos);
+        errCubic += (out - ideal) * (out - ideal);
+        int i0 = (int)pos; int i1 = (i0 + 1) % N; double fr = pos - i0;
+        double lin = (1.0 - fr) * buf[i0] + fr * buf[i1];
+        errLinear += (lin - ideal) * (lin - ideal);
+    }
+    char msg[96];
+    std::snprintf(msg, sizeof(msg),
+        "cubic sine: rmsErr %.3g < 0.5 * linear %.3g", std::sqrt(errCubic), std::sqrt(errLinear));
+    check(errCubic < 0.25 * errLinear, msg);   // RMS at least 2x better
+}
+
+static void test_cubic_tiny_loop_taps_bounded() {
+    // 1- and 2-sample loops: the k=-1/+2 taps must wrap/clamp inside the
+    // window, never index outside [0, loopLen). Output stays within the
+    // recorded sample range.
+    for (int n : {1, 2}) {
+        LoopEngine e(1); e.reset(10.f, 100.f); e.setCrossfade(false);
+        e.toggleRecord();
+        for (int i = 0; i < n; ++i) e.process(i ? -1.f : 1.f);
+        e.toggleRecord();
+        e.setSpeed(0, 0.7f);              // fractional positions
+        bool ok = true;
+        for (int i = 0; i < 64; ++i) {
+            float v = e.process(0.f);
+            if (!std::isfinite(v) || v < -2.5f || v > 2.5f) ok = false;
+        }
+        check(ok, n == 1 ? "cubic tiny loop: 1-sample loop bounded"
+                         : "cubic tiny loop: 2-sample loop bounded");
+    }
+}
+
+static void test_cubic_reverse_matches_forward_at_position() {
+    // Tap selection depends only on position, not direction: reading the same
+    // fractional position forward and reverse gives the same value.
+    LoopEngine f(1), r(1);
+    for (LoopEngine* e : {&f, &r}) {
+        e->reset(10.f, 100.f);
+        e->setCrossfade(false);
+        e->toggleRecord();
+        for (int i = 0; i < 8; ++i) e->process((float)((i * 37) % 11));  // non-ramp content
+        e->toggleRecord();
+    }
+    f.setSpeed(0, 0.5f);  f.jumpHead(0, 2.f / 7.f);    // pos 2.0, then 2.5, 3.0...
+    r.setSpeed(0, -0.5f); r.jumpHead(0, 3.f / 7.f);    // pos 3.0, then 2.5, 2.0...
+    f.process(0.f); f.process(0.f);                    // consume pos 2.0 -> next read 2.5...
+    float fwd = f.process(0.f);                        // reads pos 3.0
+    r.process(0.f);                                    // reads pos 3.0
+    float rev  = r.process(0.f);                       // reads pos 2.5
+    float fwd25 = 0.f;
+    { LoopEngine g(1); g.reset(10.f, 100.f); g.setCrossfade(false);
+      g.toggleRecord();
+      for (int i = 0; i < 8; ++i) g.process((float)((i * 37) % 11));
+      g.toggleRecord();
+      g.setSpeed(0, 0.5f); g.jumpHead(0, 2.f / 7.f);
+      g.process(0.f);
+      fwd25 = g.process(0.f); }                        // reads pos 2.5
+    check(near(rev, fwd25), "cubic reverse: same position -> same value as forward");
+    (void)fwd;
 }
 
 static void test_overdub_sums() {
@@ -283,11 +385,16 @@ static void test_waveform_revision_tracks_peak_changes_only() {
     const auto afterWrite = e.waveformRevision();
     check(afterWrite != afterReset, "wave revision: recording write invalidates waveform");
     e.toggleRecord();
+    // The freeze itself must invalidate: grid bars (drawn only once a frozen
+    // loop exists) have to appear the moment recording stops, not on the
+    // next write.
+    const auto afterFreeze = e.waveformRevision();
+    check(afterFreeze != afterWrite, "wave revision: loop freeze invalidates waveform");
     for (int i = 0; i < 100; ++i) e.process(0.f);
-    check(e.waveformRevision() == afterWrite, "wave revision: playback does not invalidate waveform");
+    check(e.waveformRevision() == afterFreeze, "wave revision: playback does not invalidate waveform");
     e.toggleRecord();
     e.process(0.25f);
-    check(e.waveformRevision() != afterWrite, "wave revision: overdub invalidates waveform");
+    check(e.waveformRevision() != afterFreeze, "wave revision: overdub invalidates waveform");
     const auto beforeClear = e.waveformRevision();
     e.clear();
     check(e.waveformRevision() != beforeClear, "wave revision: clear invalidates waveform");
@@ -386,6 +493,66 @@ static void test_one_shot_reverse() {
     check(near(e.process(0.f), 2.f), "oneshot_rev: out[2]==2");
     check(near(e.process(0.f), 1.f), "oneshot_rev: out[3]==1");
     check(near(e.process(0.f), 0.f), "oneshot_rev: stops after one pass");
+}
+
+static void test_one_shot_fade_out() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);            // crossfade on (default)
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);      // constant loop
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    static float out[2000];
+    for (int i = 0; i < 2000; ++i) out[i] = e.process(0.f);
+    check(near(out[1000], 1.f, 0.01f), "osfade: full level mid-pass");
+    check(std::fabs(out[1999]) < 0.05f, "osfade: last sample faded to ~0");
+    bool mono = true, smooth = true;
+    for (int i = 1761; i < 2000; ++i) {
+        if (out[i] > out[i-1] + 1e-3f) mono = false;
+        if (std::fabs(out[i] - out[i-1]) > 0.05f) smooth = false;
+    }
+    check(mono,   "osfade: fade is monotonic");
+    check(smooth, "osfade: no step at the end");
+    check(near(e.process(0.f), 0.f), "osfade: silent after the pass");
+}
+
+static void test_one_shot_fade_out_reverse() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setSpeed(0, -1.f);
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    static float out[2000];
+    for (int i = 0; i < 2000; ++i) out[i] = e.process(0.f);
+    check(near(out[1000], 1.f, 0.01f),  "osfade_rev: full level mid-pass");
+    check(std::fabs(out[1999]) < 0.05f, "osfade_rev: fades to ~0 at window start");
+    bool smooth = true;
+    for (int i = 1761; i < 2000; ++i)
+        if (std::fabs(out[i] - out[i-1]) > 0.05f) smooth = false;
+    check(smooth, "osfade_rev: no step at the end");
+}
+
+static void test_one_shot_retrigger_mid_fade() {
+    LoopEngine e(1); e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    for (int i = 0; i < 2000; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setOneShot(0, true);
+    e.triggerOneShot(0);
+    for (int i = 0; i < 1880; ++i) e.process(0.f);      // ~120 samples into the fade
+    float before = e.process(0.f);
+    e.triggerOneShot(0);                                 // retrigger during the fade
+    float maxDelta = 0.f, prev = before;
+    for (int i = 0; i < 100; ++i) {
+        float v = e.process(0.f);
+        maxDelta = std::max(maxDelta, std::fabs(v - prev));
+        prev = v;
+    }
+    check(before < 0.7f,             "osretrig: was mid-fade before retrigger");
+    check(maxDelta < 0.1f,           "osretrig: no gain snap (ramps back in)");
+    check(near(prev, 1.f, 0.05f),    "osretrig: back to full level after ~1 ms ramp");
 }
 
 static void test_jump_head() {
@@ -623,6 +790,21 @@ static void test_nan_input_recorded_as_zero() {
     check(near(e.process(0.f), 4.f), "nan guard: out[3]==4");
 }
 
+static void test_level_smoothing() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);   // constant loop
+    e.toggleRecord();
+    e.setLevel(0, 0.f);
+    for (int i = 0; i < 3000; ++i) e.process(0.f);   // settle at 0
+    e.setLevel(0, 1.f);                               // step 0 -> 1
+    float first = e.process(0.f);
+    check(first > 0.f && first < 0.05f, "smooth: no full level step in one sample");
+    float last = 0.f;
+    for (int i = 0; i < 3000; ++i) last = e.process(0.f);
+    check(near(last, 1.f, 0.01f), "smooth: settles at target");
+}
+
 static void test_sample_rate_change_empty_reallocates() {
     LoopEngine e;
     e.reset(10.f, 1.f);      // maxSamples = 10
@@ -634,6 +816,288 @@ static void test_sample_rate_change_empty_reallocates() {
     check(!e.isRecording(),    "sr_change empty: auto-stopped at new ceiling");
 }
 
+static void test_overdub_ramps_declick() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);  // xfade = 240
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(0.f);   // silent 1000-sample loop
+    e.toggleRecord();
+    e.toggleRecord();                                 // overdub start: gain ramps 0 -> 1
+    for (int i = 0; i < 500; ++i) e.process(1.f);
+    e.toggleRecord();                                 // stop: gain ramps 1 -> 0
+    check(e.isRecording(), "ramps: still recording right after stop toggle");
+    for (int i = 0; i < 239; ++i) e.process(1.f);
+    check(e.isRecording(), "ramps: still recording 239 samples into stop ramp");
+    for (int i = 0; i < 3; ++i) e.process(1.f);
+    check(!e.isRecording(), "ramps: recording ends when the ramp completes");
+    // The buffer holds the write-gain envelope (input was constant 1).
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    check(near(buf[0],   0.f,  0.01f),  "ramps: first overdub sample at gain 0");
+    check(near(buf[120], 0.5f, 0.01f),  "ramps: up-ramp midpoint");
+    check(near(buf[300], 1.f,  0.001f), "ramps: full gain after up-ramp");
+    check(near(buf[620], 0.5f, 0.01f),  "ramps: down-ramp midpoint");
+    check(near(buf[745], 0.f,  0.01f),  "ramps: zero at ramp end");
+    bool mono = true;
+    for (int i = 501; i < 745; ++i) if (buf[i] > buf[i-1] + 1e-4f) mono = false;
+    check(mono, "ramps: stop ramp is monotonic");
+}
+
+static void test_stop_ramp_rearm() {
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(0.f);
+    e.toggleRecord();
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(1.f);    // gain settled at 1
+    e.toggleRecord();                                 // stop ramp begins
+    for (int i = 0; i < 120; ++i) e.process(1.f);     // gain ~0.5
+    e.toggleRecord();                                 // re-arm: ramp back up from 0.5
+    check(e.isRecording(), "rearm: still recording");
+    for (int i = 0; i < 130; ++i) e.process(1.f);     // gain back to 1 by ~write 740
+    e.toggleRecord();
+    for (int i = 0; i < 250; ++i) e.process(1.f);     // final stop completes
+    check(!e.isRecording(), "rearm: final stop completes");
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    check(near(buf[618], 0.5f, 0.02f), "rearm: dip bottoms out ~0.5, no snap to 0");
+    // gain reached 1 at write ~740; writes 740..749 land before the final stop toggle
+    check(near(buf[745], 1.f,  0.01f), "rearm: recovered to full gain");
+    bool noSnap = true;
+    for (int i = 501; i < 999; ++i)
+        if (std::fabs(buf[i] - buf[i-1]) > 0.006f) noSnap = false;   // step is 1/240
+    check(noSnap, "rearm: per-sample write-gain delta never exceeds the ramp step");
+}
+
+static void test_ramp_layer_combined_expression() {
+    // Mid-ramp the write must follow buf = old + g·(fb·old − old) + g·in.
+    LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 1000; ++i) e.process(1.f);   // loop of constant 1
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.toggleRecord();
+    for (int i = 0; i < 500; ++i) e.process(0.5f);
+    e.toggleRecord();
+    for (int i = 0; i < 250; ++i) e.process(0.5f);   // stop ramp completes
+    e.restartHead(0);
+    static float buf[1000];
+    for (int i = 0; i < 1000; ++i) buf[i] = e.process(0.f);
+    auto expect = [](float g) {
+        const float fb = LoopEngine::LAYER_FEEDBACK;   // old = 1, in = 0.5
+        return 1.f + g * (fb - 1.f) + g * 0.5f;
+    };
+    check(near(buf[120], expect(0.5f), 0.005f), "combined: mid-up-ramp expression");
+    check(near(buf[300], expect(1.f),  0.005f), "combined: full-gain expression");
+    check(near(buf[620], expect(0.5f), 0.005f), "combined: mid-stop-ramp expression");
+}
+
+static void test_write_mode_replace() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);    // loop = 1,1,1,1
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Replace);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(2.f);    // full destructive pass
+    e.toggleRecord();
+    check(near(e.process(0.f), 2.f), "replace: out[0]==2 (old content gone)");
+    check(near(e.process(0.f), 2.f), "replace: out[1]==2");
+}
+
+static void test_write_mode_layer() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.setLevel(0, 0.f);                            // mute so overdub input is isolated
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.5f);   // buf -> 1*FB + 0.5
+    e.toggleRecord();
+    e.setLevel(0, 1.f);
+    const float expected = LoopEngine::LAYER_FEEDBACK + 0.5f;
+    check(near(e.process(0.f), expected), "layer: buf == old*FB + new");
+    // an idle loop never fades: play 20 more samples, value unchanged
+    float v = 0.f; for (int i = 0; i < 19; ++i) v = e.process(0.f);
+    check(near(v, expected), "layer: idle playback does not decay");
+}
+
+static void test_write_mode_decay_at_low_rate_matches_layer() {
+    // At the 10 Hz test rate the Decay LP coefficient saturates to 1
+    // (passthrough), so Decay == Layer sample-exactly there.
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Decay);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.5f);
+    e.toggleRecord();
+    check(near(e.process(0.f), LoopEngine::LAYER_FEEDBACK + 0.5f),
+          "decay@10Hz: identical to layer (LP is passthrough)");
+}
+
+static void test_write_mode_decay_rolls_off_highs() {
+    // Same per-pass feedback as Layer, plus a one-pole LP in the write path:
+    // a Nyquist-rate square must decay much faster in Decay than in Layer.
+    // Loop is 4800 samples; only the region past sample 1000 is measured so
+    // the Task-2 write-gain ramps (240 samples at each edge) can't touch it.
+    auto passRms = [](LoopEngine::WriteMode m) {
+        LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
+        e.toggleRecord();
+        for (int i = 0; i < 4800; ++i) e.process((i & 1) ? -1.f : 1.f);
+        e.toggleRecord();
+        e.setWriteMode(m);
+        e.toggleRecord();
+        for (int i = 0; i < 4800; ++i) e.process(0.f);   // one silent overdub pass
+        e.toggleRecord();
+        for (int i = 0; i < 300; ++i) e.process(0.f);    // let any stop ramp finish
+        e.restartHead(0);
+        double acc = 0.0; int n = 0;
+        for (int i = 0; i < 4800; ++i) {
+            float v = e.process(0.f);
+            if (i >= 1000) { acc += double(v) * v; ++n; }
+        }
+        return std::sqrt(acc / n);
+    };
+    float rLayer = (float)passRms(LoopEngine::WriteMode::Layer);
+    float rDecay = (float)passRms(LoopEngine::WriteMode::Decay);
+    check(near(rLayer, LoopEngine::LAYER_FEEDBACK, 0.02f),
+          "decay_hf: layer pass keeps FB*amplitude at Nyquist");
+    check(rDecay < 0.5f * rLayer, "decay_hf: Decay kills HF much faster than Layer");
+}
+
+static void test_write_mode_peaks_track_decay() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);   // peakBinSize == 1
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(1.f);
+    e.toggleRecord();
+    e.setWriteMode(LoopEngine::WriteMode::Layer);
+    e.toggleRecord();
+    for (int i = 0; i < 4; ++i) e.process(0.f);          // silent pass: buf *= FB
+    e.toggleRecord();
+    check(near(e.peakMaxs(0)[0], LoopEngine::LAYER_FEEDBACK),
+          "peaks: display peaks track decayed content");
+}
+
+static void test_grid_size_snaps_to_segments() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);                    // seg = 4 samples
+    e.setSize(0, 0.3f);              // 4.8 samples -> rounds to 1 segment (4)
+    // centre 0.5 -> continuous start 8-2=6 -> k = lround(6/4) = 2 -> window [8,12)
+    check(near(e.process(0.f), 9.f),  "grid_size: out[0]==9");
+    check(near(e.process(0.f), 10.f), "grid_size: out[1]==10");
+    check(near(e.process(0.f), 11.f), "grid_size: out[2]==11");
+    check(near(e.process(0.f), 12.f), "grid_size: out[3]==12");
+    check(near(e.process(0.f), 9.f),  "grid_size: out[4]==9 (wrapped)");
+    const auto s = e.displaySnapshot();
+    check(s.grid == 4, "grid_size: snapshot reports grid");
+    check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 0.75f),
+          "grid_size: snapshot window on segment bounds");
+}
+
+static void test_grid_position_snaps_to_boundaries() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.25f);             // exactly 1 segment
+    e.setPosition(0, 0.1f);          // continuous start -0.4 -> k=0 -> [0,4)
+    check(near(e.process(0.f), 1.f), "grid_pos: low position snaps to segment 0");
+    e.setPosition(0, 0.4f);          // continuous start 4.4 -> k=1 -> [4,8)
+    check(near(e.process(0.f), 5.f), "grid_pos: position snaps to segment 1");
+}
+
+static void test_grid_window_clamped_inside_loop() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.6f);              // 9.6 -> 2 segments (8 samples)
+    e.setPosition(0, 1.f);           // start 12 -> k clamped to 2 -> [8,16)
+    check(near(e.process(0.f), 9.f), "grid_clamp: window pinned inside loop");
+    const auto s = e.displaySnapshot();
+    check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 1.f),
+          "grid_clamp: snapshot [0.5,1.0]");
+}
+
+static void test_grid_min_one_segment() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.01f);             // under one segment -> grows to 1 segment
+    e.process(0.f);
+    const auto s = e.displaySnapshot();
+    check(near(s.winEnd01[0] - s.winStart01[0], 0.25f),
+          "grid_min: window grows to one segment");
+}
+
+static void test_grid_full_size_plays_whole_loop() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(8);
+    e.setPosition(0, 0.9f);          // size 1 -> all 8 segments, position moot
+    check(near(e.process(0.f), 1.f), "grid_full: out[0]==1");
+    for (int i = 1; i < 16; ++i) e.process(0.f);
+    check(near(e.process(0.f), 1.f), "grid_full: wraps at 16");
+}
+
+static void test_grid_off_matches_ungridded() {
+    LoopEngine a; record_ramp(a, 16);
+    LoopEngine b; record_ramp(b, 16);
+    b.setGrid(4); b.setGrid(0);      // enable then disable
+    a.setSize(0, 0.3f); a.setPosition(0, 0.37f);
+    b.setSize(0, 0.3f); b.setPosition(0, 0.37f);
+    bool same = true;
+    for (int i = 0; i < 40; ++i) same = same && near(a.process(0.f), b.process(0.f));
+    check(same, "grid_off: disabled grid matches ungridded engine");
+    check(a.displaySnapshot().grid == 0 && b.displaySnapshot().grid == 0,
+          "grid_off: snapshot reports off");
+}
+
+static void test_grid_invalid_values_mean_off() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(1);                    // <2 segments is meaningless -> off
+    e.setSize(0, 0.3f); e.setPosition(0, 0.37f);
+    e.process(0.f);
+    check(e.displaySnapshot().grid == 0, "grid_invalid: 1 segment reads as off");
+}
+
+static void test_grid_jitter_lands_on_boundaries() {
+    LoopEngine e; record_ramp(e, 16);
+    e.setGrid(4);
+    e.setSize(0, 0.25f);
+    e.setJitter(0, 1.f);
+    bool onGrid = true;
+    for (int i = 0; i < 200; ++i) {
+        e.process(0.f);
+        const auto s = e.displaySnapshot();
+        const float k = s.winStart01[0] * 4.f;
+        onGrid = onGrid && near(k, std::round(k), 1e-3f);
+    }
+    check(onGrid, "grid_jitter: jittered windows stay on segment boundaries");
+}
+
+static void test_grid_respects_min_window() {
+    LoopEngine e; record_ramp(e, 3);     // seg = 0.75 < the 1-sample minimum
+    e.setGrid(4);
+    e.setSize(0, 0.01f);
+    e.process(0.f);
+    const auto s = e.displaySnapshot();
+    check(s.winEnd01[0] - s.winStart01[0] >= 1.f / 3.f - 1e-4f,
+          "grid_minwin: window grew to cover the minimum window");
+}
+
+static void test_grid_32_segments() {
+    LoopEngine e; record_ramp(e, 64);
+    e.setGrid(32);                    // seg = 2 samples
+    e.setSize(0, 0.02f);              // 1.28 samples -> rounds to 1 segment (2)
+    e.setPosition(0, 0.6f);           // start 38.4-1=37.4 -> k=lround(18.7)=19 -> [38,40)
+    check(near(e.process(0.f), 39.f), "grid32: out[0]==39");
+    check(near(e.process(0.f), 40.f), "grid32: out[1]==40");
+    check(near(e.process(0.f), 39.f), "grid32: out[2]==39 (wrapped)");
+    const auto s = e.displaySnapshot();
+    check(s.grid == 32, "grid32: snapshot reports grid");
+    check(near(s.winStart01[0], 38.f / 64.f) && near(s.winEnd01[0], 40.f / 64.f),
+          "grid32: snapshot window is one 1/32 segment on boundaries");
+}
+
 int main() {
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
@@ -643,6 +1107,9 @@ int main() {
     test_restart_head();
     test_one_shot();
     test_one_shot_reverse();
+    test_one_shot_fade_out();
+    test_one_shot_fade_out_reverse();
+    test_one_shot_retrigger_mid_fade();
     test_jump_head();
     test_one_shot_survives_clear();
     test_triggers_no_loop();
@@ -650,11 +1117,25 @@ int main() {
     test_mono_convenience_matches_stereo();
     test_per_head_outs();
     test_record_play_1x();
+    test_grid_size_snaps_to_segments();
+    test_grid_position_snaps_to_boundaries();
+    test_grid_window_clamped_inside_loop();
+    test_grid_min_one_segment();
+    test_grid_full_size_plays_whole_loop();
+    test_grid_off_matches_ungridded();
+    test_grid_invalid_values_mean_off();
+    test_grid_jitter_lands_on_boundaries();
+    test_grid_respects_min_window();
+    test_grid_32_segments();
     test_half_speed();
     test_double_speed();
     test_reverse();
     test_subloop_window();
     test_fractional_winstart_wrap_target();
+    test_cubic_exact_on_interior_ramp();
+    test_cubic_beats_linear_on_sine();
+    test_cubic_tiny_loop_taps_bounded();
+    test_cubic_reverse_matches_forward_at_position();
     test_overdub_sums();
     test_clear();
     test_buffer_ceiling_autoend();
@@ -667,11 +1148,20 @@ int main() {
     test_display_snapshot_four_heads();
     test_waveform_revision_tracks_peak_changes_only();
     test_overdub_gate();
+    test_overdub_ramps_declick();
+    test_stop_ramp_rearm();
+    test_ramp_layer_combined_expression();
+    test_write_mode_replace();
+    test_write_mode_layer();
+    test_write_mode_decay_at_low_rate_matches_layer();
+    test_write_mode_decay_rolls_off_highs();
+    test_write_mode_peaks_track_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();
+    test_level_smoothing();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

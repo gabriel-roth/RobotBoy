@@ -49,6 +49,19 @@ struct QlpCrossfadeAlt : AltParamChoiceLabeled {
     constexpr QlpCrossfadeAlt(BaseElement b, unsigned defaultValue)
         : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"On", "Off"}} {}
 };
+// Choice order pins Add to index 0: the MM patch loader zero-inits unset
+// alt-params, so patches saved before this param must load in Add (the
+// legacy overdub-sum behavior).
+struct QlpWriteModeAlt : AltParamChoiceLabeled {
+    constexpr QlpWriteModeAlt(BaseElement b)
+        : AltParamChoiceLabeled{{{b}, 4, 0}, {"Add", "Replace", "Layer", "Decay"}} {}
+};
+// Index 0 = Off so patches saved before this param (loader zero-inits unset
+// alt-params) keep the ungridded behavior.
+struct QlpGridAlt : AltParamChoiceLabeled {
+    constexpr QlpGridAlt(BaseElement b)
+        : AltParamChoiceLabeled{{{b}, 6, 0}, {"Off", "4", "8", "16", "32", "64"}} {}
+};
 struct QlpJackIn : JackInput {
     constexpr QlpJackIn(BaseElement b) : JackInput{{b, "4ms/comp/jack_x.png"}} {}
 };
