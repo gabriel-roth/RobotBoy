@@ -399,6 +399,42 @@ TEST_CASE("GrainEngine: NaN TIME CV can't reach the buffer read as a NaN positio
     REQUIRE(engine.ActiveGrainCount() > 0);
 }
 
+TEST_CASE("GrainEngine: NaN TIME CV with reverse playback stays finite and terminates",
+          "[engine][nan][reverse]") {
+    // Same NaN-time hazard as above, but with reverse grains engaged (SIZE <
+    // kSizeBoundary selects reverse in ComputeGrainParams, not pitch sign --
+    // see the "Negative = reverse grains" test above). The reverse branch's
+    // while-loop wraps gp.position by subtracting buf_size_f; if the isfinite
+    // fence ran after that loop instead of before it, a +Inf position would
+    // spin the loop forever and hang this test.
+    TestBuffer tb(48000);
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &tb.buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.density = 0.1f;
+    params.size = -0.5f;  // Negative = reverse grains
+    params.time = 0.5f;
+    params.time_ar = 1.0f;
+    params.time_cv = std::numeric_limits<float>::quiet_NaN();
+    params.time_cv_connected = true;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+
+    std::vector<StereoFrame> output(256, {0.0f, 0.0f});
+    bool all_finite = true;
+    for (int block = 0; block < 200; ++block) {
+        engine.Process(params, output.data(), 256);
+        for (auto& f : output)
+            if (!std::isfinite(f.l) || !std::isfinite(f.r)) all_finite = false;
+    }
+
+    REQUIRE(all_finite);
+    REQUIRE(engine.ActiveGrainCount() > 0);
+}
+
 TEST_CASE("GrainEngine: Produces output with active grains", "[engine]") {
     TestBuffer tb;
 

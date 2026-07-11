@@ -181,6 +181,12 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     if (pos < 0.0f) pos += buf_size_f;
     gp.position = pos;
 
+    // Guard against NaN/huge positions before they reach Grain::Start() —
+    // and before the reverse wrap below, whose while-loop would spin
+    // forever on +Inf and silently skip on NaN. Robust by construction,
+    // not by upstream luck.
+    if (!std::isfinite(gp.position)) gp.position = 0.0f;
+
     if (reverse) {
         // Offset start position to the END of the segment a forward grain
         // would play.  The reverse grain then reads backwards through the
@@ -189,13 +195,6 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
         gp.position += span;
         while (gp.position >= buf_size_f) gp.position -= buf_size_f;
     }
-
-    // Guard against NaN/huge positions before they reach Grain::Start(),
-    // which stores gp.position directly into read_position_ and feeds it to
-    // RecordingBuffer::ReadHermiteStereoFast — an unguarded hot-loop reader
-    // whose float->int cast is undefined behavior for non-finite input.
-    // Land on a safe, always-valid position rather than propagate the NaN.
-    if (!std::isfinite(gp.position)) gp.position = 0.0f;
 
     // --- SHAPE → envelope shape ---
     float mod_shape = ar_shape_.Process(params.shape, params.shape_ar,
