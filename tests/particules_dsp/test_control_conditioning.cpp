@@ -1,7 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/catch_approx.hpp>
 
-#include "util/control_conditioner.h"
+#include <particules_dsp/control_conditioner.h>
 
 using namespace particules_dsp;
 using Catch::Approx;
