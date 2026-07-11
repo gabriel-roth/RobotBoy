@@ -29,10 +29,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: lin-x64,   os: ubuntu-latest, sdk: lin-x64 }
-          - { name: mac-x64,   os: macos-13,      sdk: mac-x64 }
-          - { name: mac-arm64, os: macos-14,      sdk: mac-arm64 }
-          - { name: win-x64,   os: windows-latest, sdk: win-x64 }
+          - { name: lin-x64, os: ubuntu-latest,  sdk: lin-x64 }
+          # The mac SDK is a single universal (x64+arm64) build, so one job
+          # produces a universal .vcvplugin covering Intel and Apple Silicon.
+          - { name: mac,     os: macos-14,       sdk: mac-x64+arm64 }
+          - { name: win-x64, os: windows-latest, sdk: win-x64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -44,7 +45,9 @@ jobs:
         with:
           msystem: MINGW64
           update: true
-          install: mingw-w64-x86_64-gcc make zip unzip curl
+          # jq is needed by the Rack SDK's `dist` target (reads plugin.json);
+          # Linux/macOS runners ship it, the MSYS2 env does not.
+          install: mingw-w64-x86_64-gcc make zip unzip curl jq
 
       - name: Build .vcvplugin (Unix)
         if: runner.os != 'Windows'
