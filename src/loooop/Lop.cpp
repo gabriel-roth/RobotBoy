@@ -34,15 +34,23 @@ struct Lop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
-        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub", {"Off", "On"});
-        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger", {"Loop start", "One-shot"});
-        configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct", {"Off", "On"});
+        // Menu switches opt out of Randomize (matches Loooop): a randomized
+        // one-shot with no trigger patched silences the loop with nothing on
+        // the panel to show why.
+        configSwitch(OVERDUB_PARAM, 0.f, 1.f, 1.f, "Overdub",
+            {"Off", "On"})->randomizeEnabled = false;
+        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
+            {"Loop start", "One-shot"})->randomizeEnabled = false;
+        configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct",
+            {"Off", "On"})->randomizeEnabled = false;
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
-        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
+        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade",
+            {"On", "Off"})->randomizeEnabled = false;
         configSwitch(WRITE_MODE_PARAM, 0.f, 3.f, 0.f, "Write mode",
-            {"Add", "Replace", "Layer", "Decay"});
-        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
+            {"Add", "Replace", "Layer", "Decay"})->randomizeEnabled = false;
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
+            {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");

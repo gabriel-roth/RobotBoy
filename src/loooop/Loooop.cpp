@@ -60,12 +60,15 @@ struct Loooop : Module {
             configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, n + " level");
             configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " jitter");
             // 0 = restart-at-window-start (unnamed default), 1 = one-shot.
+            // Menu switches opt out of Randomize: a randomized one-shot with
+            // no trigger patched silences the head with nothing on the panel
+            // to show why.
             configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " one-shot",
-                {"Off", "On"});
+                {"Off", "On"})->randomizeEnabled = false;
             configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
-                {"Off", "On"});
+                {"Off", "On"})->randomizeEnabled = false;
             configSwitch(EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f,
-                n + " exclude from Grid", {"Off", "On"});
+                n + " exclude from Grid", {"Off", "On"})->randomizeEnabled = false;
             configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, n + " speed CV");
             configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, n + " position CV");
             configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, n + " size CV");
@@ -81,12 +84,16 @@ struct Loooop : Module {
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
         configButton(RECORD_PARAM, "Record/Overdub");
         configButton(CLEAR_PARAM, "Clear");
+        // Mode switches opt out of Randomize like the per-head menu switches:
+        // Lock overdub gates the Record button, and randomized Grid/Crossfade
+        // read as broken behavior, not as an inspiring patch variation.
         configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
-            {"Layer", "Decay", "Add", "Replace", "Lock"});
+            {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.
-        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"});
-        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid", {"Off", "4", "8", "16", "32", "64"});
+        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"})->randomizeEnabled = false;
+        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
+            {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
