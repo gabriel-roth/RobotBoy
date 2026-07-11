@@ -835,6 +835,45 @@ static void test_sample_rate_change_preserves_loop() {
     check(near(e.process(0.f), 4.f), "sr_change: out[3]==4");
 }
 
+static void test_sample_rate_change_multi_head_nondefault_speed() {
+    LoopEngine e;                       // default 4 heads
+    e.reset(10.f, 100.f);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f, 5.f, 6.f, 7.f, 8.f}) e.process(x);
+    e.toggleRecord();
+    // Non-default per-head state that must survive the retune:
+    e.setSpeed(0, 2.f);
+    e.setSpeed(1, -1.f);
+    e.setLevel(2, 0.f);
+    e.setLevel(3, 0.f);
+    e.setSampleRate(20.f);
+    check(e.loopLength() == 8, "sr_multi: loop length preserved");
+    // Head 0 at speed 2 reads every other sample; head 1 reads in reverse.
+    // Just assert content survived and output is finite and nonzero:
+    bool finite = true; float energy = 0.f;
+    for (int i = 0; i < 16; ++i) {
+        float v = e.process(0.f);
+        if (!std::isfinite(v)) finite = false;
+        energy += std::fabs(v);
+    }
+    check(finite, "sr_multi: output finite after retune");
+    check(energy > 0.1f, "sr_multi: loop content audible after retune");
+}
+
+static void test_sample_rate_change_redundant_same_rate() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f}) e.process(x);
+    e.toggleRecord();
+    e.setSampleRate(10.f);   // same rate — must be a no-op for the loop
+    e.setSampleRate(10.f);   // and again
+    check(e.loopLength() == 4, "sr_same: loop survives redundant same-rate calls");
+    check(near(e.process(0.f), 1.f), "sr_same: out[0]==1");
+    check(near(e.process(0.f), 2.f), "sr_same: out[1]==2");
+}
+
 static void test_sample_rate_change_mid_recording() {
     LoopEngine e;
     e.reset(10.f, 100.f);
@@ -1299,6 +1338,8 @@ int main() {
     test_write_mode_peaks_track_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();
+    test_sample_rate_change_multi_head_nondefault_speed();
+    test_sample_rate_change_redundant_same_rate();
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();

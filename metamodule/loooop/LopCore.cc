@@ -96,7 +96,7 @@ public:
     }
 
     void set_samplerate(float sr) override {
-        engine_.reset(sr);
+        engine_.setSampleRate(sr);   // preserve a recorded loop (matches VCV onSampleRateChange)
         mixSm_.alpha = loooop::smootherAlpha(sr, 0.002f);
     }
 
