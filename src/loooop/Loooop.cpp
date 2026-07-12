@@ -14,13 +14,14 @@ static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
     "Red playhead", "Green playhead", "Blue playhead", "Yellow playhead"};
 
 struct Loooop : Module {
-    // Global params and jacks come FIRST (so the MetaModule manual lists them
-    // at the top), then params and inputs grouped PER HEAD so the MetaModule
-    // mapping menu lists everything for one head together. This mirrors the
-    // Elem order in metamodule/loooop/Loooop_info.hh — the MM enum now matches
-    // this ParamId order one-for-one (no offset). Each head is a contiguous
-    // block of HEAD_PARAMS params / HEAD_INPUTS inputs — index a head with
-    // `X1_PARAM + HEAD_PARAMS * h`.
+    // Global params and jacks come FIRST, then params and inputs grouped PER
+    // HEAD. Each head is a contiguous block of HEAD_PARAMS params / HEAD_INPUTS
+    // inputs — index a head with `X1_PARAM + HEAD_PARAMS * h`.
+    // NOTE: the MetaModule Elem order (metamodule/loooop/Loooop_info.hh) is NOT
+    // one-for-one with this ParamId order — MM groups the menu-only params
+    // (Crossfade, per-head Trig-mode/Speed-V/Oct/Grid-exclude) into a trailing
+    // "Options" block for its module-view roller, whereas VCV keeps them here
+    // interleaved per head. The MetaModule cores map by element name, not index.
     enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM, CROSSFADE_PARAM,
                    SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM, EXCLUDE_GRID1_PARAM,
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM, EXCLUDE_GRID2_PARAM,
