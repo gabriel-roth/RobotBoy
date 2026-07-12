@@ -17,10 +17,9 @@ struct Loooop : Module {
     // Global params and jacks come FIRST (so the MetaModule manual lists them
     // at the top), then params and inputs grouped PER HEAD so the MetaModule
     // mapping menu lists everything for one head together. This mirrors the
-    // Elem order in metamodule/loooop/Loooop_info.hh, except that build has an
-    // extra menu-only WriteModeAlt at the end of its globals, so ids after the
-    // globals are offset by one there. Each head is a contiguous block of
-    // HEAD_PARAMS params / HEAD_INPUTS inputs — index a head with
+    // Elem order in metamodule/loooop/Loooop_info.hh — the MM enum now matches
+    // this ParamId order one-for-one (no offset). Each head is a contiguous
+    // block of HEAD_PARAMS params / HEAD_INPUTS inputs — index a head with
     // `X1_PARAM + HEAD_PARAMS * h`.
     enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM, CROSSFADE_PARAM,
                    SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM, EXCLUDE_GRID1_PARAM,
