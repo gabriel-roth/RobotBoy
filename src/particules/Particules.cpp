@@ -8,6 +8,7 @@
 #include "particules_scales.h"
 #include "metamodule_fpu.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
@@ -135,7 +136,15 @@ struct Particules : Module {
 		// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
 		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
 			->randomizeEnabled = false;
+#ifdef METAMODULE
+		// MetaModule: a real 4-position switch so the firmware shows the mode
+		// name (the adapter can't label a momentary button). Desktop keeps the
+		// momentary cycle button below.
+		configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
+			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"});
+#else
 		configButton<QualityParamQuantity>(QUALITY_PARAM, "Quality");
+#endif
 		configParam(DENSITY_PARAM, 0.f, 1.f, 0.5f, "Density");
 		configParam(TIME_PARAM, 0.f, 1.f, 0.5f, "Time");
 		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
@@ -397,11 +406,16 @@ struct Particules : Module {
 		seed_gate_.process(inputs[SEED_INPUT].getVoltage(), 0.1f, 1.f);
 		block_runtime_.NoteSeedGateSample(seed_gate_.isHigh());
 
-		// Button cycling — rising-edge detection every sample; blocked while frozen
+#ifdef METAMODULE
+		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
+		quality_state_ = std::clamp((int)std::lround(params[QUALITY_PARAM].getValue()), 0, 3);
+#else
+		// Desktop: momentary button cycles the mode; blocked while frozen.
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
 		if (quality_pressed && !prev_quality_button_ && !frozen)
 			quality_state_ = (quality_state_ + 1) % 4;
 		prev_quality_button_ = quality_pressed;
+#endif
 
 		// Output from previously processed block
 		particules_dsp::StereoFrame out = block_runtime_.ReadOutputSample();
@@ -537,6 +551,26 @@ struct ManualGainSlider : ui::Slider {
 	}
 	~ManualGainSlider() {
 		delete quantity;
+	}
+};
+#endif
+
+#ifdef METAMODULE
+// MetaModule-only Quality control. The VCV→MM adapter turns a non-momentary
+// SvgSwitch with >=3 frames plus a configSwitch into a labeled FlipSwitch, so
+// MM shows the mode name in the Adjust popup and the per-mode colour comes from
+// the frame image (metamodule/assets/quality_*.png, reached via the .svg->.png
+// asset rule). The desktop build keeps its momentary RGB bezel instead — see the
+// #ifndef METAMODULE branch in ParticulesWidget and Particules(). The referenced
+// .svg files never need to exist: this widget is compiled only for METAMODULE,
+// where asset::plugin() rewrites the path to the bundled .png.
+struct QualityMmSwitch : SvgSwitch {
+	QualityMmSwitch() {
+		momentary = false;
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/quality_bright.svg")));
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/quality_cold.svg")));
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/quality_sunny.svg")));
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/quality_scorched.svg")));
 	}
 };
 #endif
@@ -723,7 +757,13 @@ struct ParticulesWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(20.4, 15.875)), module, Particules::FREEZE_PARAM, Particules::FREEZE_BUTTON_LIGHT));
+#ifdef METAMODULE
+		// MetaModule: 4-position colored switch (adapter renders it as a labeled
+		// FlipSwitch). Desktop keeps the momentary RGB bezel below.
+		addParam(createParamCentered<QualityMmSwitch>(mm2px(Vec(38.1, 15.875)), module, Particules::QUALITY_PARAM));
+#else
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(38.1, 15.875)), module, Particules::QUALITY_PARAM, Particules::QUALITY_R_LIGHT));
+#endif
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.6, 42.088)), module, Particules::TIME_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(46.6, 42.088)), module, Particules::PITCH_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(29.6, 42.088)), module, Particules::DENSITY_PARAM));
