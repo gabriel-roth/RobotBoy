@@ -37,9 +37,11 @@ side_margin: 3
 title_valign: center
 groups:
   gutter: 4
-  # Yellow carries its own alpha (0x33 ≈ 0.2): at the shared 0.14 it renders
-  # gold/olive on the dark panel. Hue must still match HEAD_COLORS[3].
-  tints: ['#ff3b30', '#30d158', '#3f8cff', '#fff70a33']
+  # Hues mirror loooop::kHeadColors (src/loooop/HeadColors.hpp), guarded by
+  # tests/test_head_colors.py: H1 red, H2 yellow, H3 blue, H4 purple. Yellow
+  # carries its own alpha (0x33 ≈ 0.2) because at the shared 0.14 it renders
+  # gold/olive on the dark panel; red/blue/purple use the default 0.14.
+  tints: ['#ff3b30', '#fff70a33', '#3f8cff', '#bf5af2']
   opacity: 0.14
 rows:
   - type: screen
