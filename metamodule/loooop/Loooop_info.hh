@@ -28,21 +28,18 @@ struct LoooopInfo : ModuleInfoBase {
     // MetaModule manual lists them at the top), then params and jacks grouped
     // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level/Trig-mode/Speed-V/Oct/
     // Grid-exclude, then head 2, etc.) so the MetaModule mapping menu lists
-    // everything for one head together. The VCV Param/Input enums
-    // (src/loooop/Loooop.cpp) mirror this order, except WriteModeAlt is
-    // MetaModule-only, so ids after the global params are offset by one
-    // between the two builds. Trig-mode, Speed V/Oct, Grid exclude, Overdub,
-    // Crossfade, Write mode, and Grid are menu-only (AltParamChoiceLabeled)
-    // so their position fields are unused.
-    static constexpr std::array<Element, 91> Elements{{
+    // everything for one head together. Overdub and Grid are panel controls
+    // (Overdub is a 5-state RGB button, Grid a stepped knob); Trig-mode,
+    // Speed V/Oct, Grid exclude, and Crossfade remain menu-only
+    // (AltParamChoiceLabeled) so their position fields are unused.
+    static constexpr std::array<Element, 90> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
-        QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", ""}, 1},
+        QlpOverdubButton{{69.543f, 116.050f, Center, "Overdub", "", 7.f, 7.f}},
         QlpButton{{91.785f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
-        QlpGridAlt{{0.f, 0.f, Center, "Grid", ""}},
+        QlpGridKnob{{122.687f, 116.050f, Center, "Grid", "", 9.f, 9.f}},
         QlpKnob{{143.488f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
-        QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", ""}},
 
         // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level, Trig mode, Speed V/Oct, Grid exclude ──
         QlpKnob{{10.293f, 46.350f, Center, "Size 1", "", 9.f, 9.f}, 1.0f},
@@ -146,7 +143,7 @@ struct LoooopInfo : ModuleInfoBase {
 
     enum class Elem {
         // Global params
-        RecordButton, OverdubSwitch, ClearButton, GridAlt, DryWetKnob, CrossfadeSwitch, WriteModeAlt,
+        RecordButton, OverdubButton, ClearButton, GridKnob, DryWetKnob, CrossfadeSwitch,
         // Params, per head
         Size1Knob, Position1Knob, Speed1Knob, Jitter1Knob, Pan1Knob, Level1Knob, TrigMode1Alt, SpeedVoct1Alt, ExcludeGrid1Alt,
         Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob, TrigMode2Alt, SpeedVoct2Alt, ExcludeGrid2Alt,
