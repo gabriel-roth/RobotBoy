@@ -10,9 +10,10 @@
 
 struct Lop : Module {
     // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
-    // lacks) so the two modules' MetaModule menus read the same. The MM enum
-    // (Lop_info.hh) now matches this ParamId order one-for-one (no offset) —
-    // the same arrangement as Loooop.
+    // lacks). NOTE: the MetaModule Elem order (Lop_info.hh) is NOT one-for-one
+    // with this ParamId order — MM groups the menu-only params (Crossfade,
+    // Trigger, Speed-V/Oct) into a trailing "Options" block for its roller; the
+    // core maps by element name, not index.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM, PARAMS_LEN };

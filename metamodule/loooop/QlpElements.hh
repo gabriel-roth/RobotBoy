@@ -35,7 +35,7 @@ struct QlpOverdubButton : MomentaryButtonRGB {
 };
 struct QlpGridKnob : KnobSnapped {
     constexpr QlpGridKnob(BaseElement b)
-        : KnobSnapped{{{{b, "4ms/comp/knob9mm_x.png"}, 0.f}}, 6,
+        : KnobSnapped{{{{b, "4ms/comp/knob9mm_x.png"}, 0.f, 0.f, 5.f}}, 6,
                       {"Off", "4", "8", "16", "32", "64"}} {}
 };
 struct QlpTrigModeAlt : AltParamChoiceLabeled {
