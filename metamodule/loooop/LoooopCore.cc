@@ -5,8 +5,10 @@
 #include "display/LoopWaveformRenderer.hpp"
 #include "LooperModuleDSP.hpp"
 #include <algorithm>
+#include <charconv>
 #include <cmath>
 #include <span>
+#include <string>
 
 namespace MetaModule
 {
@@ -34,10 +36,16 @@ public:
             return;
         }
 
-        engine_.setOverdub(getState<OverdubSwitch>() == 1);
         engine_.setCrossfade(getState<CrossfadeSwitch>() == 0);   // index 0 = On (see QlpCrossfadeAlt)
-        engine_.setWriteMode(loooop::overdubWriteMode((int)getState<WriteModeAlt>()));
-        engine_.setGrid(loooop::gridSegments((int)getState<GridAlt>()));
+
+        // Overdub: momentary button cycles the 5-state control
+        // (Layer/Decay/Add/Replace/Lock), matching VCV; index persists via save_state.
+        bool odPressed = getState<OverdubButton>() == MomentaryButton::State_t::PRESSED;
+        if (odPressed && !odPrev_) od_ = (od_ + 1) % 5;
+        odPrev_ = odPressed;
+        loooop::applyOverdub(engine_, od_);
+
+        engine_.setGrid(loooop::gridSegments((int)std::lround(getState<GridKnob>() * 5.f)));
 
         // Record: momentary button OR trigger input (rising edge)
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
@@ -87,6 +95,9 @@ public:
         setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);
         setOutput<MixOutR>(loooop::dryWet(inR, wetR, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
+        setLED<OverdubButton>(std::array<float, 3>{
+            loooop::kOverdubColors[od_][0], loooop::kOverdubColors[od_][1],
+            loooop::kOverdubColors[od_][2]});
     }
 
     void set_samplerate(float sr) override {
@@ -94,6 +105,14 @@ public:
         const float a = loooop::smootherAlpha(sr, 0.002f);
         mixSm_.alpha = a;
         for (auto& s : panSm_) s.alpha = a;
+    }
+
+    std::string save_state() override { return std::to_string(od_); }
+    void load_state(std::string_view state_data) override {
+        int v = 0;
+        auto [ptr, ec] = std::from_chars(state_data.data(),
+                                         state_data.data() + state_data.size(), v);
+        od_ = (ec == std::errc{} && v >= 0 && v <= 4) ? v : 0;
     }
 
     // Display callbacks — GUI context (audio runs concurrently; the engine's
@@ -197,6 +216,8 @@ private:
     LoopEngine engine_;
     bool recPrev_ = false, clrPrev_ = false;
     bool clrTrigPrev_ = false;
+    int od_ = 0;          // 0 = Layer (matches VCV Overdub default)
+    bool odPrev_ = false;
     bool headTrigPrev_[LoopEngine::NUM_HEADS] = {};
     float lastJumpV_[LoopEngine::NUM_HEADS] = {};
     loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};

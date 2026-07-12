@@ -29,9 +29,14 @@ struct QlpButton : MomentaryButton {
     constexpr QlpButton(BaseElement b)
         : MomentaryButton{{b, "4ms/comp/button_x.png"}, "4ms/comp/button_x.png"} {}
 };
-struct QlpOverdubAlt : AltParamChoiceLabeled {
-    constexpr QlpOverdubAlt(BaseElement b, unsigned defaultValue)
-        : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"Off", "On"}} {}
+struct QlpOverdubButton : MomentaryButtonRGB {
+    constexpr QlpOverdubButton(BaseElement b)
+        : MomentaryButtonRGB{{{b, "4ms/comp/button_x.png"}, "4ms/comp/button_x.png"}} {}
+};
+struct QlpGridKnob : KnobSnapped {
+    constexpr QlpGridKnob(BaseElement b)
+        : KnobSnapped{{{{b, "4ms/comp/knob9mm_x.png"}, 0.f}}, 6,
+                      {"Off", "4", "8", "16", "32", "64"}} {}
 };
 struct QlpTrigModeAlt : AltParamChoiceLabeled {
     constexpr QlpTrigModeAlt(BaseElement b)
@@ -48,20 +53,6 @@ struct QlpVoctAlt : AltParamChoiceLabeled {
 struct QlpCrossfadeAlt : AltParamChoiceLabeled {
     constexpr QlpCrossfadeAlt(BaseElement b, unsigned defaultValue)
         : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"On", "Off"}} {}
-};
-// Choice order matches the VCV 5-state Overdub button (minus Lock) and
-// loooop::overdubWriteMode, so a given index means the same write mode on both
-// hosts. Index 0 = Layer: the MM loader zero-inits unset alt-params, so a
-// fresh module defaults to Layer, matching VCV's Overdub default.
-struct QlpWriteModeAlt : AltParamChoiceLabeled {
-    constexpr QlpWriteModeAlt(BaseElement b)
-        : AltParamChoiceLabeled{{{b}, 4, 0}, {"Layer", "Decay", "Add", "Replace"}} {}
-};
-// Index 0 = Off so patches saved before this param (loader zero-inits unset
-// alt-params) keep the ungridded behavior.
-struct QlpGridAlt : AltParamChoiceLabeled {
-    constexpr QlpGridAlt(BaseElement b)
-        : AltParamChoiceLabeled{{{b}, 6, 0}, {"Off", "4", "8", "16", "32", "64"}} {}
 };
 // Index 0 = Off so patches saved before this param (loader zero-inits unset
 // alt-params) keep every head on the grid.

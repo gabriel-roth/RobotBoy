@@ -10,11 +10,9 @@
 
 struct Lop : Module {
     // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
-    // lacks) so the two modules' MetaModule menus read the same. Exception:
-    // the MM build (Lop_info.hh) keeps an extra menu-only WriteModeAlt between
-    // CrossfadeSwitch and GridAlt (MM patch compat; VCV absorbed Write mode
-    // into the 5-state Overdub button), so MM ids after Crossfade are offset
-    // by one — the same arrangement as Loooop.
+    // lacks) so the two modules' MetaModule menus read the same. The MM enum
+    // (Lop_info.hh) now matches this ParamId order one-for-one (no offset) —
+    // the same arrangement as Loooop.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM, PARAMS_LEN };

@@ -23,13 +23,9 @@ struct LopInfo : ModuleInfoBase {
     // the two modules' MetaModule menus read the same: Size, Pos, Speed, Jitter,
     // Trig-mode, Speed V/Oct, then globals; input jacks follow the same order.
     // Keep this array and the Elem enum below in the SAME order, mirroring the
-    // VCV enums in src/loooop/Lop.cpp.
-    // Exception: WriteModeAlt below is a menu-only extra with no VCV
-    // counterpart (VCV absorbed Write mode into its 5-state Overdub button;
-    // this build keeps the alt-param for MM patch compat), so ids after
-    // CrossfadeSwitch are offset by one from the VCV enums — the same
-    // arrangement as Loooop_info.hh.
-    static constexpr std::array<Element, 27> Elements{{
+    // VCV enums in src/loooop/Lop.cpp. Overdub and Grid are panel controls
+    // (Overdub is a 5-state RGB button, Grid a stepped knob).
+    static constexpr std::array<Element, 26> Elements{{
         // ── Params: Size, Pos, Speed, Jitter, Trig-mode, Speed V/Oct ──
         QlpKnob{{9.870f, 46.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{23.610f, 46.050f, Center, "Position", "", 9.f, 9.f}, 0.5f},
@@ -41,10 +37,9 @@ struct LopInfo : ModuleInfoBase {
         QlpKnob{{12.160f, 74.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
         QlpButtonLight{{48.800f, 74.050f, Center, "Record", "", 5.f, 5.f}},
         QlpButton{{30.480f, 74.050f, Center, "Clear", "", 5.f, 5.f}},
-        QlpOverdubAlt{{0.f, 0.f, Center, "Overdub", "", 0.f, 0.f}, 1},
+        QlpOverdubButton{{37.968f, 102.150f, Center, "Overdub", "", 5.f, 5.f}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
-        QlpWriteModeAlt{{0.f, 0.f, Center, "Write mode", "", 0.f, 0.f}},
-        QlpGridAlt{{0.f, 0.f, Center, "Grid", "", 0.f, 0.f}},
+        QlpGridKnob{{51.708f, 102.150f, Center, "Grid", "", 9.f, 9.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
         QlpJackIn{{9.870f, 58.000f, Center, "Size CV", "", 6.f, 6.f}},
         QlpJackIn{{23.610f, 58.000f, Center, "Position CV", "", 6.f, 6.f}},
@@ -66,7 +61,7 @@ struct LopInfo : ModuleInfoBase {
 
     enum class Elem {
         SizeKnob, PositionKnob, SpeedKnob, JitterKnob, TrigModeAlt, SpeedVoctAlt,
-        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, CrossfadeSwitch, WriteModeAlt, GridAlt,
+        DryWetKnob, RecordButton, ClearButton, OverdubButton, CrossfadeSwitch, GridKnob,
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
         OutL, OutR,

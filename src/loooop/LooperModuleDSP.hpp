@@ -77,6 +77,25 @@ inline LoopEngine::WriteMode overdubWriteMode(int choiceIdx) {
     return kModes[(choiceIdx < 0 || choiceIdx > 3) ? 0 : choiceIdx];
 }
 
+// Overdub state colors (Layer/Decay/Add/Replace/Lock), shared by VCV's Overdub
+// LED bezel and the MetaModule cores' RGB button. Kept here (Rack-free) so both
+// hosts index the same table.
+static constexpr float kOverdubColors[5][3] = {
+    {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
+    {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
+    {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
+    {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
+    {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
+};
+
+// Apply the 5-state Overdub index to the engine: 0..3 = write modes
+// (Layer/Decay/Add/Replace), 4 = Lock (overdub off, loop untouchable).
+inline void applyOverdub(LoopEngine& engine, int od) {
+    engine.setOverdub(od != 4);   // 4 = Lock
+    if (od >= 0 && od < 4)
+        engine.setWriteMode(overdubWriteMode(od));
+}
+
 // One-pole smoother for zipper-noise suppression (mirrors mf20/dsp_utils.hpp
 // so the loooop headless lane stays self-contained). alpha 1 = passthrough.
 struct OnePoleSmoother {

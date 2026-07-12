@@ -4,18 +4,13 @@
 AudioInL: AUDIO_L_INPUT
 AudioInR: AUDIO_R_INPUT
 RecTrigIn: RECORD_TRIG_INPUT
+OverdubButton: OVERDUB_PARAM
+GridKnob: GRID_PARAM
 DryWetKnob: DRYWET_PARAM
 DryWetCvIn: DRYWET_CV_INPUT
 OutL: OUT_L_OUTPUT
 OutR: OUT_R_OUTPUT
 Display: SCREEN
-OverdubSwitch: null
 CrossfadeSwitch: null
 TrigModeAlt: null
 SpeedVoctAlt: null
-WriteModeAlt: null
-GridAlt: null
-# The Overdub switch and Grid knob exist only on the VCV panel; on MetaModule
-# both stay menu-only (the null alt-params above), so the SVG components have
-# no elements to sync — same arrangement as Loooop.
-ignore: [GRID_PARAM, OVERDUB_PARAM]
