@@ -3,15 +3,20 @@
 #include "LoopDisplay.hpp"
 #include "LooperModuleDSP.hpp"
 #include "OverdubControl.hpp"
+#include "HeadColors.hpp"
 #include <cmath>
 #include <array>
 #include <vector>
 #include <string>
 
 // Playhead display names follow the head colors on the panel/display
-// (LoopWaveformRenderer::HEAD_COLORS): H1 red, H2 green, H3 blue, H4 yellow.
+// (loooop::kHeadColors / LoopWaveformRenderer::HEAD_COLORS): H1 red, H2 yellow,
+// H3 blue, H4 purple. Derived from the one color table so names can't drift.
 static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
-    "Red playhead", "Green playhead", "Blue playhead", "Yellow playhead"};
+    std::string(loooop::kHeadColors[0].name) + " playhead",
+    std::string(loooop::kHeadColors[1].name) + " playhead",
+    std::string(loooop::kHeadColors[2].name) + " playhead",
+    std::string(loooop::kHeadColors[3].name) + " playhead"};
 
 struct Loooop : Module {
     // Global params and jacks come FIRST, then params and inputs grouped PER

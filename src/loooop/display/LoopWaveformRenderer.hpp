@@ -1,6 +1,8 @@
 #pragma once
 #include "../dsp/LoopEngine.hpp"
+#include "../HeadColors.hpp"
 #include <cstdint>
+#include <iterator>
 
 // Rasterizes the loop display — a stereo waveform on top (left channel over
 // right, each min/max around its own band midline), with four color-coded
@@ -18,13 +20,16 @@ public:
     static constexpr uint8_t BG[3]   = {0x10, 0x14, 0x18};   // near-black blue
     static constexpr uint8_t WAVE[3] = {0x51, 0x66, 0x7A};   // muted blue-gray (neutral)
     static constexpr uint8_t GRID[3] = {0x2E, 0x3A, 0x46};   // segment bars: above BG, below WAVE
-    // Per-head lane/cluster colors — must match the panel group tints
-    // (vcv/panel-spec.yaml `groups.tints`): H1 red, H2 green, H3 blue, H4 yellow.
+    // Per-head lane/cluster colors — the single source is loooop::kHeadColors
+    // (src/loooop/HeadColors.hpp): H1 red, H2 yellow, H3 blue, H4 purple. The
+    // panel group tints (panel-specs/loooop.yaml) mirror these hues.
+    static_assert(std::size(loooop::kHeadColors) == LoopEngine::NUM_HEADS,
+                  "kHeadColors must have one entry per head");
     static constexpr uint8_t HEAD_COLORS[LoopEngine::NUM_HEADS][3] = {
-        {0xFF, 0x3B, 0x30},
-        {0x30, 0xD1, 0x58},
-        {0x3F, 0x8C, 0xFF},
-        {0xFF, 0xF7, 0x0A},
+        {loooop::kHeadColors[0].r, loooop::kHeadColors[0].g, loooop::kHeadColors[0].b},
+        {loooop::kHeadColors[1].r, loooop::kHeadColors[1].g, loooop::kHeadColors[1].b},
+        {loooop::kHeadColors[2].r, loooop::kHeadColors[2].g, loooop::kHeadColors[2].b},
+        {loooop::kHeadColors[3].r, loooop::kHeadColors[3].g, loooop::kHeadColors[3].b},
     };
     // Löp's single lane draws purple — a color no Loooop head uses, so the
     // two modules' displays can't be mistaken for each other — and at twice
