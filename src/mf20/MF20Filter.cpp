@@ -80,13 +80,13 @@ struct MF20FilterModule : Module {
         configParam(TOTAL_CUTOFF_CV_PARAM, -1.f, 1.f, 1.f, "Total Cutoff CV (both filters)", "x");
 
         configInput(AUDIO_INPUT,   "Audio L");
-        configInput(AUDIO_INPUT_R, "Audio R (normalled to L)");
+        configInput(AUDIO_INPUT_R, "Audio R");
         configInput(LP_CUTOFF_INPUT,    "LP Cutoff CV");
         configInput(HP_CUTOFF_INPUT,    "HP Cutoff CV");
         configInput(TOTAL_CUTOFF_INPUT, "Total Cutoff CV (sweeps both filters)");
 
-        configOutput(LP_OUTPUT,   "Lowpass L");
-        configOutput(LP_OUTPUT_R, "Lowpass R");
+        configOutput(LP_OUTPUT,   "Audio L");
+        configOutput(LP_OUTPUT_R, "Audio R");
 
         configBypass(AUDIO_INPUT,   LP_OUTPUT);
         configBypass(AUDIO_INPUT_R, LP_OUTPUT_R);
