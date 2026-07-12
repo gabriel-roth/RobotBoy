@@ -13,19 +13,8 @@ namespace loooop {
 
 // Overdub state color (Layer/Decay/Add/Replace/Lock), Quality-button style:
 // an RGB LED in the bezel, driven from this table in each module's process().
-static constexpr float kOverdubColors[5][3] = {
-    {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
-    {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
-    {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
-    {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
-    {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
-};
-
-inline void applyOverdub(LoopEngine& engine, int od) {
-    engine.setOverdub(od != 4);   // 4 = Lock
-    if (od >= 0 && od < 4)
-        engine.setWriteMode(overdubWriteMode(od));
-}
+// kOverdubColors and applyOverdub live in LooperModuleDSP.hpp (Rack-free) so
+// the MetaModule cores share them.
 
 // Drive the Overdub RGB bezel LED from kOverdubColors. rLight is the module's
 // OVERDUB_R_LIGHT id; the G and B lights must follow it consecutively (they do
