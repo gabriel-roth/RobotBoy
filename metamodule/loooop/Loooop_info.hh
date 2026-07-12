@@ -26,12 +26,17 @@ struct LoooopInfo : ModuleInfoBase {
     // the Elem enum below in the SAME order — SmartCoreProcessor maps
     // enum->element by index. Global params and jacks come FIRST (so the
     // MetaModule manual lists them at the top), then params and jacks grouped
-    // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level/Trig-mode/Speed-V/Oct/
-    // Grid-exclude, then head 2, etc.) so the MetaModule mapping menu lists
-    // everything for one head together. Overdub and Grid are panel controls
-    // (Overdub is a 5-state RGB button, Grid a stepped knob); Trig-mode,
-    // Speed V/Oct, Grid exclude, and Crossfade remain menu-only
-    // (AltParamChoiceLabeled) so their position fields are unused.
+    // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level, then head 2, etc.) so
+    // the MetaModule mapping menu lists everything for one head together.
+    // Overdub and Grid are panel controls (Overdub is a 5-state RGB button,
+    // Grid a stepped knob). Trig-mode, Speed V/Oct, Grid exclude, and Crossfade
+    // are menu-only (AltParamChoiceLabeled, position fields unused); they sit
+    // in ONE contiguous block AFTER all the jacks and BEFORE the display,
+    // grouped by command (Crossfade, then all Trig-modes, then all Speed
+    // V/Oct, then all Grid-excludes) so the MetaModule roller headers this
+    // block as an "Options:" section (a param group that FOLLOWS the jacks),
+    // matching VCV's command-first menu layout instead of interleaving with
+    // the panel knobs.
     static constexpr std::array<Element, 90> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
@@ -39,18 +44,14 @@ struct LoooopInfo : ModuleInfoBase {
         QlpButton{{91.785f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
         QlpGridKnob{{122.687f, 116.050f, Center, "Grid", "", 9.f, 9.f}},
         QlpKnob{{143.488f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
-        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
 
-        // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level, Trig mode, Speed V/Oct, Grid exclude ──
+        // ── Params, grouped per head: Size, Pos, Speed, Jitter, Pan, Level ──
         QlpKnob{{10.293f, 46.350f, Center, "Size 1", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{24.880f, 46.350f, Center, "Position 1", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{39.467f, 46.350f, Center, "Speed 1", "", 9.f, 9.f}, 0.75f},
         QlpKnob{{10.293f, 75.050f, Center, "Jitter 1", "", 9.f, 9.f}, 0.0f},
         QlpKnob{{24.880f, 75.050f, Center, "Pan 1", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{39.467f, 75.050f, Center, "Level 1", "", 9.f, 9.f}, 0.25f},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 1 mode", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 1 V/Oct", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 1 exclude", ""}},
 
         QlpKnob{{58.053f, 46.350f, Center, "Size 2", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{72.640f, 46.350f, Center, "Position 2", "", 9.f, 9.f}, 0.5f},
@@ -58,9 +59,6 @@ struct LoooopInfo : ModuleInfoBase {
         QlpKnob{{58.053f, 75.050f, Center, "Jitter 2", "", 9.f, 9.f}, 0.0f},
         QlpKnob{{72.640f, 75.050f, Center, "Pan 2", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{87.227f, 75.050f, Center, "Level 2", "", 9.f, 9.f}, 0.25f},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 2 mode", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 2 V/Oct", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 2 exclude", ""}},
 
         QlpKnob{{105.813f, 46.350f, Center, "Size 3", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{120.400f, 46.350f, Center, "Position 3", "", 9.f, 9.f}, 0.5f},
@@ -68,9 +66,6 @@ struct LoooopInfo : ModuleInfoBase {
         QlpKnob{{105.813f, 75.050f, Center, "Jitter 3", "", 9.f, 9.f}, 0.0f},
         QlpKnob{{120.400f, 75.050f, Center, "Pan 3", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{134.987f, 75.050f, Center, "Level 3", "", 9.f, 9.f}, 0.25f},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 3 mode", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 3 V/Oct", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 3 exclude", ""}},
 
         QlpKnob{{153.573f, 46.350f, Center, "Size 4", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{168.160f, 46.350f, Center, "Position 4", "", 9.f, 9.f}, 0.5f},
@@ -78,9 +73,6 @@ struct LoooopInfo : ModuleInfoBase {
         QlpKnob{{153.573f, 75.050f, Center, "Jitter 4", "", 9.f, 9.f}, 0.0f},
         QlpKnob{{168.160f, 75.050f, Center, "Pan 4", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{182.747f, 75.050f, Center, "Level 4", "", 9.f, 9.f}, 0.25f},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 4 mode", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 4 V/Oct", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 4 exclude", ""}},
 
         // ── Global jacks ──
         QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 8.f, 8.f}},
@@ -138,17 +130,32 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackOut{{175.990f, 102.100f, Center, "Out 4L", "", 8.f, 8.f}},
         QlpJackOut{{185.690f, 102.100f, Center, "Out 4R", "", 8.f, 8.f}},
 
+        // ── Options (menu-only alt-params), grouped by command ──
+        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 1 mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 2 mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 3 mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 4 mode", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Speed 1 V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Speed 2 V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Speed 3 V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Speed 4 V/Oct", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 1 exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 2 exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 3 exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 4 exclude", ""}},
+
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
 
     enum class Elem {
         // Global params
-        RecordButton, OverdubButton, ClearButton, GridKnob, DryWetKnob, CrossfadeSwitch,
+        RecordButton, OverdubButton, ClearButton, GridKnob, DryWetKnob,
         // Params, per head
-        Size1Knob, Position1Knob, Speed1Knob, Jitter1Knob, Pan1Knob, Level1Knob, TrigMode1Alt, SpeedVoct1Alt, ExcludeGrid1Alt,
-        Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob, TrigMode2Alt, SpeedVoct2Alt, ExcludeGrid2Alt,
-        Size3Knob, Position3Knob, Speed3Knob, Jitter3Knob, Pan3Knob, Level3Knob, TrigMode3Alt, SpeedVoct3Alt, ExcludeGrid3Alt,
-        Size4Knob, Position4Knob, Speed4Knob, Jitter4Knob, Pan4Knob, Level4Knob, TrigMode4Alt, SpeedVoct4Alt, ExcludeGrid4Alt,
+        Size1Knob, Position1Knob, Speed1Knob, Jitter1Knob, Pan1Knob, Level1Knob,
+        Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob,
+        Size3Knob, Position3Knob, Speed3Knob, Jitter3Knob, Pan3Knob, Level3Knob,
+        Size4Knob, Position4Knob, Speed4Knob, Jitter4Knob, Pan4Knob, Level4Knob,
         // Global jacks
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn, MixOutL, MixOutR,
         // Input jacks, per head
@@ -159,6 +166,11 @@ struct LoooopInfo : ModuleInfoBase {
         // Head output jacks
         Head1OutL, Head1OutR, Head2OutL, Head2OutR,
         Head3OutL, Head3OutR, Head4OutL, Head4OutR,
+        // Options (menu-only alt-params), grouped by command
+        CrossfadeSwitch,
+        TrigMode1Alt, TrigMode2Alt, TrigMode3Alt, TrigMode4Alt,
+        SpeedVoct1Alt, SpeedVoct2Alt, SpeedVoct3Alt, SpeedVoct4Alt,
+        ExcludeGrid1Alt, ExcludeGrid2Alt, ExcludeGrid3Alt, ExcludeGrid4Alt,
         Display,
     };
 

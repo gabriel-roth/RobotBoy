@@ -20,25 +20,28 @@ struct LopInfo : ModuleInfoBase {
     using enum Coords;
 
     // Order mirrors Loooop's per-head block (minus the pan/level Löp lacks) so
-    // the two modules' MetaModule menus read the same: Size, Pos, Speed, Jitter,
-    // Trig-mode, Speed V/Oct, then globals; input jacks follow the same order.
-    // Keep this array and the Elem enum below in the SAME order, mirroring the
-    // VCV enums in src/loooop/Lop.cpp. Overdub and Grid are panel controls
-    // (Overdub is a 5-state RGB button, Grid a stepped knob).
+    // the two modules' MetaModule menus read the same: Size, Pos, Speed,
+    // Jitter, then globals; input jacks follow the same order. Keep this array
+    // and the Elem enum below in the SAME order, mirroring the VCV enums in
+    // src/loooop/Lop.cpp. Overdub and Grid are panel controls (Overdub is a
+    // 5-state RGB button, Grid a stepped knob). Trig-mode, Speed V/Oct, and
+    // Crossfade are menu-only (AltParamChoiceLabeled, position fields unused);
+    // they sit in ONE contiguous block AFTER all the jacks and BEFORE the
+    // display, grouped by command (Crossfade, Trigger, Speed CV V/Oct) so the
+    // MetaModule roller headers this block as an "Options:" section (a param
+    // group that FOLLOWS the jacks), matching VCV's command-first menu layout
+    // instead of interleaving with the panel knobs.
     static constexpr std::array<Element, 26> Elements{{
-        // ── Params: Size, Pos, Speed, Jitter, Trig-mode, Speed V/Oct ──
+        // ── Params: Size, Pos, Speed, Jitter ──
         QlpKnob{{9.870f, 46.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{23.610f, 46.050f, Center, "Position", "", 9.f, 9.f}, 0.5f},
         QlpKnob{{37.350f, 46.050f, Center, "Speed", "", 9.f, 9.f}, 0.75f},
         QlpKnob{{51.090f, 46.050f, Center, "Jitter", "", 9.f, 9.f}, 0.0f},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger", "", 0.f, 0.f}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
         // ── Global params ──
         QlpKnob{{12.160f, 74.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
         QlpButtonLight{{48.800f, 74.050f, Center, "Record", "", 5.f, 5.f}},
         QlpButton{{30.480f, 74.050f, Center, "Clear", "", 5.f, 5.f}},
         QlpOverdubButton{{37.968f, 102.150f, Center, "Overdub", "", 5.f, 5.f}},
-        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
         QlpGridKnob{{51.708f, 102.150f, Center, "Grid", "", 9.f, 9.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
         QlpJackIn{{9.870f, 58.000f, Center, "Size CV", "", 6.f, 6.f}},
@@ -56,15 +59,20 @@ struct LopInfo : ModuleInfoBase {
         // ── Output jacks ──
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
         QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
+        // ── Options (menu-only alt-params), grouped by command ──
+        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger", "", 0.f, 0.f}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};
 
     enum class Elem {
-        SizeKnob, PositionKnob, SpeedKnob, JitterKnob, TrigModeAlt, SpeedVoctAlt,
-        DryWetKnob, RecordButton, ClearButton, OverdubButton, CrossfadeSwitch, GridKnob,
+        SizeKnob, PositionKnob, SpeedKnob, JitterKnob,
+        DryWetKnob, RecordButton, ClearButton, OverdubButton, GridKnob,
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
         OutL, OutR,
+        CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
         Display,
     };
 
