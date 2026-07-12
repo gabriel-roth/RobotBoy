@@ -24,7 +24,7 @@ struct LopInfo : ModuleInfoBase {
     // Jitter, then globals; input jacks follow the same order. Keep this array
     // and the Elem enum below in the SAME order, mirroring the VCV enums in
     // src/loooop/Lop.cpp. Overdub and Grid are panel controls (Overdub is a
-    // 5-state RGB button, Grid a stepped knob). Trig-mode, Speed V/Oct, and
+    // 5-position FlipSwitch with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, and
     // Crossfade are menu-only (AltParamChoiceLabeled, position fields unused);
     // they sit in ONE contiguous block AFTER all the jacks and BEFORE the
     // display, grouped by command (Crossfade, Trigger, Speed CV V/Oct) so the
@@ -41,7 +41,7 @@ struct LopInfo : ModuleInfoBase {
         QlpKnob{{12.160f, 74.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
         QlpButtonLight{{48.800f, 74.050f, Center, "Record", "", 5.f, 5.f}},
         QlpButton{{30.480f, 74.050f, Center, "Clear", "", 5.f, 5.f}},
-        QlpOverdubButton{{37.968f, 102.150f, Center, "Overdub", "", 5.f, 5.f}},
+        QlpOverdubSwitch{{37.968f, 102.150f, Center, "Overdub", "", 5.f, 5.f}},
         QlpGridKnob{{51.708f, 102.150f, Center, "Grid", "", 9.f, 9.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
         QlpJackIn{{9.870f, 58.000f, Center, "Size CV", "", 6.f, 6.f}},
@@ -68,7 +68,7 @@ struct LopInfo : ModuleInfoBase {
 
     enum class Elem {
         SizeKnob, PositionKnob, SpeedKnob, JitterKnob,
-        DryWetKnob, RecordButton, ClearButton, OverdubButton, GridKnob,
+        DryWetKnob, RecordButton, ClearButton, OverdubSwitch, GridKnob,
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
         OutL, OutR,

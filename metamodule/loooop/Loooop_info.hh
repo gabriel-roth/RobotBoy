@@ -28,8 +28,8 @@ struct LoooopInfo : ModuleInfoBase {
     // MetaModule manual lists them at the top), then params and jacks grouped
     // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level, then head 2, etc.) so
     // the MetaModule mapping menu lists everything for one head together.
-    // Overdub and Grid are panel controls (Overdub is a 5-state RGB button,
-    // Grid a stepped knob). Trig-mode, Speed V/Oct, Grid exclude, and Crossfade
+    // Overdub and Grid are panel controls (Overdub is a 5-position FlipSwitch
+    // with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, Grid exclude, and Crossfade
     // are menu-only (AltParamChoiceLabeled, position fields unused); they sit
     // in ONE contiguous block AFTER all the jacks and BEFORE the display,
     // grouped by command (Crossfade, then all Trig-modes, then all Speed
@@ -40,7 +40,7 @@ struct LoooopInfo : ModuleInfoBase {
     static constexpr std::array<Element, 90> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
-        QlpOverdubButton{{69.543f, 116.050f, Center, "Overdub", "", 7.f, 7.f}},
+        QlpOverdubSwitch{{69.543f, 116.050f, Center, "Overdub", "", 7.f, 7.f}},
         QlpButton{{91.785f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
         QlpGridKnob{{122.687f, 116.050f, Center, "Grid", "", 9.f, 9.f}},
         QlpKnob{{143.488f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
@@ -150,7 +150,7 @@ struct LoooopInfo : ModuleInfoBase {
 
     enum class Elem {
         // Global params
-        RecordButton, OverdubButton, ClearButton, GridKnob, DryWetKnob,
+        RecordButton, OverdubSwitch, ClearButton, GridKnob, DryWetKnob,
         // Params, per head
         Size1Knob, Position1Knob, Speed1Knob, Jitter1Knob, Pan1Knob, Level1Knob,
         Size2Knob, Position2Knob, Speed2Knob, Jitter2Knob, Pan2Knob, Level2Knob,

@@ -1,5 +1,6 @@
 #pragma once
 #include "CoreModules/elements/element_info.hh"
+#include "brand.hh"
 #include <array>
 
 namespace MetaModule
@@ -29,9 +30,25 @@ struct QlpButton : MomentaryButton {
     constexpr QlpButton(BaseElement b)
         : MomentaryButton{{b, "4ms/comp/button_x.png"}, "4ms/comp/button_x.png"} {}
 };
-struct QlpOverdubButton : MomentaryButtonRGB {
-    constexpr QlpOverdubButton(BaseElement b)
-        : MomentaryButtonRGB{{{b, "4ms/comp/button_x.png"}, "4ms/comp/button_x.png"}} {}
+// Overdub is a five-position FlipSwitch (Layer/Decay/Add/Replace/Lock). Each
+// frame is a dark button with the mode's colour LED baked in, so the MetaModule
+// firmware shows both the colour (frame image) and the mode name (pos_names) as
+// you step it. Being one self-contained element, nothing occludes it — a knob's
+// redraw would otherwise yank itself in front of an overlapping light element
+// (firmware redraw.hh move_foreground), which is why a knob+LED overlay failed.
+// Frames live in the plugin's own asset bundle (metamodule/assets/Loooop/),
+// reached via the brand slug just like the faceplate PNGs.
+struct QlpOverdubSwitch : FlipSwitch {
+    constexpr QlpOverdubSwitch(BaseElement b)
+        : FlipSwitch{
+              {{b}, 5, 0},
+              {ROBOTBOY_BRAND "/Loooop/overdub_layer.png",
+               ROBOTBOY_BRAND "/Loooop/overdub_decay.png",
+               ROBOTBOY_BRAND "/Loooop/overdub_add.png",
+               ROBOTBOY_BRAND "/Loooop/overdub_replace.png",
+               ROBOTBOY_BRAND "/Loooop/overdub_lock.png"},
+              {"Layer", "Decay", "Add", "Replace", "Lock"},
+          } {}
 };
 struct QlpGridKnob : KnobSnapped {
     constexpr QlpGridKnob(BaseElement b)
