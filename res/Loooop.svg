@@ -3,9 +3,9 @@
   <g inkscape:label="panel" inkscape:groupmode="layer" id="panel">
     <rect x="0" y="0" width="193.04" height="128.5" fill="#3d3d3d"/>
     <rect class="group-tint" x="1.50" y="35.15" width="46.76" height="73.60" rx="2" fill="#ff3b30" fill-opacity="0.14"/>
-    <rect class="group-tint" x="49.26" y="35.15" width="46.76" height="73.60" rx="2" fill="#30d158" fill-opacity="0.14"/>
+    <rect class="group-tint" x="49.26" y="35.15" width="46.76" height="73.60" rx="2" fill="#fff70a" fill-opacity="0.2"/>
     <rect class="group-tint" x="97.02" y="35.15" width="46.76" height="73.60" rx="2" fill="#3f8cff" fill-opacity="0.14"/>
-    <rect class="group-tint" x="144.78" y="35.15" width="46.76" height="73.60" rx="2" fill="#fff70a" fill-opacity="0.2"/>
+    <rect class="group-tint" x="144.78" y="35.15" width="46.76" height="73.60" rx="2" fill="#bf5af2" fill-opacity="0.14"/>
     <circle cx="7.5" cy="3.0" r="1.6" fill="#333333"/>
     <circle cx="185.54" cy="3.0" r="1.6" fill="#333333"/>
     <circle cx="7.5" cy="125.5" r="1.6" fill="#333333"/>
