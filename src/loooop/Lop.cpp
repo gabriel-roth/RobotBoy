@@ -179,12 +179,12 @@ struct LopWidget : ModuleWidget {
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.61, 58.0)), module, Lop::POSITION_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(37.35, 58.0)), module, Lop::SPEED_CV_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.09, 58.0)), module, Lop::JITTER_CV_INPUT));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 90.85)), module, Lop::DRYWET_PARAM));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(30.48, 90.85)), module, Lop::CLEAR_PARAM));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(48.8, 90.85)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 102.8)), module, Lop::DRYWET_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 102.8)), module, Lop::CLEAR_TRIG_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 102.8)), module, Lop::RECORD_TRIG_INPUT));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.16, 93.95)), module, Lop::DRYWET_PARAM));
+        addParam(createParamCentered<VCVButton>(mm2px(Vec(30.48, 93.95)), module, Lop::CLEAR_PARAM));
+        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(48.8, 93.95)), module, Lop::RECORD_PARAM, Lop::RECORD_LIGHT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 105.9)), module, Lop::DRYWET_CV_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 105.9)), module, Lop::CLEAR_TRIG_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.8, 105.9)), module, Lop::RECORD_TRIG_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.16, 74.15)), module, Lop::TRIG_INPUT));
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.48, 74.15)), module, Lop::JUMP_INPUT));
         addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(30.48, 116.05)), module, Lop::OVERDUB_PARAM, Lop::OVERDUB_R_LIGHT));

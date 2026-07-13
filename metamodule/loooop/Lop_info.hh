@@ -38,9 +38,9 @@ struct LopInfo : ModuleInfoBase {
         QlpKnob{{37.350f, 46.050f, Center, "Speed", "", 9.f, 9.f}, 0.75f},
         QlpKnob{{51.090f, 46.050f, Center, "Jitter", "", 9.f, 9.f}, 0.0f},
         // ── Global params ──
-        QlpKnob{{12.160f, 90.850f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
-        QlpButtonLight{{48.800f, 90.850f, Center, "Record", "", 5.f, 5.f}},
-        QlpButton{{30.480f, 90.850f, Center, "Clear", "", 5.f, 5.f}},
+        QlpKnob{{12.160f, 93.950f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
+        QlpButtonLight{{48.800f, 93.950f, Center, "Record", "", 5.f, 5.f}},
+        QlpButton{{30.480f, 93.950f, Center, "Clear", "", 5.f, 5.f}},
         QlpOverdubSwitch{{30.480f, 116.050f, Center, "Overdub", "", 5.f, 5.f}},
         QlpGridKnob{{48.800f, 74.150f, Center, "Grid", "", 9.f, 9.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
@@ -53,9 +53,9 @@ struct LopInfo : ModuleInfoBase {
         // ── Global input jacks ──
         QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 6.f, 6.f}},
         QlpJackIn{{17.050f, 116.050f, Center, "In R", "", 6.f, 6.f}},
-        QlpJackIn{{48.800f, 102.800f, Center, "Rec Trig", "", 6.f, 6.f}},
-        QlpJackIn{{30.480f, 102.800f, Center, "Clear Trig", "", 6.f, 6.f}},
-        QlpJackIn{{12.160f, 102.800f, Center, "Dry/Wet CV", "", 6.f, 6.f}},
+        QlpJackIn{{48.800f, 105.900f, Center, "Rec Trig", "", 6.f, 6.f}},
+        QlpJackIn{{30.480f, 105.900f, Center, "Clear Trig", "", 6.f, 6.f}},
+        QlpJackIn{{12.160f, 105.900f, Center, "Dry/Wet CV", "", 6.f, 6.f}},
         // ── Output jacks ──
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
         QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
