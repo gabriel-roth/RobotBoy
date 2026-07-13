@@ -20,11 +20,6 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
     maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
     bufL_.assign(maxSamples_, 0.f); bufR_.assign(maxSamples_, 0.f);   // pre-allocate once; never resized in audio
-    peakBinSize_ = static_cast<std::uint32_t>((maxSamples_ + PEAK_BINS - 1) / PEAK_BINS);
-    if (peakBinSize_ == 0) peakBinSize_ = 1;
-    peakMinL_.fill(0.f); peakMaxL_.fill(0.f);
-    peakMinR_.fill(0.f); peakMaxR_.fill(0.f);
-    lastPeakBin_ = UINT32_MAX;
     writeIdx_ = 0;
     loopLen_ = 0;
     recording_ = false;
@@ -68,7 +63,6 @@ void LoopEngine::toggleRecord() {
     if (!recording_) {
         recording_ = true;
         writeIdx_ = 0;                  // record/overdub always starts at loop start (v1)
-        lastPeakBin_ = UINT32_MAX;          // first write re-seeds its bin
         if (loopLen_ == 0) {
             odGain_ = 1.f; odGainStep_ = 0.f;   // initial pass: overwrite, no ramp
         } else {
@@ -134,9 +128,6 @@ void LoopEngine::clear() {
         heads_[i].playing = !heads_[i].oneShot;
         dispPlaying_[i].store(heads_[i].playing, std::memory_order_relaxed);
     }
-    peakMinL_.fill(0.f); peakMaxL_.fill(0.f);
-    peakMinR_.fill(0.f); peakMaxR_.fill(0.f);
-    lastPeakBin_ = UINT32_MAX;
     dispLoopLen_.store(0, std::memory_order_relaxed);
     dispRecLen_.store(0, std::memory_order_relaxed);
     dispRecording_.store(false, std::memory_order_relaxed);
@@ -463,7 +454,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
         if (loopLen_ == 0) {                 // initial pass: overwrite
             bufL_[writeIdx_] = inL;
             bufR_[writeIdx_] = inR;
-            writePeak(writeIdx_, inL, inR);
+            bumpWaveformRevision();   // content changed -> invalidate display cache
             ++writeIdx_;
             dispRecLen_.store(static_cast<std::uint32_t>(writeIdx_), std::memory_order_relaxed);
             if (writeIdx_ >= maxSamples_) {  // buffer ceiling -> auto-end
@@ -473,9 +464,9 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 dispRecording_.store(false, std::memory_order_relaxed);
                 dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
                 // Re-bump AFTER the freeze is published: this sample's
-                // writePeak bumped before loopLen_ was set, so a GUI frame
-                // in that window could cache a bar-less waveform at the
-                // final revision and never repaint the grid bars.
+                // bump above happened before loopLen_ was set, so a GUI
+                // frame in that window could cache a bar-less waveform at
+                // the final revision and never repaint the grid bars.
                 bumpWaveformRevision();
             }
         } else {                             // overdub: mode-dependent write, wrap at loop length
@@ -490,7 +481,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             // further reduces to the legacy old + in, bit-exact.
             bufL_[writeIdx_] = oldL + odGain_ * (fb * fbL - oldL) + odGain_ * inL;
             bufR_[writeIdx_] = oldR + odGain_ * (fb * fbR - oldR) + odGain_ * inR;
-            writePeak(writeIdx_, bufL_[writeIdx_], bufR_[writeIdx_]);
+            bumpWaveformRevision();   // content changed -> invalidate display cache
             ++writeIdx_;
             if (writeIdx_ >= loopLen_) writeIdx_ = 0;
             if (stopPending_) {
@@ -536,25 +527,6 @@ float LoopEngine::process(float in) {
     float out = 0.f;
     for (const auto& o : hs) out += o.l;
     return out;
-}
-
-// One compare-and-update per channel per written sample. Entering a bin
-// re-seeds it so overdubbed audio replaces the old extent rather than only
-// widening it.
-void LoopEngine::writePeak(std::size_t idx, float l, float r) {
-    std::uint32_t bin = static_cast<std::uint32_t>(idx / peakBinSize_);
-    if (bin >= PEAK_BINS) bin = PEAK_BINS - 1;
-    if (bin != lastPeakBin_) {
-        peakMinL_[bin] = l; peakMaxL_[bin] = l;
-        peakMinR_[bin] = r; peakMaxR_[bin] = r;
-        lastPeakBin_ = bin;
-    } else {
-        if (l < peakMinL_[bin]) peakMinL_[bin] = l;
-        if (l > peakMaxL_[bin]) peakMaxL_[bin] = l;
-        if (r < peakMinR_[bin]) peakMinR_[bin] = r;
-        if (r > peakMaxR_[bin]) peakMaxR_[bin] = r;
-    }
-    bumpWaveformRevision();
 }
 
 LoopEngine::DisplaySnapshot LoopEngine::displaySnapshot() const {
