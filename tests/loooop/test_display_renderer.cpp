@@ -71,7 +71,7 @@ static void recordStereo(LoopEngine& e, const float* l, const float* r, int n) {
 }
 
 static void test_blank() {
-    LoopEngine e; e.reset(10.f, 100.f);      // peakBinSize == 1
+    LoopEngine e; e.reset(10.f, 100.f);      // tiny per-sample recorded buffer
     LoopWaveformRenderer::render(buf, W, H, e, pack);
     const uint32_t bg = C(LoopWaveformRenderer::BG);
     check(countColor(bg) == W * H, "blank: every pixel is background");
@@ -417,6 +417,28 @@ static void test_grid_hidden_while_recording() {
           "grid: hidden until the loop freezes");
 }
 
+static void test_width_cap() {
+    check(LoopWaveformRenderer::cappedWidth(500) == 500,
+          "cap: width below cap is unchanged");
+    check(LoopWaveformRenderer::cappedWidth(LoopWaveformRenderer::WAVE_WIDTH_CAP)
+          == LoopWaveformRenderer::WAVE_WIDTH_CAP,
+          "cap: width at cap is unchanged");
+    check(LoopWaveformRenderer::cappedWidth(4096) == LoopWaveformRenderer::WAVE_WIDTH_CAP,
+          "cap: width above cap is clamped");
+    // A capped render still fills every column of its destination buffer.
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    for (int i = 0; i < 8; ++i) e.process(0.8f);
+    e.toggleRecord();
+    const int w = 200, h = 32;
+    std::vector<uint32_t> b(std::size_t(w) * h);
+    LoopWaveformRenderer::renderWaveform(b.data(), w, h, e, pack);
+    const uint32_t bg = C(LoopWaveformRenderer::BG);
+    int nonBg = 0;
+    for (uint32_t p : b) nonBg += (p != bg);
+    check(nonBg > 0, "cap: capped-width render draws a waveform");
+}
+
 int main() {
     test_blank();
     test_waveform_and_lanes();
@@ -433,6 +455,7 @@ int main() {
     test_tiny_heights_stay_within_destination();
     test_grid_bars();
     test_grid_hidden_while_recording();
+    test_width_cap();
     if (g_failures == 0) std::printf("All display renderer tests passed.\n");
     return g_failures;
 }

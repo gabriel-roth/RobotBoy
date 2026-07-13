@@ -44,7 +44,8 @@ struct LoopDisplayWidget : Widget {
 
     void drawLayer(const DrawArgs& args, int layer) override {
         if (layer == 1) {
-            const int w = std::max(1, (int)std::round(box.size.x)) * kOversample;
+            const int w = LoopWaveformRenderer::cappedWidth(
+                std::max(1, (int)std::round(box.size.x)) * kOversample);
             const int h = std::max(1, (int)std::round(box.size.y)) * kOversample;
             const LoopEngine& eng = engine ? *engine : demoEngine(demoHeads);
             const auto geometry = LoopWaveformRenderer::geometry(h, eng.numHeads(), laneDiv);

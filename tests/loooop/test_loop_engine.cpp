@@ -345,11 +345,12 @@ static void test_display_snapshot_four_heads() {
     check(near(s.winEnd01[2], 0.75f),     "snap4: head2 window end 0.75");
 }
 
-// waveformRevision() must change on any peak-array mutation (initial write,
-// overdub write, clear, reset) and stay stable across playback-only ticks —
-// display hosts key their waveform cache on this counter, so a false-negative
-// bump would show stale audio and a false-positive would defeat the cache.
-static void test_waveform_revision_tracks_peak_changes_only() {
+// waveformRevision() must change on any recorded-buffer mutation (initial
+// write, overdub write, clear, reset) and stay stable across playback-only
+// ticks — display hosts key their waveform cache on this counter, so a
+// false-negative bump would show stale audio and a false-positive would
+// defeat the cache.
+static void test_waveform_revision_tracks_write_changes_only() {
     LoopEngine e(1);
     e.reset(48000.f, 1.f);
     const auto afterReset = e.waveformRevision();
@@ -1361,7 +1362,7 @@ int main() {
     test_four_heads_mix();
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
-    test_waveform_revision_tracks_peak_changes_only();
+    test_waveform_revision_tracks_write_changes_only();
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
