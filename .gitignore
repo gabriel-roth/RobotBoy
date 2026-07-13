@@ -30,3 +30,6 @@ Mutable-Beads-manual.pdf
 # archived standalone source repos (pre-merge history); see archive/README.md
 archive/
 __pycache__/
+
+# SDD / subagent-driven-development scratch (ledgers, briefs, reports)
+.superpowers/
