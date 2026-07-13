@@ -13,7 +13,7 @@
 
 <img src="screenshots/Loooop.png" alt="Loooop module" height="300">
 
-A stereo RAM looper: capture a loop, then play it back with four independent playheads, each with its own speed, position, window size, level, jitter, and pan. Get granular glitches and backward drones simultaneously→ [**Full documentation**](Loooop.md)
+A stereo RAM looper: capture a loop, then play it back with four independent playheads, each with its own speed, position, window size, level, jitter, and pan. Get granular glitches and backward drones simultaneously. → [**Full documentation**](Loooop.md)
 
 ## Löp
 
