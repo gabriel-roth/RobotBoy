@@ -256,48 +256,21 @@ static void test_buffer_ceiling_autoend() {
     check(!e.isRecording(),     "ceiling: recording auto-ended at ceiling");
 }
 
-static void test_peaks_record() {
-    LoopEngine e; e.reset(10.f, 100.f);   // maxSamples=1000 -> peakBinSize == 1
+static void test_sample_data() {
+    LoopEngine e; e.reset(10.f, 100.f);
     e.toggleRecord();
     e.process(0.5f); e.process(-0.25f); e.process(1.f); e.process(0.f);
+    e.toggleRecord();                     // loop = {0.5, -0.25, 1, 0}, mono -> mirrored
+    check(e.loopLength() == 4,            "sampleData: loop length == 4");
+    check(near(e.sampleData(0)[0], 0.5f), "sampleData: L[0] == 0.5");
+    check(near(e.sampleData(0)[1], -0.25f), "sampleData: L[1] == -0.25");
+    check(near(e.sampleData(0)[2], 1.f),  "sampleData: L[2] == 1");
+    check(near(e.sampleData(1)[1], -0.25f), "sampleData: mono mirrors into R");
+    // Overdub sums into the existing buffer at loop start.
+    e.toggleRecord();                     // start overdub
+    e.process(-2.f);                      // buf[0] = 0.5 + (-2) = -1.5
     e.toggleRecord();
-    check(e.peakBinSize() == 1,           "peaks: bin size == 1");
-    check(near(e.peakMaxs(0)[0], 0.5f),   "peaks: L bin0 max == 0.5");
-    check(near(e.peakMins(0)[0], 0.5f),   "peaks: L bin0 min == 0.5 (single sample)");
-    check(near(e.peakMins(0)[1], -0.25f), "peaks: L bin1 min == -0.25");
-    check(near(e.peakMaxs(0)[2], 1.f),    "peaks: L bin2 max == 1");
-    check(near(e.peakMins(1)[1], -0.25f), "peaks: mono process mirrors into R");
-}
-
-static void test_peaks_overdub_and_clear() {
-    LoopEngine e; e.reset(10.f, 100.f);
-    e.toggleRecord();
-    for (int i = 0; i < 4; ++i) e.process(1.f);
-    e.toggleRecord();                    // loop = 4 samples of 1.0
-    e.toggleRecord();                    // start overdub (write restarts at loop start)
-    e.process(-2.f);                     // buffer[0] = 1 + (-2) = -1
-    e.toggleRecord();
-    check(near(e.peakMins(0)[0], -1.f),  "peaks: overdub resets L bin0 min");
-    check(near(e.peakMaxs(0)[0], -1.f),  "peaks: overdub resets L bin0 max");
-    check(near(e.peakMins(1)[0], -1.f),  "peaks: overdub resets R bin0 min");
-    e.clear();
-    check(near(e.peakMaxs(0)[0], 0.f),   "peaks: clear zeroes L bins");
-    check(near(e.peakMins(1)[2], 0.f),   "peaks: clear zeroes R bins");
-}
-
-static void test_peaks_stereo() {
-    LoopEngine e; e.reset(10.f, 100.f);
-    std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
-    e.toggleRecord();
-    e.process(0.5f, -0.5f, hs);
-    e.process(-0.25f, 0.25f, hs);
-    e.process(1.f, -1.f, hs);
-    e.process(0.f, 0.f, hs);
-    e.toggleRecord();
-    check(near(e.peakMaxs(0)[2], 1.f),    "stereo peaks: L bin2 max == 1");
-    check(near(e.peakMins(1)[2], -1.f),   "stereo peaks: R bin2 min == -1");
-    check(near(e.peakMins(0)[1], -0.25f), "stereo peaks: L bin1 min == -0.25");
-    check(near(e.peakMaxs(1)[1], 0.25f),  "stereo peaks: R bin1 max == 0.25");
+    check(near(e.sampleData(0)[0], -1.5f), "sampleData: overdub sums into buffer");
 }
 
 static void test_display_snapshot() {
@@ -372,11 +345,12 @@ static void test_display_snapshot_four_heads() {
     check(near(s.winEnd01[2], 0.75f),     "snap4: head2 window end 0.75");
 }
 
-// waveformRevision() must change on any peak-array mutation (initial write,
-// overdub write, clear, reset) and stay stable across playback-only ticks —
-// display hosts key their waveform cache on this counter, so a false-negative
-// bump would show stale audio and a false-positive would defeat the cache.
-static void test_waveform_revision_tracks_peak_changes_only() {
+// waveformRevision() must change on any recorded-buffer mutation (initial
+// write, overdub write, clear, reset) and stay stable across playback-only
+// ticks — display hosts key their waveform cache on this counter, so a
+// false-negative bump would show stale audio and a false-positive would
+// defeat the cache.
+static void test_waveform_revision_tracks_write_changes_only() {
     LoopEngine e(1);
     e.reset(48000.f, 1.f);
     const auto afterReset = e.waveformRevision();
@@ -1179,8 +1153,8 @@ static void test_write_mode_decay_midpass_switch_seeds_lp() {
     check(matched, "decay_midpass: post-switch writes match a pass-start-seeded engine");
 }
 
-static void test_write_mode_peaks_track_decay() {
-    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);   // peakBinSize == 1
+static void test_write_mode_buffer_tracks_decay() {
+    LoopEngine e; e.reset(10.f, 100.f); soloHead0(e);
     e.toggleRecord();
     for (int i = 0; i < 4; ++i) e.process(1.f);
     e.toggleRecord();
@@ -1188,8 +1162,8 @@ static void test_write_mode_peaks_track_decay() {
     e.toggleRecord();
     for (int i = 0; i < 4; ++i) e.process(0.f);          // silent pass: buf *= FB
     e.toggleRecord();
-    check(near(e.peakMaxs(0)[0], LoopEngine::LAYER_FEEDBACK),
-          "peaks: display peaks track decayed content");
+    check(near(e.sampleData(0)[0], LoopEngine::LAYER_FEEDBACK),
+          "write mode: buffer tracks decayed content");
 }
 
 static void test_grid_size_snaps_to_segments() {
@@ -1383,14 +1357,12 @@ int main() {
     test_overdub_sums();
     test_clear();
     test_buffer_ceiling_autoend();
-    test_peaks_record();
-    test_peaks_overdub_and_clear();
-    test_peaks_stereo();
+    test_sample_data();
     test_display_snapshot();
     test_four_heads_mix();
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
-    test_waveform_revision_tracks_peak_changes_only();
+    test_waveform_revision_tracks_write_changes_only();
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
@@ -1403,7 +1375,7 @@ int main() {
     test_write_mode_decay_at_low_rate_matches_layer();
     test_write_mode_decay_rolls_off_highs();
     test_write_mode_decay_midpass_switch_seeds_lp();
-    test_write_mode_peaks_track_decay();
+    test_write_mode_buffer_tracks_decay();
     test_jitter_crossfade_continuity();
     test_sample_rate_change_preserves_loop();
     test_sample_rate_change_multi_head_nondefault_speed();

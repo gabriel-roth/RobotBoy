@@ -48,21 +48,16 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
         // stand out. Below MIN_SPLIT_ROWS the region draws one combined L∪R
         // envelope instead.
         const uint32_t wave = pack(WAVE[0], WAVE[1], WAVE[2], 0xFF);
-        const auto& minsL = engine.peakMins(0);
-        const auto& maxsL = engine.peakMaxs(0);
-        const auto& minsR = engine.peakMins(1);
-        const auto& maxsR = engine.peakMaxs(1);
-        const uint64_t binSize = engine.peakBinSize();
+        const float* sampL = engine.sampleData(0);
+        const float* sampR = engine.sampleData(1);
 
         // Level-aware height (same dB-fullness logic as before), from one
         // shared peak across both channels so the bands keep their relative
         // levels — a loop louder on the left draws taller on the left.
-        const std::size_t lastBin =
-            std::min(std::size_t((axisLen - 1) / binSize), std::size_t(LoopEngine::PEAK_BINS - 1));
         float peak = 0.f;
-        for (std::size_t b = 0; b <= lastBin; ++b) {
-            peak = std::max(peak, std::max(std::abs(minsL[b]), std::abs(maxsL[b])));
-            peak = std::max(peak, std::max(std::abs(minsR[b]), std::abs(maxsR[b])));
+        for (uint64_t i = 0; i < axisLen; ++i) {
+            peak = std::max(peak, std::abs(sampL[i]));
+            peak = std::max(peak, std::abs(sampR[i]));
         }
         float fullness = 0.f;
         if (peak > 1e-6f) {
@@ -71,10 +66,9 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
             fullness = LEVEL_FLOOR + (HEADROOM - LEVEL_FLOOR) * t;
         }
 
-        // One channel's band; a non-null second min/max pair widens each
+        // One channel's band; a non-null second sample pointer widens each
         // column to the union of both channels (tiny-display fallback).
-        auto drawBand = [&](const float* mins, const float* maxs,
-                            const float* mins2, const float* maxs2,
+        auto drawBand = [&](const float* samp, const float* samp2,
                             int bandTop, int bandH) {
             const float midY = bandTop + (bandH - 1) * 0.5f;
             const float yScale = (peak > 1e-6f)
@@ -83,19 +77,15 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
                 const uint64_t s0 = uint64_t(x) * axisLen / width;
                 uint64_t s1 = uint64_t(x + 1) * axisLen / width;
                 if (s1 <= s0) s1 = s0 + 1;
-                auto b0 = std::size_t(s0 / binSize);
-                auto b1 = std::size_t((s1 - 1) / binSize);
-                b0 = std::min(b0, std::size_t(LoopEngine::PEAK_BINS - 1));
-                b1 = std::min(b1, std::size_t(LoopEngine::PEAK_BINS - 1));
-                float lo = mins[b0], hi = maxs[b0];
-                for (std::size_t b = b0 + 1; b <= b1; ++b) {
-                    lo = std::min(lo, mins[b]);
-                    hi = std::max(hi, maxs[b]);
+                float lo = samp[s0], hi = samp[s0];
+                for (uint64_t i = s0 + 1; i < s1; ++i) {
+                    lo = std::min(lo, samp[i]);
+                    hi = std::max(hi, samp[i]);
                 }
-                if (mins2) {
-                    for (std::size_t b = b0; b <= b1; ++b) {
-                        lo = std::min(lo, mins2[b]);
-                        hi = std::max(hi, maxs2[b]);
+                if (samp2) {
+                    for (uint64_t i = s0; i < s1; ++i) {
+                        lo = std::min(lo, samp2[i]);
+                        hi = std::max(hi, samp2[i]);
                     }
                 }
                 int y0 = int(std::lround(midY - hi * yScale));
@@ -108,10 +98,10 @@ void LoopWaveformRenderer::renderWaveform(uint32_t* buf, int width, int height,
 
         if (waveH >= MIN_SPLIT_ROWS) {
             const int bandH = waveH / 2;      // odd waveH leaves a 1-row gap between bands
-            drawBand(minsL.data(), maxsL.data(), nullptr, nullptr, 0, bandH);
-            drawBand(minsR.data(), maxsR.data(), nullptr, nullptr, waveH - bandH, bandH);
+            drawBand(sampL, nullptr, 0, bandH);
+            drawBand(sampR, nullptr, waveH - bandH, bandH);
         } else {
-            drawBand(minsL.data(), maxsL.data(), minsR.data(), maxsR.data(), 0, waveH);
+            drawBand(sampL, sampR, 0, waveH);
         }
     }
 

@@ -67,6 +67,17 @@ public:
     // of split stereo bands (a sub-4-row band is illegible).
     static constexpr int MIN_SPLIT_ROWS = 8;
 
+    // VCV offscreen-texture width bound. The waveform re-render is cached
+    // (once per waveformRevision change), and its scan is O(loopLen) regardless
+    // of render width, so this caps texture memory / paint cost, not the scan.
+    // VCV applies it (nvgImagePattern stretches the capped texture to panel
+    // width — imperceptible). MetaModule renders at native framebuffer width,
+    // far below this, so it does not bind there. We can lower this freely if MM
+    // ever needs it; below MM's native width it has no effect without an added
+    // upscale path, and the O(loopLen) scan is the real MM cost.
+    static constexpr int WAVE_WIDTH_CAP = 1024;
+    static constexpr int cappedWidth(int w) { return w < WAVE_WIDTH_CAP ? w : WAVE_WIDTH_CAP; }
+
     // Level-aware height: the shape is normalized to the loop's own peak (so
     // detail stays visible at any level), but the overall height is scaled by a
     // "fullness" derived from the loop's absolute peak on a dB scale — loud

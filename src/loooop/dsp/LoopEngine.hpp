@@ -65,21 +65,19 @@ public:
     bool isRecording() const { return recording_; }
     bool hasLoop() const { return loopLen_ > 0; }
 
-    // Waveform display peaks: per-channel min/max per bin over the record
-    // buffer (ch 0 = L, 1 = R), maintained incrementally on the audio thread.
-    static constexpr int PEAK_BINS = 4096;
-    const std::array<float, PEAK_BINS>& peakMins(int ch = 0) const { return ch ? peakMinR_ : peakMinL_; }
-    const std::array<float, PEAK_BINS>& peakMaxs(int ch = 0) const { return ch ? peakMaxR_ : peakMaxL_; }
-    std::uint32_t peakBinSize() const { return peakBinSize_; }
+    // Raw loop buffer, one channel. The display renderer reads [0, axisLen)
+    // (loopLength() frozen or displaySnapshot().recordedLen while recording) to draw the
+    // waveform per-sample. Read unlatched from the GUI thread — same model as
+    // the display snapshot: a torn read during overdub self-corrects on the
+    // next waveformRevision() bump.
+    const float* sampleData(int ch = 0) const { return (ch ? bufR_ : bufL_).data(); }
 
     // GUI-thread introspection for the display. All fields cross the
     // audio->GUI boundary via single-word atomics; the double playhead pos is
     // mirrored into an atomic<float> because a raw 64-bit read can tear on
-    // 32-bit ARM. Peaks (above) and peakBinSize() are plain (non-atomic): the
-    // audio thread writes them, the GUI reads them unlatched. peakBinSize_ only
-    // changes in reset(), and an aligned 32-bit read can't tear; the renderer
-    // clamps any resulting stale bin index. A torn peak-bin read is at worst a
-    // one-frame, one-pixel artifact and is accepted.
+    // 32-bit ARM. The raw loop buffers (bufL_/bufR_) are read unlatched by the
+    // display: the audio thread writes, the GUI reads, tolerating a transient
+    // tear that self-corrects on the next waveformRevision() bump.
     struct DisplaySnapshot {
         std::uint32_t loopLen;      // frozen loop length, samples; 0 = no loop yet
         std::uint32_t recordedLen;  // samples written so far in the initial record pass
@@ -132,9 +130,8 @@ private:
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
     void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
-    void writePeak(std::size_t idx, float l, float r);
     // Waveform-cache invalidation: bumped (release) after any change to the
-    // peak arrays so display hosts re-render the static waveform only when
+    // recorded audio so display hosts re-render the static waveform only when
     // recorded audio actually changed. Only the audio thread writes; the
     // counter is kept non-atomic and published with a single atomic store.
     void bumpWaveformRevision() {
@@ -179,10 +176,6 @@ private:
     float maxSeconds_ = 60.f;
     std::uint32_t rng_ = 0x9E3779B9u;
     PlayHead heads_[NUM_HEADS];
-
-    std::array<float, PEAK_BINS> peakMinL_{}, peakMaxL_{}, peakMinR_{}, peakMaxR_{};
-    std::uint32_t peakBinSize_ = 1;
-    std::uint32_t lastPeakBin_ = UINT32_MAX;   // forces a bin reset on first write
 
     // display mirrors (audio thread stores, GUI thread loads)
     std::atomic<std::uint32_t> dispLoopLen_{0};
