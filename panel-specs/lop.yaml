@@ -34,21 +34,18 @@ side_margin: 3
 title_valign: center
 title_logo: lop-logo.svg
 # A single neutral control zone, echoing Loooop's per-channel colored group
-# tints: same vertical band (y=35.15, h=73.6) and 1.5mm edge inset, but white
-# and unified since Löp has one flat control set (no channels to distinguish).
+# tints, but white and unified since Löp has one flat control set. The rect
+# backs only the top two rows (Size/Pos/Speed/Jitter and Trig/Jump/Grid): its
+# top keeps the 1.5mm edge inset below the screen (y=35.15) and its bottom edge
+# encloses the Grid value ring (~3mm below it), clear of Row 3's labels.
 zones:
-  - {x: 1.5, y: 35.15, w: 57.96, h: 73.6}
+  - {x: 1.5, y: 35.15, w: 57.96, h: 48}
 # Vertical air: rows 1 and 3 pull their label/knob/jack stacks in (label_gap
 # 0.7, stack_gap 1.6 vs the 1.0/2.0 defaults); row 2 spends the space as
 # label_gap 1.8, so the Trig/Jump labels and the Grid value ring below the knob
-# stay clear.
-#
-# The In/Overdub/Out row drops to sit at the same height (cy 116.05) as
-# Loooop's bottom In/Out jacks (re-tuned for the tighter rows above).
-nudges:
-  AUDIO_L_INPUT: [0, 3.10]
-  OUT_L_OUTPUT: [0, 3.10]
-  OVERDUB_PARAM: [0, 3.10]
+# stay clear. Row 3's larger gap_above shifts it down, opening room below the
+# zone's bottom edge and closing the gap to the In/Overdub/Out row, which lands
+# at cy 116.05 (Loooop's bottom-jack height) naturally — no nudge needed.
 rows:
   - type: screen
     height: 22.35
@@ -81,7 +78,7 @@ rows:
   # groups (button over jack, tied by the connecting bar) — three equal columns.
   - type: params
     align: center
-    gap_above: 2.0
+    gap_above: 5.1
     label_gap: 0.7
     stack_gap: 1.6
     items:
