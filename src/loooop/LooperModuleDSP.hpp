@@ -80,12 +80,15 @@ inline LoopEngine::WriteMode overdubWriteMode(int choiceIdx) {
 // Overdub state colors (Layer/Decay/Add/Replace/Lock), shared by VCV's Overdub
 // LED bezel and the MetaModule cores' RGB button. Kept here (Rack-free) so both
 // hosts index the same table.
+// Fully-saturated primaries/secondaries (channels snapped to 0/0.5/1), matching
+// the Particules Quality button. Mixed sub-channel values wash an RGB LED out and
+// blur the states together; clean saturated hues read distinctly on the bezel.
 static constexpr float kOverdubColors[5][3] = {
-    {0.247f, 0.549f, 1.f},      // Layer   - blue   #3f8cff
-    {1.f,    0.624f, 0.039f},   // Decay   - amber  #ff9f0a
-    {0.188f, 0.820f, 0.345f},   // Add     - green  #30d158
-    {1.f,    0.231f, 0.188f},   // Replace - red    #ff3b30
-    {0.749f, 0.353f, 0.949f},   // Lock    - purple #bf5af2
+    {0.f, 0.5f, 1.f},   // Layer   - blue
+    {1.f, 0.5f, 0.f},   // Decay   - orange
+    {0.f, 1.f, 0.f},    // Add     - green
+    {1.f, 0.f, 0.f},    // Replace - red
+    {1.f, 0.f, 1.f},    // Lock    - magenta
 };
 
 // Apply the 5-state Overdub index to the engine: 0..3 = write modes

@@ -50,6 +50,7 @@ struct Loooop : Module {
     LoopEngine engine;
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig[LoopEngine::NUM_HEADS];
     float lastJumpV[LoopEngine::NUM_HEADS] = {};
+    float overdubPhase = 0.f;   // Lock-mode LED blink phase, [0,1)
     loooop::OnePoleSmoother panSm[LoopEngine::NUM_HEADS];
     loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
     float smootherRate = 0.f;
@@ -207,7 +208,7 @@ struct Loooop : Module {
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, wetL, w) * 5.f);
         outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od);
+        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od, overdubPhase, args.sampleTime);
     }
 };
 

@@ -25,6 +25,7 @@ struct Lop : Module {
     LoopEngine engine{1};      // single playhead; head level stays at its 1.0 default
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
     float lastJumpV = 0.f;
+    float overdubPhase = 0.f;   // Lock-mode LED blink phase, [0,1)
     loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
     float smootherRate = 0.f;
 
@@ -140,7 +141,7 @@ struct Lop : Module {
         outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
         outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od);
+        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od, overdubPhase, args.sampleTime);
     }
 };
 

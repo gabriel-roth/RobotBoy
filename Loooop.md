@@ -58,10 +58,10 @@ The bottom row holds the global controls, left to right:
 - **Record** — Starts and stops recording. The first press records a fresh loop. Once a loop exists, pressing Record again **overdubs** — what happens to the audio already in the loop depends on the **Overdub** button. The red light shows when Loooop is recording.
 - **Overdub** — A five-way button that selects one of the overdub modes:
     - **Layer** (blue, the default) — sound-on-sound: each overdub pass turns the existing material down slightly (about 1 dB per pass), so older layers gradually sink underneath more recent layers.
-    - **Decay** (amber) — like Layer, but older layers also lose a little high end on every pass, giving the effect of tape-style degradation.
+    - **Decay** (orange) — like Layer, but older layers also lose a little high end on every pass, giving the effect of tape-style degradation.
     - **Add** (green) — new audio sums with what's there at full level, forever, so you'll get clipping and distortion after a while.
     - **Replace** (red) — new audio **overwrites** the loop as the record head passes. Use this to punch in a new phrase over an old one.
-    - **Lock** (purple) — overdubbing off. The Record button does nothing while a loop exists — the loop is untouchable until you **Clear** it or switch to a different mode.
+    - **Lock** (flashing magenta) — overdubbing off. The Record button does nothing while a loop exists — the loop is untouchable until you **Clear** it or switch to a different mode. The light flashes to signal that the loop is held.
 - **Clear** — Erases the loop.
 - **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Dry/Wet** — Sets the blend between incoming audio (dry) and loop playback (wet) at the Mix output. Fully clockwise = loop only.
