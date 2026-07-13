@@ -13,6 +13,10 @@ metamodule/metamodule-plugins/
 .DS_Store
 metamodule/.cache/
 
+# throwaway composite panel previews (vcv-panel-gen preview.py)
+*.preview.svg
+*.preview.html
+
 # vcv/ distributables are copied from repo root at build time (see vcv/Makefile)
 vcv/plugin.json
 vcv/res/
