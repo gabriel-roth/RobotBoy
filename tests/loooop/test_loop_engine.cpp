@@ -256,6 +256,23 @@ static void test_buffer_ceiling_autoend() {
     check(!e.isRecording(),     "ceiling: recording auto-ended at ceiling");
 }
 
+static void test_sample_data() {
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.5f); e.process(-0.25f); e.process(1.f); e.process(0.f);
+    e.toggleRecord();                     // loop = {0.5, -0.25, 1, 0}, mono -> mirrored
+    check(e.loopLength() == 4,            "sampleData: loop length == 4");
+    check(near(e.sampleData(0)[0], 0.5f), "sampleData: L[0] == 0.5");
+    check(near(e.sampleData(0)[1], -0.25f), "sampleData: L[1] == -0.25");
+    check(near(e.sampleData(0)[2], 1.f),  "sampleData: L[2] == 1");
+    check(near(e.sampleData(1)[1], -0.25f), "sampleData: mono mirrors into R");
+    // Overdub sums into the existing buffer at loop start.
+    e.toggleRecord();                     // start overdub
+    e.process(-2.f);                      // buf[0] = 0.5 + (-2) = -1.5
+    e.toggleRecord();
+    check(near(e.sampleData(0)[0], -1.5f), "sampleData: overdub sums into buffer");
+}
+
 static void test_peaks_record() {
     LoopEngine e; e.reset(10.f, 100.f);   // maxSamples=1000 -> peakBinSize == 1
     e.toggleRecord();
@@ -1383,6 +1400,7 @@ int main() {
     test_overdub_sums();
     test_clear();
     test_buffer_ceiling_autoend();
+    test_sample_data();
     test_peaks_record();
     test_peaks_overdub_and_clear();
     test_peaks_stereo();

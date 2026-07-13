@@ -72,6 +72,13 @@ public:
     const std::array<float, PEAK_BINS>& peakMaxs(int ch = 0) const { return ch ? peakMaxR_ : peakMaxL_; }
     std::uint32_t peakBinSize() const { return peakBinSize_; }
 
+    // Raw loop buffer, one channel. The display renderer reads [0, axisLen)
+    // (loopLength() frozen, recordedLength() while recording) to draw the
+    // waveform per-sample. Read unlatched from the GUI thread — same model as
+    // the display snapshot: a torn read during overdub self-corrects on the
+    // next waveformRevision() bump.
+    const float* sampleData(int ch = 0) const { return (ch ? bufR_ : bufL_).data(); }
+
     // GUI-thread introspection for the display. All fields cross the
     // audio->GUI boundary via single-word atomics; the double playhead pos is
     // mirrored into an atomic<float> because a raw 64-bit read can tear on
