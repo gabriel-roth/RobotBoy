@@ -35,7 +35,7 @@ hp: 38
 title_size: 9
 side_margin: 3
 title_valign: center
-groups:
+group_style:
   gutter: 4
   # Hues mirror loooop::kHeadColors (src/loooop/HeadColors.hpp), guarded by
   # tests/test_head_colors.py: H1 red, H2 yellow, H3 blue, H4 magenta. Yellow
@@ -107,6 +107,6 @@ rows:
       - {label: Clear,   name: CLEAR_PARAM,   type: buttons, trig: CLEAR_TRIG_INPUT}
       - {label: Grid,    name: GRID_PARAM,    type: knobs,   small: true,
          widget: RoundSmallBlackSnapKnob,
-         values: ["Ø", "4", "8", "16", "32", "64"]}
+         positions: ["Ø", "4", "8", "16", "32", "64"]}
       - {label: Dry/Wet, name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
       - {label: Out,     name: MIX_L_OUTPUT,  pair: MIX_R_OUTPUT, type: outputs, weight: 1}

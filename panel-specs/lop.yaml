@@ -73,7 +73,7 @@ rows:
       - {label: Jump, name: JUMP_INPUT, type: inputs}
       - {label: Grid, name: GRID_PARAM, small: true,
          widget: RoundSmallBlackSnapKnob,
-         values: ["Ø", "4", "8", "16", "32", "64"]}
+         positions: ["Ø", "4", "8", "16", "32", "64"]}
   # Row 3: Dry/Wet knob+cv stack, then Clear and Record as stacked button+trig
   # groups (button over jack, tied by the connecting bar) — three equal columns.
   - type: params
