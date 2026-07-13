@@ -430,7 +430,7 @@ static void test_width_cap() {
     e.toggleRecord();
     for (int i = 0; i < 8; ++i) e.process(0.8f);
     e.toggleRecord();
-    const int w = 200, h = 32;
+    const int w = LoopWaveformRenderer::cappedWidth(4096), h = 32;
     std::vector<uint32_t> b(std::size_t(w) * h);
     LoopWaveformRenderer::renderWaveform(b.data(), w, h, e, pack);
     const uint32_t bg = C(LoopWaveformRenderer::BG);

@@ -66,7 +66,7 @@ public:
     bool hasLoop() const { return loopLen_ > 0; }
 
     // Raw loop buffer, one channel. The display renderer reads [0, axisLen)
-    // (loopLength() frozen, recordedLength() while recording) to draw the
+    // (loopLength() frozen or displaySnapshot().recordedLen while recording) to draw the
     // waveform per-sample. Read unlatched from the GUI thread — same model as
     // the display snapshot: a torn read during overdub self-corrects on the
     // next waveformRevision() bump.

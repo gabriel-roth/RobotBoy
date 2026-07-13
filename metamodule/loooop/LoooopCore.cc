@@ -129,7 +129,7 @@ public:
         const int lanesH = geometry.lanesHeight;
         const int waveH = geometry.waveHeight;
         const auto revision = engine_.waveformRevision();
-        // The waveform region is static between peak-array changes, so re-render
+        // The waveform region is static between recorded-audio (revision) changes, so re-render
         // it only when the revision (or destination geometry) changes; the
         // persistent display canvas (dispBuf_) keeps last frame's pixels
         // otherwise. Rendered straight into the destination — no intermediate
