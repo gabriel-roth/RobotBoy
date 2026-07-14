@@ -1,0 +1,67 @@
+# Onbetap — Polivoks-style multimode filter. Regenerated with vcv-panel-gen;
+# house theme (dark panel, Futura labels, Shuttleblock title) inherited from
+# ~/.config/vcv-panel-gen/theme.yaml.
+#
+# Layout: title, Cutoff hero knob over its CV attenuverter+jack (MF-20 idiom),
+# Reso + Drive side by side, a snapped Mode knob labelled LP/BP/HP/Notch/Peak,
+# then stereo In/Out on the bottom row.
+slug: Onbetap
+name: ONBETAP
+hp: 10
+side_margin: 5
+title_size: 9
+
+rows:
+  # Cutoff hero knob.
+  - type: knobs
+    items:
+      - {label: Cutoff, name: CUTOFF_PARAM, hero: true}
+
+  # Cutoff CV attenuverter (Trimpot) with the CV jack stacked below it.
+  - type: params
+    gap_above: 2
+    items:
+      - {label: "{blank}", name: CUTOFF_CV_PARAM, widget: Trimpot, cv: CUTOFF_INPUT}
+
+  # Resonance + Drive, side by side. Shifted down from MF-20's Peak row to
+  # split the space freed by shrinking the Mode knob back to regular size.
+  - type: knobs
+    items:
+      - {label: Resonance, name: RES_PARAM}
+      - {label: Drive,     name: DRIVE_PARAM}
+
+  # Mode: regular snap knob with the five filter responses ringed around it
+  # (Notch/Peak abbreviated N/P so the tight ring stays legible). Caption below
+  # so the top-center "HP" position label stays clear.
+  - type: knobs
+    label_side: below
+    label_gap: 2
+    items:
+      - {label: Mode, name: MODE_PARAM, widget: RoundBlackSnapKnob,
+         positions: [LP, BP, HP, N, P]}
+
+  # Stereo audio I/O.
+  - type: inputs
+    items:
+      - {label: In,  name: AUDIO_INPUT,  pair: AUDIO_INPUT_R}
+      - {label: Out, name: AUDIO_OUTPUT, pair: AUDIO_OUTPUT_R, type: outputs}
+
+# Vertical line tying the Cutoff knob to its attenuverter.
+connectors:
+  - [CUTOFF_PARAM, CUTOFF_CV_PARAM]
+
+# Soviet-red control zone behind the cluster (Cutoff down through Mode); the
+# I/O row sits below it, as on Ondes.
+zones:
+  - {x: 1.5, y: 15, w: 47.8, h: 92, fill: "#9e2b25", opacity: 0.25}
+
+# Cutoff stack still matched to MF-20 (Lopass heights) and Mode at MF-20's
+# Drive height; Resonance/Drive sit ~1.5mm below MF-20's Peak row, splitting
+# the space freed by the smaller Mode knob. (I/O shares MF-20's 113.69.)
+nudges:
+  TITLE: [0, 2.3]              # drop the wordmark below the top screws
+  CUTOFF_PARAM:    [0, 6.837]  # knob + label -> y 30.997 (MF-20 Lopass)
+  CUTOFF_CV_PARAM: [0, 1.837]  # attenuverter -> 46.997, CV jack -> 59.347
+  RES_PARAM:       [0, 3.337]  # -> 76.357 (MF-20 Peak row + 1.5mm)
+  DRIVE_PARAM:     [0, 3.337]  # -> 76.357
+  MODE_PARAM:      [0, -1.163] # -> 91.017 (MF-20 Drive)
