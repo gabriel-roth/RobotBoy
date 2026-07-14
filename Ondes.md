@@ -1,6 +1,6 @@
 # Ondes
 
-**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). A two-dimensional wavetable set — 24 banks of 8 waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every knob position between the stored waveforms is a smooth blend rather than a hard switch.
+**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), inspired by the wavetable mode on Mutable Instruments Beads. A two-dimensional wavetable set — 24 banks of eight waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every knob position between the stored waveforms is a smooth blend rather than a hard switch.
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="500">
 

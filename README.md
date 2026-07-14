@@ -5,7 +5,7 @@
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads. 
 * **[Löp](Loooop.md#löp):** Loooop's little sibling, with just one playhead. 
 * **[MF-20](MF20.md):** A Korg MS-20-style filter.
-* **[Ondes](Ondes.md):** A morphing wavetable oscillator based on Mutable Instruments Plaits.
+* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 * **[Particules](Particules.md):** A granular texture processor based on Mutable Instruments Beads.
 
 ---
@@ -32,7 +32,7 @@ An emulation of the Korg MS-20 filter (switchable between the OTA and Korg35 rev
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
 
-A morphing wavetable oscillator: two knobs sweep across a two-dimensional set of 24 banks of 8 waveforms each, derived from Mutable Instruments Plaits. → [**Full documentation**](Ondes.md)
+A morphing wavetable oscillator: two knobs sweep across a two-dimensional set of 24 banks of 8 waveforms each. → [**Full documentation**](Ondes.md)
 
 ## Particules
 
