@@ -20,6 +20,7 @@ target_sources(RobotBoy PRIVATE
     # VCV-adapter modules
     ${SRC}/src/plugin.cpp
     ${SRC}/src/mf20/MF20Filter.cpp
+    ${SRC}/src/Onbetap.cpp
     ${SRC}/src/particules/Particules.cpp
     ${SRC}/src/particules/Ondes.cpp
     # Native Loooop/Löp cores
