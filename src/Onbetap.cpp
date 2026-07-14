@@ -32,6 +32,10 @@ struct Onbetap : Module {
 		NUM_LIGHTS
 	};
 
+	// Character: false = tamed (stable, playable), true = vintage (drifty,
+	// untuned self-oscillation). Persisted now; acted on once the DSP lands.
+	bool vintageDrift = false;
+
 	Onbetap() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -64,6 +68,18 @@ struct Onbetap : Module {
 				outputs[io.second].setVoltage(inputs[io.first].getVoltage(c), c);
 		}
 	}
+
+	json_t* dataToJson() override {
+		json_t* root = json_object();
+		json_object_set_new(root, "vintageDrift", json_boolean(vintageDrift));
+		return root;
+	}
+
+	void dataFromJson(json_t* root) override {
+		json_t* v = json_object_get(root, "vintageDrift");
+		if (v)
+			vintageDrift = json_boolean_value(v);
+	}
 };
 
 
@@ -89,6 +105,20 @@ struct OnbetapWidget : ModuleWidget {
 
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.75, 113.69)), module, Onbetap::AUDIO_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.45, 113.69)), module, Onbetap::AUDIO_OUTPUT_R));
+	}
+
+	void appendContextMenu(Menu* menu) override {
+		auto* m = dynamic_cast<Onbetap*>(module);
+		if (!m) return;
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("Character"));
+		menu->addChild(createMenuItem("Tamed (stable)",
+			!m->vintageDrift ? "✓" : "",
+			[m]() { m->vintageDrift = false; }));
+		menu->addChild(createMenuItem("Vintage (drift)",
+			m->vintageDrift ? "✓" : "",
+			[m]() { m->vintageDrift = true; }));
 	}
 };
 
