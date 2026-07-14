@@ -123,14 +123,14 @@ struct OndesWidget : ModuleWidget {
         addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
         addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.145, 51.35)), module, Ondes::PITCH_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.66, 72.35)),  module, Ondes::BANK_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(28.98, 72.35)),  module, Ondes::POSITION_PARAM));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(11.66, 95.05)),         module, Ondes::BANK_AMT_PARAM));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(28.98, 95.05)),         module, Ondes::POSITION_AMT_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.66, 74.35)),  module, Ondes::BANK_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(28.98, 74.35)),  module, Ondes::POSITION_PARAM));
+        addParam(createParamCentered<Trimpot>(mm2px(Vec(11.66, 97.05)),         module, Ondes::BANK_AMT_PARAM));
+        addParam(createParamCentered<Trimpot>(mm2px(Vec(28.98, 97.05)),         module, Ondes::POSITION_AMT_PARAM));
 
         addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.495, 51.35)), module, Ondes::VOCT_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.66, 84.7)),   module, Ondes::BANK_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(28.98, 84.7)),   module, Ondes::POSITION_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.66, 86.7)),   module, Ondes::BANK_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(28.98, 86.7)),   module, Ondes::POSITION_INPUT));
 
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.32, 113.7)), module, Ondes::OUT_OUTPUT));
 

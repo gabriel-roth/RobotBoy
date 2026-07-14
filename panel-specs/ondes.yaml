@@ -41,6 +41,12 @@ connectors:
   - [POSITION_INPUT, POSITION_AMT_PARAM]
 nudges:
   TITLE: [0, 2.3]          # logo just below the top screws
+  # Bank/Position group nudged down a touch (knobs, CV jacks, attenuverters,
+  # labels and connectors move together); Pitch and Out stay put.
+  BANK_PARAM: [0, 2.0]
+  POSITION_PARAM: [0, 2.0]
+  BANK_AMT_PARAM: [0, 2.0]
+  POSITION_AMT_PARAM: [0, 2.0]
 zones:
   # Cyan plate behind Pitch/Bank/Position; geometry re-derived from the new
   # component positions (below the display, above the Out jack).
