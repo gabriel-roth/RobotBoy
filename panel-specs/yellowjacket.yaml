@@ -1,0 +1,87 @@
+# Yellowjacket — EDP Wasp-style CMOS state-variable filter (stereo). Regenerated
+# with vcv-panel-gen; house theme inherited from ~/.config/vcv-panel-gen/theme.yaml.
+#
+# Amber control zone holds the compressed knob cluster: three columns
+# (Res | Freq hero | Drive), each with an attenuverter and, stacked directly
+# beneath it, its CV jack (MF-20 pattern — keeps the cluster short). The rect
+# ends just below the CV jacks. Below the rect, on the bare panel, sits the
+# Blend knob (regular size) beside the stereo audio input, then the four stereo
+# output pairs (LP, BP, HP, Mix), each L/R under one label.
+slug: Yellowjacket
+name: Yellowjacket
+hp: 12
+side_margin: 5
+title_size: 7.0
+
+rows:
+  # Res (resonance) / Freq (hero cutoff) / Drive.
+  - type: knobs
+    gap_above: 5           # seat the FREQ label on the amber rect, clear of the title
+    items:
+      - {label: Res,   name: RES_PARAM}
+      - {label: Freq,  name: FREQ_PARAM, hero: true}
+      - {label: Drive, name: DRIVE_PARAM}
+
+  # Attenuverters (Trimpot) with each column's CV jack stacked directly beneath.
+  # One band instead of two — the compressed cluster.
+  - type: params
+    gap_above: 1
+    items:
+      - {label: "{blank}", name: RES_CV_PARAM,   widget: Trimpot, cv: RES_INPUT}
+      - {label: "{blank}", name: FREQ_CV_PARAM,  widget: Trimpot, cv: FREQ_INPUT}
+      - {label: "{blank}", name: DRIVE_CV_PARAM, widget: Trimpot, cv: DRIVE_INPUT}
+
+  # --- Below the rect, on the bare panel ---
+  # Two columns of three. Left: In, Blend, Mix. Right: HP, BP, LP.
+
+  # Row 1: In (left) | HP (right).
+  - type: inputs
+    gap_above: 4
+    items:
+      - {label: In, name: AUDIO_INPUT, pair: AUDIO_INPUT_R}
+      - {label: HP, name: HP_OUTPUT,   pair: HP_OUTPUT_R, type: outputs}
+
+  # Row 2: Blend knob (left) | BP (right).
+  - type: knobs
+    label_side: below
+    label_gap: 2
+    gap_above: 3
+    items:
+      - {label: Blend, name: BLEND_PARAM}
+      - {label: BP,    name: BP_OUTPUT, pair: BP_OUTPUT_R, type: outputs}
+
+  # Row 3: Mix (left) | LP (right).
+  - type: outputs
+    gap_above: 3
+    items:
+      - {label: Mix, name: MIX_OUTPUT, pair: MIX_OUTPUT_R}
+      - {label: LP,  name: LP_OUTPUT,  pair: LP_OUTPUT_R}
+
+# Vertical lines tying each column's knob -> attenuverter (jack stacks below).
+connectors:
+  - [RES_PARAM, RES_CV_PARAM]
+  - [FREQ_PARAM, FREQ_CV_PARAM]
+  - [DRIVE_PARAM, DRIVE_CV_PARAM]
+
+# Wasp amber/yellow control zone behind the compressed knob cluster only; it
+# stops just below the CV jacks. (h tuned to the generated CV-jack row.)
+zones:
+  - {x: 1.5, y: 15, w: 57.9, h: 51, fill: "#c99c1e", opacity: 0.73}
+
+nudges:
+  TITLE: [0, 3.6]           # drop the near-full-width wordmark below the top screws
+  # Cluster shifted so the gap above the FREQ label (~3.1mm) equals the gap below
+  # the CV jacks (~3.1mm). Net up-shift 1.8mm from the base flank/align nudges.
+  # Res/Drive: flank Freq (+7) then up 1.8 = +5.2; Freq: bottom-align (+4.2) then
+  # up 1.8 = +2.4; attenuverters+stacked jacks up 1.8.
+  RES_PARAM:   [0, 5.2]
+  DRIVE_PARAM: [0, 5.2]
+  FREQ_PARAM:  [0, 2.4]
+  RES_CV_PARAM:   [0, -1.8]
+  FREQ_CV_PARAM:  [0, -1.8]
+  DRIVE_CV_PARAM: [0, -1.8]
+  # Row 2 is a knobs row, which distributes items differently than the jack
+  # rows; nudge Blend onto the left pair-column centre and the BP pair onto the
+  # right pair-column centre so all three columns line up.
+  BLEND_PARAM:  [0.71, 0]
+  BP_OUTPUT:    [7.79, 0]
