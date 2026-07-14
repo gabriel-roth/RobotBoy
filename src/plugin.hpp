@@ -11,6 +11,7 @@ extern Model* modelLoooop;
 extern Model* modelLop;
 extern Model* modelMF20Filter;
 extern Model* modelParticules;
+extern Model* modelOndes;
 
 // Rack has no stock small snap knob; Loooop and Löp both use it for Grid.
 struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
