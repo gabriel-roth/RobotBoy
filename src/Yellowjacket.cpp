@@ -44,6 +44,10 @@ struct Yellowjacket : Module {
 	// Persisted now; acted on once the DSP lands.
 	bool screaming = false;
 
+	// Panel theme: 0 = charcoal (default), 1 = gold. Persisted; the widget reads
+	// it to pick which faceplate SVG to draw.
+	int panelTheme = 0;
+
 	Yellowjacket() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -100,6 +104,7 @@ struct Yellowjacket : Module {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "screaming", json_boolean(screaming));
+		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
 		return root;
 	}
 
@@ -107,14 +112,28 @@ struct Yellowjacket : Module {
 		json_t* s = json_object_get(root, "screaming");
 		if (s)
 			screaming = json_boolean_value(s);
+		json_t* p = json_object_get(root, "panelTheme");
+		if (p)
+			panelTheme = json_integer_value(p);
 	}
 };
 
 
 struct YellowjacketWidget : ModuleWidget {
+	app::SvgPanel* panel = nullptr;
+
+	// Swap the faceplate SVG for the selected theme (0 = charcoal, 1 = gold).
+	void setPanelTheme(int t) {
+		std::string f = (t == 1) ? "res/Yellowjacket-gold.svg" : "res/Yellowjacket.svg";
+		panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
+	}
+
 	YellowjacketWidget(Yellowjacket* module) {
 		setModule(module);
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/Yellowjacket.svg")));
+		panel = createPanel(asset::plugin(pluginInstance, "res/Yellowjacket.svg"));
+		setPanel(panel);
+		if (module)
+			setPanelTheme(module->panelTheme);
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -165,6 +184,12 @@ struct YellowjacketWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Screaming (self-oscillates)",
 			m->screaming ? "✓" : "",
 			[m]() { m->screaming = true; }));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Panel",
+			{"Charcoal", "Gold"},
+			[m]() -> size_t { return m->panelTheme; },
+			[m, this](size_t i) { m->panelTheme = (int)i; setPanelTheme((int)i); }));
 	}
 };
 
