@@ -1,10 +1,11 @@
 # Robot Boy
 
-**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains four modules: 
+**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains five modules: 
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads. 
 * **[Löp](Loooop.md#löp):** Loooop's little sibling, with just one playhead. 
 * **[MF-20](MF20.md):** A Korg MS-20-style filter.
+* **[Ondes](Ondes.md):** A morphing wavetable oscillator based on Mutable Instruments Plaits.
 * **[Particules](Particules.md):** A granular texture processor based on Mutable Instruments Beads.
 
 ---
@@ -26,6 +27,12 @@ The single-playhead version of Loooop, for when you just need a single loop. →
 <img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
 
 An emulation of the Korg MS-20 filter (switchable between the OTA and Korg35 revisions). The cutoffs for the HP and LP stages can be controlled independently or from the shared Total bus. Optional added Drive. → [**Full documentation**](MF20.md)
+
+## Ondes
+
+<img src="screenshots/Ondes.png" alt="Ondes module" height="300">
+
+A morphing wavetable oscillator: two knobs sweep across a two-dimensional set of 24 banks of 8 waveforms each, derived from Mutable Instruments Plaits. → [**Full documentation**](Ondes.md)
 
 ## Particules
 
