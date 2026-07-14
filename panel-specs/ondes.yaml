@@ -14,14 +14,14 @@ title_valign: baseline
 rows:
   - type: screen
     height: 22             # taller display
-    gap_above: 7.0         # push the display down, below the enlarged logo
+    gap_above: 4.35        # display just below the logo (Löp logo->display gap 2.05)
   - type: inputs           # Pitch knob + V/Oct jack, horizontal companion
     label_side: above
-    gap_above: 4.0         # shift controls down
+    gap_above: 5.0         # distribute controls within the rect
     items:
       - {label: Pitch, name: PITCH_PARAM, type: knobs, cv: VOCT_INPUT}
   - type: params           # Bank / Position: knob over stacked CV jack (aligned)
-    gap_above: 3.0
+    gap_above: 5.0
     items:
       - {label: Bank,     name: BANK_PARAM,     cv: BANK_INPUT}
       - {label: Position, name: POSITION_PARAM, cv: POSITION_INPUT}
@@ -30,9 +30,9 @@ rows:
     items:
       - {label: "{blank}", name: BANK_AMT_PARAM,     widget: Trimpot, small: true}
       - {label: "{blank}", name: POSITION_AMT_PARAM, widget: Trimpot, small: true}
-  - type: outputs          # Out — outside the cyan plate
+  - type: outputs          # Out — outside the cyan plate, at MF-20 Out level (~113.7)
     label_side: below
-    gap_above: 4.0
+    gap_above: 1.3
     items:
       - {label: Out, name: OUT_OUTPUT}
 # Vertical lines tying each CV jack to the attenuverter tucked below it.
@@ -40,8 +40,8 @@ connectors:
   - [BANK_INPUT, BANK_AMT_PARAM]
   - [POSITION_INPUT, POSITION_AMT_PARAM]
 nudges:
-  TITLE: [0, 5.0]          # drop the logo below the top screws
+  TITLE: [0, 2.3]          # logo just below the top screws
 zones:
   # Cyan plate behind Pitch/Bank/Position; geometry re-derived from the new
   # component positions (below the display, above the Out jack).
-  - {x: 3.0, y: 40.0, w: 34.64, h: 62.0, fill: "#00e5ff", opacity: 0.25, rx: 2}
+  - {x: 3.0, y: 38.75, w: 34.64, h: 68.25, fill: "#00e5ff", opacity: 0.25, rx: 2}
