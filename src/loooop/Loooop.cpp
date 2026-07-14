@@ -89,12 +89,12 @@ struct Loooop : Module {
             configOutput(HEAD1_L_OUTPUT + 2 * h + 1, n + " right");
         }
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
-        configButton(RECORD_PARAM, "Record/Overdub");
+        configButton(RECORD_PARAM, "Record");
         configButton(CLEAR_PARAM, "Clear");
         // Mode switches opt out of Randomize like the per-head menu switches:
         // Lock overdub gates the Record button, and randomized Grid/Crossfade
         // read as broken behavior, not as an inspiring patch variation.
-        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
             {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
         // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
         // whose loader zero-inits unset params, so 0 must mean crossfade-on.

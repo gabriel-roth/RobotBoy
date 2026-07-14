@@ -36,12 +36,12 @@ struct Lop : Module {
         configParam(SIZE_PARAM, 0.f, 1.f, 1.f, "Size");
         configParam(JITTER_PARAM, 0.f, 1.f, 0.f, "Jitter");
         configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Dry/wet");
-        configButton(RECORD_PARAM, "Record/Overdub");
+        configButton(RECORD_PARAM, "Record");
         configButton(CLEAR_PARAM, "Clear");
         // Mode switches — panel (Overdub, Grid) and menu alike — opt out of
         // Randomize (matches Loooop): a randomized one-shot with no trigger
         // patched silences the loop with nothing on the panel to show why.
-        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub",
+        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
             {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
         configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
             {"Loop start", "One-shot"})->randomizeEnabled = false;
