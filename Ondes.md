@@ -8,11 +8,11 @@
 
 ## Controls
 
-- **Pitch** — −24…+24 st. Coarse/fine pitch, notched at octaves, fifths, and unison for easy tuning (shared with Particules).
+- **Pitch** — −24 to +24 st. Coarse/fine pitch, notched at octaves, fifths, and unison for easy tuning (shared with Particules).
 - **V/Oct** — 1 V/octave pitch input, summed with the Pitch knob.
-- **Bank** — 0–1. Selects the timbral family across the 24 banks.
+- **Bank** — 0 to 1. Selects the timbral family across the 24 banks.
 - **Bank CV** + amount — ±5 V CV control of Bank, scaled by the attenuverter below it.
-- **Position** — 0–1. Selects the waveform within the current bank.
+- **Position** — 0 to 1. Selects the waveform within the current bank.
 - **Position CV** + amount — ±5 V CV control of Position, scaled by the attenuverter below it.
 - **Out** — ±5 V mono oscillator output.
 

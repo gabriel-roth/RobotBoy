@@ -79,9 +79,9 @@ void WavetableOscillator::Process(float pitch_semitones, float bank, float wave,
         output[i] = {sample, sample};
 
         phase_ += phase_increment_;
-        float table_size_f = static_cast<float>(kWavetableSize);
-        phase_ = std::fmod(phase_, table_size_f);
-        if (phase_ < 0.0f) phase_ += table_size_f;
+        // phase_increment_ is always >= 0 (kBaseFreq > 0, SemitonesToRatio > 0),
+        // so phase_ stays non-negative — fmod alone keeps it in [0, kWavetableSize).
+        phase_ = std::fmod(phase_, static_cast<float>(kWavetableSize));
     }
 }
 
