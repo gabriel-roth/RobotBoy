@@ -9,9 +9,9 @@
 # output pairs (LP, BP, HP, Mix), each L/R under one label.
 slug: Yellowjacket
 name: Yellowjacket
-hp: 12
-side_margin: 5
-title_size: 7.0
+hp: 10
+side_margin: 3
+title_size: 5.8
 
 rows:
   # Res (resonance) / Freq (hero cutoff) / Drive.
@@ -66,7 +66,7 @@ connectors:
 # Wasp amber/yellow control zone behind the compressed knob cluster only; it
 # stops just below the CV jacks. (h tuned to the generated CV-jack row.)
 zones:
-  - {x: 1.5, y: 15, w: 57.9, h: 51, fill: "#c99c1e", opacity: 0.73}
+  - {x: 1.5, y: 15, w: 47.8, h: 51, fill: "#c99c1e", opacity: 0.73}
 
 nudges:
   TITLE: [0, 3.6]           # drop the near-full-width wordmark below the top screws
@@ -80,8 +80,16 @@ nudges:
   RES_CV_PARAM:   [0, -1.8]
   FREQ_CV_PARAM:  [0, -1.8]
   DRIVE_CV_PARAM: [0, -1.8]
+  # Bottom half: pull the two justified columns toward centre (left col -> 15.0,
+  # right col -> 35.8) and align Blend (left) and BP (right) onto them. Pair
+  # nudges move both L/R jacks; a knobs-row item (Blend, BP) distributes
+  # differently so it gets its own offset.
+  AUDIO_INPUT: [2.8, 0]
+  MIX_OUTPUT:  [2.8, 0]
+  BLEND_PARAM: [4.53, 0]
+  HP_OUTPUT:   [-2.8, 0]
+  LP_OUTPUT:   [-2.8, 0]
+  BP_OUTPUT:   [2.93, 0]
   # Row 2 is a knobs row, which distributes items differently than the jack
   # rows; nudge Blend onto the left pair-column centre and the BP pair onto the
   # right pair-column centre so all three columns line up.
-  BLEND_PARAM:  [0.71, 0]
-  BP_OUTPUT:    [7.79, 0]

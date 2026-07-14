@@ -121,36 +121,36 @@ struct YellowjacketWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		// Positions mirror res/Yellowjacket.svg (vcv-panel-gen).
+		// Positions mirror res/Yellowjacket.svg (vcv-panel-gen), 10 HP.
 		// Knobs: Res / Freq hero / Drive.
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(13.493, 33.200)), module, Yellowjacket::RES_PARAM));
-		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(30.480, 30.400)), module, Yellowjacket::FREQ_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(47.467, 33.200)), module, Yellowjacket::DRIVE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.467, 33.200)), module, Yellowjacket::RES_PARAM));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.400, 30.400)), module, Yellowjacket::FREQ_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(40.333, 33.200)), module, Yellowjacket::DRIVE_PARAM));
 
 		// Attenuverters, one per column.
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(13.493, 46.200)), module, Yellowjacket::RES_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(30.480, 46.200)), module, Yellowjacket::FREQ_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(47.467, 46.200)), module, Yellowjacket::DRIVE_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(10.467, 46.200)), module, Yellowjacket::RES_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(25.400, 46.200)), module, Yellowjacket::FREQ_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(40.333, 46.200)), module, Yellowjacket::DRIVE_CV_PARAM));
 
 		// CV jacks, stacked under each attenuverter.
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(13.493, 58.550)), module, Yellowjacket::RES_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.480, 58.550)), module, Yellowjacket::FREQ_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.467, 58.550)), module, Yellowjacket::DRIVE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.467, 58.550)), module, Yellowjacket::RES_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.400, 58.550)), module, Yellowjacket::FREQ_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(40.333, 58.550)), module, Yellowjacket::DRIVE_INPUT));
 
 		// Below the rect — left column: In, Blend, Mix; right column: HP, BP, LP.
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.350, 73.050)), module, Yellowjacket::AUDIO_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.050, 73.050)), module, Yellowjacket::AUDIO_INPUT_R));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.910, 73.050)), module, Yellowjacket::HP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.610, 73.050)), module, Yellowjacket::HP_OUTPUT_R));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 73.050)), module, Yellowjacket::AUDIO_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.850, 73.050)), module, Yellowjacket::AUDIO_INPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 73.050)), module, Yellowjacket::HP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 73.050)), module, Yellowjacket::HP_OUTPUT_R));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.203, 92.700)), module, Yellowjacket::BLEND_PARAM));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.913, 92.700)), module, Yellowjacket::BP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.613, 92.700)), module, Yellowjacket::BP_OUTPUT_R));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.997, 92.700)), module, Yellowjacket::BLEND_PARAM));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.947, 92.700)), module, Yellowjacket::BP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.647, 92.700)), module, Yellowjacket::BP_OUTPUT_R));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(9.350, 116.050)), module, Yellowjacket::MIX_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(19.050, 116.050)), module, Yellowjacket::MIX_OUTPUT_R));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.910, 116.050)), module, Yellowjacket::LP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.610, 116.050)), module, Yellowjacket::LP_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.150, 116.050)), module, Yellowjacket::MIX_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(19.850, 116.050)), module, Yellowjacket::MIX_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 116.050)), module, Yellowjacket::LP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 116.050)), module, Yellowjacket::LP_OUTPUT_R));
 	}
 
 	void appendContextMenu(Menu* menu) override {
