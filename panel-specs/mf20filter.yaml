@@ -62,7 +62,29 @@ connectors:
 
 # Per-panel positioning: drop the cutoff heroes toward the attenuverters, and
 # lift Drive to sit midway between the resonance knobs and the I/O row.
+#
+# Two stacked shifts, all folded into the dy below:
+#   +1.447mm  — moves every control unit down so the whole cluster's top gap
+#               (above Lopass/Hipass) balances its bottom gap (below Drive).
+#   +0.390mm  — additionally drops the *controls* (knobs, attenuverters, CV
+#               jacks, Peak, Drive) while `label_nudges` holds the Lopass,
+#               Hipass, and Drive labels still, so the label-to-knob gap above
+#               Lopass/Hipass matches the knob-to-label gap below Drive (~2.73mm).
+# The audio I/O row and the zone itself stay put.
 nudges:
-  CUTOFF_PARAM: [0, 5]
-  HP_CUTOFF_PARAM: [0, 5]
-  DRIVE_PARAM: [0, -6]
+  CUTOFF_PARAM: [0, 6.837]
+  HP_CUTOFF_PARAM: [0, 6.837]
+  LP_CUTOFF_CV_PARAM: [0, 1.837]
+  TOTAL_CUTOFF_CV_PARAM: [0, 1.837]
+  HP_CUTOFF_CV_PARAM: [0, 1.837]
+  RES_PARAM: [0, 1.837]
+  HP_RES_PARAM: [0, 1.837]
+  PEAK: [0, 1.837]
+  DRIVE_PARAM: [0, -4.163]
+
+# Hold Lopass/Hipass/Drive labels in place while their knobs drop the extra
+# 0.390mm above, widening the top label gaps and tightening Drive's below.
+label_nudges:
+  CUTOFF_PARAM: [0, -0.39]
+  HP_CUTOFF_PARAM: [0, -0.39]
+  DRIVE_PARAM: [0, -0.39]
