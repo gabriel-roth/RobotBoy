@@ -1,5 +1,6 @@
 #include "plugin.hpp"
 #include "RackWavetableProvider.hpp"
+#include "WavetableFrame.hpp"
 #include "dsp/src/wavetable/wavetable_oscillator.h"
 #include <cmath>
 
@@ -22,6 +23,11 @@ struct Ondes : Module {
     // Pitch knob cache: pitchKnobToSemitones() is a linear search; skip when unchanged.
     float cached_pitch_knob_      = -999.f;
     float cached_pitch_semitones_ = 0.f;
+
+    // Last post-CV bank/wave (0-1), read by the panel display. UI-thread read of
+    // an audio-thread write is a benign race (display only), as in Fundamental.
+    float lastBank = 0.f;
+    float lastWave = 0.f;
 
     Ondes() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -60,9 +66,49 @@ struct Ondes : Module {
             + inputs[BANK_INPUT].getVoltage() * 0.2f * params[BANK_AMT_PARAM].getValue(),
             0.f, 1.f);
 
+        lastBank = bank;
+        lastWave = position;
+
         particules_dsp::StereoFrame out;
         osc_.Process(pitch, bank, position, &out, 1);
         outputs[OUT_OUTPUT].setVoltage(out.l * 5.f);  // oscillator is mono: out.l == out.r
+    }
+};
+
+// Draws the current bilinearly-interpolated wavetable frame as a cyan trace
+// that morphs as Bank/Position (and their CV) change. Bare trace, no text.
+struct WavetableDisplay : LedDisplay {
+    Ondes* module = nullptr;
+
+    void drawLayer(const DrawArgs& args, int layer) override {
+        if (layer == 1) {
+            nvgScissor(args.vg, RECT_ARGS(args.clipBox));
+
+            float bank = module ? module->lastBank : 0.f;
+            float wave = module ? module->lastWave : 0.f;
+            RackWavetableProvider provider;
+
+            Rect scope = Rect(Vec(0, 0), box.size).shrink(Vec(4, 5));
+            const int n = particules_dsp::kWavetableSize;
+            nvgBeginPath(args.vg);
+            for (int i = 0; i <= n; ++i) {
+                float s = robotboy::wavetableFrameSample(provider, bank, wave, i % n);
+                Vec p;
+                p.x = float(i) / n;
+                p.y = 0.5f - 0.5f * s;
+                p = scope.pos + scope.size.mult(p);
+                if (i == 0) nvgMoveTo(args.vg, VEC_ARGS(p));
+                else        nvgLineTo(args.vg, VEC_ARGS(p));
+            }
+            nvgLineCap(args.vg, NVG_ROUND);
+            nvgMiterLimit(args.vg, 2.f);
+            nvgStrokeWidth(args.vg, 1.5f);
+            nvgStrokeColor(args.vg, nvgRGB(0x00, 0xe5, 0xff));  // cyan
+            nvgStroke(args.vg);
+
+            nvgResetScissor(args.vg);
+        }
+        LedDisplay::drawLayer(args, layer);
     }
 };
 
@@ -71,20 +117,27 @@ struct OndesWidget : ModuleWidget {
         setModule(module);
         setPanel(createPanel(asset::plugin(pluginInstance, "res/Ondes.svg")));
 
-        addChild(createWidget<ScrewBlack>(Vec(0, 0)));
-        addChild(createWidget<ScrewBlack>(Vec(box.size.x - RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        addParam(createParamCentered<RoundLargeBlackKnob>(mm2px(Vec(15.24, 27)),     module, Ondes::PITCH_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(22.86, 69.167)),      module, Ondes::POSITION_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(7.62, 69.167)),       module, Ondes::BANK_PARAM));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(22.86, 89.867)),            module, Ondes::POSITION_AMT_PARAM));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(7.62, 89.867)),             module, Ondes::BANK_AMT_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.145, 43.075)), module, Ondes::PITCH_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.66, 63.15)),   module, Ondes::BANK_PARAM));
+        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(28.98, 63.15)),   module, Ondes::POSITION_PARAM));
+        addParam(createParamCentered<Trimpot>(mm2px(Vec(11.66, 89.35)),          module, Ondes::BANK_AMT_PARAM));
+        addParam(createParamCentered<Trimpot>(mm2px(Vec(28.98, 89.35)),          module, Ondes::POSITION_AMT_PARAM));
 
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(15.24, 38.7)),   module, Ondes::VOCT_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(22.86, 80.867)), module, Ondes::POSITION_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.62, 80.867)),  module, Ondes::BANK_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.495, 43.075)), module, Ondes::VOCT_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.66, 75.5)),    module, Ondes::BANK_INPUT));
+        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(28.98, 75.5)),    module, Ondes::POSITION_INPUT));
 
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(15.24, 114)),  module, Ondes::OUT_OUTPUT));
+        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.32, 110.775)), module, Ondes::OUT_OUTPUT));
+
+        WavetableDisplay* display = createWidget<WavetableDisplay>(mm2px(Vec(3.0, 11.0)));
+        display->box.size = mm2px(Vec(34.64, 18.0));
+        display->module = module;
+        addChild(display);
     }
 };
 
