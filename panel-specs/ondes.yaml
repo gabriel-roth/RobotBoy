@@ -1,0 +1,38 @@
+# Ondes — wavetable oscillator, 8 HP. Regenerated with vcv-panel-gen; house
+# theme (dark panel, Futura labels, Shuttleblock title) inherited from
+# ~/.config/vcv-panel-gen/theme.yaml. Layout: title, wavetable display
+# (screen), Pitch knob + V/Oct beside it, then Bank/Position columns each as
+# knob -> CV jack -> attenuverter, Out centered at the bottom. A single cyan
+# plate (zones:) backs Pitch/Bank/Position but not the Out jack — its geometry
+# is derived from the generated component positions (see plan Task 1).
+slug: Ondes
+name: ONDES
+hp: 8
+title_size: 6
+side_margin: 3
+title_valign: center
+rows:
+  - type: screen
+    height: 18
+    gap_above: 1.0
+  - type: inputs           # Pitch knob + V/Oct jack, horizontal companion
+    label_side: above
+    items:
+      - {label: Pitch, name: PITCH_PARAM, type: knobs, cv: VOCT_INPUT}
+  - type: params           # Bank / Position: knob over stacked CV jack (aligned)
+    items:
+      - {label: Bank,     name: BANK_PARAM,     cv: BANK_INPUT}
+      - {label: Position, name: POSITION_PARAM, cv: POSITION_INPUT}
+  - type: knobs            # Bank / Position attenuverters (unlabeled trimpots)
+    gap_above: 0.5
+    items:
+      - {label: "{blank}", name: BANK_AMT_PARAM,     widget: Trimpot, small: true}
+      - {label: "{blank}", name: POSITION_AMT_PARAM, widget: Trimpot, small: true}
+  - type: outputs          # Out — outside the cyan plate
+    label_side: below
+    items:
+      - {label: Out, name: OUT_OUTPUT}
+zones:
+  # Cyan plate behind Pitch/Bank/Position; below the screen (y=29), above the
+  # Out jack (cy=110.8). Matches the screen's horizontal extent (x=3, w=34.64).
+  - {x: 3.0, y: 30.0, w: 34.64, h: 68.0, fill: "#00e5ff", opacity: 0.25, rx: 2}
