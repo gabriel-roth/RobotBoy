@@ -31,6 +31,7 @@ void init(Plugin* p) {
 	p->addModel(modelLoooop);
 	p->addModel(modelLop);
 	p->addModel(modelMF20Filter);
+	p->addModel(modelOnbetap);
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
 }
