@@ -10,6 +10,7 @@ extern Plugin* pluginInstance;
 extern Model* modelLoooop;
 extern Model* modelLop;
 extern Model* modelMF20Filter;
+extern Model* modelOnbetap;
 extern Model* modelParticules;
 extern Model* modelOndes;
 
