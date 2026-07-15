@@ -23,6 +23,7 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelOnbetap);
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
+	p->addModel(modelYellowjacket);
 }
 #else
 // VCV Rack build: standard single init() registering all five modules.
@@ -35,5 +36,6 @@ void init(Plugin* p) {
 	p->addModel(modelOnbetap);
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
+	p->addModel(modelYellowjacket);
 }
 #endif

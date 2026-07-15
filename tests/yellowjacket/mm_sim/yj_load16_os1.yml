@@ -1,0 +1,59 @@
+PatchData:
+  patch_name: yj_load_16
+  description: Yellowjacket CPU load test, 16 instances, osMenu=1
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Yellowjacket'
+    2: 'RobotBoy:Yellowjacket'
+    3: 'RobotBoy:Yellowjacket'
+    4: 'RobotBoy:Yellowjacket'
+    5: 'RobotBoy:Yellowjacket'
+    6: 'RobotBoy:Yellowjacket'
+    7: 'RobotBoy:Yellowjacket'
+    8: 'RobotBoy:Yellowjacket'
+    9: 'RobotBoy:Yellowjacket'
+    10: 'RobotBoy:Yellowjacket'
+    11: 'RobotBoy:Yellowjacket'
+    12: 'RobotBoy:Yellowjacket'
+    13: 'RobotBoy:Yellowjacket'
+    14: 'RobotBoy:Yellowjacket'
+    15: 'RobotBoy:Yellowjacket'
+    16: 'RobotBoy:Yellowjacket'
+  int_cables: []
+  mapped_ins: []
+  mapped_outs: []
+  static_knobs: []
+  vcvModuleStates:
+    - module_id: 1
+      data: '{"osMenu": 1}'
+    - module_id: 2
+      data: '{"osMenu": 1}'
+    - module_id: 3
+      data: '{"osMenu": 1}'
+    - module_id: 4
+      data: '{"osMenu": 1}'
+    - module_id: 5
+      data: '{"osMenu": 1}'
+    - module_id: 6
+      data: '{"osMenu": 1}'
+    - module_id: 7
+      data: '{"osMenu": 1}'
+    - module_id: 8
+      data: '{"osMenu": 1}'
+    - module_id: 9
+      data: '{"osMenu": 1}'
+    - module_id: 10
+      data: '{"osMenu": 1}'
+    - module_id: 11
+      data: '{"osMenu": 1}'
+    - module_id: 12
+      data: '{"osMenu": 1}'
+    - module_id: 13
+      data: '{"osMenu": 1}'
+    - module_id: 14
+      data: '{"osMenu": 1}'
+    - module_id: 15
+      data: '{"osMenu": 1}'
+    - module_id: 16
+      data: '{"osMenu": 1}'
+  bypassed_modules: []

@@ -13,6 +13,7 @@
     { "slug": "MF20Filter", "name": "MF-20", "description": "Korg MS-20 filter emulation.", "tags": ["Filter"] },
     { "slug": "Onbetap", "name": "Onbetap", "description": "Polivoks-style multimode filter.", "tags": ["Filter"] },
     { "slug": "Particules", "name": "Particules", "description": "Granular texture synthesizer.", "tags": ["Granular", "Reverb", "Sampler", "Effect"] },
-    { "slug": "Ondes", "name": "Ondes", "description": "Wavetable oscillator.", "tags": ["Oscillator", "Wavetable"] }
+    { "slug": "Ondes", "name": "Ondes", "description": "Wavetable oscillator.", "tags": ["Oscillator", "Wavetable"] },
+    { "slug": "Yellowjacket", "name": "Yellowjacket", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] }
   ]
 }

@@ -9,6 +9,7 @@
     { "slug": "MF20Filter", "name": "MF-20", "displayName": "MF-20" },
     { "slug": "Onbetap", "name": "Onbetap", "displayName": "Onbetap" },
     { "slug": "Particules", "name": "Particules", "displayName": "Particules" },
-    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" }
+    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" },
+    { "slug": "Yellowjacket", "name": "Yellowjacket", "displayName": "Yellowjacket" }
   ]
 }

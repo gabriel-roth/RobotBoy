@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 - **Onbetap** — Polivoks-style stereo multimode filter, new module.
+- **Yellowjacket** — new module: EDP Wasp-style CMOS state-variable filter, with
+  Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
+  self-oscillation mod, true self-oscillation) character modes.
 - Particules: fixed a macOS-simulator portability issue in the `memalign()`
   usage guard (real firmware and VCV Rack behavior unchanged).
 
