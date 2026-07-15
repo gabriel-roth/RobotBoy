@@ -82,7 +82,9 @@ Two consequences of the summing-stage physics that the first draft missed
    modded (kR2=3.7) crosses into sustained oscillation for mid/high
    cutoffs, amplitude bounded by the rails (±≈5 V, cf. DAFx Fig 9).
    `fPole` is exposed as a context-menu slider ("Inverter bandwidth",
-   30–300 kHz, default 80 kHz) for tuning.
+   60–300 kHz, default 80 kHz) for tuning. The floor is 60 kHz because
+   Task 1's corrected sweep found Tame free-runs (breaks its
+   no-self-oscillation promise) below a threshold between 55 and 60 kHz.
 
    Tame mode (kR2=1) therefore also sits at the verge — matching the
    original's service-manual behavior — but its tighter rails and gentler
