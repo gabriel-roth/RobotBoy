@@ -69,6 +69,13 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     impl_->engine.Init(&impl_->recording_buffer, sample_rate);
     impl_->shifter.Init(sample_rate);
     impl_->envelope.Init(sample_rate);
+
+    // Slow-random modulation: one shared PRNG, three distinctly-salted LFOs
+    // (salts are labels only — see Impl comment; determinism is intentional).
+    impl_->mod_rng.Init();
+    impl_->ar_time.lfo.Init(&impl_->mod_rng, 1);
+    impl_->ar_pitch.lfo.Init(&impl_->mod_rng, 2);
+    impl_->ar_shape.lfo.Init(&impl_->mod_rng, 3);
 }
 
 void EchosProcessor::SetParameters(const EchosParameters& params) {
@@ -94,38 +101,70 @@ void EchosProcessor::Process(const StereoFrame* input, StereoFrame* output, size
 void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_t n) {
     Impl& s = *impl_;
 
+    // Block-rate: slow-random LFO rate is cheap to set every block.
+    s.ar_time.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+    s.ar_pitch.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+    s.ar_shape.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+
+    // Block-rate: TIME attenurandomizer modulates the TIME knob before it
+    // reaches BaseTimeControl.
+    float time_mod = s.ar_time.Process(s.params.time_ar, s.params.time_cv / 5.f,
+                                        s.params.time_cv_connected, n);
+    float time_knob_eff = particules_dsp::Clamp(s.params.time + time_mod, 0.f, 1.f);
+
     // Block-rate: resolve base/delay time and push targets into the engine.
     BaseTimeControl::Result bt = s.base_time.Update(
-        s.params.density, s.params.density_cv, s.params.time,
+        s.params.density, s.params.density_cv, time_knob_eff,
         s.params.clock_connected, s.params.clock_tick_offset, n);
     float slew_seconds = std::max(s.params.slew_seconds, 1e-3f);
     s.engine.SetTargets(bt.delay_samples, bt.multi_tap, s.params.time_change_mode, slew_seconds);
     // Task 7 completes freeze; for now this only stores state (stub).
     s.engine.NotifyFreeze(s.params.freeze, bt.base_samples, bt.slice_index);
 
-    // Block-rate: repeat envelope tracks the base (HOST-rate) period and
-    // resyncs to phase 0 on a clock tick. AR modulation on shape_eff arrives
-    // in Task 6; for now use the raw SHAPE knob.
+    // Block-rate: SHAPE attenurandomizer modulates the repeat envelope's
+    // shape. The repeat envelope tracks the base (HOST-rate) period and
+    // resyncs to phase 0 on a clock tick.
+    float shape_mod = s.ar_shape.Process(s.params.shape_ar, s.params.shape_cv / 5.f,
+                                          s.params.shape_cv_connected, n);
+    float shape_eff = particules_dsp::Clamp(s.params.shape + shape_mod, 0.f, 1.f);
     s.envelope.SetPeriodSamples(bt.base_samples);
-    s.envelope.SetShape(s.params.shape);
+    s.envelope.SetShape(shape_eff);
     if (s.params.clock_tick_offset >= 0) s.envelope.SyncPhase();
 
     // Block-rate: linear input trim gain.
     float input_gain = particules_dsp::DbToGain(s.params.input_trim_db);
 
-    // Block-rate: pitch-shift ratio for the rotary shifter (raw semitones
-    // for now; Task 6 adds attenurandomized pitch on top).
-    float pitch_semitones = s.params.pitch_semitones;
-    float shift_ratio = std::fabs(pitch_semitones) < kShifterBypassSemitones
+    // Block-rate: pitch-shift ratio for the rotary shifter. PITCH's
+    // attenurandomizer is always advanced (kept phase-continuous) even when
+    // the CV-direct 1V/oct branch below overrides its contribution.
+    float ar_pitch_val = s.ar_pitch.Process(s.params.pitch_ar, s.params.pitch_cv / 5.f,
+                                             s.params.pitch_cv_connected, n);
+    float pitch_mod_semi;
+    if (s.params.pitch_ar > 0.f && s.params.pitch_cv_connected) {
+        // CV+CW: exact 1 V/oct at full clockwise AR.
+        pitch_mod_semi = s.params.pitch_ar * s.params.pitch_cv * 12.f;
+    } else {
+        // Unpatched/CCW: random walk or peaked randomization, spanning ±24 st.
+        pitch_mod_semi = ar_pitch_val * 24.f;
+    }
+    float pitch_semi_eff = particules_dsp::Clamp(
+        s.params.pitch_semitones + pitch_mod_semi, -24.f, 24.f);
+    float shift_ratio = std::fabs(pitch_semi_eff) < kShifterBypassSemitones
                              ? 1.f
-                             : std::exp2(pitch_semitones / 12.f);
+                             : std::exp2(pitch_semi_eff / 12.f);
     s.shifter.SetRatio(shift_ratio);
+
+    // Block-rate: FEEDBACK/BLEND CV (no AR), smoothing targets.
+    float feedback_eff = particules_dsp::Clamp(
+        s.params.feedback + s.params.feedback_cv / 5.f, 0.f, 1.f);
+    float dry_wet_eff = particules_dsp::Clamp(
+        s.params.dry_wet + s.params.dry_wet_cv / 5.f, 0.f, 1.f);
 
     bool feedback_state_bad = false;
 
     for (size_t i = 0; i < n; ++i) {
-        particules_dsp::OnePole(s.smoothed_dry_wet, s.params.dry_wet, 0.05f);
-        particules_dsp::OnePole(s.smoothed_feedback, s.params.feedback, 0.05f);
+        particules_dsp::OnePole(s.smoothed_dry_wet, dry_wet_eff, 0.05f);
+        particules_dsp::OnePole(s.smoothed_feedback, feedback_eff, 0.05f);
 
         // NaN guard: sanitize input before it can reach the engine/buffer.
         StereoFrame input = in[i];
@@ -169,8 +208,8 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
     // if it ever went non-finite.
     if (feedback_state_bad || !std::isfinite(s.smoothed_feedback) ||
         !std::isfinite(s.smoothed_dry_wet)) {
-        s.smoothed_feedback = particules_dsp::Clamp(s.params.feedback, 0.f, 1.f);
-        s.smoothed_dry_wet = particules_dsp::Clamp(s.params.dry_wet, 0.f, 1.f);
+        s.smoothed_feedback = feedback_eff;
+        s.smoothed_dry_wet = dry_wet_eff;
         s.feedback_hp_l.Reset();
         s.feedback_hp_r.Reset();
     }

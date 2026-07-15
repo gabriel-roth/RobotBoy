@@ -9,6 +9,8 @@
 #include "time/base_time.h"
 #include "pitch/rotary_shifter.h"
 #include "env/repeat_envelope.h"
+#include "mod/ar_modulator.h"
+#include "random/random.h"
 
 namespace beadsdelay_dsp {
 
@@ -21,6 +23,11 @@ struct EchosProcessor::Impl {
     EchoEngine engine;
     RotaryShifter shifter;
     RepeatEnvelope envelope;
+
+    // Slow-random attenurandomizer modulation (TIME/PITCH/SHAPE), sharing
+    // one PRNG across three independently-salted LFOs.
+    particules_dsp::Random mod_rng;
+    ArModulator ar_time, ar_pitch, ar_shape;
 
     EchosParameters params;
     float sample_rate = 48000.f;
