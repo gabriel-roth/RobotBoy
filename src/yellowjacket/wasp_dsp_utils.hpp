@@ -65,40 +65,99 @@ inline constexpr float kHalfbandTaps[kHbN] = {
     8.44199816e-04f, 0.00000000e+00f, -3.43387434e-04f
 };
 
-// Simple shift-register FIR halfband pair (correctness over cleverness; the
-// even-offset zero taps could be exploited to halve the multiply count, but
-// N=47 direct-form convolution twice per audio sample is cheap enough here).
+// Halfband polyphase structure: in kHalfbandTaps, every tap at an even index
+// is nonzero, and every tap at an odd index is exactly 0.0 *except* the
+// center tap (index kHbN/2 = 23, the largest coefficient, ~0.5). Concretely:
+// taps[0,2,4,...,46] are nonzero (24 taps) and taps[23] is nonzero; the
+// other 22 odd-indexed taps are all 0.0 (see the array above).
+//
+// HalfbandUp zero-stuffs the input (in, 0) before filtering each of the two
+// output phases. Zero-stuffing means the "0" half of the interleaved history
+// is *known* to be 0 without needing to store or read it, and the two
+// filter phases only ever end up multiplying against one parity of taps:
+//   out2[0] (phase using the just-arrived real sample at lag 0) hits only
+//     the even-indexed taps, weighted by the last 24 real input samples.
+//   out2[1] (the other phase) hits only the odd-indexed taps, all of which
+//     are 0 except the center — so it collapses to a single delayed sample
+//     times the center tap.
+// HalfbandDown mirrors this: convolving the interleaved (in0, in1) sequence
+// against the same taps means the even taps only ever see the in1 stream
+// and the (lone nonzero) center tap only ever sees the in0 stream at one
+// fixed lag.
+//
+// This lets both structs replace the O(kHbN) history shift + O(kHbN) MAC
+// (done twice per process() call) with a small ring buffer (no per-sample
+// data movement, just a moving write index) and ~kHbHalf+1 MACs instead of
+// 2*kHbN, while producing bit-identical (up to float reassociation) output
+// to the direct-form implementation this replaced — see
+// ReferenceHalfbandUp/ReferenceHalfbandDown and the equivalence test in
+// tests/yellowjacket/test_wasp_utils.cpp.
+inline constexpr int kHbCenter = kHbN / 2;           // 23: index of the sole nonzero odd tap
+inline constexpr int kHbHalf = (kHbN + 1) / 2;        // 24: count of nonzero even-indexed taps
+inline constexpr int kHbCenterDelay = kHbCenter / 2;  // 11: history lag reaching the center tap
+
 struct HalfbandUp {
-    float hist[kHbN] = {};
-    void reset() { for (float& h : hist) h = 0.f; }
+    // ring[j samples back from the most recent input] for j in [0, kHbHalf).
+    float ring[kHbHalf] = {};
+    int head = 0; // index in `ring` holding the most-recently-written sample
+
+    void reset() { for (float& v : ring) v = 0.f; head = 0; }
+
     // Zero-stuff (in, 0) then filter each phase; 2x tap gain restores the
     // amplitude halved by zero-stuffing (unity-gain halfband filter).
     void process(float in, float* out2) {
-        for (int i = kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
-        hist[0] = in;
+        head = (head + 1 == kHbHalf) ? 0 : head + 1;
+        ring[head] = in;
+
+        // acc0 = sum over even tap indices 2*j of taps[2*j] * (input j
+        // samples ago), walked backward from `head` with wraparound split
+        // into two contiguous runs (no per-iteration modulo/branch).
         float acc0 = 0.f;
-        for (int i = 0; i < kHbN; ++i) acc0 += kHalfbandTaps[i] * hist[i];
+        int j = 0;
+        for (int idx = head; idx >= 0 && j < kHbHalf; --idx, ++j)
+            acc0 += kHalfbandTaps[2 * j] * ring[idx];
+        for (int idx = kHbHalf - 1; j < kHbHalf; --idx, ++j)
+            acc0 += kHalfbandTaps[2 * j] * ring[idx];
         out2[0] = 2.f * acc0;
 
-        for (int i = kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
-        hist[0] = 0.f;
-        float acc1 = 0.f;
-        for (int i = 0; i < kHbN; ++i) acc1 += kHalfbandTaps[i] * hist[i];
-        out2[1] = 2.f * acc1;
+        int centerIdx = head - kHbCenterDelay;
+        if (centerIdx < 0) centerIdx += kHbHalf;
+        out2[1] = 2.f * kHalfbandTaps[kHbCenter] * ring[centerIdx];
     }
 };
+
 struct HalfbandDown {
-    float hist[kHbN] = {};
-    void reset() { for (float& h : hist) h = 0.f; }
+    static constexpr int kN1 = kHbHalf;             // history depth for the in1 stream
+    static constexpr int kN0 = kHbCenterDelay + 1;  // history depth for the in0 stream
+    float ring1[kN1] = {};
+    float ring0[kN0] = {};
+    int head1 = 0, head0 = 0;
+
+    void reset() {
+        for (float& v : ring1) v = 0.f;
+        for (float& v : ring0) v = 0.f;
+        head1 = 0; head0 = 0;
+    }
+
     // Filter at the up-rate, keep every 2nd (post-pair) output; unity-gain
     // filter, no amplitude compensation needed (no zero-stuffing here).
     float process(float in0, float in1) {
-        for (int i = kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
-        hist[0] = in0;
-        for (int i = kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
-        hist[0] = in1;
+        head1 = (head1 + 1 == kN1) ? 0 : head1 + 1;
+        ring1[head1] = in1;
+        head0 = (head0 + 1 == kN0) ? 0 : head0 + 1;
+        ring0[head0] = in0;
+
         float acc = 0.f;
-        for (int i = 0; i < kHbN; ++i) acc += kHalfbandTaps[i] * hist[i];
+        int j = 0;
+        for (int idx = head1; idx >= 0 && j < kN1; --idx, ++j)
+            acc += kHalfbandTaps[2 * j] * ring1[idx];
+        for (int idx = kN1 - 1; j < kN1; --idx, ++j)
+            acc += kHalfbandTaps[2 * j] * ring1[idx];
+
+        int centerIdx = head0 - kHbCenterDelay;
+        if (centerIdx < 0) centerIdx += kN0;
+        acc += kHalfbandTaps[kHbCenter] * ring0[centerIdx];
+
         return acc;
     }
 };

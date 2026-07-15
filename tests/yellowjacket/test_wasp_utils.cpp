@@ -8,6 +8,45 @@
 #include "../../src/yellowjacket/wasp_dsp_utils.hpp"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <chrono>
+
+// ── Reference halfband implementations (Task 5b) ───────────────────────────
+// Verbatim copies of the pre-optimization src/yellowjacket/wasp_dsp_utils.hpp
+// HalfbandUp/HalfbandDown (plain O(kHbN) shift-register, no sparsity
+// exploited). Kept here ONLY as an equivalence oracle for the optimized
+// ring-buffer versions in wasp_dsp_utils.hpp — never touched again once the
+// rewrite is verified bit-for-bit (up to float reordering) against this.
+struct ReferenceHalfbandUp {
+    float hist[wasp::kHbN] = {};
+    void reset() { for (float& h : hist) h = 0.f; }
+    void process(float in, float* out2) {
+        for (int i = wasp::kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
+        hist[0] = in;
+        float acc0 = 0.f;
+        for (int i = 0; i < wasp::kHbN; ++i) acc0 += wasp::kHalfbandTaps[i] * hist[i];
+        out2[0] = 2.f * acc0;
+
+        for (int i = wasp::kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
+        hist[0] = 0.f;
+        float acc1 = 0.f;
+        for (int i = 0; i < wasp::kHbN; ++i) acc1 += wasp::kHalfbandTaps[i] * hist[i];
+        out2[1] = 2.f * acc1;
+    }
+};
+struct ReferenceHalfbandDown {
+    float hist[wasp::kHbN] = {};
+    void reset() { for (float& h : hist) h = 0.f; }
+    float process(float in0, float in1) {
+        for (int i = wasp::kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
+        hist[0] = in0;
+        for (int i = wasp::kHbN - 1; i > 0; --i) hist[i] = hist[i - 1];
+        hist[0] = in1;
+        float acc = 0.f;
+        for (int i = 0; i < wasp::kHbN; ++i) acc += wasp::kHalfbandTaps[i] * hist[i];
+        return acc;
+    }
+};
 
 // ── Test harness (copied pattern from tests/mf20/test_module_dsp.cpp) ──────
 
@@ -197,6 +236,216 @@ static void test_halfband_roundtrip() {
     report(std::fabs(dB) < 0.3f, "Halfband round trip RMS within 0.3 dB", buf);
 }
 
+// ── Halfband optimized-vs-reference equivalence (Task 5b) ──────────────────
+// Drives wasp::HalfbandUp/Down side-by-side with ReferenceHalfbandUp/Down
+// (the pre-optimization shift-register implementation, copied verbatim
+// above) over noise+sine input, checking sample-for-sample agreement within
+// 1e-6 absolute. This is the safety net for the ring-buffer/sparse-tap
+// rewrite: same 47 taps, same semantics, only the bookkeeping changed.
+static void test_halfband_matches_reference() {
+    printf("\n7. Halfband up/down: optimized matches reference implementation\n");
+    const float fs = 48000.f;
+    const float freq = 1000.f;
+    const float kPi = 3.14159265358979f;
+    const int n = 4000;
+    const float tol = 1e-6f;
+
+    srand(12345);
+
+    // -- Up path --
+    {
+        wasp::HalfbandUp up;
+        ReferenceHalfbandUp refUp;
+        float maxDiff = 0.f;
+        bool ok = true;
+        for (int i = 0; i < n; ++i) {
+            float noise = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float in = std::sin(2.f * kPi * freq * (float)i / fs) * 0.5f + noise * 0.3f;
+            float got[2], want[2];
+            up.process(in, got);
+            refUp.process(in, want);
+            for (int k = 0; k < 2; ++k) {
+                float d = std::fabs(got[k] - want[k]);
+                if (d > maxDiff) maxDiff = d;
+                if (d > tol) ok = false;
+            }
+        }
+        char buf[96];
+        snprintf(buf, sizeof(buf), "n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
+        report(ok, "HalfbandUp matches ReferenceHalfbandUp within 1e-6", buf);
+    }
+
+    // -- Up path, immediately after reset() (mid-stream) --
+    {
+        wasp::HalfbandUp up;
+        ReferenceHalfbandUp refUp;
+        // Warm both up identically first, then reset both and re-check.
+        for (int i = 0; i < 500; ++i) {
+            float in = std::sin(2.f * kPi * freq * (float)i / fs);
+            float o[2];
+            up.process(in, o);
+            refUp.process(in, o);
+        }
+        up.reset();
+        refUp.reset();
+        float maxDiff = 0.f;
+        bool ok = true;
+        for (int i = 0; i < n; ++i) {
+            float noise = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float in = std::cos(2.f * kPi * freq * (float)i / fs) * 0.7f + noise * 0.2f;
+            float got[2], want[2];
+            up.process(in, got);
+            refUp.process(in, want);
+            for (int k = 0; k < 2; ++k) {
+                float d = std::fabs(got[k] - want[k]);
+                if (d > maxDiff) maxDiff = d;
+                if (d > tol) ok = false;
+            }
+        }
+        char buf[96];
+        snprintf(buf, sizeof(buf), "post-reset n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
+        report(ok, "HalfbandUp matches reference immediately after reset()", buf);
+    }
+
+    // -- Down path --
+    {
+        wasp::HalfbandDown down;
+        ReferenceHalfbandDown refDown;
+        float maxDiff = 0.f;
+        bool ok = true;
+        for (int i = 0; i < n; ++i) {
+            float noise0 = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float noise1 = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float in0 = std::sin(2.f * kPi * freq * (float)(2*i)   / fs) * 0.5f + noise0 * 0.3f;
+            float in1 = std::sin(2.f * kPi * freq * (float)(2*i+1) / fs) * 0.5f + noise1 * 0.3f;
+            float got = down.process(in0, in1);
+            float want = refDown.process(in0, in1);
+            float d = std::fabs(got - want);
+            if (d > maxDiff) maxDiff = d;
+            if (d > tol) ok = false;
+        }
+        char buf[96];
+        snprintf(buf, sizeof(buf), "n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
+        report(ok, "HalfbandDown matches ReferenceHalfbandDown within 1e-6", buf);
+    }
+
+    // -- Down path, immediately after reset() (mid-stream) --
+    {
+        wasp::HalfbandDown down;
+        ReferenceHalfbandDown refDown;
+        for (int i = 0; i < 500; ++i) {
+            float in0 = std::sin(2.f * kPi * freq * (float)(2*i)   / fs);
+            float in1 = std::sin(2.f * kPi * freq * (float)(2*i+1) / fs);
+            down.process(in0, in1);
+            refDown.process(in0, in1);
+        }
+        down.reset();
+        refDown.reset();
+        float maxDiff = 0.f;
+        bool ok = true;
+        for (int i = 0; i < n; ++i) {
+            float noise0 = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float noise1 = ((float)rand() / (float)RAND_MAX) * 2.f - 1.f;
+            float in0 = std::cos(2.f * kPi * freq * (float)(2*i)   / fs) * 0.6f + noise0 * 0.2f;
+            float in1 = std::cos(2.f * kPi * freq * (float)(2*i+1) / fs) * 0.6f + noise1 * 0.2f;
+            float got = down.process(in0, in1);
+            float want = refDown.process(in0, in1);
+            float d = std::fabs(got - want);
+            if (d > maxDiff) maxDiff = d;
+            if (d > tol) ok = false;
+        }
+        char buf[96];
+        snprintf(buf, sizeof(buf), "post-reset n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
+        report(ok, "HalfbandDown matches reference immediately after reset()", buf);
+    }
+}
+
+// ── Halfband perf bench (Task 5b, informational — not a pass/fail test) ────
+// Times a 10s-equivalent 4x-oversampled stereo render loop (3 HalfbandUp +
+// 9 HalfbandDown calls/channel/host-sample, per the Task 5 accounting) using
+// the CURRENT (optimized) wasp::HalfbandUp/Down, then the same loop against
+// the Reference (pre-optimization) implementations, and reports the ratio.
+static void bench_halfband() {
+    printf("\n8. Halfband perf bench (4x stereo, 10s-equivalent)\n");
+    const float fs = 48000.f;
+    const int hostSamples = (int)(fs * 10.0); // 10s of host-rate samples
+    const float freq = 220.f;
+    const float kPi = 3.14159265358979f;
+
+    auto runOptimized = [&]() {
+        wasp::HalfbandUp up[2], up4a[2];
+        wasp::HalfbandDown downLp[2], downBp[2], downHp[2];
+        wasp::HalfbandDown downLp4a[2], downBp4a[2], downHp4a[2];
+        double sink = 0.0;
+        for (int i = 0; i < hostSamples; ++i) {
+            for (int ch = 0; ch < 2; ++ch) {
+                float in = std::sin(2.f * kPi * freq * (float)i / fs);
+                float buf2[2]; up[ch].process(in, buf2);
+                float buf4[4];
+                up4a[ch].process(buf2[0], &buf4[0]);
+                up4a[ch].process(buf2[1], &buf4[2]);
+                // Stand in for the 4 WaspFilter::process calls (out of scope
+                // here) with the identity, then decimate back down exactly
+                // as engine.hpp's Channel::process os==4 path does.
+                float midLp0 = downLp4a[ch].process(buf4[0], buf4[1]);
+                float midLp1 = downLp4a[ch].process(buf4[2], buf4[3]);
+                float midBp0 = downBp4a[ch].process(buf4[0], buf4[1]);
+                float midBp1 = downBp4a[ch].process(buf4[2], buf4[3]);
+                float midHp0 = downHp4a[ch].process(buf4[0], buf4[1]);
+                float midHp1 = downHp4a[ch].process(buf4[2], buf4[3]);
+                sink += downLp[ch].process(midLp0, midLp1);
+                sink += downBp[ch].process(midBp0, midBp1);
+                sink += downHp[ch].process(midHp0, midHp1);
+            }
+        }
+        return sink;
+    };
+    auto runReference = [&]() {
+        ReferenceHalfbandUp up[2], up4a[2];
+        ReferenceHalfbandDown downLp[2], downBp[2], downHp[2];
+        ReferenceHalfbandDown downLp4a[2], downBp4a[2], downHp4a[2];
+        double sink = 0.0;
+        for (int i = 0; i < hostSamples; ++i) {
+            for (int ch = 0; ch < 2; ++ch) {
+                float in = std::sin(2.f * kPi * freq * (float)i / fs);
+                float buf2[2]; up[ch].process(in, buf2);
+                float buf4[4];
+                up4a[ch].process(buf2[0], &buf4[0]);
+                up4a[ch].process(buf2[1], &buf4[2]);
+                float midLp0 = downLp4a[ch].process(buf4[0], buf4[1]);
+                float midLp1 = downLp4a[ch].process(buf4[2], buf4[3]);
+                float midBp0 = downBp4a[ch].process(buf4[0], buf4[1]);
+                float midBp1 = downBp4a[ch].process(buf4[2], buf4[3]);
+                float midHp0 = downHp4a[ch].process(buf4[0], buf4[1]);
+                float midHp1 = downHp4a[ch].process(buf4[2], buf4[3]);
+                sink += downLp[ch].process(midLp0, midLp1);
+                sink += downBp[ch].process(midBp0, midBp1);
+                sink += downHp[ch].process(midHp0, midHp1);
+            }
+        }
+        return sink;
+    };
+
+    using clk = std::chrono::steady_clock;
+
+    auto t0 = clk::now();
+    double sinkOpt = runOptimized();
+    auto t1 = clk::now();
+    double sinkRef = runReference();
+    auto t2 = clk::now();
+
+    double msOpt = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    double msRef = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    double ratio = msRef / msOpt;
+
+    printf("  optimized: %.2f ms  (sink=%.6f, ignore)\n", msOpt, sinkOpt);
+    printf("  reference: %.2f ms  (sink=%.6f, ignore)\n", msRef, sinkRef);
+    printf("  speedup:   %.2fx\n", ratio);
+    // Informational bench, not a strict gate (timing varies by machine), but
+    // fail loudly if the "optimization" regressed rather than helped.
+    report(ratio > 1.0, "optimized halfband render loop is faster than reference");
+}
+
 // ── railClamp ───────────────────────────────────────────────────────────────
 
 static void test_rail_clamp() {
@@ -245,6 +494,8 @@ int main() {
     test_compute_h1();
     test_dc_blocker();
     test_halfband_roundtrip();
+    test_halfband_matches_reference();
+    bench_halfband();
     test_rail_clamp();
 
     printf("\n=======================\n");
