@@ -74,9 +74,24 @@ kC2eff   = R3*C2*wc_int - kR2*wc_int/(2*pi*fPole)
 - **fPole = 80 kHz** (default kept). Swept 60/80/100/120 kHz: Screaming
   self-osc amplitude and frequency are insensitive (amp 2.64-2.67 V,
   freq 714-720 Hz) because the amplitude is rail-bound, not
-  damping-bound. Tame constrains the low end: at 60 kHz the Tame tail is
-  0.17 V (fails the <0.05 V criterion); at 80/100/120 kHz it decays to
-  ~0. So fPole must stay >= ~80 kHz; 80 kHz retained.
+  damping-bound. Tame constrains the low end. Full-duration (2 s) Tame
+  tail sweep with the final committed constants (fc=1000, rho=1,
+  criterion < 0.05 V):
+
+  | fPole | Tame tail | verdict |
+  |---|---|---|
+  | 40 kHz | 1.381 V | FAIL (free-runs) |
+  | 50 kHz | 1.358 V | FAIL (free-runs) |
+  | 55 kHz | 1.340 V | FAIL (free-runs) |
+  | 60 kHz | 0.0114 V | PASS |
+  | 80 kHz | 2.34e-12 V | PASS |
+
+  Tame's free-run threshold sits between 55 and 60 kHz; **fPole must
+  stay >= ~60 kHz** (context-menu slider floor should respect this),
+  80 kHz retained as default. (An earlier revision of this file claimed
+  60 kHz fails with a 0.17 V tail — that number came from a shortened
+  1 s probe measured mid-decay, not from the committed constants;
+  corrected here after review.)
 - Screaming makeup = 2.0, Tame makeup = 2.4 (spec Rev 1; makeup is
   applied outside the golden numbers — self-osc amplitude is measured on
   the raw BP state, small-signal responses are raw LP).
@@ -135,7 +150,7 @@ the peak reading by 2.5 dB; at 20 mV it matches theory within 0.03 dB).
   freq ratio 1.016 at that tiny amplitude) — matching the spec's
   "self-oscillates for mid/high cutoffs" (H1's pole raises Re H1 at low
   fc); Task 3 self-osc tests should probe fc >= ~500 Hz.
-- **Tame rings out: PASS.** Tail amplitude ~2e-5 V (criterion < 0.05 V)
+- **Tame rings out: PASS.** Tail amplitude 2.34e-12 V (criterion < 0.05 V)
   at fc=1000, rho=1, fPole=80 kHz — verge-of-oscillation behavior, no
   free-run.
 
@@ -202,3 +217,8 @@ against these within their own tolerances.
 | `selfosc_tame_amp` | Same amplitude measurement for Tame — must be ~0 (rings out). |
 | `lambda_screaming`, `lambda_tame` | Rev-1 loop-gain factor A0/(nInv+A0) from the fitted A0. |
 | `fpole` | Inverter bandwidth (Hz) used for kC2eff (Rev 1 default 80e3). |
+
+Implementation note: `wasp_ref.H1_of_jw` deliberately duplicates
+h1_check.py's Delta-Y-Delta math rather than importing it (h1_check.py
+runs top-level prints on import); the two were verified numerically
+identical.
