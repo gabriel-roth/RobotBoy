@@ -2,12 +2,13 @@
   "MetaModuleBrandName": "Robot Boy",
   "MetaModuleBrandSlug": "RobotBoy",
   "MetaModulePluginMaintainer": "Gabriel Roth",
-  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20 filter, Particules granular texture synth, and Ondes wavetable oscillator.",
+  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20 filter, Particules granular texture synth, Ondes wavetable oscillator, and Échos delay.",
   "MetaModuleIncludedModules": [
     { "slug": "Loooop", "name": "Loooop", "displayName": "Loooop" },
     { "slug": "Lop", "name": "Löp", "displayName": "Löp" },
     { "slug": "MF20Filter", "name": "MF-20", "displayName": "MF-20" },
     { "slug": "Particules", "name": "Particules", "displayName": "Particules" },
-    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" }
+    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" },
+    { "slug": "Echos", "name": "Échos", "displayName": "Échos" }
   ]
 }
