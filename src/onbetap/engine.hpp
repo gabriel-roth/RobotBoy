@@ -28,6 +28,41 @@ struct DCBlock {
     void reset() { x1 = y1 = 0.f; }
 };
 
+// 13-tap decimation lowpass FIR, run at the oversampled rate ahead of
+// downsampling. Replaces a 2-tap boxcar average decimator, which only
+// attenuates the alias band by ~3 dB at the new Nyquist (cos(pi/4)) —
+// audible top-octave droop plus aliased spurs folding back into the audio
+// band (measured, Task 5: -29.5 dB worst spur at 5 kHz/max drive, -2.6 dB
+// droop @ 18 kHz pre-fix). Kaiser-windowed FIR (scipy firwin, 13 taps,
+// cutoff 23.5 kHz, beta 1.0, at fsOs = 96 kHz for 2x oversampling), tuned
+// for passband flatness rather than max stopband: the linear-interp
+// upsampler ahead of it (untouched, in scope for a later task) already
+// contributes ~1.4 dB of its own droop near 18-20 kHz, so the decimator's
+// budget has to stay under ~0.5 dB there for the combined path to clear
+// the 2 dB target (measured combined droop 0.7 dB @ 18 kHz after this
+// swap — see docs/research/onbetap-worklog.md). A textbook 7-tap
+// half-band was tried first and rejected: it is pinned to -6 dB at exactly
+// fsOs/4 by construction, which pushed the measured 18 kHz droop to
+// -3.4 dB, worse than the boxcar it replaced. push() is called once per
+// oversampled substep; only the value returned on the substep that lands
+// on a decimation instant is kept.
+struct DecimFir13 {
+    static constexpr float h[13] = {
+        0.0078065f,  0.0510650f, -0.0089609f, -0.0952920f,  0.0096953f,
+        0.3019243f,  0.4675237f,  0.3019243f,  0.0096953f, -0.0952920f,
+       -0.0089609f,  0.0510650f,  0.0078065f
+    };
+    float z[13] = {0.f};
+    void reset() { for (auto& v : z) v = 0.f; }
+    float push(float x) {
+        for (int i = 12; i > 0; i--) z[i] = z[i - 1];
+        z[0] = x;
+        float y = 0.f;
+        for (int i = 0; i < 13; i++) y += h[i] * z[i];
+        return y;
+    }
+};
+
 struct OnbetapVoice {
     // Defaults ≈ 750 Hz at 96 kHz (2× OS of 48 kHz); corrected by the first
     // modulate() within 2.5 ms.
@@ -43,6 +78,8 @@ struct OnbetapVoice {
     float xPrevL = 0.f, xPrevR = 0.f;
     float fRgRatio = 1.f;
     DCBlock dcL, dcR;
+    // Decimation FIR state, one per tap per side (2x oversampling path only).
+    DecimFir13 firLpL, firBpL, firHpL, firLpR, firBpR, firHpR;
 
     void setAlpha(float a) {
         gSlew.setAlpha(a); kSlew.setAlpha(a);
@@ -58,6 +95,8 @@ struct OnbetapVoice {
         fRgRatio = 1.f;
         dcL.reset();
         dcR.reset();
+        firLpL.reset(); firBpL.reset(); firHpL.reset();
+        firLpR.reset(); firBpR.reset(); firHpR.reset();
     }
     // NaN recovery per modulate block: filters only (smoother inputs are
     // clamped params, always finite) — avoids a parameter sweep on recovery.

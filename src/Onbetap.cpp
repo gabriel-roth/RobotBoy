@@ -19,11 +19,14 @@
 static constexpr float kVoltsToCore = 1.f / 2.4f;
 static constexpr float kBaseTrim    = 0.4f;   // drive=0 → mild warmth at ±5 V
 // drive knob [0,1] → gain exp2(lerp(-2, +4, d)) = 0.25×…16× (−12…+24 dB)
-// makeup = 1/sqrt(driveGain/0.25): unity at drive=0, −18 dB at max
+// makeup = (driveGain/0.25)^-kMakeupExp: unity at drive=0, tapers loudness
+// growth at max drive so the end-to-end RMS bump stays under the Task 5
+// +6 dB level target (raised from a plain inverse-sqrt, which overshot it).
 // output: volts = core × kOutScale × makeup, then VCA sat 9·tanhish(v/9)
-static constexpr float kOutScale = 10.5f;     // calibrated in Task 5
+static constexpr float kOutScale   = 20.5f;   // calibrated in Task 5
+static constexpr float kMakeupExp  = 0.75f;   // calibrated in Task 5
 static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
-static constexpr float kVintageDriftOct = 0.18f;  // OU stationary std
+static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
 static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
 static constexpr float kTwoPi = 6.28318530717959f;
 
@@ -180,7 +183,7 @@ struct Onbetap : Module {
 			float spanOct = tuneDriveDb / 6.0206f;               // dB → octaves
 			float driveGain = std::exp2(-2.f + spanOct * drive); // 0.25 → …
 			v.driveTarget  = driveGain * kBaseTrim * kVoltsToCore * tuneHeadroom;
-			v.makeupTarget = std::sqrt(0.25f / driveGain)
+			v.makeupTarget = std::pow(0.25f / driveGain, kMakeupExp)
 			               * kOutScale * std::exp2(tuneOutDb / 6.0206f);
 
 			// Character: mismatch + cutoff-scaled offset (vintage), R drift as
@@ -205,19 +208,39 @@ struct Onbetap : Module {
 	}
 
 	// One stereo side through the oversampled core. Returns output volts.
+	// fir{Lp,Bp,Hp} are only touched (and only meaningful) on the 2x path;
+	// the 1x path bypasses them entirely, and 4x keeps the original crude
+	// boxcar average (out of this task's scope — see worklog).
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
-	                  float g, float kEff, float driveScale, float makeup) {
+	                  float g, float kEff, float driveScale, float makeup,
+	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp) {
 		float lp = 0, bp = 0, hp = 0;
 		float x1 = inVolts * driveScale;
-		for (int i = 1; i <= oversample; i++) {
-			float t = (float)i / oversample;
-			float x = xPrev + (x1 - xPrev) * t;      // linear interp upsample
-			auto o = flt.processG(x, g, kEff);
-			lp += o.lp; bp += o.bp; hp += o.hp;      // average = crude decimator
+		if (oversample == 2) {
+			// 2x: 13-tap decimation FIR (see engine.hpp DecimFir13) replaces
+			// the crude 2-tap boxcar average, which under-attenuates the
+			// alias band and both droops the top octave and lets content
+			// above the new Nyquist fold back down (measured, Task 5).
+			for (int i = 1; i <= 2; i++) {
+				float t = (float)i / 2.f;
+				float x = xPrev + (x1 - xPrev) * t;  // linear interp upsample
+				auto o = flt.processG(x, g, kEff);
+				float fl = firLp.push(o.lp);
+				float fb = firBp.push(o.bp);
+				float fh = firHp.push(o.hp);
+				if (i == 2) { lp = fl; bp = fb; hp = fh; }  // decimate: keep 1 of 2
+			}
+		} else {
+			for (int i = 1; i <= oversample; i++) {
+				float t = (float)i / oversample;
+				float x = xPrev + (x1 - xPrev) * t;      // linear interp upsample
+				auto o = flt.processG(x, g, kEff);
+				lp += o.lp; bp += o.bp; hp += o.hp;      // average = crude decimator
+			}
+			float inv = 1.f / oversample;
+			lp *= inv; bp *= inv; hp *= inv;
 		}
 		xPrev = x1;
-		float inv = 1.f / oversample;
-		lp *= inv; bp *= inv; hp *= inv;
 
 		// taps + 5 ms crossfade on mode change (Vintage: hard switch, DC step
 		// and all, like the factory panel switch)
@@ -262,13 +285,15 @@ struct Onbetap : Module {
 			kEff = std::max(kEff, -0.31f);           // denominator guard floor
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
-			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup);
+			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
+			                         v.firLpL, v.firBpL, v.firHpL);
 			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
 
 			if (rConnected) {
 				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
 				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
-				                         g * v.fRgRatio, kEff, drive, makeup);
+				                         g * v.fRgRatio, kEff, drive, makeup,
+				                         v.firLpR, v.firBpR, v.firHpR);
 				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
 			} else {
 				// R normalled to L → mirror L (skips a full core solve; in
