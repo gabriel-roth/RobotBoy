@@ -281,8 +281,11 @@ struct Yellowjacket : Module {
 	}
 
 	// Process one voice (channel c). Advances its smoothers and runs the
-	// audio cascade for L, and for R unless it's normalled to L.
-	void processChannel(int c) {
+	// audio cascade for L, and for R unless it's normalled to L. The shared
+	// module-level smoothers (blend, output level) are advanced once per
+	// sample in process() — not here — so every voice sees the same value
+	// and the slew time constant doesn't shrink with the voice count.
+	void processChannel(int c, float m, float outGain) {
 		wasp::VoiceEngine& eng = _pool.engines[c];
 
 		float g     = eng.gSlew.process(eng.gTarget);
@@ -297,9 +300,6 @@ struct Yellowjacket : Module {
 			eng.beta1Slew.process(eng.beta1Target),
 			eng.alpha1Slew.process(eng.alpha1Target)
 		};
-
-		float m = _blendSlew.process(_blendTarget);
-		float outGain = _outputLevelSlew.process(_outputLevelTarget);
 
 		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
 		wasp::WaspFilter::Out oL =
@@ -343,8 +343,12 @@ struct Yellowjacket : Module {
 		}
 
 		_dither = -_dither;
+		// Shared smoothers advance once per sample (MF-20 pattern), not per
+		// voice — see processChannel's comment.
+		float m = _blendSlew.process(_blendTarget);
+		float outGain = _outputLevelSlew.process(_outputLevelTarget);
 		for (int c = 0; c < channels; c++)
-			processChannel(c);
+			processChannel(c, m, outGain);
 	}
 
 	json_t* dataToJson() override {
