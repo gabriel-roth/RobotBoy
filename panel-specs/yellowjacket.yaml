@@ -39,6 +39,7 @@ rows:
   - type: inputs
     gap_above: 4
     items:
+      - {label: "{blank}", name: BLEND_INPUT}
       - {label: In, name: AUDIO_INPUT, pair: AUDIO_INPUT_R}
       - {label: HP, name: HP_OUTPUT,   pair: HP_OUTPUT_R, type: outputs}
 
@@ -63,6 +64,7 @@ connectors:
   - [RES_PARAM, RES_CV_PARAM]
   - [FREQ_PARAM, FREQ_CV_PARAM]
   - [DRIVE_PARAM, DRIVE_CV_PARAM]
+  - [BLEND_INPUT, BLEND_PARAM]
 
 # Wasp amber/yellow control zone behind the compressed knob cluster only; it
 # stops just below the CV jacks. (h tuned to the generated CV-jack row.)
@@ -89,12 +91,13 @@ nudges:
   # right col -> 35.8) and align Blend (left) and BP (right) onto them. Pair
   # nudges move both L/R jacks; a knobs-row item (Blend, BP) distributes
   # differently so it gets its own offset.
-  AUDIO_INPUT: [13.2, -1.2]  # centered horizontally, and vertically in the gap
-  MIX_OUTPUT:  [2.8, -4.2]   # up to the BP<->LP midpoint
-  BLEND_PARAM: [4.53, 3.95]  # up to the HP<->BP midpoint
-  HP_OUTPUT:   [-2.8, 16.0]   # HP/BP/LP column dropped so LP label base = screw centre
+  AUDIO_INPUT: [4.48, -1.2]  # centered horizontally, and vertically in the gap
+  MIX_OUTPUT:  [2.8, 3.4]    # aligned vertically with LP
+  BLEND_PARAM: [4.53, 11.55] # aligned vertically with BP
+  HP_OUTPUT:   [-3.04, 16.0]  # HP/BP/LP column: LP label base = screw centre
   LP_OUTPUT:   [-2.8, 3.4]
   BP_OUTPUT:   [2.93, 11.55]
+  BLEND_INPUT: [7.5, 16.0]    # x -> Blend column (14.997), y -> HP level
 
 # BP sits in a knobs row, which drops its label further from the jack than the
 # inputs/outputs rows do; pull the BP label up so its jack->label gap (1.74mm)

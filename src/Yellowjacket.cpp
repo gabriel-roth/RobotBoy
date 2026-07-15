@@ -26,6 +26,7 @@ struct Yellowjacket : Module {
 		FREQ_INPUT,
 		RES_INPUT,
 		DRIVE_INPUT,
+		BLEND_INPUT,
 		NUM_INPUTS
 	};
 	enum OutputId {
@@ -65,6 +66,7 @@ struct Yellowjacket : Module {
 		configInput(FREQ_INPUT,  "Frequency CV");
 		configInput(RES_INPUT,   "Resonance CV");
 		configInput(DRIVE_INPUT, "Drive CV");
+		configInput(BLEND_INPUT, "Blend CV");
 
 		configOutput(LP_OUTPUT,   "Lowpass L");
 		configOutput(LP_OUTPUT_R, "Lowpass R");
@@ -158,16 +160,17 @@ struct YellowjacketWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.550, 69.550)), module, Yellowjacket::AUDIO_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.250, 69.550)), module, Yellowjacket::AUDIO_INPUT_R));
 
-		// Lower zone — right column HP/BP/LP interleaved with left column Blend/Mix.
+		// Lower zone. Left column: Blend CV / Blend knob / Mix. Right column: HP / BP / LP.
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(14.980, 86.750)), module, Yellowjacket::BLEND_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 86.750)), module, Yellowjacket::HP_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 86.750)), module, Yellowjacket::HP_OUTPUT_R));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.997, 94.350)), module, Yellowjacket::BLEND_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.997, 101.950)), module, Yellowjacket::BLEND_PARAM));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.947, 101.950)), module, Yellowjacket::BP_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.647, 101.950)), module, Yellowjacket::BP_OUTPUT_R));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.150, 109.550)), module, Yellowjacket::MIX_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(19.850, 109.550)), module, Yellowjacket::MIX_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.150, 117.150)), module, Yellowjacket::MIX_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(19.850, 117.150)), module, Yellowjacket::MIX_OUTPUT_R));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 117.150)), module, Yellowjacket::LP_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 117.150)), module, Yellowjacket::LP_OUTPUT_R));
 	}
