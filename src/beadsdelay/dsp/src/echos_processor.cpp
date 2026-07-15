@@ -1,12 +1,18 @@
 #include "echos_processor.h"
 #include "util/dsp_utils.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <new>
 
 namespace beadsdelay_dsp {
 
 static constexpr size_t kImplAlignment = 16;
+
+// kBufferFrames is a fixed frame count sized for 4 s @48k; BaseTimeControl
+// wants a duration, so express that same 4 s nominal here regardless of the
+// actual sample rate (it clamps the resulting sample count to kBufferFrames).
+static constexpr float kBufferSeconds = static_cast<float>(kBufferFrames) / 48000.f;
 
 static size_t AlignUp(size_t size, size_t alignment = kImplAlignment) {
     return (size + alignment - 1) & ~(alignment - 1);
@@ -58,6 +64,9 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     impl_->feedback_hp_l.SetFrequencyHz(10.0f, sample_rate);
     impl_->feedback_hp_r.Init();
     impl_->feedback_hp_r.SetFrequencyHz(10.0f, sample_rate);
+
+    impl_->base_time.Init(sample_rate, kBufferSeconds);
+    impl_->engine.Init(&impl_->recording_buffer, sample_rate);
 }
 
 void EchosProcessor::SetParameters(const EchosParameters& params) {
@@ -82,14 +91,59 @@ void EchosProcessor::Process(const StereoFrame* input, StereoFrame* output, size
 
 void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_t n) {
     Impl& s = *impl_;
-    // one-pole toward target, applied per sample to avoid zipper noise
+
+    // Block-rate: resolve base/delay time and push targets into the engine.
+    BaseTimeControl::Result bt = s.base_time.Update(
+        s.params.density, s.params.density_cv, s.params.time,
+        s.params.clock_connected, s.params.clock_tick_offset, n);
+    float slew_seconds = std::max(s.params.slew_seconds, 1e-3f);
+    s.engine.SetTargets(bt.delay_samples, bt.multi_tap, s.params.time_change_mode, slew_seconds);
+    // Task 7 completes freeze; for now this only stores state (stub).
+    s.engine.NotifyFreeze(s.params.freeze, bt.base_samples, bt.slice_index);
+
+    // Block-rate: linear input trim gain.
+    float input_gain = particules_dsp::DbToGain(s.params.input_trim_db);
+
+    bool feedback_state_bad = false;
+
     for (size_t i = 0; i < n; ++i) {
         particules_dsp::OnePole(s.smoothed_dry_wet, s.params.dry_wet, 0.05f);
-        // placeholder wet = silence until Task 3
-        StereoFrame wet{0.f, 0.f};
+        particules_dsp::OnePole(s.smoothed_feedback, s.params.feedback, 0.05f);
+
+        // NaN guard: sanitize input before it can reach the engine/buffer.
+        StereoFrame input = in[i];
+        if (!std::isfinite(input.l)) input.l = 0.f;
+        if (!std::isfinite(input.r)) input.r = 0.f;
+
+        StereoFrame wet = s.engine.ReadWet();
+
+        StereoFrame fb_in{wet.l * s.smoothed_feedback, wet.r * s.smoothed_feedback};
+        StereoFrame fb = s.saturation.LimitFeedback(fb_in, particules_dsp::QualityMode::kHiFi);
+        fb.l = s.feedback_hp_l.ProcessHP(fb.l);
+        fb.r = s.feedback_hp_r.ProcessHP(fb.r);
+        if (!std::isfinite(fb.l) || !std::isfinite(fb.r)) {
+            fb.l = 0.f;
+            fb.r = 0.f;
+            feedback_state_bad = true;
+        }
+
+        float trimmed_l = input.l * input_gain;
+        float trimmed_r = input.r * input_gain;
+        s.recording_buffer.Write(trimmed_l + fb.l, trimmed_r + fb.r);
+
         float mix = s.smoothed_dry_wet;
-        out[i].l = in[i].l * (1.f - mix) + wet.l * mix;
-        out[i].r = in[i].r * (1.f - mix) + wet.r * mix;
+        out[i].l = input.l * (1.f - mix) + wet.l * mix;
+        out[i].r = input.r * (1.f - mix) + wet.r * mix;
+    }
+
+    // NaN guard: flush feedback/filter state once per block (not per sample)
+    // if it ever went non-finite.
+    if (feedback_state_bad || !std::isfinite(s.smoothed_feedback) ||
+        !std::isfinite(s.smoothed_dry_wet)) {
+        s.smoothed_feedback = particules_dsp::Clamp(s.params.feedback, 0.f, 1.f);
+        s.smoothed_dry_wet = particules_dsp::Clamp(s.params.dry_wet, 0.f, 1.f);
+        s.feedback_hp_l.Reset();
+        s.feedback_hp_r.Reset();
     }
 }
 
@@ -98,15 +152,16 @@ void EchosProcessor::ClearBuffer() {
 }
 
 float EchosProcessor::BaseTimeSeconds() const {
-    return 0.0f;
+    return impl_ ? impl_->base_time.BaseSeconds() : 0.0f;
 }
 
 bool EchosProcessor::IsClocked() const {
-    return false;
+    return impl_ ? impl_->base_time.IsClocked() : false;
 }
 
 float EchosProcessor::DelayTimeSeconds() const {
-    return 0.0f;
+    if (!impl_ || impl_->sample_rate <= 0.f) return 0.0f;
+    return impl_->engine.CurrentDelaySamples() / impl_->sample_rate;
 }
 
 } // namespace beadsdelay_dsp

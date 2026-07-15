@@ -5,6 +5,8 @@
 #include "fx/saturation.h"
 #include "quality/quality_processor.h"
 #include "util/svf.h"
+#include "engine/echo_engine.h"
+#include "time/base_time.h"
 
 namespace beadsdelay_dsp {
 
@@ -13,6 +15,8 @@ struct EchosProcessor::Impl {
     particules_dsp::QualityProcessor quality_processor;
     particules_dsp::Saturation saturation;
     particules_dsp::StateVariableFilter feedback_hp_l, feedback_hp_r;
+    BaseTimeControl base_time;
+    EchoEngine engine;
 
     EchosParameters params;
     float sample_rate = 48000.f;
