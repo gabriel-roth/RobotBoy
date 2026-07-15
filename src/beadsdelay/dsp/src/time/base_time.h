@@ -10,6 +10,15 @@ class BaseTimeControl {
 public:
     void Init(float sample_rate, float buffer_seconds);
 
+    // Update the buffer's representable duration (in HOST samples) without
+    // resetting clock/tap-tempo state. Call on a quality-mode change: the
+    // effective buffer duration grows with the new decimation factor
+    // (kBufferFrames buffer-frames × decimation host-samples-per-frame),
+    // and DENSITY's manual-mode mapping (base = buffer_samples_ × ...) must
+    // see that larger duration to produce a proportionally longer delay for
+    // the same knob position.
+    void SetBufferSeconds(float buffer_seconds);
+
     struct Result {
         float base_samples;      // base delay time
         float delay_samples;     // base × TIME multiplier, clamped to buffer

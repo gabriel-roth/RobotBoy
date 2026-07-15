@@ -32,6 +32,16 @@ struct EchosProcessor::Impl {
     EchosParameters params;
     float sample_rate = 48000.f;
 
+    // Quality-mode change tracking (block-rate edge detect). Change is
+    // ignored while frozen (see self-review in task-8 report) — deferred
+    // change is picked up on the first block after unfreeze.
+    QualityMode prev_quality = QualityMode::kHiFi;
+    // Duck duration must cover the buffer clear time: with the chunk size
+    // below, draining the full buffer takes 128 blocks × 64 frames = 8192
+    // samples — same derivation as Particules' identical constant.
+    static constexpr int kQualityXfadeSamples = 8192;
+    int quality_xfade_counter = 0;
+
     // Smoothed mix params (zipper prevention)
     float smoothed_dry_wet = 0.5f;
     float smoothed_feedback = 0.f;

@@ -41,6 +41,11 @@ void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate
     slice_phase_ = 0.f;
     frozen_anchor_ = 0.f;
     read_subsample_ = buf_ ? static_cast<float>(buf_->write_head()) : 0.f;
+    read_rate_scale_ = 1.f;
+}
+
+void EchoEngine::SetReadRateScale(float scale) {
+    read_rate_scale_ = (std::isfinite(scale) && scale > 0.f) ? scale : 1.f;
 }
 
 void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
@@ -166,10 +171,10 @@ StereoFrame EchoEngine::ReadWet() {
     // top of this sample's processing, the buffer has not yet been written
     // to for this sample (the processor calls ReadWet() before Write()).
     float write_pos_continuous = read_subsample_;
-    read_subsample_ += 1.f / static_cast<float>(decimation);
+    read_subsample_ += read_rate_scale_ / static_cast<float>(decimation);
 
     if (frozen_) {
-        slice_phase_ += 1.f / static_cast<float>(decimation);
+        slice_phase_ += read_rate_scale_ / static_cast<float>(decimation);
         if (slice_phase_ < 0.f || slice_phase_ >= slice_len_frames_) {
             slice_phase_ = std::fmod(slice_phase_, slice_len_frames_);
             if (slice_phase_ < 0.f) slice_phase_ += slice_len_frames_;

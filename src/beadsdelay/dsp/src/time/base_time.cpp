@@ -218,6 +218,20 @@ BaseTimeControl::Result BaseTimeControl::Update(float density_knob, float densit
     return r;
 }
 
+void BaseTimeControl::SetBufferSeconds(float buffer_seconds) {
+    // Mirrors Init()'s "sample_rate_ * buffer_seconds" conversion, but skips
+    // Init's kBufferFrames upper clamp. That clamp encodes the decimation=1
+    // capacity (the buffer literally holds kBufferFrames host samples when
+    // every Write() advances the write head). At decimation > 1 the true
+    // host-sample capacity is kBufferFrames * decimation (each buffer frame
+    // now spans `decimation` host samples), which the caller computes and
+    // passes in directly — reapplying the decimation=1 cap here would
+    // silently discard the extra buffer time a quality-mode switch is meant
+    // to unlock, defeating the DENSITY-scales-with-buffer-size behavior.
+    float requested = sample_rate_ * buffer_seconds;
+    buffer_samples_ = std::max(requested, 1.f);
+}
+
 float BaseTimeControl::BaseSeconds() const {
     return last_base_samples_ / sample_rate_;
 }
