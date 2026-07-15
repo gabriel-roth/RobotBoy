@@ -25,13 +25,21 @@
 Shared:      R3=27e3  R2=27e3  C2=100e-12  R4=27e3  R13=1e6  R14=1e3
              R15=100e3  Rres=50e3  C7=0.22e-6  VT=0.025852  Is=2.52e-9  eta=1.752
 Derived:     kD = R3*2*Is = 1.3608e-4      vD = eta*VT = 0.045293
-Screaming:   c=0.296  kR2=3.70 (R2eff=27k||10k=7297)  nInv=6.70  wcComp=1/sqrt(3.70)=0.5199
-             rails: vHi=5.1 vLo=5.3 (12V supply, op point ~5.7V)  makeup=1.0
-Tame:        c=0.155  kR2=1.0  nInv=4.0  wcComp=1.0
-             rails: vHi=2.15 vLo=2.25 (5V supply, op point ~2.4V)  makeup=2.4
+Screaming:   c=0.296  kR2=3.70 (R2eff=27k||10k=7297)  nInv=6.70  makeup=2.0
+             rails: vHi=5.1 vLo=5.3 (12V supply, op point ~5.7V)
+Tame:        c=0.155  kR2=1.0  nInv=4.0  makeup=2.4
+             rails: vHi=2.15 vLo=2.25 (5V supply, op point ~2.4V)
 Inverter:    finv(vg) = vg<=0 ? vHi*tanh(-A0*vg/vHi) : -vLo*tanh(A0*vg/vLo)
              A0 (open-loop gain magnitude): default 25 (Screaming), 15 (Tame)
              — Task 1 refines A0/vHi/vLo per mode by fitting the Table-2 MOSFET model.
+Rev 1:       lambda = A0/(nInv + A0)   (loop-gain factor; per mode, from fitted A0)
+             wcComp = 1/sqrt(lambda*kR2)   (both modes — Tame needs the lambda part too)
+             fPole = 80e3 Hz default (inverter bandwidth; runtime-tunable 30k..300k)
+             kC2eff = R3*C2*wc_int − kR2*wc_int/(2*pi*fPole)   [replaces kC2 everywhere;
+             may be negative — that is the self-oscillation mechanism]
+             Small-signal theory for tests: D(s) = s^2 + lambda*(H1 + kC2eff)*wc*s
+             + lambda*kR2*wc^2; LP passband gain = w_in/kR2 (−11.4 dB in Screaming,
+             compensated musically by makeup=2.0, not exactly).
 ```
 
 ---
@@ -407,7 +415,8 @@ public:
     void reset();
     bool stateFinite() const;
     // g = tan(pi*fcInt/fsInt) (caller prewarps+slews), h1 = computeH1(rho, fsInt)
-    // kC2 = R3*C2*2*pi*fcInt, highAcc = add 2 Newton iterations
+    // kC2 = kC2eff per Rev 1: R3*C2*wcInt − kR2*wcInt/(2π*fPole), wcInt = 2π*fcInt
+    // (may be negative). highAcc = add 2 Newton iterations
     Out process(float inVolts, float g, const H1Coeffs& h1, float kC2, bool highAcc);
 };
 }
@@ -586,10 +595,10 @@ NOTE: `WaspFilter::setSampleRate`/`computeH1` must receive the INTERNAL rate (ho
 - [ ] **Step 2: Wire `src/Yellowjacket.cpp`.** Replace the passthrough `process()` with the MF-20 pattern:
   - Members: `wasp::EnginePool _pool; int _modulationSteps=100,_steps=100; float _sampleRate=44100; int _osMenu=0 /*0=auto,1,2,4*/; int _osActual=4; bool _highAcc=true; float _inputTrimDb=0; float _dither=1e-9f;` plus existing `screaming`, `panelTheme`.
   - `onSampleRateChange`: recompute `_osActual` (auto: fs<=48k→4, <=96k→2, else 1; else menu value), set pool internal rate = fs·os, smoother alphas (5 ms), `_modulationSteps = fs*0.0025`.
-  - `modulate()` (every ~2.5 ms): read params; per active voice: fc = exp2(knobLog2 + freqCvAtten·freqCv) clamped [1, 0.45·fsInt]; fcInt = fc·mode.wcComp; `gTarget = tan(π·fcInt/fsInt)` (clamp fcInt again vs fsInt); `kC2Target = 27e3·100e-12·2π·fcInt`; `rhoTarget = clamp(res + resCvAtten·resCv/10, 0, 1)`; `driveTarget = exp2(3·clamp(drive + driveCvAtten·driveCv/10, 0, 1)) · exp2(_inputTrimDb/6.0206·0.5)`... (implement trim as `std::pow(10, _inputTrimDb/20)` — compute at modulate rate, fold into driveTarget); blend handled per-sample below (cheap). Also `eng.sanitize()`.
+  - `modulate()` (every ~2.5 ms): read params; per active voice: fc = exp2(knobLog2 + freqCvAtten·freqCv) clamped [1, 0.45·fsInt]; fcInt = fc·mode.wcComp (wcComp per Rev 1 = 1/√(λ·kR2)); `gTarget = tan(π·fcInt/fsInt)` (clamp fcInt again vs fsInt); `kC2Target = 27e3·100e-12·2π·fcInt − mode.kR2·2π·fcInt/(2π·fPole)` (fPole from the Inverter-bandwidth menu slider, default 80 kHz); `rhoTarget = clamp(res + resCvAtten·resCv/10, 0, 1)`; `driveTarget = exp2(3·clamp(drive + driveCvAtten·driveCv/10, 0, 1)) · exp2(_inputTrimDb/6.0206·0.5)`... (implement trim as `std::pow(10, _inputTrimDb/20)` — compute at modulate rate, fold into driveTarget); blend handled per-sample below (cheap). Also `eng.sanitize()`.
   - Per-sample `processChannel(c)`: slew g/kC2/rho/drive; `h1 = wasp::computeH1(rho, fsInt)` — NO: computeH1 at modulate rate only (division-heavy); instead slew beta0/beta1/alpha1 individually (three more smoothers per voice, targets set in modulate()). Blend m = clamp(blendKnob + blendCv/10, 0, 1) read per modulate, slewed. L: `auto o = eng.l.process(inL·drive + dither, os, g, h1, kC2, _highAcc)`; outputs: LP/BP/HP = o.lp/o.bp/o.hp volts; MIX = (1−m)·o.lp + m·o.hp. R: if connected, own channel; else mirror L outputs (skip compute).
   - Character menu already exists (`screaming`); apply via `setMode` pointers in modulate(): `eng.l.filt.setMode(screaming ? wasp::kScreaming : wasp::kTame)` etc.
-  - Menu additions in `appendContextMenu` after Character: Accuracy (Standard/High), Oversampling (Auto/1x/2x/4x — changing it re-runs the `onSampleRateChange` logic; call a shared `updateOversampling()`), Input trim (`createMenuItem` slider — use `rack::ui::Slider` with a small `Quantity` subclass, range ±12 dB, default 0, label "Input trim"). Persist `_highAcc`, `_osMenu`, `_inputTrimDb` in dataTo/FromJson alongside existing fields.
+  - Menu additions in `appendContextMenu` after Character: Accuracy (Standard/High), Oversampling (Auto/1x/2x/4x — changing it re-runs the `onSampleRateChange` logic; call a shared `updateOversampling()`), Input trim (`createMenuItem` slider — use `rack::ui::Slider` with a small `Quantity` subclass, range ±12 dB, default 0, label "Input trim"); Inverter bandwidth (`rack::ui::Slider`, log-scaled 30–300 kHz, default 80 kHz, label "Inverter bandwidth" — feeds fPole in the kC2eff formula, i.e. how eagerly the filter self-oscillates). Persist `_highAcc`, `_osMenu`, `_inputTrimDb`, `_fPole` in dataTo/FromJson alongside existing fields.
   - Keep the deterministic `_dither` sign-flip from MF-20 (`_dither = -_dither` per process call).
 - [ ] **Step 3: Build**: `make -C vcv -j8` → clean compile.
 - [ ] **Step 4: Run test lane again** (`cd tests && ./run.sh`) — still green (module file isn't in the lane, but engine.hpp gets pulled if tested; primarily a regression check).

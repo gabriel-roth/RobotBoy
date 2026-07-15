@@ -51,10 +51,42 @@ lp'  = ωc · S(bp)     then rail-clamp lp             // OTA + integrator 2
 - Diodes: Is=2.52 nA, η=1.752, Rf=R3=27k. Use sinh with a clamped argument
   (|yd·19.34| capped ~30) to avoid overflow; equivalently piecewise beyond.
 - `kR2 = R3/R2eff` — **1.0 in Tame**, **27/7.297 ≈ 3.70 in Screaming**
-  (10k mod), with knob calibration compensated: ω0 = ωc·√kR2, so the code
-  uses ωc_int = 2π·fc_knob/√kR2 to keep the knob honest.
+  (10k mod), with knob calibration compensated (see λ below): ω0 =
+  ωc·√(λ·kR2), so the code uses ωc_int = 2π·fc_knob/√(λ·kR2).
 - `kC2 = R3·C2·ωc_int` — cutoff-proportional damping (C2=100 pF).
 - `w_in = 1` (H_in passband gain at full level; drive handles the rest).
+
+### Revision 1 — loop-gain factor λ and the self-oscillation mechanism
+
+Two consequences of the summing-stage physics that the first draft missed
+(surfaced by the reference-sim work):
+
+1. **Loop-gain factor λ.** The inverter's finite open-loop gain A0 with the
+   summing-node divider N gives every loop term an effective gain
+   `λ = A0/(N + A0)` (linearized). All small-signal formulas must carry it:
+   `D(s) = s² + λ·(H1 + kC2eff)·ωc·s + λ·kR2·ωc²`, resonant frequency
+   `ω0 = ωc·√(λ·kR2)`, LP passband gain = w_in/kR2 (λ cancels at DC; the
+   Screaming mod really does cost ≈11 dB of LP passband — hardware-true).
+   Screaming gets `makeup = 2.0` as a musical compromise.
+2. **Self-oscillation needs the inverter's phase lag.** With purely real
+   loop gain the damping term is always > 0 — the model can NEVER
+   self-oscillate, contradicting hardware. The physical mechanism is the
+   CMOS inverter's finite bandwidth: a one-pole lag at ωp converts part of
+   the ω² feedback into negative damping. To first order this folds into
+   the kC2 coefficient with **zero extra states**:
+
+   `kC2eff = R3·C2·ωc_int − kR2·ωc_int/ωp`   (ωp = 2π·fPole)
+
+   With fPole ≈ 80 kHz this reproduces the lore quantitatively: stock
+   filter (kR2=1) sits at the verge of oscillation (whistle/chirp, decays);
+   modded (kR2=3.7) crosses into sustained oscillation for mid/high
+   cutoffs, amplitude bounded by the rails (±≈5 V, cf. DAFx Fig 9).
+   `fPole` is exposed as a context-menu slider ("Inverter bandwidth",
+   30–300 kHz, default 80 kHz) for tuning.
+
+   Tame mode (kR2=1) therefore also sits at the verge — matching the
+   original's service-manual behavior — but its tighter rails and gentler
+   OTA keep it tamer still.
 
 ### Discretization & solver
 
