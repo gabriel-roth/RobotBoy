@@ -22,6 +22,7 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelMF20Filter);
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
+	p->addModel(modelYellowjacket);
 }
 #else
 // VCV Rack build: standard single init() registering all five modules.

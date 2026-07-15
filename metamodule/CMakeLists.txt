@@ -22,6 +22,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/mf20/MF20Filter.cpp
     ${SRC}/src/particules/Particules.cpp
     ${SRC}/src/particules/Ondes.cpp
+    ${SRC}/src/Yellowjacket.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
