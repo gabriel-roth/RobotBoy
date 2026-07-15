@@ -1,0 +1,20 @@
+{
+ "lp_db_screaming_fc200_f50": -11.629347066778603,
+ "lp_db_screaming_fc200_f200": 1.8951943179689512,
+ "lp_db_screaming_fc200_f600": -29.45320356151377,
+ "lp_db_screaming_fc1000_f250": -10.85872137533553,
+ "lp_db_screaming_fc1000_f1000": 2.222545698200049,
+ "lp_db_screaming_fc1000_f3000": -29.45415125676461,
+ "lp_db_screaming_fc5000_f1250": -10.815114975273858,
+ "lp_db_screaming_fc5000_f5000": 3.6436951965192814,
+ "lp_db_screaming_fc5000_f15000": -29.537780107486565,
+ "lp_db_screaming_peak_rho0.0": -3.680627952481146,
+ "lp_db_screaming_peak_rho0.5": 5.697700974461849,
+ "lp_db_screaming_peak_rho0.9": 19.117297378707118,
+ "selfosc_screaming_amp": 2.660487531261526,
+ "selfosc_screaming_freq": 716.7785234899329,
+ "selfosc_tame_amp": 2.3440569068947336e-12,
+ "lambda_screaming": 0.7274206672091131,
+ "lambda_tame": 0.8542274052478134,
+ "fpole": 80000.0
+}
