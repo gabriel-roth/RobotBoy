@@ -88,7 +88,10 @@ struct VoiceEngine {
     // H1 coefficients are division-heavy (computeH1 is only called at
     // modulate rate); these three smoothers slew the *coefficients*
     // per-sample so resonance sweeps stay zipper-free without paying for
-    // computeH1 on every audio sample.
+    // computeH1 on every audio sample. Seeded at the true rho=0 values for
+    // the current internal rate (see reset()) so a voice reset doesn't fade
+    // the resonance network in from zero — matching how gSlew seeds near its
+    // real default rather than at 0.
     OnePoleSmoother beta0Slew  { 0.f };
     OnePoleSmoother beta1Slew  { 0.f };
     OnePoleSmoother alpha1Slew { 0.f };
@@ -96,9 +99,25 @@ struct VoiceEngine {
     float gTarget = 0.049f, kC2Target = 0.f, rhoTarget = 0.f, driveTarget = 1.f;
     float beta0Target = 0.f, beta1Target = 0.f, alpha1Target = 0.f;
 
-    void setSampleRate(float fsInt) {
+    // Internal (oversampled) rate the voice currently runs at; mirrors the
+    // WaspFilter default so construction-time seeding is consistent.
+    float fsInt = 192000.f;
+
+    VoiceEngine() { seedH1(); }
+
+    void setSampleRate(float fsIntNew) {
+        fsInt = fsIntNew;
         l.filt.setSampleRate(fsInt);
         r.filt.setSampleRate(fsInt);
+    }
+
+    // Seed the H1 smoothers (and targets) at the exact rho=0 coefficients
+    // for the current internal rate.
+    void seedH1() {
+        H1Coeffs h1 = computeH1(0.f, fsInt);
+        beta0Slew.reset(beta0Target = h1.beta0);
+        beta1Slew.reset(beta1Target = h1.beta1);
+        alpha1Slew.reset(alpha1Target = h1.alpha1);
     }
 
     void reset() {
@@ -108,9 +127,7 @@ struct VoiceEngine {
         kC2Slew.reset(kC2Target = 0.f);
         rhoSlew.reset(rhoTarget = 0.f);
         driveSlew.reset(driveTarget = 1.f);
-        beta0Slew.reset(beta0Target = 0.f);
-        beta1Slew.reset(beta1Target = 0.f);
-        alpha1Slew.reset(alpha1Target = 0.f);
+        seedH1();
     }
 
     // Reset only the resampler histories (os/host-rate change) — filter
@@ -121,8 +138,11 @@ struct VoiceEngine {
     }
 
     // NaN/inf recovery, MF-20 style: called once per modulate block. Only
-    // the offending channel's filter core is reset (smoothers keep their
-    // clamped-finite param targets, so no spurious parameter sweep results).
+    // the offending channel is reset — filter core AND its resampler
+    // histories (a NaN in the core has propagated into the FIR delay lines
+    // by the time it is detected). The voice's smoothers stay: their inputs
+    // are clamped params, so they are finite, and keeping them avoids a
+    // spurious parameter sweep after recovery.
     void sanitize() {
         if (!l.filt.stateFinite()) l.reset();
         if (!r.filt.stateFinite()) r.reset();

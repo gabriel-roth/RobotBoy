@@ -147,13 +147,17 @@ struct Yellowjacket : Module {
 			eng.resetResamplers();
 		}
 		_blendSlew.setAlpha(alpha);
+
+		// Force the next process() to re-run modulate() immediately: the
+		// g/kC2/H1 targets all depend on the internal rate, so a menu-driven
+		// os change must not run on stale-rate coefficients for ~2.5 ms.
+		_steps = _modulationSteps;
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
 		_sampleRate = e.sampleRate;
-		updateOversampling();
 		_modulationSteps = std::max(1, (int)(_sampleRate * 0.0025f));  // 2.5 ms
-		_steps = _modulationSteps;
+		updateOversampling();  // also resets _steps for an immediate modulate()
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -189,11 +193,12 @@ struct Yellowjacket : Module {
 			eng.l.filt.setMode(mode);
 			eng.r.filt.setMode(mode);
 
-			// Frequency: 1 V/oct CV on the log2 knob value, then to Hz.
+			// Frequency: 1 V/oct CV on the log2 knob value, then to Hz,
+			// clamped [1 Hz, 0.45*fsInt] before the wcComp/internal clamps.
 			float fcLog = freqLog;
 			if (freqCvConn)
 				fcLog += freqCvAtten * inputs[FREQ_INPUT].getPolyVoltage(c);
-			float fc = clamp(std::exp2(fcLog), 1.f, 20000.f);
+			float fc = clamp(std::exp2(fcLog), 1.f, 0.45f * fsInt);
 
 			float fcInt = fc * mode.wcComp;
 
@@ -337,12 +342,17 @@ struct Yellowjacket : Module {
 		json_t* om = json_object_get(root, "osMenu");
 		if (om)
 			_osMenu = json_integer_value(om);
+		// Validate loaded values that feed DSP invariants (a hand-edited or
+		// corrupted patch must not desync the internal rate from the cascade
+		// or invert clamp bounds). Mirrors the menu Quantity setters' ranges.
+		if (_osMenu != 0 && _osMenu != 1 && _osMenu != 2 && _osMenu != 4)
+			_osMenu = 0;
 		json_t* it = json_object_get(root, "inputTrimDb");
 		if (it)
-			_inputTrimDb = (float)json_real_value(it);
+			_inputTrimDb = clamp((float)json_real_value(it), -12.f, 12.f);
 		json_t* fp = json_object_get(root, "fPole");
 		if (fp)
-			_fPole = (float)json_real_value(fp);
+			_fPole = clamp((float)json_real_value(fp), 60000.f, 300000.f);
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
