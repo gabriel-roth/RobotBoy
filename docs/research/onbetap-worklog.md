@@ -301,3 +301,20 @@ On MetaModule (GUI simulator, spot-check only):
   adds a fixed group delay of 6 samples at fsOs — about 3 host samples once
   decimated back to the host rate — on top of whatever the linear-interp
   upsampler contributes.
+
+## 2026-07-15 — session wrap-up
+
+All seven plan tasks executed via subagents, each gated by a task review, then
+a whole-branch final review (most-capable model). Final review verdict: merge
+with fixes — all four Important findings fixed and verified in e5dec0b (output
+polarity re-inverted per spec, sanitize() now clears DC-blocker/FIR state on
+NaN recovery, res/drive CV rescaled to /5 per spec + house convention,
+identity-test module list updated so tests/run.sh is fully green). Remaining
+deferred minors were applied afterward (test check renamed, unused include
+dropped).
+
+State: VCV build clean + installed; MetaModule .mmplugin builds; MM headless
+output matches vcv-headless to 2.7e-6; unit lane fully green. Open items for
+the user: GUI checklist (see Task 7 section), screenshots/Onbetap.png,
+real-device MM CPU check, and the documented max-drive aliasing gap (−29 dB at
+2× OS, −35 dB at 4×; 4× is the menu escape valve).

@@ -2,7 +2,6 @@
 #include "onbetap/OnbetapFilter.hpp"
 #include <cmath>
 #include <cstdio>
-#include <vector>
 
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
@@ -103,7 +102,7 @@ int main() {
         // Bound widened from the brief's ±40% window to this measured
         // regime; still requires oscillation in the same octave-ish
         // neighborhood as fc (catches runaway to sub-audio/ultrasonic).
-        CHECK(osc.freq > 200.f && osc.freq < 450.f, "hard self-osc near fc");
+        CHECK(osc.freq > 200.f && osc.freq < 450.f, "hard self-osc in slew-limited band");
         auto soft = runOsc(1000.f, -0.06f, OnbetapFilter::Limit::Soft);
         CHECK(soft.rms > 0.3f, "soft self-osc sustains");
         CHECK(soft.peak < 4.2f, "soft self-osc bounded below hard rails");
