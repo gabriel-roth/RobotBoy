@@ -1,0 +1,34 @@
+PatchData:
+  patch_name: echos_default
+  description: >-
+    Echos headless sim check - DENSITY set for an exact 1.0s manual-mode
+    delay (density_knob = 0.5 - 1/11 = 0.409091; base = 4s buffer *
+    2^(-11*2/11) = 4s * 2^-2 = 1.0s; TIME knob left at default 0 so the
+    multiplier is 1x). FEEDBACK=0.3 for a few decaying repeats.
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Echos'
+  int_cables: []
+  mapped_ins:
+    - panel_jack_id: 0
+      ins:
+        - module_id: 1
+          jack_id: 0
+    - panel_jack_id: 1
+      ins:
+        - module_id: 1
+          jack_id: 1
+  mapped_outs:
+    - panel_jack_id: 0
+      out:
+        module_id: 1
+        jack_id: 0
+    - panel_jack_id: 1
+      out:
+        module_id: 1
+        jack_id: 1
+  static_knobs:
+    - {module_id: 1, param_id: 1, value: 0.409091}
+    - {module_id: 1, param_id: 5, value: 0.3}
+  vcvModuleStates: []
+  bypassed_modules: []

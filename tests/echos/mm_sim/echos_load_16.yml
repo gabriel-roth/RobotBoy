@@ -1,0 +1,27 @@
+PatchData:
+  patch_name: echos_load_16
+  description: Echos CPU load test, 16 instances
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Echos'
+    2: 'RobotBoy:Echos'
+    3: 'RobotBoy:Echos'
+    4: 'RobotBoy:Echos'
+    5: 'RobotBoy:Echos'
+    6: 'RobotBoy:Echos'
+    7: 'RobotBoy:Echos'
+    8: 'RobotBoy:Echos'
+    9: 'RobotBoy:Echos'
+    10: 'RobotBoy:Echos'
+    11: 'RobotBoy:Echos'
+    12: 'RobotBoy:Echos'
+    13: 'RobotBoy:Echos'
+    14: 'RobotBoy:Echos'
+    15: 'RobotBoy:Echos'
+    16: 'RobotBoy:Echos'
+  int_cables: []
+  mapped_ins: []
+  mapped_outs: []
+  static_knobs: []
+  vcvModuleStates: []
+  bypassed_modules: []

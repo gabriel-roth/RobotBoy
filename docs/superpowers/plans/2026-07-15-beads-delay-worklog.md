@@ -32,3 +32,35 @@ Running notes for the autonomous beads-delay build (branch
 5. Context-menu selectables where behavior was ambiguous: time-change
    response (tape doppler vs crossfade), envelope feedback tap point,
    sliders for slew rate / random-LFO rate / input trim.
+
+## 2026-07-15 — MM smoke test
+
+- `metamodule/CMakeLists.txt`: added `src/beadsdelay/Echos.cpp` +
+  the 4 beadsdelay DSP `.cpp` files (`echos_processor.cpp`,
+  `time/base_time.cpp`, `engine/echo_engine.cpp`,
+  `pitch/rotary_shifter.cpp`; `mod/`/`env/` are header-only). Needed two
+  include dirs beyond the brief — `src/particules/dsp/src` and
+  `src/beadsdelay/dsp/src` — to find Particules' `RecordingBuffer` header
+  (lives under `dsp/src/buffer/`, not `dsp/include/`), matching
+  `vcv/Makefile`'s existing flags for the same reason.
+- `.mmplugin` build: clean, `RobotBoy.mmplugin` (695 KB) produced.
+- Headless simulator built-in build: clean, no workarounds needed (the
+  Yellowjacket task's `-DSIMULATOR` gap is already fixed in the simulator
+  repo).
+- Simulator smoke test: single cabled `Echos` instance, DENSITY=0.409091 +
+  TIME=0 (manual mode, unclocked) → predicted exactly 1.000 s delay
+  (`4.0s buffer * 2^(-11 * 2/11) * 2^(4*0) = 1.0s`). Fed a 20 ms burst;
+  measured echoes at 1.010/2.010/3.010 s (1.000 s spacing) decaying at
+  ratio 0.300/repeat, matching FEEDBACK=0.3 exactly. 0 NaN, 0 Inf, no
+  crash across a 4 s render.
+- CPU: **~0.19% of one host core** (100 s sim, single cabled instance,
+  average of 3 runs: 191/187/187 ms). Comfortably under the ~15%
+  threshold — no optimization pass applied. (A 16-instance uncabled
+  load-test cross-check gave inconsistent/non-monotonic numbers on this
+  simulator version — see `tests/echos/mm-sim-notes.md` §5 for the
+  discrepancy; the consistent cabled single-instance number was trusted
+  instead.)
+- `python3 -m unittest tests.test_no_delay_mode` and `tests/run.sh`: both
+  green (unaffected — the guard test is scoped to Particules-only files).
+- Full detail, patch/WAV fixtures, and regeneration commands:
+  `tests/echos/mm-sim-notes.md`, `tests/echos/mm_sim/`.
