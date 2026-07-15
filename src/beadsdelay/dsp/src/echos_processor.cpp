@@ -67,6 +67,7 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
 
     impl_->base_time.Init(sample_rate, kBufferSeconds);
     impl_->engine.Init(&impl_->recording_buffer, sample_rate);
+    impl_->shifter.Init(sample_rate);
 }
 
 void EchosProcessor::SetParameters(const EchosParameters& params) {
@@ -104,6 +105,14 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
     // Block-rate: linear input trim gain.
     float input_gain = particules_dsp::DbToGain(s.params.input_trim_db);
 
+    // Block-rate: pitch-shift ratio for the rotary shifter (raw semitones
+    // for now; Task 6 adds attenurandomized pitch on top).
+    float pitch_semitones = s.params.pitch_semitones;
+    float shift_ratio = std::fabs(pitch_semitones) < kShifterBypassSemitones
+                             ? 1.f
+                             : std::exp2(pitch_semitones / 12.f);
+    s.shifter.SetRatio(shift_ratio);
+
     bool feedback_state_bad = false;
 
     for (size_t i = 0; i < n; ++i) {
@@ -115,7 +124,9 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
         if (!std::isfinite(input.l)) input.l = 0.f;
         if (!std::isfinite(input.r)) input.r = 0.f;
 
-        StereoFrame wet = s.engine.ReadWet();
+        // Pitch shift sits inside the feedback loop (shimmer): the shifted
+        // signal is what gets tapped back for feedback and mixed as wet.
+        StereoFrame wet = s.shifter.Process(s.engine.ReadWet());
 
         StereoFrame fb_in{wet.l * s.smoothed_feedback, wet.r * s.smoothed_feedback};
         StereoFrame fb = s.saturation.LimitFeedback(fb_in, particules_dsp::QualityMode::kHiFi);

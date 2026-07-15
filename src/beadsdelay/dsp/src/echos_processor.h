@@ -7,6 +7,7 @@
 #include "util/svf.h"
 #include "engine/echo_engine.h"
 #include "time/base_time.h"
+#include "pitch/rotary_shifter.h"
 
 namespace beadsdelay_dsp {
 
@@ -17,6 +18,7 @@ struct EchosProcessor::Impl {
     particules_dsp::StateVariableFilter feedback_hp_l, feedback_hp_r;
     BaseTimeControl base_time;
     EchoEngine engine;
+    RotaryShifter shifter;
 
     EchosParameters params;
     float sample_rate = 48000.f;
