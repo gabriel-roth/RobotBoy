@@ -1,12 +1,31 @@
 #include "plugin.hpp"
+#include "onbetap/OnbetapFilter.hpp"
+#include "onbetap/engine.hpp"
+#include "mf20/dsp_utils.hpp"
 
 // Onbetap — Polivoks-style multimode filter.
 //
-// SHELL ONLY: the DSP is not implemented yet. process() passes the stereo
-// input straight to the output; the Cutoff/Q/Drive/Mode controls, their CV
-// inputs, and the Character menu toggle are wired to params/ports but do
-// nothing until the filter engine lands. Panel positions mirror res/Onbetap.svg
-// (see panel-specs/onbetap.yaml). configParam ranges are provisional.
+// Nonlinear TPT two-integrator core (OnbetapFilter), oversampled 2x by
+// default, one core per stereo side per voice (OnbetapPool, up to 16 voices).
+// Cutoff/resonance/drive are smoothed in the g/k/drive domain at ~2.5 ms
+// intervals (modulate()); the audio path (process()/processSide()) only
+// slews and runs the oversampled solve. Mode switching crossfades over 5 ms
+// except in Vintage character, which switches hard (matches the factory
+// panel switch). See docs/superpowers/specs/2026-07-15-onbetap-dsp-spec.md
+// and docs/research/polivoks-*.md for the circuit derivation. Panel
+// positions mirror res/Onbetap.svg (see panel-specs/onbetap.yaml).
+
+// volts → core units: 1 / 2.4 V window, times base trim
+static constexpr float kVoltsToCore = 1.f / 2.4f;
+static constexpr float kBaseTrim    = 0.4f;   // drive=0 → mild warmth at ±5 V
+// drive knob [0,1] → gain exp2(lerp(-2, +4, d)) = 0.25×…16× (−12…+24 dB)
+// makeup = 1/sqrt(driveGain/0.25): unity at drive=0, −18 dB at max
+// output: volts = core × kOutScale × makeup, then VCA sat 9·tanhish(v/9)
+static constexpr float kOutScale = 10.5f;     // calibrated in Task 5
+static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
+static constexpr float kVintageDriftOct = 0.18f;  // OU stationary std
+static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
+static constexpr float kTwoPi = 6.28318530717959f;
 
 struct Onbetap : Module {
 	enum ParamId {
@@ -40,6 +59,31 @@ struct Onbetap : Module {
 	// untuned self-oscillation). Persisted now; acted on once the DSP lands.
 	bool vintageDrift = false;
 
+	OnbetapPool pool;
+	onbetap::DriftWalker driftL { 0x0B617A01u };
+	onbetap::DriftWalker driftR { 0x0B617A02u };
+
+	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Hard;
+	int oversample = 2;                             // 1 / 2 / 4
+	// Tuning menu (Task 4): defaults = spec values
+	float tuneDriveDb = 36.f;    // drive span in dB (−12 → +24)
+	float tuneHeadroom = 1.f;    // scales kBaseTrim
+	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
+	float tuneOutDb = 0.f;       // output trim ±12 dB
+
+	int modulationSteps = 100, steps = 100;
+	float sampleRate = 44100.f;
+	float dither = 1e-9f;
+
+	// Mode crossfade (5 ms): current/target mode + ramp position
+	int modeCurrent = 0, modeTarget = 0;
+	float modeXf = 1.f, modeXfStep = 1.f;
+
+	// DC blocker coefficient (1.6 Hz highpass), computed from the host
+	// sample rate (not the oversampled rate — the blocker runs once per
+	// host sample, after decimation).
+	float dcCoef = 1.f;
+
 	Onbetap() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -64,22 +108,186 @@ struct Onbetap : Module {
 
 		configBypass(AUDIO_INPUT,   AUDIO_OUTPUT);
 		configBypass(AUDIO_INPUT_R, AUDIO_OUTPUT_R);
+
+		// onSampleRateChange is triggered by Rack after construction; still
+		// call configureRates here for host-free safety (tests, headless).
+		configureRates(44100.f);
 	}
 
-	// Passthrough until the filter engine is implemented.
+	void configureRates(float fs) {
+		sampleRate = fs;
+		float alpha = smootherAlpha(fs, 0.005f);
+		for (auto& v : pool.voices) v.setAlpha(alpha);
+		modulationSteps = (int)(fs * 0.0025f);
+		steps = modulationSteps;                     // modulate on first process()
+		modeXfStep = 1.f / (0.005f * fs);
+		dcCoef = 1.f - kTwoPi * 1.6f / fs;
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent& e) override {
+		configureRates(e.sampleRate);
+	}
+	void onReset(const ResetEvent& e) override {
+		Module::onReset(e);
+		pool.resetAll();
+		driftL.reset(); driftR.reset();
+	}
+
+	void modulate() {
+		float fsOs = sampleRate * oversample;
+
+		// Drift (Vintage only) — module-level, per side; both walkers advance
+		// every block so toggling Character mid-patch is deterministic.
+		float dL = driftL.step(0.0025f, kVintageDriftOct);
+		float dR = driftR.step(0.0025f, kVintageDriftOct);
+		if (!vintageDrift) dL = dR = 0.f;
+
+		float cutoffLog = params[CUTOFF_PARAM].getValue();
+		float resKnob   = params[RES_PARAM].getValue();
+		float driveKnob = params[DRIVE_PARAM].getValue();
+		float cutAtt = params[CUTOFF_CV_PARAM].getValue();
+		float resAtt = params[RES_CV_PARAM].getValue();
+		float drvAtt = params[DRIVE_CV_PARAM].getValue();
+		bool cutCv = inputs[CUTOFF_INPUT].isConnected();
+		bool resCv = inputs[RES_INPUT].isConnected();
+		bool drvCv = inputs[DRIVE_INPUT].isConnected();
+
+		// Mode target (snap knob); start crossfade on change
+		int m = (int)std::round(params[MODE_PARAM].getValue());
+		if (m != modeTarget) { modeCurrent = modeTarget; modeTarget = m; modeXf = 0.f; }
+
+		for (int c = 0; c < pool.activeVoices; c++) {
+			OnbetapVoice& v = pool.voices[c];
+			v.sanitize();
+
+			float voiceLog = cutoffLog;
+			if (cutCv) voiceLog += cutAtt * inputs[CUTOFF_INPUT].getPolyVoltage(c);
+			// per-side drift handled at the filter level via g scale below;
+			// g target uses the L drift (R applies the delta as a ratio)
+			float fc = std::exp2(voiceLog + dL);
+			v.gTarget = OnbetapFilter::cutoffToG(fc, fsOs);
+
+			float res = resKnob;
+			if (resCv) res += resAtt * inputs[RES_INPUT].getPolyVoltage(c) / 10.f;
+			res = clamp(res, 0.f, 1.f);
+			// rev-log damping map; onset ~res 0.72; min resonance Q≈1
+			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + tuneOnset;
+			v.kTarget = k;   // phase-lag term applied per sample from slewed g
+
+			float drive = driveKnob;
+			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
+			drive = clamp(drive, 0.f, 1.f);
+			float spanOct = tuneDriveDb / 6.0206f;               // dB → octaves
+			float driveGain = std::exp2(-2.f + spanOct * drive); // 0.25 → …
+			v.driveTarget  = driveGain * kBaseTrim * kVoltsToCore * tuneHeadroom;
+			v.makeupTarget = std::sqrt(0.25f / driveGain)
+			               * kOutScale * std::exp2(tuneOutDb / 6.0206f);
+
+			// Character: mismatch + cutoff-scaled offset (vintage), R drift as
+			// a relative g ratio so poly voices share one target.
+			if (vintageDrift) {
+				v.fL.setMismatch(onbetap::kMismatchL1, onbetap::kMismatchL2);
+				v.fR.setMismatch(onbetap::kMismatchR1, onbetap::kMismatchR2);
+				float offs = kVintageOffset * (voiceLog - std::log2(750.f)) * 0.25f;
+				v.fL.setOffset(offs);
+				v.fR.setOffset(-0.8f * offs);
+				v.fRgRatio = std::exp2(dR - dL);
+			} else {
+				v.fL.setMismatch(0.f, 0.f);
+				v.fR.setMismatch(0.f, 0.f);
+				v.fL.setOffset(0.f);
+				v.fR.setOffset(0.f);
+				v.fRgRatio = 1.f;
+			}
+			v.fL.setLimit(limitMode);
+			v.fR.setLimit(limitMode);
+		}
+	}
+
+	// One stereo side through the oversampled core. Returns output volts.
+	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
+	                  float g, float kEff, float driveScale, float makeup) {
+		float lp = 0, bp = 0, hp = 0;
+		float x1 = inVolts * driveScale;
+		for (int i = 1; i <= oversample; i++) {
+			float t = (float)i / oversample;
+			float x = xPrev + (x1 - xPrev) * t;      // linear interp upsample
+			auto o = flt.processG(x, g, kEff);
+			lp += o.lp; bp += o.bp; hp += o.hp;      // average = crude decimator
+		}
+		xPrev = x1;
+		float inv = 1.f / oversample;
+		lp *= inv; bp *= inv; hp *= inv;
+
+		// taps + 5 ms crossfade on mode change (Vintage: hard switch, DC step
+		// and all, like the factory panel switch)
+		auto tap = [&](int mode) {
+			switch (mode) {
+				case 0: return lp;
+				case 1: return bp;
+				case 2: return hp;
+				case 3: return lp + hp;      // notch
+				default: return lp - hp;     // peak
+			}
+		};
+		float y = (modeXf >= 1.f || vintageDrift)
+		        ? tap(modeTarget)
+		        : tap(modeCurrent) + (tap(modeTarget) - tap(modeCurrent)) * modeXf;
+
+		float v = y * makeup;
+		v = dc.process(v, dcCoef);                   // AC-couple (rectification DC)
+		return 9.f * OnbetapFilter::tanhish(v / 9.f); // "overdriven VCA" stage
+	}
+
 	void process(const ProcessArgs& args) override {
-		for (auto io : {std::make_pair(AUDIO_INPUT, AUDIO_OUTPUT),
-		                std::make_pair(AUDIO_INPUT_R, AUDIO_OUTPUT_R)}) {
-			int channels = std::max(1, inputs[io.first].getChannels());
-			outputs[io.second].setChannels(channels);
-			for (int c = 0; c < channels; c++)
-				outputs[io.second].setVoltage(inputs[io.first].getVoltage(c), c);
+		int voices = std::max({1, inputs[AUDIO_INPUT].getChannels(),
+		                          inputs[AUDIO_INPUT_R].getChannels()});
+		pool.setVoices(voices);
+		outputs[AUDIO_OUTPUT].setChannels(voices);
+		outputs[AUDIO_OUTPUT_R].setChannels(voices);
+
+		if (++steps >= modulationSteps) { steps = 0; modulate(); }
+		if (modeXf < 1.f) modeXf = std::min(1.f, modeXf + modeXfStep);
+		dither = -dither;
+
+		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
+
+		for (int c = 0; c < voices; c++) {
+			OnbetapVoice& v = pool.voices[c];
+			float g      = v.gSlew.process(v.gTarget);
+			float kBase  = v.kSlew.process(v.kTarget);
+			float drive  = v.driveSlew.process(v.driveTarget);
+			float makeup = v.makeupSlew.process(v.makeupTarget);
+			float kEff   = kBase - kCLag * g * g / (1.f + g * g);
+			kEff = std::max(kEff, -0.31f);           // denominator guard floor
+
+			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
+			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup);
+			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
+
+			if (rConnected) {
+				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
+				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
+				                         g * v.fRgRatio, kEff, drive, makeup);
+				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
+			} else {
+				// R normalled to L → mirror L (skips a full core solve; in
+				// Vintage this loses the L/R decorrelation, which is fine for
+				// a mono patch)
+				outputs[AUDIO_OUTPUT_R].setVoltage(outL, c);
+			}
 		}
 	}
 
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "vintageDrift", json_boolean(vintageDrift));
+		json_object_set_new(root, "limitMode", json_integer((int)limitMode));
+		json_object_set_new(root, "oversample", json_integer(oversample));
+		json_object_set_new(root, "tuneDriveDb", json_real(tuneDriveDb));
+		json_object_set_new(root, "tuneHeadroom", json_real(tuneHeadroom));
+		json_object_set_new(root, "tuneOnset", json_real(tuneOnset));
+		json_object_set_new(root, "tuneOutDb", json_real(tuneOutDb));
 		return root;
 	}
 
@@ -87,6 +295,25 @@ struct Onbetap : Module {
 		json_t* v = json_object_get(root, "vintageDrift");
 		if (v)
 			vintageDrift = json_boolean_value(v);
+		json_t* lm = json_object_get(root, "limitMode");
+		if (lm)
+			limitMode = (json_integer_value(lm) == (int)OnbetapFilter::Limit::Soft)
+			          ? OnbetapFilter::Limit::Soft : OnbetapFilter::Limit::Hard;
+		json_t* os = json_object_get(root, "oversample");
+		if (os)
+			oversample = (int)json_integer_value(os);
+		json_t* dDb = json_object_get(root, "tuneDriveDb");
+		if (dDb)
+			tuneDriveDb = (float)json_real_value(dDb);
+		json_t* head = json_object_get(root, "tuneHeadroom");
+		if (head)
+			tuneHeadroom = (float)json_real_value(head);
+		json_t* onset = json_object_get(root, "tuneOnset");
+		if (onset)
+			tuneOnset = (float)json_real_value(onset);
+		json_t* outDb = json_object_get(root, "tuneOutDb");
+		if (outDb)
+			tuneOutDb = (float)json_real_value(outDb);
 	}
 };
 
