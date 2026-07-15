@@ -15,7 +15,7 @@ public:
         float delay_samples;     // base × TIME multiplier, clamped to buffer
         float multiplier;        // resolved TIME multiplier
         bool  clocked;
-        bool  multi_tap;         // DENSITY on CW side (manual mode)
+        bool  multi_tap;         // manual mode: DENSITY on CW side above noon
         int   slice_count;       // buffer_samples / base (≥1), freeze use
         int   slice_index;       // TIME as slice selector, freeze use
     };

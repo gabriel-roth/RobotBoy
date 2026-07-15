@@ -184,7 +184,7 @@ BaseTimeControl::Result BaseTimeControl::Update(float density_knob, float densit
 
     Result r{};
     r.clocked = clocked_;
-    r.multi_tap = density_knob > 0.55f;  // small dead zone above noon
+    r.multi_tap = !clocked_ && density_knob > 0.55f;  // manual mode only, small dead zone above noon
 
     float base;
     float multiplier;
@@ -208,10 +208,10 @@ BaseTimeControl::Result BaseTimeControl::Update(float density_knob, float densit
     r.base_samples = base;
     r.multiplier = multiplier;
     r.delay_samples = std::clamp(base * multiplier, min_samples, buffer_samples_);
-    // Round rather than truncate: exp2()-derived bases carry float noise
-    // (e.g. buffer/base landing on 7.9999993 instead of exactly 8), and the
-    // slice count is meant to be the nearest whole number of base-slices.
-    r.slice_count = std::max(1, static_cast<int>(std::lround(buffer_samples_ / base)));
+    // Floor with epsilon: exp2()-derived bases carry float noise (e.g. 7.9999993
+    // → 8), which we absorb with epsilon. Ensures count×base ≤ buffer always,
+    // so the last slice won't extend past the buffer end for freeze consumers.
+    r.slice_count = std::max(1, static_cast<int>(buffer_samples_ / base + 1e-3f));
     r.slice_index = static_cast<int>(std::lround(time_knob * static_cast<float>(r.slice_count - 1)));
 
     last_base_samples_ = base;
