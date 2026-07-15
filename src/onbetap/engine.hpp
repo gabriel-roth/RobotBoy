@@ -15,6 +15,7 @@
 #include "OnbetapFilter.hpp"
 #include "../mf20/dsp_utils.hpp"
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 
 struct DCBlock {
@@ -100,8 +101,18 @@ struct OnbetapVoice {
     }
     // NaN recovery per modulate block: filters only (smoother inputs are
     // clamped params, always finite) — avoids a parameter sweep on recovery.
+    // Also clears the DC blockers and decimation FIR state: a NaN filter
+    // state is a necessary precondition for the DC blocker's own recursion
+    // to go NaN (it only ever sees the filter's output), so this trigger is
+    // sufficient to catch it too. Without this, a single NaN input would
+    // wedge dcL/dcR's y1 at NaN forever even after the filter recovers.
     void sanitize() {
-        if (!fL.stateFinite() || !fR.stateFinite()) { fL.reset(); fR.reset(); }
+        if (!fL.stateFinite() || !fR.stateFinite()) {
+            fL.reset(); fR.reset();
+            dcL.reset(); dcR.reset();
+            firLpL.reset(); firBpL.reset(); firHpL.reset();
+            firLpR.reset(); firBpR.reset(); firHpR.reset();
+        }
     }
 };
 
@@ -137,7 +148,10 @@ struct DriftWalker {
         float u = (int32_t)rng * (1.f / 2147483648.f);
         constexpr float tau = 45.f;              // seconds
         float a = dtSec / tau;
-        // OU: sigma chosen so stationary std ≈ depthOct
+        // OU: sigma = depthOct·sqrt(2a); with uniform [-1,1] noise (var 1/3)
+        // this gives stationary std ≈ depthOct/sqrt(3), not depthOct — the
+        // constant was calibrated empirically against that actual std, so
+        // this is a naming note only, not a bug (see worklog Task 5, 2e).
         float sigma = depthOct * std::sqrt(2.f * a);
         value += a * (0.f - value) + sigma * u;
         value = std::clamp(value, -3.f * depthOct, 3.f * depthOct);

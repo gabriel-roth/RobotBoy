@@ -110,7 +110,7 @@ sample rate — no hardcoded 44.1/48k.
 
 Cutoff → g: `g = tan(π·fc/fs_os)` computed at modulate rate (2.5 ms), slewed
 per-sample in the g domain (MF-20 pattern: no tan/exp2 in the audio path).
-Cutoff clamp: [0.5 Hz, 0.49·fs_os] — CV can close the filter to sub-audio
+Cutoff clamp: [0.5 Hz, 0.49·Nyquist] (= 0.245·fs_os) — CV can close the filter to sub-audio
 (hardware self-oscillates down to \~2 Hz) and open it ultrasonic (\~50 kHz on
 hardware) [emulations §0].
 

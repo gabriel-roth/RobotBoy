@@ -291,3 +291,13 @@ On MetaModule (GUI simulator, spot-check only):
 - [ ] Spot-check the right-click-menu-equivalent (module option page) for
       Character/Resonance limiting/Oversampling, and that the panel visual
       matches `res/Onbetap.svg`.
+- [ ] The MM "Effective load" numbers recorded above (0.65% / 0.35%) are a
+      macOS-hosted simulator proxy, not a real Cortex-A7 measurement — check
+      actual CPU load on real MetaModule hardware.
+
+## 2026-07-15 — Final review fixes
+
+- The 13-tap `DecimFir13` (2× oversampling path, `src/onbetap/engine.hpp`)
+  adds a fixed group delay of 6 samples at fsOs — about 3 host samples once
+  decimated back to the host rate — on top of whatever the linear-interp
+  upsampler contributes.

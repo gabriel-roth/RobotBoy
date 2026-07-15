@@ -40,8 +40,9 @@
  *   HP = −N(node) (the saturated node signal = ẏ₁/ωc — physical, gritty)
  *   state update s = 2·mid − s, then rail clamp.
  *
- * Denominator guard: n ∈ (0,1], k ≥ −0.31 (module clamps) keeps D > 0 for all
- * g ≤ tan(0.49π)·…; a 0.05 floor is cheap insurance regardless.
+ * Denominator guard: cutoffToG clamps fc to 0.245·fsOs (0.49·Nyquist), so
+ * g ≤ tan(0.245π) ≈ 0.97; with kEff ≥ −0.31 (module clamps) and n ∈ (0,1],
+ * D stays ≥ ~0.47; the 0.05 floor below is cheap insurance regardless.
  *
  * off is a DC current injected at the node (per-unit offsets, ×48 noise gain;
  * vintage mode scales it with cutoff → sweep thump).

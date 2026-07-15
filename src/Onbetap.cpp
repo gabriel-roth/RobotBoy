@@ -134,6 +134,7 @@ struct Onbetap : Module {
 		Module::onReset(e);
 		pool.resetAll();
 		driftL.reset(); driftR.reset();
+		steps = modulationSteps;                     // modulate on first process() after Reset
 	}
 
 	void modulate() {
@@ -171,14 +172,14 @@ struct Onbetap : Module {
 			v.gTarget = OnbetapFilter::cutoffToG(fc, fsOs);
 
 			float res = resKnob;
-			if (resCv) res += resAtt * inputs[RES_INPUT].getPolyVoltage(c) / 10.f;
+			if (resCv) res += resAtt * inputs[RES_INPUT].getPolyVoltage(c) * 0.2f;
 			res = clamp(res, 0.f, 1.f);
 			// rev-log damping map; onset ~res 0.72; min resonance Q≈1
 			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + tuneOnset;
 			v.kTarget = k;   // phase-lag term applied per sample from slewed g
 
 			float drive = driveKnob;
-			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
+			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) * 0.2f;
 			drive = clamp(drive, 0.f, 1.f);
 			float spanOct = tuneDriveDb / 6.0206f;               // dB → octaves
 			float driveGain = std::exp2(-2.f + spanOct * drive); // 0.25 → …
@@ -257,7 +258,7 @@ struct Onbetap : Module {
 		        ? tap(modeTarget)
 		        : tap(modeCurrent) + (tap(modeTarget) - tap(modeCurrent)) * modeXf;
 
-		float v = y * makeup;
+		float v = -y * makeup;
 		v = dc.process(v, dcCoef);                   // AC-couple (rectification DC)
 		return 9.f * OnbetapFilter::tanhish(v / 9.f); // "overdriven VCA" stage
 	}
@@ -331,16 +332,16 @@ struct Onbetap : Module {
 		}
 		json_t* dDb = json_object_get(root, "tuneDriveDb");
 		if (dDb)
-			tuneDriveDb = (float)json_real_value(dDb);
+			tuneDriveDb = clamp((float)json_real_value(dDb), 24.f, 48.f);
 		json_t* head = json_object_get(root, "tuneHeadroom");
 		if (head)
-			tuneHeadroom = (float)json_real_value(head);
+			tuneHeadroom = clamp((float)json_real_value(head), 0.5f, 2.0f);
 		json_t* onset = json_object_get(root, "tuneOnset");
 		if (onset)
-			tuneOnset = (float)json_real_value(onset);
+			tuneOnset = clamp((float)json_real_value(onset), -0.10f, 0.10f);
 		json_t* outDb = json_object_get(root, "tuneOutDb");
 		if (outDb)
-			tuneOutDb = (float)json_real_value(outDb);
+			tuneOutDb = clamp((float)json_real_value(outDb), -12.f, 12.f);
 	}
 };
 
