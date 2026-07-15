@@ -16,7 +16,9 @@
 // HalfbandUp/HalfbandDown (plain O(kHbN) shift-register, no sparsity
 // exploited). Kept here ONLY as an equivalence oracle for the optimized
 // ring-buffer versions in wasp_dsp_utils.hpp — never touched again once the
-// rewrite is verified bit-for-bit (up to float reordering) against this.
+// rewrite is verified sample-for-sample within 1e-6 against this (small
+// nonzero diffs, ~1e-7, are expected float32 reassociation from the
+// different summation order).
 struct ReferenceHalfbandUp {
     float hist[wasp::kHbN] = {};
     void reset() { for (float& h : hist) h = 0.f; }
@@ -60,6 +62,19 @@ static void report(bool ok, const char* name, const char* detail = nullptr) {
         printf("  FAIL  %s", name);
         if (detail) printf("  (%s)", detail);
         printf("\n");
+        ++sFailed;
+    }
+}
+
+// Like report(), but prints the detail line on PASS as well — used by the
+// halfband equivalence checks so the measured maxDiff evidence is
+// reproducible from this shipped harness, not just visible on failure.
+static void reportWithDetail(bool ok, const char* name, const char* detail) {
+    if (ok) {
+        printf("  PASS  %s  (%s)\n", name, detail);
+        ++sPassed;
+    } else {
+        printf("  FAIL  %s  (%s)\n", name, detail);
         ++sFailed;
     }
 }
@@ -272,7 +287,7 @@ static void test_halfband_matches_reference() {
         }
         char buf[96];
         snprintf(buf, sizeof(buf), "n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
-        report(ok, "HalfbandUp matches ReferenceHalfbandUp within 1e-6", buf);
+        reportWithDetail(ok, "HalfbandUp matches ReferenceHalfbandUp within 1e-6", buf);
     }
 
     // -- Up path, immediately after reset() (mid-stream) --
@@ -304,7 +319,7 @@ static void test_halfband_matches_reference() {
         }
         char buf[96];
         snprintf(buf, sizeof(buf), "post-reset n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
-        report(ok, "HalfbandUp matches reference immediately after reset()", buf);
+        reportWithDetail(ok, "HalfbandUp matches reference immediately after reset()", buf);
     }
 
     // -- Down path --
@@ -326,7 +341,7 @@ static void test_halfband_matches_reference() {
         }
         char buf[96];
         snprintf(buf, sizeof(buf), "n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
-        report(ok, "HalfbandDown matches ReferenceHalfbandDown within 1e-6", buf);
+        reportWithDetail(ok, "HalfbandDown matches ReferenceHalfbandDown within 1e-6", buf);
     }
 
     // -- Down path, immediately after reset() (mid-stream) --
@@ -356,7 +371,7 @@ static void test_halfband_matches_reference() {
         }
         char buf[96];
         snprintf(buf, sizeof(buf), "post-reset n=%d maxDiff=%.3e (want < %.0e)", n, maxDiff, tol);
-        report(ok, "HalfbandDown matches reference immediately after reset()", buf);
+        reportWithDetail(ok, "HalfbandDown matches reference immediately after reset()", buf);
     }
 }
 

@@ -88,8 +88,8 @@ inline constexpr float kHalfbandTaps[kHbN] = {
 // This lets both structs replace the O(kHbN) history shift + O(kHbN) MAC
 // (done twice per process() call) with a small ring buffer (no per-sample
 // data movement, just a moving write index) and ~kHbHalf+1 MACs instead of
-// 2*kHbN, while producing bit-identical (up to float reassociation) output
-// to the direct-form implementation this replaced — see
+// 2*kHbN, while matching the direct-form implementation this replaced to
+// within float32 reassociation error (measured maxDiff ~1e-7) — see
 // ReferenceHalfbandUp/ReferenceHalfbandDown and the equivalence test in
 // tests/yellowjacket/test_wasp_utils.cpp.
 inline constexpr int kHbCenter = kHbN / 2;           // 23: index of the sole nonzero odd tap
@@ -111,7 +111,7 @@ struct HalfbandUp {
 
         // acc0 = sum over even tap indices 2*j of taps[2*j] * (input j
         // samples ago), walked backward from `head` with wraparound split
-        // into two contiguous runs (no per-iteration modulo/branch).
+        // into two contiguous runs (no per-iteration modulo).
         float acc0 = 0.f;
         int j = 0;
         for (int idx = head; idx >= 0 && j < kHbHalf; --idx, ++j)
