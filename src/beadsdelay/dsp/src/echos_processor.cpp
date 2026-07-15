@@ -293,7 +293,18 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
 }
 
 void EchosProcessor::ClearBuffer() {
-    if (impl_) impl_->recording_buffer.ImmediateClear();
+    if (!impl_) return;
+    impl_->recording_buffer.ImmediateClear();
+    // The feedback HP filters carry their own memory independent of the
+    // delay buffer's content. Left un-reset, their residual free-decay
+    // output gets written back into the (now silent) buffer and re-read
+    // through the still-active feedback loop, regenerating near the
+    // feedback gain each round trip — with a short delay time and feedback
+    // near unity this circulates far longer than a buffer clear should
+    // audibly last. Reset them alongside the buffer so a user-triggered
+    // clear actually silences the feedback tail, not just the recording.
+    impl_->feedback_hp_l.Reset();
+    impl_->feedback_hp_r.Reset();
 }
 
 float EchosProcessor::BaseTimeSeconds() const {
