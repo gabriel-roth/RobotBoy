@@ -64,3 +64,73 @@ Running notes for the autonomous beads-delay build (branch
   green (unaffected — the guard test is scoped to Particules-only files).
 - Full detail, patch/WAV fixtures, and regeneration commands:
   `tests/echos/mm-sim-notes.md`, `tests/echos/mm_sim/`.
+
+## 2026-07-15 — verification sweep (Task 13, final)
+
+### Test sweep — all green
+
+| Lane | Result |
+|---|---|
+| `tests/run.sh` (mf20/loooop/particules + python guards) | all passed (5 python tests OK) |
+| `tests/beadsdelay_dsp/run.sh` | 47 test cases, 2 363 113 assertions, all passed |
+| `tests/particules_dsp/run.sh` | all passed |
+| `tests.test_no_delay_mode` + `tests.test_robotboy_identity` | 4 tests OK |
+| `make -C vcv -j8` | clean |
+| `cmake --build metamodule/build` | clean, `RobotBoy.mmplugin` produced |
+
+(beadsdelay_dsp was 46 cases at Task 12; the 47th is the regression test
+added below.)
+
+### Demo renders — MM headless simulator, one real bug found and fixed
+
+**Host choice:** the plan called for the VCV headless host, but Échos (and
+Particules — verified, so not a regression) segfault there:
+`~/Dev/vcv-headless` provides no engine Context and both modules call
+`APP->engine->getSampleRate()` in their constructors — the host skill's
+documented "live engine Context unsupported" case (MF-20 runs fine). Used
+the MM headless simulator instead, as the task brief allowed. The sim has 2
+input channels and no knob automation, so SEED-clock and FREEZE-gate ride
+WAV channel 1, and the freeze-slicer TIME "sweep" is three renders at
+static TIME values. Fixtures: `tests/echos/mm_sim/demo_*.yml` +
+`gen_demo_inputs.py`; listening WAVs in the session scratchpad
+(`echos_demo/`), verified programmatically (`analyze_demos.py`, scratchpad).
+
+**(a) Karplus-Strong** (DENSITY=0 → 2 ms base = 500 Hz, FEEDBACK=0.95,
+8 ms noise burst): pluck rings at exactly 500 Hz (autocorr period 96
+samples, normalized autocorr 0.95) — **but the first render grew instead of
+decaying**. Isolated host-side against the DSP core: feedback 0.9 decays,
+0.95 grows ~0.12%/cycle; FFT showed the growing component at ~30 Hz, not
+500. **Root cause:** the feedback DC-block HP (SVF at 10 Hz) was left at
+the SVF class's default Q=1, which peaks at ~1.155× above cutoff
+(|H|≈1.05 at 30 Hz) — loop gain 0.95 × 1.05 > 1 → low-frequency
+self-oscillation for any feedback ≥ ~0.87. Particules sets `SetQ(0.707f)`
+on the same filter for the same reason; Échos's Init() omitted it. Fixed
+(`echos_processor.cpp` Init, +comment), regression test added
+(`test_echo_engine.cpp` "high feedback decays instead of self-oscillating",
+confirmed red before / green after), all builds redone. Post-fix render:
+500 Hz pluck, RMS 0.0025 → 0.0000 → 0.0000 at 0.2/0.8/1.6 s. Not a silent
+fix — flagged here and in the user checklist for an ear-check.
+
+**(b) Clocked echo** (2 Hz clock into SEED, DENSITY noon = 1/1, TIME 0,
+FEEDBACK 0.5, burst at 0.6 s): echo peaks at 1.110/1.610/2.110/2.610/
+3.110 s — 0.500 s spacing on the clock grid; repeat ratios
+0.504/0.503/0.503/0.502 (expect ~0.5); silence between echoes; 0 NaN/Inf.
+
+**(c) Freeze slicer** (DENSITY=4/11 → 0.5 s base → 8 slices; 8 distinct
+0.5 s tones 200–900 Hz recorded, freeze gate at 4.0 s; TIME = 0, 3/7, 1):
+frozen output loops the correct slice — 900/600/200 Hz for slices 0/3/7
+(slice k starts at (3.5 − 0.5k) s → 900 − 100k Hz), pitch constant across
+three separate loop passes (clean seam looping), 0 NaN/Inf.
+
+### State of the branch
+
+- All 13 plan tasks complete; every test lane green; VCV plugin.dylib,
+  `.mmplugin`, and Rack2-installed copy all rebuilt with the feedback-HP
+  fix. CPU number from Task 12 (~0.19% host-relative) is unaffected (the
+  fix changes one filter coefficient).
+- Uncommitted-by-design: nothing; `tests/echos/mm_sim/audio_{in,out}.wav`
+  remain untracked (reproducible, per mm-sim-notes).
+- For Gabriel: `docs/superpowers/plans/2026-07-15-beads-delay-user-checklist.md`
+  — GUI checks, audible checks of the three demo patches, and the design
+  decisions awaiting sign-off (module name Échos, MM access to the menu
+  sliders, SlowRandomLfo shared wander, and the spec decision log).

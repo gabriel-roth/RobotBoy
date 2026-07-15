@@ -106,6 +106,44 @@ TEST_CASE("tape mode: delay-time jump glides (no instant jump)") {
     REQUIRE(mid < 0.19f);          // still slewing, not arrived
 }
 
+TEST_CASE("high feedback decays instead of self-oscillating (fb HP must not peak)") {
+    // Regression: the feedback DC-block HP is a 2nd-order SVF; left at the
+    // class's default Q=1 its response peaks at ~1.155x above cutoff, so any
+    // feedback >= ~0.87 made the loop gain exceed 1 and a ~30 Hz oscillation
+    // grew out of nothing (found by the Task-13 Karplus demo render). With
+    // Q=0.707 (Butterworth, as Particules sets) max HP gain is 1.0 and a
+    // 0.95-feedback pluck must decay.
+    Proc proc;
+    EchosParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.95f;
+    params.density = 0.f;               // audio-rate base (2 ms clamp)
+    proc.p.SetParameters(params);
+    const size_t total = 96000;         // 2 s
+    std::vector<StereoFrame> in(total, StereoFrame{0.f, 0.f});
+    // 8 ms noise-ish burst (deterministic)
+    for (int i = 0; i < 384; ++i) {
+        float w = 0.5f - 0.5f * std::cos(2.f * 3.14159265f * i / 384.f);
+        in[i] = {0.2f * w * ((i * 2654435761u % 1000) / 500.f - 1.f),
+                 0.2f * w * ((i * 40503u % 1000) / 500.f - 1.f)};
+    }
+    std::vector<StereoFrame> out(total);
+    for (size_t off = 0; off < total; off += 64) {
+        proc.p.SetParameters(params);
+        proc.p.Process(in.data() + off, out.data() + off, 64);
+    }
+    auto rms = [&](float t0, float t1) {
+        size_t a = (size_t)(t0 * 48000.f), b = (size_t)(t1 * 48000.f);
+        double ss = 0;
+        for (size_t i = a; i < b; ++i) ss += (double)out[i].l * out[i].l;
+        return std::sqrt(ss / (b - a));
+    };
+    float early = rms(0.2f, 0.4f);
+    float late  = rms(1.6f, 1.9f);
+    REQUIRE(early > 0.f);
+    REQUIRE(late < early * 0.5f);       // decaying, not growing
+}
+
 TEST_CASE("NaN input does not poison the buffer") {
     Proc proc;
     EchosParameters params; params.dry_wet = 1.f; params.feedback = 0.9f;

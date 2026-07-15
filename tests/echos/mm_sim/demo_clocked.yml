@@ -1,0 +1,36 @@
+PatchData:
+  patch_name: demo_clocked
+  description: >-
+    Echos clocked-echo demo - 2 Hz clock pulses on ch1 into the SEED jack
+    (jack_id 8), DENSITY at noon (1/1 subdivision), TIME=0 (multiplier 1),
+    FEEDBACK=0.5, BLEND=0.5. Input: demo_clocked_in.wav (300 Hz burst at
+    t=0.6 s on ch0, clock on ch1). Expect echoes locked to the 0.5 s clock
+    grid: burst at 0.6 s, repeats at 1.1, 1.6, 2.1, ... decaying ~0.5x.
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Echos'
+  int_cables: []
+  mapped_ins:
+    - panel_jack_id: 0
+      ins:
+        - module_id: 1
+          jack_id: 0
+    - panel_jack_id: 1
+      ins:
+        - module_id: 1
+          jack_id: 8
+  mapped_outs:
+    - panel_jack_id: 0
+      out:
+        module_id: 1
+        jack_id: 0
+    - panel_jack_id: 1
+      out:
+        module_id: 1
+        jack_id: 1
+  static_knobs:
+    - {module_id: 1, param_id: 1, value: 0.5}
+    - {module_id: 1, param_id: 5, value: 0.5}
+    - {module_id: 1, param_id: 6, value: 0.5}
+  vcvModuleStates: []
+  bypassed_modules: []

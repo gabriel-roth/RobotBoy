@@ -66,10 +66,16 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     impl_->quality_processor.Init(sample_rate);
 
     // Feedback HP filter at 10 Hz to remove DC buildup in the feedback path.
+    // Q must be 0.707 (Butterworth): the SVF's default Q=1 peaks at ~1.155x
+    // just above cutoff, which pushes the loop gain over 1 for feedback
+    // settings >= ~0.87 and grows a ~30 Hz oscillation out of nothing.
+    // Particules sets the same Q on its feedback HP for the same reason.
     impl_->feedback_hp_l.Init();
     impl_->feedback_hp_l.SetFrequencyHz(10.0f, sample_rate);
+    impl_->feedback_hp_l.SetQ(0.707f);
     impl_->feedback_hp_r.Init();
     impl_->feedback_hp_r.SetFrequencyHz(10.0f, sample_rate);
+    impl_->feedback_hp_r.SetQ(0.707f);
 
     impl_->base_time.Init(sample_rate, kBufferSeconds);
     impl_->engine.Init(&impl_->recording_buffer, sample_rate);

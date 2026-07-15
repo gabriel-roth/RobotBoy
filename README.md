@@ -1,7 +1,8 @@
 # Robot Boy
 
-**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains five modules: 
+**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains six modules: 
 
+* **Échos:** A delay based on the hidden delay mode of Mutable Instruments Beads. 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads. 
 * **[Löp](Loooop.md#löp):** Loooop's little sibling, with just one playhead. 
 * **[MF-20](MF20.md):** A Korg MS-20-style filter.
@@ -9,6 +10,10 @@
 * **[Particules](Particules.md):** A granular texture processor based on Mutable Instruments Beads.
 
 ---
+
+## Échos
+
+A delay based on the hidden delay mode of Mutable Instruments Beads: manual, clocked, or tap-tempo delay times down to audio rates (Karplus-Strong), a freeze beat-slicer, a pitch shifter in the feedback path, tempo-synced repeat shaping, and the four Beads recording-quality modes. (Screenshot and full documentation to come.)
 
 ## Loooop
 
