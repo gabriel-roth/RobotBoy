@@ -252,6 +252,64 @@ a 1×-oversampling escape hatch.
 - Reference iteration counts: Diva 1–2 typical/15 worst; sst TriPole fixed
   3; Fundamental 0 (pivot only).
 
+## Circuit-lore agent findings + schematic reads (2026-07-15)
+
+Primary sources saved in scratchpad: EDP Wasp service manual
+(polynominal.com), Haible clone schematic (original values), Sandelinos
+A-124 KiCad trace (rev V4 2025), Gnat schematics (Stinchcombe).
+
+### Topology settled (A-124 trace + Haible, read directly)
+- Audio in → Lev pot (A50k log) → 27k → 220n → 4069 summing inverter
+  (IC1A). Output = **HP node**.
+- Global feedback **LP → 27k ∥ 100pF → summing junction** (this is the
+  PCB part Doepfer calls R13 — NOT the paper's R13!). The famous
+  PatchPierre self-osc mod parallels 10k across this 27k → boosts the ω²
+  feedback ~3.7×, Q ×≈1.9 → self-oscillation. A real, documented mod we
+  can use for Screaming mode.
+- HP → 47k → CA3080 (divider 27k/27k+1k) → 4069 + 330p integrator → BP.
+  BP → 47k → CA3080 → 4069 + 330p → LP. Expo converter (BC557 pair) feeds
+  both bias pins through 1k — A-124 tracks ~1V/oct ("not very precise").
+- Resonance network: BP → 1k (R14, BP Out also tapped here via 10µ) →
+  50k pot triangle w/ 100k (R15), 1M (paper R13), 220n (C7) → **27k (R4)
+  into the summing junction, with the antiparallel 1N4148 pair ACROSS
+  that 27k**. Diodes see v_X = yd (since R4 = R3); conducting shunts R4 →
+  damping jumps from ~0 to H1≈0.55. This is the overload limiter.
+  f_d(yd) = yd + R3·2·Is·sinh(yd/(η·VT)).
+- Original EDP (Haible/Gnat): same shape, values 33k feedback, 33k in,
+  100k OTA feeds, 33k/33k+1k dividers (k_div=0.0085 → OTAs "on the safe
+  side", Haible), 1nF integrators, 68pF across 33k global feedback,
+  resonance: 100k series / 100k shunt / 47k pot + 220n / 33k return,
+  diodes same role. +5V rails, mid-rail 2.5V.
+
+### Behavioral facts
+- **Original: no stable self-oscillation** — diode limiter holds it at
+  the "verge": hollow whistle, chirps on envelope transients (service
+  manual test steps 46/53/70; SOS: "overload limiter prevents
+  oscillation"). Factory tuning gets a "near-perfect sinewave" ringing.
+- **A-124 stock: also no self-osc** (manual p.1), but DAFx Fig 9 shows
+  blooming ±6V nonlinear resonance at 100%. With the 10k mod: self-osc.
+- Original cutoff range ~3 Hz–16 kHz (SOS). Original has NO expo
+  converter — multiplicative keyboard tracking, nonlinear law. We use
+  clean 1V/oct instead (A-124-style, standard for Eurorack).
+- LP idles at ~+3 V DC in original; bias wander with cutoff sweeps is
+  normal (thumps on fast modulation — a modelable "erratic" charm, via
+  the asymmetric operating point).
+- CMOS inverters are the dominant distortion (Haible), audible well
+  before clipping → model finite-gain softness, not just hard rails.
+- Unbuffered CD4069UBE mandatory in hardware; brand-to-brand variation
+  audible. (Justifies a "character trim" slider if we want one.)
+
+### Character switch decision (updated)
+- **Tame = original EDP '78**: +5 V rails (≈±2.2 V headroom around
+  2.5 V), k_div 0.0085 (OTA gentler), makeup gain at output; diode
+  limiter dominates → verge-of-oscillation whistle only.
+- **Screaming = A-124 + 10k self-osc mod**: +12 V rails, k_div 0.0163,
+  R2_eff = 27k∥10k (ω0 = 1.92·ωc compensated in knob calibration) →
+  true self-oscillation, rails+tanh bound the amplitude.
+- Both share the A-124/DAFx H1 network (verified); EDP's slightly
+  different resonance-network values are close enough in shape — revisit
+  only if Tame sounds wrong.
+
 ## Repo conventions to follow (MF-20 precedent)
 
 - Header-only core `src/yellowjacket/WaspFilter.hpp` (pure DSP, no Rack),
