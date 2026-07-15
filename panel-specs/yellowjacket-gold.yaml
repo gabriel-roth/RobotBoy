@@ -20,6 +20,7 @@ theme:
   background: "#d4ad3f"   # reversed: dulled gold panel
   text_color: "#ffffff"    # white control labels
   title_color: "#000000"   # black logo/title
+  value_color: "#ffffff"   # ring labels white, matching the other labels
 
 rows:
   # Res (resonance) / Freq (hero cutoff) / Drive.
