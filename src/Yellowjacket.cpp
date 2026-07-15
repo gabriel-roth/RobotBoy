@@ -1,13 +1,14 @@
 #include "plugin.hpp"
+#include "yellowjacket/engine.hpp"
 
 // Yellowjacket — EDP Wasp-style CMOS state-variable filter (stereo).
 //
-// SHELL ONLY: the DSP is not implemented yet. process() passes the stereo audio
-// input straight to all four output pairs; the Freq/Res/Drive/Blend controls,
-// their CV inputs, and the Character menu toggle are wired to params/ports but
-// do nothing until the filter engine lands. Panel positions mirror
-// res/Yellowjacket.svg (see panel-specs/yellowjacket.yaml). configParam ranges
-// are provisional.
+// DSP: wasp::WaspFilter (src/yellowjacket/WaspFilter.hpp) driven through an
+// oversampled wasp::EnginePool (src/yellowjacket/engine.hpp), following the
+// MF-20 control-rate pattern (src/mf20/MF20Filter.cpp): params/CVs are read
+// every ~2.5 ms in modulate(), audio-rate smoothers slew the resulting
+// targets per sample. Panel positions mirror res/Yellowjacket.svg (see
+// panel-specs/yellowjacket.yaml) and are untouched here.
 
 struct Yellowjacket : Module {
 	enum ParamId {
@@ -49,6 +50,42 @@ struct Yellowjacket : Module {
 	// it to pick which faceplate SVG to draw.
 	int panelTheme = 0;
 
+	// Per-voice DSP state (up to 16 voices), stereo, oversampled.
+	wasp::EnginePool _pool;
+
+	// Rate divider — modulate() runs every ~2.5 ms instead of every sample.
+	int _modulationSteps = 100;
+	int _steps = 100;  // >= _modulationSteps: first process() modulates immediately
+
+	float _sampleRate = 44100.f;   // host rate; mirrors the engine rate for modulate-rate math
+
+	// Oversampling: 0 = auto (4x <=48k, 2x <=96k, 1x above), else 1/2/4 forced.
+	int _osMenu = 0;
+	int _osActual = 4;             // resolved factor currently applied to the pool
+
+	// Accuracy: pivot-only (false) vs pivot + 2 Newton iterations (true).
+	bool _highAcc = true;
+
+	// Input trim (dB), folded into the drive gain at modulate rate.
+	float _inputTrimDb = 0.f;
+
+	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
+	float _fPole = 80000.f;
+
+	// Self-oscillation pitch tracking: false = hardware-accurate (drifts flat
+	// at high resonance in Screaming), true = corrected to track the knob.
+	bool _oscPitchCorrected = false;
+
+	// Blend (LP<->HP crossfade) is shared across voices (no per-voice CV path
+	// in the panel), so it gets a single module-level smoother rather than
+	// living in EnginePool.
+	OnePoleSmoother _blendSlew { 0.5f };
+	float _blendTarget = 0.5f;
+
+	// Deterministic denormal-prevention dither: alternates sign each sample
+	// (cheaper than an RNG and bit-reproducible VCV vs MetaModule).
+	float _dither = 1e-9f;
+
 	Yellowjacket() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
 
@@ -84,29 +121,206 @@ struct Yellowjacket : Module {
 			configBypass(AUDIO_INPUT_R, out);
 	}
 
-	// Passthrough until the filter engine is implemented: L in -> all L outs,
-	// R in -> all R outs (R normalled to L when unpatched), per polyphony channel.
+	// Recompute the oversampling factor and push it (plus the current host
+	// rate) down into the pool. Called on sample-rate change and whenever the
+	// Oversampling menu selection changes.
+	void updateOversampling() {
+		int os = _osMenu;
+		if (os == 0)
+			os = (_sampleRate <= 48000.f) ? 4 : (_sampleRate <= 96000.f) ? 2 : 1;
+		_osActual = os;
+
+		float fsInt = _sampleRate * (float)os;
+		_pool.setSampleRate(fsInt);
+
+		float alpha = smootherAlpha(_sampleRate, 0.005f);  // 5 ms, at host rate
+		for (auto& eng : _pool.engines) {
+			eng.gSlew.setAlpha(alpha);
+			eng.kC2Slew.setAlpha(alpha);
+			eng.rhoSlew.setAlpha(alpha);
+			eng.driveSlew.setAlpha(alpha);
+			eng.beta0Slew.setAlpha(alpha);
+			eng.beta1Slew.setAlpha(alpha);
+			eng.alpha1Slew.setAlpha(alpha);
+			// Resampler histories don't survive a rate/factor change; filter
+			// core state (bp/lp/etc.) carries across it fine.
+			eng.resetResamplers();
+		}
+		_blendSlew.setAlpha(alpha);
+	}
+
+	void onSampleRateChange(const SampleRateChangeEvent& e) override {
+		_sampleRate = e.sampleRate;
+		updateOversampling();
+		_modulationSteps = std::max(1, (int)(_sampleRate * 0.0025f));  // 2.5 ms
+		_steps = _modulationSteps;
+	}
+
+	void onReset(const ResetEvent& e) override {
+		Module::onReset(e);
+		_pool.resetAll();
+	}
+
+	// Called at ~2.5 ms intervals: reads params/CVs, updates per-voice
+	// smoother targets. Division-heavy math (tan, computeH1) lives here, not
+	// in the audio path.
+	void modulate() {
+		const wasp::ModeConfig& mode = screaming ? wasp::kScreaming : wasp::kTame;
+		float fsInt = _sampleRate * (float)_osActual;
+
+		float freqLog     = params[FREQ_PARAM].getValue();
+		float freqCvAtten = params[FREQ_CV_PARAM].getValue();
+		float res         = clamp(params[RES_PARAM].getValue(), 0.f, 1.f);
+		float resCvAtten  = params[RES_CV_PARAM].getValue();
+		float driveKnob   = clamp(params[DRIVE_PARAM].getValue(), 0.f, 1.f);
+		float driveCvAtten = params[DRIVE_CV_PARAM].getValue();
+
+		bool freqCvConn  = inputs[FREQ_INPUT].isConnected();
+		bool resCvConn   = inputs[RES_INPUT].isConnected();
+		bool driveCvConn = inputs[DRIVE_INPUT].isConnected();
+
+		// Input trim is a fixed (non-CV) menu setting -> shared gain factor.
+		float trimGain = std::pow(10.f, _inputTrimDb / 20.f);
+
+		for (int c = 0; c < _pool.activeVoices; c++) {
+			wasp::VoiceEngine& eng = _pool.engines[c];
+			eng.sanitize();
+
+			eng.l.filt.setMode(mode);
+			eng.r.filt.setMode(mode);
+
+			// Frequency: 1 V/oct CV on the log2 knob value, then to Hz.
+			float fcLog = freqLog;
+			if (freqCvConn)
+				fcLog += freqCvAtten * inputs[FREQ_INPUT].getPolyVoltage(c);
+			float fc = clamp(std::exp2(fcLog), 1.f, 20000.f);
+
+			float fcInt = fc * mode.wcComp;
+
+			// Self-oscillation pitch correction (Screaming only): the
+			// rail-bounded limit cycle runs ~0.72x the knob's small-signal
+			// placement at rho=1; blend toward a corrected scale as rho
+			// approaches 1 so the perceived pitch tracks the knob there.
+			if (_oscPitchCorrected && screaming) {
+				float rhoNow = eng.rhoSlew.value;
+				float s = clamp((rhoNow - 0.85f) / 0.15f, 0.f, 1.f);
+				fcInt *= 1.f + (1.f / 0.72f - 1.f) * s;
+			}
+
+			fcInt = clamp(fcInt, 0.25f, 0.45f * fsInt);
+			eng.gTarget = std::tan(float(M_PI) * fcInt / fsInt);
+
+			// kC2eff may legitimately go negative (the self-oscillation
+			// mechanism) — never clamp it.
+			float wcInt = 2.f * float(M_PI) * fcInt;
+			eng.kC2Target = 27e3f * 100e-12f * wcInt
+			               - mode.kR2 * wcInt / (2.f * float(M_PI) * _fPole);
+
+			// Resonance.
+			float rho = res;
+			if (resCvConn)
+				rho += resCvAtten * inputs[RES_INPUT].getPolyVoltage(c) / 10.f;
+			rho = clamp(rho, 0.f, 1.f);
+			eng.rhoTarget = rho;
+
+			// Drive: knob 0..1 -> 1x..8x, times the fixed input-trim gain.
+			float drive01 = driveKnob;
+			if (driveCvConn)
+				drive01 += driveCvAtten * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
+			drive01 = clamp(drive01, 0.f, 1.f);
+			eng.driveTarget = std::exp2(3.f * drive01) * trimGain;
+
+			// H1 (resonance network) coefficients: computeH1 is division-heavy,
+			// so it's evaluated here (modulate rate) and its outputs are what
+			// gets slewed per-sample, not rho itself.
+			wasp::H1Coeffs h1t = wasp::computeH1(rho, fsInt);
+			eng.beta0Target  = h1t.beta0;
+			eng.beta1Target  = h1t.beta1;
+			eng.alpha1Target = h1t.alpha1;
+		}
+
+		// Blend (LP<->HP crossfade): shared across voices, no attenuverter.
+		float blend = params[BLEND_PARAM].getValue();
+		if (inputs[BLEND_INPUT].isConnected())
+			blend += inputs[BLEND_INPUT].getVoltage() / 10.f;
+		_blendTarget = clamp(blend, 0.f, 1.f);
+	}
+
+	// Process one voice (channel c). Advances its smoothers and runs the
+	// audio cascade for L, and for R unless it's normalled to L.
+	void processChannel(int c) {
+		wasp::VoiceEngine& eng = _pool.engines[c];
+
+		float g     = eng.gSlew.process(eng.gTarget);
+		float kC2   = eng.kC2Slew.process(eng.kC2Target);
+		float drive = eng.driveSlew.process(eng.driveTarget);
+		// rhoSlew doesn't feed the audio path directly (H1's own coefficient
+		// smoothers do that) but is kept current every sample so modulate()
+		// can read back a smoothed resonance for the self-osc pitch formula.
+		eng.rhoSlew.process(eng.rhoTarget);
+		wasp::H1Coeffs h1{
+			eng.beta0Slew.process(eng.beta0Target),
+			eng.beta1Slew.process(eng.beta1Target),
+			eng.alpha1Slew.process(eng.alpha1Target)
+		};
+
+		float m = _blendSlew.process(_blendTarget);
+
+		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
+		wasp::WaspFilter::Out oL =
+			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2, _highAcc);
+
+		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
+		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
+		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
+		outputs[MIX_OUTPUT].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+
+		if (inputs[AUDIO_INPUT_R].isConnected()) {
+			// True stereo: process R through its own filter/resampler chain.
+			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
+			wasp::WaspFilter::Out oR =
+				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2, _highAcc);
+			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oR.lp + m * oR.hp, c);
+		} else {
+			// R normalled to L: mirror L's outputs, skip the R compute
+			// entirely (matches the MF-20 mono-patch optimization).
+			outputs[LP_OUTPUT_R].setVoltage(oL.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(oL.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(oL.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+		}
+	}
+
 	void process(const ProcessArgs& args) override {
 		int channels = std::max({1, inputs[AUDIO_INPUT].getChannels(),
 		                            inputs[AUDIO_INPUT_R].getChannels()});
-		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
+		_pool.setVoices(channels);
 
-		for (int c = 0; c < channels; c++) {
-			float l = inputs[AUDIO_INPUT].getPolyVoltage(c);
-			float r = rConnected ? inputs[AUDIO_INPUT_R].getPolyVoltage(c) : l;
-			for (int out : {LP_OUTPUT, BP_OUTPUT, HP_OUTPUT, MIX_OUTPUT})
-				outputs[out].setVoltage(l, c);
-			for (int out : {LP_OUTPUT_R, BP_OUTPUT_R, HP_OUTPUT_R, MIX_OUTPUT_R})
-				outputs[out].setVoltage(r, c);
-		}
 		for (int out = 0; out < NUM_OUTPUTS; out++)
 			outputs[out].setChannels(channels);
+
+		if (++_steps >= _modulationSteps) {
+			_steps = 0;
+			modulate();
+		}
+
+		_dither = -_dither;
+		for (int c = 0; c < channels; c++)
+			processChannel(c);
 	}
 
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "screaming", json_boolean(screaming));
 		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
+		json_object_set_new(root, "highAcc", json_boolean(_highAcc));
+		json_object_set_new(root, "osMenu", json_integer(_osMenu));
+		json_object_set_new(root, "inputTrimDb", json_real(_inputTrimDb));
+		json_object_set_new(root, "fPole", json_real(_fPole));
+		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
 	}
 
@@ -117,9 +331,90 @@ struct Yellowjacket : Module {
 		json_t* p = json_object_get(root, "panelTheme");
 		if (p)
 			panelTheme = json_integer_value(p);
+		json_t* ha = json_object_get(root, "highAcc");
+		if (ha)
+			_highAcc = json_boolean_value(ha);
+		json_t* om = json_object_get(root, "osMenu");
+		if (om)
+			_osMenu = json_integer_value(om);
+		json_t* it = json_object_get(root, "inputTrimDb");
+		if (it)
+			_inputTrimDb = (float)json_real_value(it);
+		json_t* fp = json_object_get(root, "fPole");
+		if (fp)
+			_fPole = (float)json_real_value(fp);
+		json_t* pc = json_object_get(root, "oscPitchCorrected");
+		if (pc)
+			_oscPitchCorrected = json_boolean_value(pc);
+		// Missing keys already default correctly via member initializers
+		// above; re-derive the oversampling factor in case osMenu changed
+		// (onSampleRateChange may or may not have run yet at this point).
+		updateOversampling();
 	}
 };
 
+
+// Menu-slider Quantities (VCV desktop only — MetaModule's context menu has no
+// ui::Slider widget; see the #ifndef METAMODULE guards below, same pattern as
+// Particules' ManualGainSlider/Quantity).
+
+// Input trim: linear dB, ±12 dB, default 0.
+struct InputTrimQuantity : Quantity {
+	Yellowjacket* module;
+	InputTrimQuantity(Yellowjacket* m) : module(m) {}
+	void setValue(float value) override {
+		if (module)
+			module->_inputTrimDb = clamp(value, getMinValue(), getMaxValue());
+	}
+	float getValue() override { return module ? module->_inputTrimDb : getDefaultValue(); }
+	float getMinValue() override { return -12.f; }
+	float getMaxValue() override { return 12.f; }
+	float getDefaultValue() override { return 0.f; }
+	std::string getLabel() override { return "Input trim"; }
+	std::string getUnit() override { return " dB"; }
+	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
+};
+
+// Inverter bandwidth: log-scaled 60 kHz - 300 kHz, default 80 kHz. The
+// Quantity's own value/min/max live in log2(Hz) space so the slider position
+// is linear-in-log; getDisplayValue/getDisplayValueString convert back to Hz.
+struct FPoleQuantity : Quantity {
+	Yellowjacket* module;
+	FPoleQuantity(Yellowjacket* m) : module(m) {}
+	void setValue(float value) override {
+		if (module)
+			module->_fPole = std::pow(2.f, clamp(value, getMinValue(), getMaxValue()));
+	}
+	float getValue() override {
+		return module ? std::log2(module->_fPole) : getDefaultValue();
+	}
+	float getMinValue() override { return std::log2(60000.f); }
+	float getMaxValue() override { return std::log2(300000.f); }
+	float getDefaultValue() override { return std::log2(80000.f); }
+	float getDisplayValue() override { return std::pow(2.f, getValue()); }
+	void setDisplayValue(float displayValue) override { setValue(std::log2(displayValue)); }
+	std::string getLabel() override { return "Inverter bandwidth"; }
+	std::string getUnit() override { return " Hz"; }
+	std::string getDisplayValueString() override { return string::f("%.0f", getDisplayValue()); }
+};
+
+#ifndef METAMODULE
+struct InputTrimSlider : ui::Slider {
+	InputTrimSlider(InputTrimQuantity* q) {
+		quantity = q;
+		box.size.x = 200.f;
+	}
+	~InputTrimSlider() { delete quantity; }
+};
+
+struct FPoleSlider : ui::Slider {
+	FPoleSlider(FPoleQuantity* q) {
+		quantity = q;
+		box.size.x = 200.f;
+	}
+	~FPoleSlider() { delete quantity; }
+};
+#endif
 
 struct YellowjacketWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
@@ -187,6 +482,47 @@ struct YellowjacketWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Screaming (self-oscillates)",
 			m->screaming ? "✓" : "",
 			[m]() { m->screaming = true; }));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("Accuracy"));
+		menu->addChild(createMenuItem("Standard",
+			!m->_highAcc ? "✓" : "",
+			[m]() { m->_highAcc = false; }));
+		menu->addChild(createMenuItem("High (default)",
+			m->_highAcc ? "✓" : "",
+			[m]() { m->_highAcc = true; }));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Oversampling",
+			{"Auto", "1x", "2x", "4x"},
+			[m]() -> size_t {
+				switch (m->_osMenu) {
+					case 1: return 1;
+					case 2: return 2;
+					case 4: return 3;
+					default: return 0;
+				}
+			},
+			[m](size_t i) {
+				static const int kValues[4] = {0, 1, 2, 4};
+				m->_osMenu = kValues[i];
+				m->updateOversampling();
+			}));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("Self-oscillation pitch (Screaming)"));
+		menu->addChild(createMenuItem("Hardware (drifts flat)",
+			!m->_oscPitchCorrected ? "✓" : "",
+			[m]() { m->_oscPitchCorrected = false; }));
+		menu->addChild(createMenuItem("Corrected (tracks knob)",
+			m->_oscPitchCorrected ? "✓" : "",
+			[m]() { m->_oscPitchCorrected = true; }));
+
+#ifndef METAMODULE
+		menu->addChild(new MenuSeparator);
+		menu->addChild(new InputTrimSlider(new InputTrimQuantity(m)));
+		menu->addChild(new FPoleSlider(new FPoleQuantity(m)));
+#endif
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Panel",

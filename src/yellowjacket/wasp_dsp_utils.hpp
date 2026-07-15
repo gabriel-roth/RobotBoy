@@ -70,6 +70,7 @@ inline constexpr float kHalfbandTaps[kHbN] = {
 // N=47 direct-form convolution twice per audio sample is cheap enough here).
 struct HalfbandUp {
     float hist[kHbN] = {};
+    void reset() { for (float& h : hist) h = 0.f; }
     // Zero-stuff (in, 0) then filter each phase; 2x tap gain restores the
     // amplitude halved by zero-stuffing (unity-gain halfband filter).
     void process(float in, float* out2) {
@@ -88,6 +89,7 @@ struct HalfbandUp {
 };
 struct HalfbandDown {
     float hist[kHbN] = {};
+    void reset() { for (float& h : hist) h = 0.f; }
     // Filter at the up-rate, keep every 2nd (post-pair) output; unity-gain
     // filter, no amplitude compensation needed (no zero-stuffing here).
     float process(float in0, float in1) {
