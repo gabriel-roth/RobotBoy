@@ -40,6 +40,26 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
     return best;
 }
 
+// Mirrors BaseTimeControl::Update()'s unclocked/manual-mode formula
+// (base_time.cpp) for a fixed density knob and a given quality's buffer
+// duration. Used by the corner-stress test below to prove a quality
+// transition actually changed the buffer duration that DENSITY's mapping
+// sees (rather than just re-deriving the production formula for its own
+// sake) — BaseTimeSeconds() is the cleanest observable for this because
+// BaseTimeControl::Update() recomputes it synchronously from
+// buffer_samples_ every block (no slew), unlike DelayTimeSeconds() which
+// one-pole slews toward its target over ~0.08 s.
+float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
+    int decimation = particules_dsp::DecimationFactorForQuality(quality);
+    float buffer_seconds = static_cast<float>(kBufferFrames) *
+                            static_cast<float>(decimation) / sr;
+    float buffer_samples = sr * buffer_seconds;
+    float d = std::clamp(std::fabs(density - 0.5f) * 2.f, 0.f, 1.f);
+    float base = buffer_samples * std::exp2(-kManualOctaves * d);
+    float min_samples = kMinDelaySeconds * sr;
+    return std::clamp(base, min_samples, buffer_samples) / sr;
+}
+
 }  // namespace
 
 // ---------------------------------------------------------------------------
@@ -99,8 +119,22 @@ TEST_CASE("block-size invariance: 1/7/64/512-frame chunking gives identical outp
 
 // ---------------------------------------------------------------------------
 // (b) Corner stress: extreme parameter corners, with freeze toggling every
-// SetParameters call, pitch alternating +/-24, quality cycling every 0.5 s,
-// over 5 s of noise input. No non-finite samples, no crash.
+// 4th SetParameters step (leaving 4-step unfrozen stretches -- see below),
+// pitch alternating +/-24 every step, quality cycling roughly every 0.5 s,
+// over 5 s of noise input. No non-finite samples, no crash, and every
+// scheduled quality transition is proven to have actually applied.
+//
+// Freeze toggling on *every* step (the original pattern) meant the
+// quality-apply guard in ProcessBlock (echos_processor.cpp ~130:
+// `!params.freeze && !freeze_falling_edge`, the Task-8 one-block deferral)
+// was false on every single block, so quality transitions
+// (SetDecimationFactor/recording_buffer.Clear()/the duck/SetBufferSeconds)
+// never fired -- the "quality cycling" stress dimension was silently dead.
+// Toggling only every 4th step leaves stretches where 3 of the 4 steps have
+// both this block and the previous block unfrozen, satisfying the guard;
+// `guard_open` below mirrors that exact condition so a scheduled quality
+// change is only committed at a step where the production code will
+// actually apply it.
 // ---------------------------------------------------------------------------
 TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite") {
     const float sr = 48000.f;
@@ -115,6 +149,13 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
     float densities[2] = {0.f, 1.f};
     float times[2] = {0.f, 1.f};
 
+    // Freeze value changes only once every 4 steps (steps 0-3 one value,
+    // 4-7 the other, ...), not every step. quality_period_steps (~375) is
+    // assumed >> kFreezeGroup so at most one pending quality boundary is
+    // ever "owed" at a time (checked by the exact-count assertion below).
+    const size_t kFreezeGroup = 4;
+    auto freeze_at = [&](size_t s) { return ((s / kFreezeGroup) % 2) == 1; };
+
     for (float density : densities) {
         for (float time : times) {
             Proc proc(sr);
@@ -128,18 +169,34 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
             params.shape = 1.f;
             params.feedback = 1.f;
 
-            bool freeze = false;
             bool pitch_high = true;
             bool all_finite = true;
             size_t first_bad_step = SIZE_MAX;
+
+            size_t quality_idx = 0;
+            size_t next_boundary = quality_period_steps;
+            size_t transitions_checked = 0;
 
             std::vector<StereoFrame> in(chunk), out(chunk);
             for (size_t step = 0; step < steps; ++step) {
                 params.pitch_semitones = pitch_high ? 24.f : -24.f;
                 pitch_high = !pitch_high;
-                params.freeze = freeze;
-                freeze = !freeze;
-                params.quality = qualities[(step / quality_period_steps) % 4];
+
+                bool cur_frozen = freeze_at(step);
+                bool prev_frozen = (step == 0) ? false : freeze_at(step - 1);
+                bool guard_open = !cur_frozen && !prev_frozen;
+                params.freeze = cur_frozen;
+
+                // Only commit the next quality once the guard is actually
+                // open, so the transition we're about to check for is one
+                // the production code will genuinely apply this step.
+                bool expect_transition = false;
+                if (step >= next_boundary && guard_open) {
+                    quality_idx = (quality_idx + 1) % 4;
+                    next_boundary += quality_period_steps;
+                    expect_transition = true;
+                }
+                params.quality = qualities[quality_idx];
                 proc.p.SetParameters(params);
 
                 for (size_t i = 0; i < chunk; ++i) {
@@ -154,11 +211,33 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
                         if (first_bad_step == SIZE_MAX) first_bad_step = step;
                     }
                 }
+
+                // Instrumentation: prove the transition actually applied by
+                // checking BaseTimeSeconds() against the value analytically
+                // expected for the new quality's buffer duration. If the
+                // apply guard never fired (e.g. reverted to never-fire),
+                // BaseTimeSeconds() would still reflect the OLD quality's
+                // buffer and this would mismatch immediately.
+                if (expect_transition) {
+                    float expected = ExpectedBaseSeconds(density, qualities[quality_idx], sr);
+                    float actual = proc.p.BaseTimeSeconds();
+                    INFO("density=" << density << " time=" << time
+                                     << " step=" << step
+                                     << " new quality index=" << quality_idx);
+                    REQUIRE(actual == Catch::Approx(expected).margin(1e-5));
+                    transitions_checked++;
+                }
             }
 
             INFO("density=" << density << " time=" << time
                              << " first_bad_step=" << first_bad_step);
             REQUIRE(all_finite);
+
+            // Sanity net on the scheduling itself: every nominal ~0.5 s
+            // quality boundary within the run must have been found and
+            // checked exactly once (see kFreezeGroup assumption above).
+            size_t expected_transitions = (steps - 1) / quality_period_steps;
+            REQUIRE(transitions_checked == expected_transitions);
         }
     }
 }
