@@ -17,7 +17,7 @@ hp: 10
 side_margin: 3
 title_size: 5.8
 theme:
-  background: "#c99c1e"   # reversed: gold panel
+  background: "#d4ad3f"   # reversed: dulled gold panel
   text_color: "#ffffff"    # white control labels
   title_color: "#000000"   # black logo/title
 
@@ -75,11 +75,11 @@ connectors:
 # Wasp amber/yellow control zone behind the compressed knob cluster only; it
 # stops just below the CV jacks. (h tuned to the generated CV-jack row.)
 zones:
-  - {x: 1.5, y: 15, w: 47.8, h: 48.1, fill: "#000000", opacity: 0.89}
+  - {x: 1.5, y: 15, w: 47.8, h: 48.1, fill: "#2e2e2e", opacity: 0.89}
   # Second zone behind the output group (Blend/Mix/HP/BP/LP); In sits in the gap above.
   # Extends past the panel bottom (128.5) so the visible bottom edge is square
   # (rounded top corners only) — looks like it runs off the panel.
-  - {x: 1.5, y: 80, w: 47.8, h: 50.5, fill: "#000000", opacity: 0.89}
+  - {x: 1.5, y: 80, w: 47.8, h: 50.5, fill: "#2e2e2e", opacity: 0.89}
 
 nudges:
   TITLE: [0, 3.6]           # drop the near-full-width wordmark below the top screws
