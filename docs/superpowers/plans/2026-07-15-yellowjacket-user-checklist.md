@@ -119,7 +119,7 @@ Output level / Inverter bandwidth, Panel theme.
 
 If Tame ever sustains instead of decaying (§1.2), or Screaming won't cross
 into self-oscillation where you'd expect, or the drive/character balance
-feels off against a reference for the real hardware, two context-menu
+feels off against a reference for the real hardware, three context-menu
 sliders exist specifically as tuning aids (VCV: continuous sliders; MM:
 5-step menus, see §2.2):
 
