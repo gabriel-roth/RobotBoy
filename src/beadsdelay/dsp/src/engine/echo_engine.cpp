@@ -15,6 +15,10 @@ inline float WrapPosition(float position, float size_f) {
     return position;
 }
 
+// Frames of linear crossfade applied at the tail of a frozen slice, toward
+// the sample at the slice's start, so the loop-point wrap doesn't click.
+constexpr float kSeamCrossfadeFrames = 64.f;
+
 }  // namespace
 
 void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate) {
@@ -89,14 +93,64 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
 }
 
 void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_index) {
-    // Task 7 completes freeze behavior. For now just store the state so the
-    // interface is stable; unfrozen (normal) behavior is unaffected.
+    if (!buf_) {
+        frozen_ = frozen;
+        return;
+    }
+
+    int decimation = std::max(1, buf_->decimation_factor());
+    float size_f = static_cast<float>(buf_->size());
+    int k = std::max(0, slice_index);
+
+    float new_slice_len = slice_len_samples / static_cast<float>(decimation);
+    if (!std::isfinite(new_slice_len) || new_slice_len < 1.f) new_slice_len = 1.f;
+
+    bool was_frozen = frozen_;
+
+    if (frozen && !was_frozen) {
+        // Rising edge: anchor to the current write head (buffer frames,
+        // frozen for the duration) and start the slice read fresh from
+        // phase 0. buf_->NotifyFreeze(true) declicks the write seam so the
+        // now-static write head doesn't leave a hard edge for playback to
+        // cross every time the slice loops past it.
+        frozen_anchor_ = static_cast<float>(buf_->write_head());
+        slice_len_frames_ = new_slice_len;
+        slice_start_ = WrapPosition(
+            frozen_anchor_ - static_cast<float>(k + 1) * slice_len_frames_, size_f);
+        slice_phase_ = 0.f;
+        buf_->NotifyFreeze(true);
+    } else if (frozen && was_frozen) {
+        // Still frozen: TIME (slice index) or DENSITY (slice length) may
+        // have changed live. Re-anchor the slice window and re-clamp phase
+        // so a shrinking slice doesn't leave it out of range.
+        slice_len_frames_ = new_slice_len;
+        slice_start_ = WrapPosition(
+            frozen_anchor_ - static_cast<float>(k + 1) * slice_len_frames_, size_f);
+        if (slice_phase_ < 0.f || slice_phase_ >= slice_len_frames_) {
+            slice_phase_ = std::fmod(slice_phase_, slice_len_frames_);
+            if (slice_phase_ < 0.f) slice_phase_ += slice_len_frames_;
+        }
+    } else if (!frozen && was_frozen) {
+        // Falling edge: derive the delay-frame offset that reproduces the
+        // last frozen read position under the normal read formula
+        // (read_pos = write_pos_continuous - delay_frames_), so the normal
+        // tape/crossfade path resumes with no jump and then slews/crossfades
+        // away from there toward the live TIME target on its own.
+        float frozen_read_pos = WrapPosition(slice_start_ + slice_phase_, size_f);
+        float equiv_delay = read_subsample_ - frozen_read_pos;
+        if (mode_ == TimeChangeMode::kTape) {
+            delay_frames_ = equiv_delay;
+        } else {  // kCrossfade: fade from the frozen-equivalent offset to
+                   // whatever target SetTargets already resolved this block.
+            fade_from_frames_ = equiv_delay;
+            fade_pos_ = 0.f;
+            queued_target_ = -1.f;
+        }
+        buf_->NotifyFreeze(false);
+    }
+    // (!frozen && !was_frozen): steady-state unfrozen, nothing to do.
+
     frozen_ = frozen;
-    int decimation = buf_ ? std::max(1, buf_->decimation_factor()) : 1;
-    slice_len_frames_ = std::max(1.f, slice_len_samples / static_cast<float>(decimation));
-    slice_start_ = slice_len_frames_ * static_cast<float>(slice_index);
-    slice_phase_ = 0.f;
-    if (buf_) frozen_anchor_ = static_cast<float>(buf_->write_head());
 }
 
 StereoFrame EchoEngine::ReadWet() {
@@ -113,6 +167,35 @@ StereoFrame EchoEngine::ReadWet() {
     // to for this sample (the processor calls ReadWet() before Write()).
     float write_pos_continuous = read_subsample_;
     read_subsample_ += 1.f / static_cast<float>(decimation);
+
+    if (frozen_) {
+        slice_phase_ += 1.f / static_cast<float>(decimation);
+        if (slice_phase_ < 0.f || slice_phase_ >= slice_len_frames_) {
+            slice_phase_ = std::fmod(slice_phase_, slice_len_frames_);
+            if (slice_phase_ < 0.f) slice_phase_ += slice_len_frames_;
+        }
+
+        float pos_main = WrapPosition(slice_start_ + slice_phase_, size_f);
+        float l, r;
+        buf_->ReadHermiteStereoFast(pos_main, &l, &r);
+
+        // Seam declick: crossfade the tail of the slice toward the (fixed)
+        // sample at the slice start, so the loop-point wrap doesn't click.
+        // Guard short slices so the fade window never exceeds half the
+        // slice length.
+        float fade_len = std::min(kSeamCrossfadeFrames, slice_len_frames_ * 0.5f);
+        if (fade_len > 0.f && slice_phase_ >= slice_len_frames_ - fade_len) {
+            float w = (slice_phase_ - (slice_len_frames_ - fade_len)) / fade_len;
+            w = std::clamp(w, 0.f, 1.f);
+            float pos_start = WrapPosition(slice_start_, size_f);
+            float ls, rs;
+            buf_->ReadHermiteStereoFast(pos_start, &ls, &rs);
+            l = (1.f - w) * l + w * ls;
+            r = (1.f - w) * r + w * rs;
+        }
+
+        return StereoFrame{l, r};
+    }
 
     StereoFrame wet{0.f, 0.f};
     float delay_used = delay_frames_;

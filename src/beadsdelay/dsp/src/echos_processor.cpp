@@ -118,7 +118,8 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
         s.params.clock_connected, s.params.clock_tick_offset, n);
     float slew_seconds = std::max(s.params.slew_seconds, 1e-3f);
     s.engine.SetTargets(bt.delay_samples, bt.multi_tap, s.params.time_change_mode, slew_seconds);
-    // Task 7 completes freeze; for now this only stores state (stub).
+    // FREEZE: called every block (edge-detected internally). While frozen,
+    // TIME/DENSITY can still retarget the slice window/length live.
     s.engine.NotifyFreeze(s.params.freeze, bt.base_samples, bt.slice_index);
 
     // Block-rate: SHAPE attenurandomizer modulates the repeat envelope's
@@ -197,7 +198,13 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
 
         float trimmed_l = input.l * input_gain;
         float trimmed_r = input.r * input_gain;
-        s.recording_buffer.Write(trimmed_l + fb.l, trimmed_r + fb.r);
+        // FREEZE: stop writes so the buffer content underneath the frozen
+        // slice(s) stays put. The feedback chain above still runs into the
+        // void (computed but discarded here) so unfreeze doesn't pop from a
+        // stale/decayed feedback state suddenly resuming.
+        if (!s.params.freeze) {
+            s.recording_buffer.Write(trimmed_l + fb.l, trimmed_r + fb.r);
+        }
 
         float mix = s.smoothed_dry_wet;
         out[i].l = input.l * (1.f - mix) + wet.l * mix;
