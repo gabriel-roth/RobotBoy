@@ -161,18 +161,18 @@ struct YellowjacketWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.250, 69.550)), module, Yellowjacket::AUDIO_INPUT_R));
 
 		// Lower zone. Left column: Blend CV / Blend knob / Mix. Right column: HP / BP / LP.
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(14.980, 86.750)), module, Yellowjacket::BLEND_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 86.750)), module, Yellowjacket::HP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 86.750)), module, Yellowjacket::HP_OUTPUT_R));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(13.480, 86.750)), module, Yellowjacket::BLEND_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 86.750)), module, Yellowjacket::HP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 86.750)), module, Yellowjacket::HP_OUTPUT_R));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.997, 101.950)), module, Yellowjacket::BLEND_PARAM));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.947, 101.950)), module, Yellowjacket::BP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.647, 101.950)), module, Yellowjacket::BP_OUTPUT_R));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(13.497, 101.950)), module, Yellowjacket::BLEND_PARAM));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.447, 101.950)), module, Yellowjacket::BP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.147, 101.950)), module, Yellowjacket::BP_OUTPUT_R));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.150, 117.150)), module, Yellowjacket::MIX_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(19.850, 117.150)), module, Yellowjacket::MIX_OUTPUT_R));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.950, 117.150)), module, Yellowjacket::LP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(40.650, 117.150)), module, Yellowjacket::LP_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.650, 117.150)), module, Yellowjacket::MIX_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(18.350, 117.150)), module, Yellowjacket::MIX_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 117.150)), module, Yellowjacket::LP_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 117.150)), module, Yellowjacket::LP_OUTPUT_R));
 	}
 
 	void appendContextMenu(Menu* menu) override {
