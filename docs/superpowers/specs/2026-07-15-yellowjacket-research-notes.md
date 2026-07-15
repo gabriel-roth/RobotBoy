@@ -156,6 +156,102 @@ Q(ρ, ωc) = 1/(Re{H1(jωc)} + R2·C2·ωc):
 - H1's zero: 15 Hz (ρ=0) → ∞ (ρ=1); H1(∞) → 0 at ρ=1 (pure integrator-ish
   lag → damping vanishes at audio rate, hence self-osc).
 
+## Draft nonlinear model (pre-spec sketch, 2026-07-15)
+
+Continuous-time, voltages centered on the inverter operating point:
+
+    HP  = invSat( −(hin + f_d(yd) + LP + R2C2·ωc·S(BP)) )   [IC1 summing]
+    BP' = ωc · S(HP)          [OTA IC2 + C3 + inverter IC3]
+    LP' = ωc · S(BP)          [OTA IC4 + C4 + inverter IC5]
+    yd  = H1(s) ∘ BP          [resonance network, first-order pole-zero]
+    hin = HPF_20Hz(driveGain · v_in)   [C1/R_level input coupling]
+
+- S(v) = (1/c)·tanh(c·v), c = β·k_div/(2VT) ≈ 0.306 V⁻¹ (OTA input
+  divider k_div = 16.26e-3, β = 0.9408, VT = 25.85 mV). Saturates when
+  node swings exceed ~3–5 V — interacts with rail clip at 12 V supply,
+  dominates at 5 V.
+- invSat = CMOS inverter output saturator: soft asymmetric clamp at the
+  rail headroom (±≈5 V @ 12 V supply; ±≈2.2 V @ 5 V), soft top knee
+  (γH ≈ 16), harder bottom knee (γL ≈ 30) per paper Table 4. The same
+  clamp bounds BP and LP (IC3/IC5 are inverters too + OTA rail plateau).
+- f_d(yd) = yd + R3·I_s·sgn(yd)·(exp(|yd|/(η·VT)) − 1) — diode pair
+  (D1,D2 ∥ R4 leg). Voltage across the R4 leg equals yd exactly since
+  R4 = R3 = 27k and the far side is IC1's virtual ground. Knee ~0.4 V.
+  Engages in overdriven mid-resonance regimes; at ρ→1 the rails do the
+  limiting instead (yd is tiny because |H1| collapses).
+- Rail clamp is what bounds self-oscillation (paper Figs 9/11): plain
+  tanh-only model diverges to ±50 V and sounds/behaves wrong.
+
+Discretization: TPT/trapezoidal. Per sample it reduces to a SCALAR
+implicit equation in HP:
+
+    BP = sBP + g·S(HP);  LP = sLP + g·S(BP);  yd = cb·BP + c_state
+    HP = invSat(−(hin + f_d(yd) + LP + kc2·S(BP)))
+
+Fixed-point iterate 2–4× from last sample's HP (all maps monotone,
+bounded slope; cheap tanh approx), then TPT state update + rail clamp,
+H1 state update, output DC blockers (outputs are AC-coupled via C5/C6
+in hardware; asymmetric clipping creates DC offsets we must block).
+
+Character switch: Screaming = +12 V rails (Doepfer A-124); Tame = +5 V
+rails (original EDP Wasp) — headroom ~2.4× tighter, OTA tanh relatively
+more dominant, resonance amplitude limited earlier. (R13 barely matters
+linearly — keep 1M for both, or make it part of the mode if research
+says otherwise.)
+
+Open per-sample cost estimate: ~3 tanh-approx evals × ~3 iterations × 2×
+oversampling per channel — fine for VCV, plausible for MetaModule; keep
+a 1×-oversampling escape hatch.
+
+## Research agent findings (2026-07-15)
+
+### Existing emulations
+- **No usable open-source nonlinear Wasp exists.** Only
+  Griffinboy24/Griffin_Wasp_VCF (HISE node, no license) — linear-only
+  biquads from the paper's small-signal math with a fudge factor. Read for
+  the Δ-Y math transcription, nothing else.
+- The paper's framework is ACME.jl (MIT, github.com/HSU-ANT/ACME.jl); no
+  Wasp netlist shipped. Red Llama companion code (Julia) with the CMOS
+  model: https://lkoeper.gitlab.io/dafx-2020-cmos-llama/
+- **VCV sells an official Doepfer A-124 model by Andrew Simper (Cytomic)**,
+  closed source, polyphonic, with a "High detail mode" (cheap vs expensive
+  solver, user-selectable) — pattern worth copying via context menu.
+  Cytomic's The Drop has a "WSP" model deliberately altered to self-osc
+  across the full range.
+- **Cherry Audio's 2025 EDP Wasp synth emulation is also named
+  "Yellowjacket"** (synthanatomy.com 2025-04). Name collision to be aware
+  of; theirs is a full synth, ours a Eurorack-style filter module.
+- Structural C++ templates: VCVRack/Fundamental `src/VCF.cpp` (mystran
+  fixed-pivot tanhXdX, inline polyphase halfband 2x, ~78 dB);
+  surge-synthesizer/sst-filters `include/sst/filters/TriPoleFilter.h`
+  (OTA filter, fixed 3 Newton iterations, analytic Jacobian, 2x);
+  jatinchowdhury18/ChowDSP-VCV Werner GenSVF (state-space + per-state tanh).
+
+### Real-time method recommendations (agent report, corroborates draft)
+- **Solver: mystran fixed-pivot linearization as the base** — replace each
+  tanh with gain tanh(x̂)/x̂ at pivot x̂ = previous sample's argument, solve
+  the ZDF loop linearly in closed form. Optionally re-solve with updated
+  pivots ≈ quasi-Newton step. Then optional true Newton (1–3 iterations,
+  cap 4–8, warm start) as a "High accuracy" mode. **Plain Picard/fixed-point
+  iteration is NOT safe at self-oscillation (loop gain ≥ 1)** — revise the
+  earlier sketch accordingly.
+- Keep everything C¹-smooth: fit the CMOS inverter to a smooth asymmetric
+  sigmoid instead of piecewise MOSFET regions; use the paper's tanh rail
+  blends verbatim (γH=16.03, γL=30.14) — Newton-friendly, less aliasing.
+- Diode pair: i = 2·Is·sinh(v/(ηVT)); prefer sinh/asinh form, avoid raw exp.
+- tanhXdX must have a series/rational form near 0 (limit 1).
+- Step limiting: clamp Newton steps; on failure fall back to fixed-pivot
+  answer — never NaN, never loop.
+- **Oversampling adaptive on host rate: 4x at 44.1/48k, 2x at 88.2/96k,
+  1x at ≥176.4k.** Polyphase allpass IIR halfband (hiir-style or
+  Fundamental's inline one) beats windowed-sinc FIR here. Recompute g and
+  H1/Hin coefficients at the internal rate.
+- ADAA inside the feedback loop is poison (half-sample delay); smooth
+  nonlinearities + oversampling is the answer. ADAA only worth it for
+  output-path shapers, which we don't have.
+- Reference iteration counts: Diva 1–2 typical/15 worst; sst TriPole fixed
+  3; Fundamental 0 (pivot only).
+
 ## Repo conventions to follow (MF-20 precedent)
 
 - Header-only core `src/yellowjacket/WaspFilter.hpp` (pure DSP, no Rack),
