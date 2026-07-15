@@ -1,0 +1,28 @@
+PatchData:
+  patch_name: yj_default
+  description: Yellowjacket headless sim check - default settings (Tame, Auto OS)
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Yellowjacket'
+  int_cables: []
+  mapped_ins:
+    - panel_jack_id: 0
+      ins:
+        - module_id: 1
+          jack_id: 0
+    - panel_jack_id: 1
+      ins:
+        - module_id: 1
+          jack_id: 1
+  mapped_outs:
+    - panel_jack_id: 0
+      out:
+        module_id: 1
+        jack_id: 0
+    - panel_jack_id: 1
+      out:
+        module_id: 1
+        jack_id: 1
+  static_knobs: []
+  vcvModuleStates: []
+  bypassed_modules: []

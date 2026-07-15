@@ -126,8 +126,20 @@ struct Yellowjacket : Module {
 	// Oversampling menu selection changes.
 	void updateOversampling() {
 		int os = _osMenu;
-		if (os == 0)
+		if (os == 0) {
+#if defined(METAMODULE)
+			// MetaModule's Cortex-A7 core is far weaker than a desktop CPU.
+			// Headless-simulator timing (tests/yellowjacket/mm-sim-notes.md)
+			// showed 4x oversampling costing ~7x what 1x costs (halfband
+			// resampler overhead, not just the 4x extra WaspFilter::process()
+			// calls), and true-stereo patches pay double a mono/normalled-R
+			// patch. Auto stays conservative at 2x here; users who want 4x on
+			// MM can still pick it explicitly from the Oversampling menu.
+			os = (_sampleRate <= 96000.f) ? 2 : 1;
+#else
 			os = (_sampleRate <= 48000.f) ? 4 : (_sampleRate <= 96000.f) ? 2 : 1;
+#endif
+		}
 		_osActual = os;
 
 		float fsInt = _sampleRate * (float)os;
@@ -528,8 +540,48 @@ struct YellowjacketWidget : ModuleWidget {
 			m->_oscPitchCorrected ? "✓" : "",
 			[m]() { m->_oscPitchCorrected = true; }));
 
-#ifndef METAMODULE
 		menu->addChild(new MenuSeparator);
+#ifdef METAMODULE
+		// MetaModule's context menu has no ui::Slider widget (see the
+		// InputTrimSlider/FPoleSlider #ifndef METAMODULE guards above), so MM
+		// gets discrete-choice submenus instead of continuous sliders — same
+		// precedent as Particules' manual-gain menu (src/particules/Particules.cpp,
+		// the `#ifdef METAMODULE` 0-32 dB list under ManualGainItem). Persistence
+		// is unchanged: both paths write/read the same _inputTrimDb/_fPole floats
+		// and JSON fields, so patches roundtrip identically between hosts.
+		menu->addChild(createIndexSubmenuItem("Input trim",
+			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
+			[m]() -> size_t {
+				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
+				size_t best = 2;
+				float bestDiff = std::fabs(kValues[2] - m->_inputTrimDb);
+				for (size_t i = 0; i < 5; i++) {
+					float diff = std::fabs(kValues[i] - m->_inputTrimDb);
+					if (diff < bestDiff) { bestDiff = diff; best = i; }
+				}
+				return best;
+			},
+			[m](size_t i) {
+				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
+				m->_inputTrimDb = kValues[i];
+			}));
+		menu->addChild(createIndexSubmenuItem("Inverter bandwidth",
+			{"60 kHz", "80 kHz", "120 kHz", "200 kHz", "300 kHz"},
+			[m]() -> size_t {
+				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 200000.f, 300000.f};
+				size_t best = 1;
+				float bestDiff = std::fabs(kValues[1] - m->_fPole);
+				for (size_t i = 0; i < 5; i++) {
+					float diff = std::fabs(kValues[i] - m->_fPole);
+					if (diff < bestDiff) { bestDiff = diff; best = i; }
+				}
+				return best;
+			},
+			[m](size_t i) {
+				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 200000.f, 300000.f};
+				m->_fPole = kValues[i];
+			}));
+#else
 		menu->addChild(new InputTrimSlider(new InputTrimQuantity(m)));
 		menu->addChild(new FPoleSlider(new FPoleQuantity(m)));
 #endif
