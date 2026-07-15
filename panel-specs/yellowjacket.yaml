@@ -12,6 +12,10 @@ name: Yellowjacket
 hp: 10
 side_margin: 3
 title_size: 5.8
+theme:
+  # Brighten the Blend ring labels halfway from the default (#a8a8a8) to white;
+  # everything else inherits the global charcoal theme.
+  value_color: "#d3d3d3"
 
 rows:
   # Res (resonance) / Freq (hero cutoff) / Drive.
