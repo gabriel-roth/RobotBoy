@@ -122,6 +122,40 @@ sounding behavior."
   fixed-point/Newton iterations, or MF-20-style piecewise closed form where
   possible; oversample 2–4x.
 
+## Numerical verification of the linear model (2026-07-15, h1_check.py)
+
+Computed Z1 via Δ-Y-Δ directly (complex arithmetic) and cross-checked a
+first-order fit. Results match paper Fig. 3 (|H1| ≈ −2.6 dB flat at ρ=0.1;
+falling to −36…−57 dB at high frequency for ρ=1).
+
+Closed form for the code (multiply Z1 num/den by sC7; triangle sides
+s1 = ρ·Rres + R14, s2 = (1−ρ)·Rres, s3 = R13 + R15, tot = s1+s2+s3):
+
+    Ra = s1·s3/tot   Rb = s2·s3/tot   Rc = s1·s2/tot
+    Za = Ra          Zb = Rb + 1/(sC7)   Zc = Rc + R4
+    H1(s) = (R3·Rb·C7·s + R3) / (C7·(Rb·(Za+Zc) + Za·Zc)·s + (Za+Zc))
+
+i.e. b1 = R3·Rb·C7, b0 = R3, a1 = C7·(Rb·(Za+Zc)+Za·Zc), a0 = Za+Zc —
+all real, cheap, computable at modulate rate from ρ.
+
+Q(ρ, ωc) = 1/(Re{H1(jωc)} + R2·C2·ωc):
+
+| ρ | Q@100Hz | Q@400Hz | Q@1kHz | Q@5kHz | Q@15kHz |
+|---|---|---|---|---|---|
+| 0.0 | 1.06 | 1.05 | 1.04 | 0.97 | 0.83 |
+| 0.5 | 2.93 | 2.94 | 2.86 | 2.39 | 1.70 |
+| 0.9 | 8.7 | 10.8 | 9.9 | 5.9 | 2.95 |
+| 1.0 | 18.4 | 94.3 | 56.9 | 11.8 | 3.9 |
+
+- Resonance is strongest in the midrange (400 Hz–1 kHz); tamed at high
+  cutoff by R2C2ωc and at low cutoff by H1's pole (14.9→41.6 Hz as ρ 0→1).
+- **R13 = 100k vs 1M changes linear Q almost not at all** — the
+  Tame/Screaming (EDP vs Doepfer) difference must come from supply
+  headroom (+5 V vs +12 V: rail clip levels ~4x tighter) and nonlinear
+  interaction, not the linear network.
+- H1's zero: 15 Hz (ρ=0) → ∞ (ρ=1); H1(∞) → 0 at ρ=1 (pure integrator-ish
+  lag → damping vanishes at audio rate, hence self-osc).
+
 ## Repo conventions to follow (MF-20 precedent)
 
 - Header-only core `src/yellowjacket/WaspFilter.hpp` (pure DSP, no Rack),
