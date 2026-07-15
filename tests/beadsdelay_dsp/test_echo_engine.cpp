@@ -20,9 +20,10 @@ float KnobForSeconds(float seconds, float buffer_seconds = 4.f) {
     float d = -std::log2(seconds / buffer_seconds) / 11.0f; // kManualOctaves
     return 0.5f - 0.5f * d;   // CCW side
 }
-int FindPeak(const std::vector<StereoFrame>& v, int from) {
+int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
+    if (to < 0 || to > (int)v.size()) to = (int)v.size();
     int best = from; float mag = 0.f;
-    for (int i = from; i < (int)v.size(); ++i)
+    for (int i = from; i < to; ++i)
         if (std::fabs(v[i].l) > mag) { mag = std::fabs(v[i].l); best = i; }
     return best;
 }
@@ -76,11 +77,14 @@ TEST_CASE("multi-tap adds an earlier tap on the CW side") {
     in[9600] = {1.f, 1.f};
     std::vector<StereoFrame> out(in.size());
     proc.p.Process(in.data(), out.data(), in.size());
-    // golden-ratio tap at 0.618*4800 ≈ 2967 before the main tap
-    int t2 = FindPeak(out, 9700);
+    // golden-ratio tap at 0.618*4800 ≈ 2967 before the main tap;
+    // window-bounded searches so each tap is located within its own window
+    int t2 = FindPeak(out, 9600 + 2400, 9600 + 3600);
     REQUIRE(t2 == Catch::Approx(9600 + 2967).margin(60));
-    int t1 = FindPeak(out, 9600 + 3600);
+    int t1 = FindPeak(out, 9600 + 4200, 9600 + 5400);
     REQUIRE(t1 == Catch::Approx(9600 + 4800).margin(60));
+    // main (full-delay) tap is the louder one; tap2 is the additional tap
+    REQUIRE(std::fabs(out[t1].l) > std::fabs(out[t2].l));
 }
 
 TEST_CASE("tape mode: delay-time jump glides (no instant jump)") {

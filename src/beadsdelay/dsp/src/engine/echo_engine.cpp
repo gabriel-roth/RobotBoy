@@ -155,17 +155,16 @@ StereoFrame EchoEngine::ReadWet() {
     }
 
     if (multi_tap_) {
-        // The golden-ratio tap is the prominent CW-side voice (full gain);
-        // the originally-targeted delay becomes the secondary, quieter one
-        // (kTap2Gain) alongside it. Snapped to the nearest frame: it's a
-        // coarse texture tap, and snapping avoids a sub-sample Hermite read
-        // of an otherwise-narrowband signal losing most of its amplitude to
-        // interpolation rolloff at an arbitrary (golden-ratio-derived) frac.
+        // Additional golden-ratio tap at kTap2Gain, summed under the main
+        // (full-gain) tap. Its read position is snapped to the nearest frame:
+        // it's a coarse texture tap, and snapping avoids a sub-sample Hermite
+        // read losing amplitude to interpolation rolloff at an arbitrary
+        // (golden-ratio-derived) fractional offset.
         float tap2_pos = WrapPosition(std::round(write_pos_continuous - delay_used * kTap2Ratio), size_f);
         float l2, r2;
         buf_->ReadHermiteStereoFast(tap2_pos, &l2, &r2);
-        wet.l = kTap2Gain * wet.l + l2;
-        wet.r = kTap2Gain * wet.r + r2;
+        wet.l += kTap2Gain * l2;
+        wet.r += kTap2Gain * r2;
     }
 
     return wet;
