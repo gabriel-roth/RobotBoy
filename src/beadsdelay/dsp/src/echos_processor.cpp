@@ -68,6 +68,7 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
     impl_->base_time.Init(sample_rate, kBufferSeconds);
     impl_->engine.Init(&impl_->recording_buffer, sample_rate);
     impl_->shifter.Init(sample_rate);
+    impl_->envelope.Init(sample_rate);
 }
 
 void EchosProcessor::SetParameters(const EchosParameters& params) {
@@ -102,6 +103,13 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
     // Task 7 completes freeze; for now this only stores state (stub).
     s.engine.NotifyFreeze(s.params.freeze, bt.base_samples, bt.slice_index);
 
+    // Block-rate: repeat envelope tracks the base (HOST-rate) period and
+    // resyncs to phase 0 on a clock tick. AR modulation on shape_eff arrives
+    // in Task 6; for now use the raw SHAPE knob.
+    s.envelope.SetPeriodSamples(bt.base_samples);
+    s.envelope.SetShape(s.params.shape);
+    if (s.params.clock_tick_offset >= 0) s.envelope.SyncPhase();
+
     // Block-rate: linear input trim gain.
     float input_gain = particules_dsp::DbToGain(s.params.input_trim_db);
 
@@ -128,7 +136,17 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
         // signal is what gets tapped back for feedback and mixed as wet.
         StereoFrame wet = s.shifter.Process(s.engine.ReadWet());
 
-        StereoFrame fb_in{wet.l * s.smoothed_feedback, wet.r * s.smoothed_feedback};
+        // SHAPE repeat envelope: amplitude-shapes the wet signal per delay
+        // period. Feedback normally taps the post-envelope signal (a closed
+        // gate quiets the feedback loop too); envelope_pre_feedback instead
+        // lets feedback sustain repeats unshaped, chopping only the output.
+        StereoFrame fb_src_pre = wet;
+        float env_gain = s.envelope.Next();
+        wet.l *= env_gain;
+        wet.r *= env_gain;
+        StereoFrame fb_src = s.params.envelope_pre_feedback ? fb_src_pre : wet;
+
+        StereoFrame fb_in{fb_src.l * s.smoothed_feedback, fb_src.r * s.smoothed_feedback};
         StereoFrame fb = s.saturation.LimitFeedback(fb_in, particules_dsp::QualityMode::kHiFi);
         fb.l = s.feedback_hp_l.ProcessHP(fb.l);
         fb.r = s.feedback_hp_r.ProcessHP(fb.r);

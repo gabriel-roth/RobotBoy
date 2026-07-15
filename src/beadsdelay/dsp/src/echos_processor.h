@@ -8,6 +8,7 @@
 #include "engine/echo_engine.h"
 #include "time/base_time.h"
 #include "pitch/rotary_shifter.h"
+#include "env/repeat_envelope.h"
 
 namespace beadsdelay_dsp {
 
@@ -19,6 +20,7 @@ struct EchosProcessor::Impl {
     BaseTimeControl base_time;
     EchoEngine engine;
     RotaryShifter shifter;
+    RepeatEnvelope envelope;
 
     EchosParameters params;
     float sample_rate = 48000.f;
