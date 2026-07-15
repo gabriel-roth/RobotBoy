@@ -1,10 +1,11 @@
 # Robot Boy
 
-**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains five modules: 
+**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains six modules: 
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads. 
 * **[Löp](Loooop.md#löp):** Loooop's little sibling, with just one playhead. 
 * **[MF-20](MF20.md):** A Korg MS-20-style filter.
+* **[Onbetap](Onbetap.md):** A Polivoks-style stereo multimode filter.
 * **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 * **[Particules](Particules.md):** A granular texture processor based on Mutable Instruments Beads.
 
@@ -27,6 +28,10 @@ The single-playhead version of Loooop, for when you just need a single loop. →
 <img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
 
 An emulation of the Korg MS-20 filter (switchable between the OTA and Korg35 revisions). The cutoffs for the HP and LP stages can be controlled independently or from the shared Total bus. Optional added Drive. → [**Full documentation**](MF20.md)
+
+## Onbetap
+
+A Polivoks-style stereo multimode filter: two integrator stages built from Soviet programmable op-amps in the original, with no capacitors in the signal path. Self-oscillates unpredictably at high resonance, and driving it hard suppresses that resonance rather than adding clean gain. A **Character** menu switches between a calibrated **Tamed** instance and a **Vintage** one with drift, channel mismatch, and DC thump. → [**Full documentation**](Onbetap.md)
 
 ## Ondes
 

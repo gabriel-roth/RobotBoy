@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- **Onbetap** — Polivoks-style stereo multimode filter, new module.
+- Particules: fixed a macOS-simulator portability issue in the `memalign()`
+  usage guard (real firmware and VCV Rack behavior unchanged).
+
 ## [2.0.1] — 2026-07-11
 
 Initial release.

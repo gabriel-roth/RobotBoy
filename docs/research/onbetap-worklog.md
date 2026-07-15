@@ -243,3 +243,51 @@ necessary because `ROBOTBOY_COMBINED` links all modules into one plugin
 library, so the headless simulator build (a hard requirement of this task)
 could not succeed without it. Flagging for awareness rather than treating
 it as scope creep to revert.
+
+## 2026-07-15 — Task 7: docs, changelog, final sweep
+
+Wrote `Onbetap.md` (module doc, MF20.md-style: controls, right-click menu,
+a "Character" section for the signature behaviors, provenance paragraph
+pointing at `docs/research/polivoks-*.md`), added an "Unreleased" section
+to `CHANGELOG.md` (Onbetap new-module line + the Task 6 Particules
+macOS-simulator portability fix), and added Onbetap to `README.md`'s module
+list (six modules now, alphabetical slot between MF-20 and Ondes) with a
+short blurb matching the other entries' style. No screenshot exists yet for
+Onbetap (`screenshots/Onbetap.png`) — every other module doc/README entry
+has one; this is a follow-up item, not blocking, since screenshot capture
+is a manual/GUI step outside this task's automated scope.
+
+### User checklist (GUI-sim checks — run manually, not by an agent)
+
+In VCV Rack:
+- [ ] Load Onbetap, patch audio through it, sweep **Cutoff** across its
+      range in each of the five **Mode** positions (LP/BP/HP/Notch/Peak) —
+      each should sound like a lowpass/bandpass/highpass/notch/peak filter
+      tracking the knob, no clicks on mode changes (Tamed).
+- [ ] Turn **Q** to maximum with no input patched — filter should
+      self-oscillate (a tone appears from silence). Sweep **Cutoff** while
+      self-oscillating — pitch should track. Try both **Resonance
+      limiting** settings (Hard = squarer/harsher, Soft = rounder, slightly
+      higher pitch) and both **Oversampling** settings for comparison at
+      high drive.
+- [ ] With a loud signal patched in, compare **Drive** low vs. high at a
+      fixed **Q** — resonance should audibly diminish as Drive increases.
+- [ ] Toggle **Character** between Tamed and Vintage while holding a
+      self-oscillating patch — Vintage should drift slowly and
+      unpredictably (pitch wander, occasional thump on cutoff sweeps);
+      toggling back to Tamed should stabilize.
+- [ ] Open the right-click menu's **Tuning** submenu and confirm each
+      slider (Drive span, Core headroom, Self-osc onset trim, Output trim)
+      audibly changes something when dragged, and resets correctly on
+      patch reload.
+- [ ] Save and reload a patch with non-default menu settings (Character,
+      Resonance limiting, Oversampling, Tuning sliders) — confirm they
+      persist.
+
+On MetaModule (GUI simulator, spot-check only):
+- [ ] Load a patch with Onbetap, confirm knobs/CV jacks map to the same
+      controls as VCV Rack and audio passes through correctly in at least
+      one mode.
+- [ ] Spot-check the right-click-menu-equivalent (module option page) for
+      Character/Resonance limiting/Oversampling, and that the panel visual
+      matches `res/Onbetap.svg`.
