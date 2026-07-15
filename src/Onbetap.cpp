@@ -300,8 +300,10 @@ struct Onbetap : Module {
 			limitMode = (json_integer_value(lm) == (int)OnbetapFilter::Limit::Soft)
 			          ? OnbetapFilter::Limit::Soft : OnbetapFilter::Limit::Hard;
 		json_t* os = json_object_get(root, "oversample");
-		if (os)
-			oversample = (int)json_integer_value(os);
+		if (os) {
+			int v = (int)json_integer_value(os);
+			oversample = (v == 1 || v == 2 || v == 4) ? v : 2;
+		}
 		json_t* dDb = json_object_get(root, "tuneDriveDb");
 		if (dDb)
 			tuneDriveDb = (float)json_real_value(dDb);
@@ -314,6 +316,35 @@ struct Onbetap : Module {
 		json_t* outDb = json_object_get(root, "tuneOutDb");
 		if (outDb)
 			tuneOutDb = (float)json_real_value(outDb);
+	}
+};
+
+
+// Menu slider quantity bound to a float* field, for the Tuning submenu.
+struct TuneQuantity : Quantity {
+	float* value;
+	float minV, maxV, defV;
+	std::string label, unit;
+
+	TuneQuantity(float* v, float mn, float mx, std::string lbl, std::string u, float def)
+		: value(v), minV(mn), maxV(mx), defV(def), label(lbl), unit(u) {}
+
+	void setValue(float v) override { *value = clamp(v, minV, maxV); }
+	float getValue() override { return *value; }
+	float getMinValue() override { return minV; }
+	float getMaxValue() override { return maxV; }
+	float getDefaultValue() override { return defV; }
+	std::string getLabel() override { return label; }
+	std::string getUnit() override { return unit; }
+};
+
+struct MenuSlider : ui::Slider {
+	MenuSlider(Quantity* q) {
+		quantity = q;
+		box.size.x = 200.f;
+	}
+	~MenuSlider() {
+		delete quantity;
 	}
 };
 
@@ -365,6 +396,35 @@ struct OnbetapWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Vintage (drift)",
 			m->vintageDrift ? "✓" : "",
 			[m]() { m->vintageDrift = true; }));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuLabel("Resonance limiting"));
+		menu->addChild(createMenuItem("Hard (factory rails)",
+			m->limitMode == OnbetapFilter::Limit::Hard ? "✓" : "",
+			[m]() { m->limitMode = OnbetapFilter::Limit::Hard; }));
+		menu->addChild(createMenuItem("Soft (diode clamp)",
+			m->limitMode == OnbetapFilter::Limit::Soft ? "✓" : "",
+			[m]() { m->limitMode = OnbetapFilter::Limit::Soft; }));
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Oversampling",
+			{"1x", "2x", "4x"},
+			[m]() { return m->oversample == 1 ? 0 : m->oversample == 2 ? 1 : 2; },
+			[m](int i) {
+				m->oversample = (i == 0) ? 1 : (i == 1) ? 2 : 4;
+				m->pool.resetAll();
+			}));
+
+		menu->addChild(createSubmenuItem("Tuning", "", [m](Menu* menu) {
+			menu->addChild(new MenuSlider(new TuneQuantity(
+				&m->tuneDriveDb, 24.f, 48.f, "Drive span", " dB", 36.f)));
+			menu->addChild(new MenuSlider(new TuneQuantity(
+				&m->tuneHeadroom, 0.5f, 2.0f, "Core headroom", "x", 1.f)));
+			menu->addChild(new MenuSlider(new TuneQuantity(
+				&m->tuneOnset, -0.10f, 0.10f, "Self-osc onset trim", "", 0.f)));
+			menu->addChild(new MenuSlider(new TuneQuantity(
+				&m->tuneOutDb, -12.f, 12.f, "Output trim", " dB", 0.f)));
+		}));
 	}
 };
 
