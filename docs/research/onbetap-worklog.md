@@ -138,3 +138,108 @@ saturation.
 
 Full detail (all render conditions, constant values, and the design search
 for the FIR coefficients) is in `.superpowers/sdd/task-5-report.md`.
+
+## 2026-07-15 — Task 6: MetaModule build + headless simulator verification
+
+Built the `.mmplugin` from this worktree
+(`cd metamodule && cmake --fresh -B build -GNinja && cmake --build build`,
+ARM cross-toolchain) — succeeded with **zero Onbetap portability fixes**;
+`metamodule-plugins/RobotBoy.mmplugin` produced (705 KB).
+
+Built the macOS-hosted headless simulator in `~/Dev/metamodule/simulator`
+with RobotBoy registered as a built-in via cache vars only (no
+`ext-plugins.cmake` edit):
+```
+cmake --fresh --preset headless \
+  -Dext_builtin_brand_paths="$HOME/Dev/RobotBoy/.worktrees/worktree-polivoks/metamodule" \
+  -Dext_builtin_brand_libname="RobotBoy"
+cmake --build build-headless
+```
+This surfaced one **portability fix, in `src/particules/Particules.cpp`
+(not Onbetap)**: `dsp_memory_ = memalign(...)` was gated on
+`#if defined(METAMODULE) && !defined(SIMULATOR)`, but the simulator's
+ext-builtin brand path (`simulator/ext-plugins.cmake`) defines `METAMODULE`
+without `SIMULATOR` for the plugin library itself (`SIMULATOR` is only
+defined on the `simulator` executable target, which doesn't propagate to
+its static-library dependencies) — so on macOS this branch was taken and
+`memalign` is undeclared there (the `<malloc.h>` include two lines above
+already had a matching `#ifndef __APPLE__` guard; the usage condition
+hadn't been updated to match). Fixed by adding `&& !defined(__APPLE__)` to
+the condition, mirroring the existing include guard — same real-firmware
+behavior, now also correctly falls through to `posix_memalign` on the
+macOS-hosted simulator. No DSP/behavior change. Combined-library build then
+succeeded (206/206), Onbetap.cpp compiled without any changes needed.
+`tests/run.sh` re-run after this fix: 19/19 DSP tests + 9/9 engine tests +
+3/4 guard tests pass; `test_public_metadata` fails as expected/pre-existing
+(module list check predates Onbetap/Ondes registration — noted as
+out-of-scope in this task's brief).
+
+### Patch and render
+
+Patch (`patch.yml`, single `HubMedium` + one `RobotBoy:Onbetap`, panel
+In1/In2 → Onbetap L/R in, Onbetap L/R out → panel Out1/Out2 — panel
+`panel_jack_id` 0/1 confirmed from `firmware/lib/CoreModules/hub/
+panel_medium_defs.hh` and cross-checked against `patches/default/
+_autosave.yml`'s mapped_ins/outs): cutoff normalized 0.524677 (=
+(log2(750)−log2(20))/(log2(20000)−log2(20)), i.e. the module's own 750 Hz
+default), res 0.3, drive 0.2, mode 0 (LP). Rendered 96000 samples (2 s) at
+48 kHz against a 3-tone test signal (200/900/3000 Hz, ~4 V peak combined)
+via:
+```
+build-headless/simulator -p patch.yml --in in_stereo.wav --out out_mm.wav -n 96000
+```
+**Effective load (single core, 2× oversampling, the module default): 0.65%.**
+Also measured at 1× oversampling via a `vcvModuleStates` JSON override
+(`{"oversample":1}` — `dataFromJson` tolerates partial JSON, confirmed by
+reading the code) on module 1: **0.35%** (roughly the expected ~2× scaling,
+and the rendered audio differs materially between the two — confirms the
+override actually took effect, not a no-op).
+
+### Comparison against vcv-headless
+
+Rendered the identical signal through the installed VCV plugin (dylib
+confirmed current vs. commit `038cf9b`/no rebuild needed) at the same
+param values (cutoff raw = log2(750) = 9.550747, res=0.3, drive=0.2,
+mode=0) and sample rate (48 kHz, matching Task 5's own spec convention).
+
+**Found and had to correct a WAV↔volts scale-convention mismatch between
+the two hosts** (not a DSP bug): `vcv-headless`'s `host.cpp` uses
+sample = volts/5.0 (its documented convention); the MM headless simulator's
+audio path (`simulator/src/headless/audio_wrapper.hh` →
+`firmware/src/patch_play/patch_player.hh` →
+`firmware/vcv_plugin/export/src/VCV_module_wrapper.cc`) passes the WAV
+sample straight through to `Port::setVoltage()`/from `Port::getVoltage()`
+with **no scaling at all** — sample = volts, 1:1. Fed with the "same" WAV
+(same sample values) but different implied voltages, the two engines'
+resonant/driven filter naturally diverged (worst case seen: 12% relative,
+with res=0.3/drive=0.2 amplifying a ~2.5% input-level mismatch through the
+nonlinear resonant core — confirmed by a linear-passthrough diagnostic
+render, cutoff=20 kHz/res=0/drive=0, where the divergence was ~2.5% instead
+of a random/unrelated shape, and by tracing the exact scale factor in both
+codebases). Generated two input WAVs from the same underlying volts array —
+`in_mono.wav` (sample = volts/5, for vcv-headless) and `in_stereo.wav`
+(sample = volts, L=R, for MM headless) — and compared outputs after
+converting MM's samples back to the common volts/5 unit
+(`out_mm_sample / 5.0`).
+
+**Result: max |diff| = 2.74e-6 (full scale = 1.0), rms diff = 1.17e-6** —
+essentially floating-point noise, comfortably under the 1e-3 pass bar. No
+alignment offset needed (best cross-correlation lag = 0 samples); no
+special first-buffer transient was observed in this render (checked
+separately, diff excluding the first 512 samples is identical to the
+full-signal value). MM L vs R outputs are bit-identical (0.0 max diff), as
+expected for the Tamed/no-drift default (no vintage decorrelation).
+
+Scratch files (WAVs, specs, patches, `compare.py`, `gen_input.py`) live at
+`/private/tmp/claude-501/-Users-gabrielroth-Dev-RobotBoy/168cdb10-1fe9-49fd-b698-5e1aa42f219f/scratchpad/onbetap-mm/`
+(not committed).
+
+### Concern
+
+The `Particules.cpp` fix, while minimal and behavior-preserving on every
+existing build path (real firmware, VCV Rack, GUI simulator, tests), is
+technically outside this task's nominal Onbetap-only scope — it was
+necessary because `ROBOTBOY_COMBINED` links all modules into one plugin
+library, so the headless simulator build (a hard requirement of this task)
+could not succeed without it. Flagging for awareness rather than treating
+it as scope creep to revert.
