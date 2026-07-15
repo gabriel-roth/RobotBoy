@@ -44,7 +44,7 @@ constexpr ModeConfig kScreaming = {
     /*vHi*/3.031f, /*vLo*/8.500f, /*invA0*/17.88f, /*makeup*/2.0f };
 constexpr ModeConfig kTame = {
     /*c*/0.155f, /*kR2*/1.00f, /*nInv*/4.00f, /*wcComp*/1.08196598f,
-    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/2.4f };
+    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/1.0f };
 
 class WaspFilter {
 public:

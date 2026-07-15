@@ -67,7 +67,20 @@ Two consequences of the summing-stage physics that the first draft missed
    `D(s) = s² + λ·(H1 + kC2eff)·ωc·s + λ·kR2·ωc²`, resonant frequency
    `ω0 = ωc·√(λ·kR2)`, LP passband gain = w_in/kR2 (λ cancels at DC; the
    Screaming mod really does cost ≈11 dB of LP passband — hardware-true).
-   Screaming gets `makeup = 2.0` as a musical compromise.
+
+   **Final decision (this revision):** `makeup` is **Tame = 1.0** (unity —
+   Tame's raw LP passband is already unity since kR2=1, so no makeup is
+   needed there) and **Screaming = 2.0** as a musical compromise (raw
+   Screaming LP is ≈−11.4 dB; ×2.0 makeup brings it to ≈−5.4 dB, not full
+   parity with Tame — full parity would need per-output gains, which were
+   deliberately rejected because they'd disturb the Mix output's shared
+   notch structure). The residual gap (Tame LP 0 dB vs Screaming LP ≈−5.4 dB;
+   Tame HP ≈−1.4 dB vs Screaming HP ≈+3.2 dB, so Screaming's HP is louder by
+   ≈4.6 dB relative to Tame's) is left as-is in the per-mode constants and is
+   instead user-addressable via the **Output level** context-menu control
+   (±12 dB, linear post-filter gain applied to all outputs in both modes,
+   persisted as `outputLevelDb`) — a rebalancing tool, not a physical
+   correction.
 2. **Self-oscillation needs the inverter's phase lag.** With purely real
    loop gain the damping term is always > 0 — the model can NEVER
    self-oscillate, contradicting hardware. The physical mechanism is the
@@ -124,8 +137,14 @@ per-module.
   LP/HP Mix pot). m from Blend knob + Blend CV (0..1, clamped).
 - Each output through a one-pole DC blocker (~8 Hz) — the hardware is
   AC-coupled and the asymmetric nonlinearities generate DC.
-- Output level: circuit volts map 1:1 to VCV volts in Screaming; Tame gets
-  a fixed makeup gain (×2.4, tunable) so modes are loudness-comparable.
+- Per-mode makeup gain: circuit volts map 1:1 to VCV volts in Screaming's
+  raw LP (before makeup); Tame's `makeup = 1.0` (unity) since its raw LP is
+  already unity (kR2=1); Screaming's `makeup = 2.0` partially compensates
+  its ≈11 dB raw LP loss from the kR2=3.70 mod (see Revision 1 above). A
+  separate user-facing **Output level** context-menu control (±12 dB,
+  applied post-filter to all outputs, both modes) is the tool for closing
+  any remaining inter-mode loudness gap or general level trim — it does not
+  touch the per-mode makeup constants or the Mix output's notch structure.
 
 ## Parameter mapping
 

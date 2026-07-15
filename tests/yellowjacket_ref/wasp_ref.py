@@ -44,7 +44,7 @@ MODES = {
  "screaming": _mode(c=0.296, kR2=3.70, nInv=6.70,
                     A0=17.88, vHi=3.031, vLo=8.500, makeup=2.0),
  "tame":      _mode(c=0.155, kR2=1.0,  nInv=4.0,
-                    A0=23.44, vHi=1.708, vLo=3.105, makeup=2.4),
+                    A0=23.44, vHi=1.708, vLo=3.105, makeup=1.0),
 }
 
 def h1_coeffs(rho):

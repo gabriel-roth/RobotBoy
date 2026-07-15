@@ -92,9 +92,15 @@ kC2eff   = R3*C2*wc_int - kR2*wc_int/(2*pi*fPole)
   60 kHz fails with a 0.17 V tail — that number came from a shortened
   1 s probe measured mid-decay, not from the committed constants;
   corrected here after review.)
-- Screaming makeup = 2.0, Tame makeup = 2.4 (spec Rev 1; makeup is
-  applied outside the golden numbers — self-osc amplitude is measured on
-  the raw BP state, small-signal responses are raw LP).
+- Screaming makeup = 2.0, Tame makeup = 1.0 (spec Rev 1, updated 2026-07-15
+  once the docs review computed the real inter-mode loudness: Tame's raw LP
+  is already unity, so its 2.4 makeup was making it ~7.6 dB *louder* than
+  Screaming rather than the intended rough parity. Tame makeup is now unity
+  and the residual Tame/Screaming gap is left to the user-facing Output
+  level menu control rather than the per-mode constants. Makeup is applied
+  outside the golden numbers — self-osc amplitude is measured on the raw BP
+  state, small-signal responses are raw LP — so this change does not affect
+  golden.json).
 
 ### Retunes / deviations from the raw plan defaults
 

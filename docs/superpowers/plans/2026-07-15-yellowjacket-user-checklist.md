@@ -10,7 +10,7 @@ Panel layout for reference: Res / Freq (hero) / Drive along the top, each over
 its CV attenuverter + jack; stereo Audio L/R inputs in the middle; Blend knob
 + CV, and HP/BP/LP/Mix (L+R) outputs along the bottom. Right-click menu:
 Character, Accuracy, Oversampling, Self-oscillation pitch, Input trim /
-Inverter bandwidth, Panel theme.
+Output level / Inverter bandwidth, Panel theme.
 
 ## 1. VCV Rack listening
 
@@ -19,10 +19,17 @@ Inverter bandwidth, Panel theme.
   from \~80 Hz to \~5 kHz with Character = **Tame**: filter should sound gentle,
   slightly soft/rounded, with a whistly edge right at the verge of
   oscillation but never a runaway tone. Switch to **Screaming** at the same
-  cutoffs: noticeably hotter/more aggressive OTA drive character and (per the
-  design) roughly 11 dB louder LP passband before any makeup gain — the
-  built-in Screaming makeup gain (×2.0) should bring it back to
-  roughly the same perceived loudness as Tame, not louder.
+  cutoffs: noticeably hotter/more aggressive OTA drive character, and
+  **quieter** on LP — Screaming's self-oscillation mod costs it \~11 dB of
+  raw LP passband, and the built-in makeup gain (×2.0) only partially
+  compensates, so Screaming's LP sits \~5 dB softer than Tame's (Tame LP is
+  unity/0 dB; Screaming LP is \~−5.4 dB). HP goes the other way and gets
+  slightly louder switching to Screaming (Tame HP \~−1.4 dB, Screaming HP
+  \~+3.2 dB, so \~+4.6 dB relative). This is deliberate — full loudness
+  parity would need per-output gains that disturb the Mix output's notch
+  shape — and the new **Output level** menu slider (±12 dB, applies to all
+  outputs in both modes) is the tool for rebalancing to taste if the gap
+  bothers you.
 
 - [ ] **1.2 Verge-of-oscillation whistle (Tame)** — Character = Tame, Res
   near maximum (1.0), no input signal patched. You should hear/see a
@@ -86,10 +93,11 @@ Inverter bandwidth, Panel theme.
 
 - [ ] **2.2 MM menu fallbacks present** — open the module's options menu on
   hardware: Character, Accuracy, Oversampling, Self-oscillation pitch should
-  all appear as before. Additionally confirm **Input trim** and **Inverter
-  bandwidth** — which are continuous sliders on VCV — show up as MM's
-  discrete 5-step submenus (Input trim: −12/−6/0/+6/+12 dB; Inverter
-  bandwidth: 60/80/120/200/300 kHz) rather than being missing entirely.
+  all appear as before. Additionally confirm **Input trim**, **Output
+  level**, and **Inverter bandwidth** — which are continuous sliders on
+  VCV — show up as MM's discrete 5-step submenus (Input trim and Output
+  level: −12/−6/0/+6/+12 dB; Inverter bandwidth: 60/80/120/200/300 kHz)
+  rather than being missing entirely.
 
 - [ ] **2.3 CPU headroom at 2× / 4×** — the Task 5 headless-simulator
   measurement was host-relative only (no real Cortex-A7 hardware was
@@ -119,6 +127,11 @@ sliders exist specifically as tuning aids (VCV: continuous sliders; MM:
   independent of the Drive knob. Use it to compensate if a patch runs the
   filter colder/hotter than the reference recordings without wanting to
   retune Drive's CV range.
+- **Output level** (±12 dB, default 0 dB) — a fixed gain after the filter,
+  applied to every output in both modes. This is the tool for closing (or
+  widening) the Tame/Screaming LP loudness gap described in §1.1, or for
+  general output trim; it does not touch the per-mode makeup constants or
+  the Mix output's notch shape.
 - **Inverter bandwidth** (60–300 kHz, default 80 kHz) — models the CMOS
   inverter's finite bandwidth, which is the mechanism that lets Screaming
   self-oscillate at all (see the DSP spec's Revision 1 section for why).

@@ -69,6 +69,14 @@ struct Yellowjacket : Module {
 	// Input trim (dB), folded into the drive gain at modulate rate.
 	float _inputTrimDb = 0.f;
 
+	// Output level (dB), applied as a post-gain to every output (both
+	// modes) — the rebalancing tool for the Tame/Screaming loudness gap
+	// left by the per-mode makeup constants (see WaspFilter.hpp). Computed
+	// at modulate rate as a linear gain target, slewed like the other
+	// module-level shared control (Blend, below), applied after the filter
+	// so it never disturbs the Mix output's notch structure.
+	float _outputLevelDb = 0.f;
+
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	float _fPole = 80000.f;
 
@@ -81,6 +89,11 @@ struct Yellowjacket : Module {
 	// living in EnginePool.
 	OnePoleSmoother _blendSlew { 0.5f };
 	float _blendTarget = 0.5f;
+
+	// Output-level gain: same "shared, module-level, no per-voice CV"
+	// pattern as Blend above.
+	OnePoleSmoother _outputLevelSlew { 1.f };
+	float _outputLevelTarget = 1.f;
 
 	// Deterministic denormal-prevention dither: alternates sign each sample
 	// (cheaper than an RNG and bit-reproducible VCV vs MetaModule).
@@ -159,6 +172,7 @@ struct Yellowjacket : Module {
 			eng.resetResamplers();
 		}
 		_blendSlew.setAlpha(alpha);
+		_outputLevelSlew.setAlpha(alpha);
 
 		// Force the next process() to re-run modulate() immediately: the
 		// g/kC2/H1 targets all depend on the internal rate, so a menu-driven
@@ -261,6 +275,9 @@ struct Yellowjacket : Module {
 		if (inputs[BLEND_INPUT].isConnected())
 			blend += inputs[BLEND_INPUT].getVoltage() / 10.f;
 		_blendTarget = clamp(blend, 0.f, 1.f);
+
+		// Output level: fixed (non-CV) menu setting, post-filter gain.
+		_outputLevelTarget = std::pow(10.f, _outputLevelDb / 20.f);
 	}
 
 	// Process one voice (channel c). Advances its smoothers and runs the
@@ -282,32 +299,33 @@ struct Yellowjacket : Module {
 		};
 
 		float m = _blendSlew.process(_blendTarget);
+		float outGain = _outputLevelSlew.process(_outputLevelTarget);
 
 		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
 		wasp::WaspFilter::Out oL =
 			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2, _highAcc);
 
-		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
-		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
-		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
-		outputs[MIX_OUTPUT].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+		outputs[LP_OUTPUT].setVoltage(outGain * oL.lp, c);
+		outputs[BP_OUTPUT].setVoltage(outGain * oL.bp, c);
+		outputs[HP_OUTPUT].setVoltage(outGain * oL.hp, c);
+		outputs[MIX_OUTPUT].setVoltage(outGain * ((1.f - m) * oL.lp + m * oL.hp), c);
 
 		if (inputs[AUDIO_INPUT_R].isConnected()) {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
 			wasp::WaspFilter::Out oR =
 				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2, _highAcc);
-			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oR.lp + m * oR.hp, c);
+			outputs[LP_OUTPUT_R].setVoltage(outGain * oR.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(outGain * oR.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(outGain * oR.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage(outGain * ((1.f - m) * oR.lp + m * oR.hp), c);
 		} else {
 			// R normalled to L: mirror L's outputs, skip the R compute
 			// entirely (matches the MF-20 mono-patch optimization).
-			outputs[LP_OUTPUT_R].setVoltage(oL.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(oL.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(oL.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+			outputs[LP_OUTPUT_R].setVoltage(outGain * oL.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(outGain * oL.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(outGain * oL.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage(outGain * ((1.f - m) * oL.lp + m * oL.hp), c);
 		}
 	}
 
@@ -336,6 +354,7 @@ struct Yellowjacket : Module {
 		json_object_set_new(root, "highAcc", json_boolean(_highAcc));
 		json_object_set_new(root, "osMenu", json_integer(_osMenu));
 		json_object_set_new(root, "inputTrimDb", json_real(_inputTrimDb));
+		json_object_set_new(root, "outputLevelDb", json_real(_outputLevelDb));
 		json_object_set_new(root, "fPole", json_real(_fPole));
 		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
@@ -362,6 +381,9 @@ struct Yellowjacket : Module {
 		json_t* it = json_object_get(root, "inputTrimDb");
 		if (it)
 			_inputTrimDb = clamp((float)json_real_value(it), -12.f, 12.f);
+		json_t* ol = json_object_get(root, "outputLevelDb");
+		if (ol)
+			_outputLevelDb = clamp((float)json_real_value(ol), -12.f, 12.f);
 		json_t* fp = json_object_get(root, "fPole");
 		if (fp)
 			_fPole = clamp((float)json_real_value(fp), 60000.f, 300000.f);
@@ -393,6 +415,24 @@ struct InputTrimQuantity : Quantity {
 	float getMaxValue() override { return 12.f; }
 	float getDefaultValue() override { return 0.f; }
 	std::string getLabel() override { return "Input trim"; }
+	std::string getUnit() override { return " dB"; }
+	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
+};
+
+// Output level: linear dB, ±12 dB, default 0. Post-filter gain applied to
+// every output, both modes — same shape as InputTrimQuantity above.
+struct OutputLevelQuantity : Quantity {
+	Yellowjacket* module;
+	OutputLevelQuantity(Yellowjacket* m) : module(m) {}
+	void setValue(float value) override {
+		if (module)
+			module->_outputLevelDb = clamp(value, getMinValue(), getMaxValue());
+	}
+	float getValue() override { return module ? module->_outputLevelDb : getDefaultValue(); }
+	float getMinValue() override { return -12.f; }
+	float getMaxValue() override { return 12.f; }
+	float getDefaultValue() override { return 0.f; }
+	std::string getLabel() override { return "Output level"; }
 	std::string getUnit() override { return " dB"; }
 	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
 };
@@ -435,6 +475,14 @@ struct FPoleSlider : ui::Slider {
 		box.size.x = 200.f;
 	}
 	~FPoleSlider() { delete quantity; }
+};
+
+struct OutputLevelSlider : ui::Slider {
+	OutputLevelSlider(OutputLevelQuantity* q) {
+		quantity = q;
+		box.size.x = 200.f;
+	}
+	~OutputLevelSlider() { delete quantity; }
 };
 #endif
 
@@ -543,12 +591,13 @@ struct YellowjacketWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 #ifdef METAMODULE
 		// MetaModule's context menu has no ui::Slider widget (see the
-		// InputTrimSlider/FPoleSlider #ifndef METAMODULE guards above), so MM
-		// gets discrete-choice submenus instead of continuous sliders — same
-		// precedent as Particules' manual-gain menu (src/particules/Particules.cpp,
-		// the `#ifdef METAMODULE` 0-32 dB list under ManualGainItem). Persistence
-		// is unchanged: both paths write/read the same _inputTrimDb/_fPole floats
-		// and JSON fields, so patches roundtrip identically between hosts.
+		// InputTrimSlider/OutputLevelSlider/FPoleSlider #ifndef METAMODULE guards
+		// above), so MM gets discrete-choice submenus instead of continuous
+		// sliders — same precedent as Particules' manual-gain menu
+		// (src/particules/Particules.cpp, the `#ifdef METAMODULE` 0-32 dB list
+		// under ManualGainItem). Persistence is unchanged: both paths write/read
+		// the same _inputTrimDb/_outputLevelDb/_fPole floats and JSON fields, so
+		// patches roundtrip identically between hosts.
 		menu->addChild(createIndexSubmenuItem("Input trim",
 			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
 			[m]() -> size_t {
@@ -564,6 +613,22 @@ struct YellowjacketWidget : ModuleWidget {
 			[m](size_t i) {
 				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
 				m->_inputTrimDb = kValues[i];
+			}));
+		menu->addChild(createIndexSubmenuItem("Output level",
+			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
+			[m]() -> size_t {
+				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
+				size_t best = 2;
+				float bestDiff = std::fabs(kValues[2] - m->_outputLevelDb);
+				for (size_t i = 0; i < 5; i++) {
+					float diff = std::fabs(kValues[i] - m->_outputLevelDb);
+					if (diff < bestDiff) { bestDiff = diff; best = i; }
+				}
+				return best;
+			},
+			[m](size_t i) {
+				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
+				m->_outputLevelDb = kValues[i];
 			}));
 		menu->addChild(createIndexSubmenuItem("Inverter bandwidth",
 			{"60 kHz", "80 kHz", "120 kHz", "200 kHz", "300 kHz"},
@@ -583,6 +648,7 @@ struct YellowjacketWidget : ModuleWidget {
 			}));
 #else
 		menu->addChild(new InputTrimSlider(new InputTrimQuantity(m)));
+		menu->addChild(new OutputLevelSlider(new OutputLevelQuantity(m)));
 		menu->addChild(new FPoleSlider(new FPoleQuantity(m)));
 #endif
 
