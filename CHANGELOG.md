@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+- **Yellowjacket** — new module: EDP Wasp-style CMOS state-variable filter, with
+  Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
+  self-oscillation mod, true self-oscillation) character modes.
+
 ## [2.0.1] — 2026-07-11
 
 Initial release.

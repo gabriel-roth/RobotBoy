@@ -1,12 +1,13 @@
 # Robot Boy
 
-**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains five modules: 
+**Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It currently contains six modules: 
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads. 
 * **[Löp](Loooop.md#löp):** Loooop's little sibling, with just one playhead. 
 * **[MF-20](MF20.md):** A Korg MS-20-style filter.
 * **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 * **[Particules](Particules.md):** A granular texture processor based on Mutable Instruments Beads.
+* **Yellowjacket:** An emulation of the EDP Wasp state-variable filter.
 
 ---
 
@@ -39,3 +40,7 @@ A morphing wavetable oscillator: two knobs sweep across a two-dimensional set of
 <img src="screenshots/Particules.png" alt="Particules module" height="300">
 
 A granular texture processor based on Mutable Instruments Beads. → [**Full documentation**](Particules.md)
+
+## Yellowjacket
+
+A circuit-faithful emulation of the EDP Wasp's CMOS-inverter state-variable filter (CA3080 OTA integrators, diode resonance limiter, supply-rail clipping), based on the DAFx-2022 Köper/Holters/Esqueda/Parker model. Switch character in the right-click menu: **Tame** is the original 1978 Wasp (+5 V rails), sitting at the verge of oscillation for a whistle/chirp but never running away; **Screaming** is the Doepfer A-124's documented self-oscillation mod (+12 V rails), which crosses into true self-oscillation, bounded by the supply rails. Outputs are LP, BP, HP, and a Mix crossfade (LP–notch–HP) with its own CV. Freq tracks 1 V/oct; Res and Drive both have CV inputs with attenuverters. Menu extras cover Accuracy (Standard/High-accuracy solver), Oversampling (Auto/1×/2×/4×), Input trim (±12 dB) and Inverter bandwidth (60–300 kHz, which tunes how eagerly it self-oscillates), and a Self-oscillation pitch option (hardware-accurate drift vs. corrected 1 V/oct tracking). Stereo (R normalled to L) and polyphonic.
