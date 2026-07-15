@@ -118,9 +118,16 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
     // output duck, and notify BaseTimeControl of the new effective buffer
     // duration (DENSITY's manual-mode delay scales with it). Ignored while
     // frozen: clearing/decimating the buffer out from under a frozen slice
-    // would corrupt the frozen loop content; the deferred change is instead
-    // picked up on the first block after unfreeze.
-    if (s.params.quality != s.prev_quality && !s.params.freeze) {
+    // would corrupt the frozen loop content. Also ignored on the exact block
+    // where freeze falls (freeze_falling_edge): EchoEngine::NotifyFreeze's
+    // unfreeze continuity math (below, via SetTargets/NotifyFreeze) still
+    // needs this block's pre-clear write head/frozen_read_pos to compute
+    // delay_frames_ correctly — Clear() resets write_head_ synchronously, so
+    // applying the change here would corrupt that math. The deferred change
+    // is instead picked up on the first block where both this block and the
+    // previous one are unfrozen (one block after the falling edge).
+    bool freeze_falling_edge = s.prev_freeze && !s.params.freeze;
+    if (s.params.quality != s.prev_quality && !s.params.freeze && !freeze_falling_edge) {
         s.prev_quality = s.params.quality;
         int decimation = particules_dsp::DecimationFactorForQuality(s.params.quality);
         s.recording_buffer.SetDecimationFactor(decimation);
@@ -279,6 +286,10 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
         s.feedback_hp_l.Reset();
         s.feedback_hp_r.Reset();
     }
+
+    // Record this block's freeze state for next block's falling-edge check
+    // (see the quality-change branch above).
+    s.prev_freeze = s.params.freeze;
 }
 
 void EchosProcessor::ClearBuffer() {

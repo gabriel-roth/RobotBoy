@@ -36,6 +36,15 @@ struct EchosProcessor::Impl {
     // ignored while frozen (see self-review in task-8 report) — deferred
     // change is picked up on the first block after unfreeze.
     QualityMode prev_quality = QualityMode::kHiFi;
+    // Previous block's freeze state, so the quality-change branch can tell
+    // "steady-state unfrozen" apart from "this is the unfreeze block" (the
+    // falling edge). Applying a pending quality change on the falling-edge
+    // block itself clears/resyncs the buffer before EchoEngine::NotifyFreeze
+    // has finished its unfreeze continuity math against the pre-clear write
+    // head, corrupting delay_frames_ (see Fix round in task-8 report). The
+    // pending change is deferred one more block, to the first block where
+    // both this block and the previous one are unfrozen.
+    bool prev_freeze = false;
     // Duck duration must cover the buffer clear time: with the chunk size
     // below, draining the full buffer takes 128 blocks × 64 frames = 8192
     // samples — same derivation as Particules' identical constant.

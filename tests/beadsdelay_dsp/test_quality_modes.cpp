@@ -337,3 +337,116 @@ TEST_CASE("quality: frozen loop persists and loops at the decimation-honest peri
     float corr_half = NormalizedAutocorrelation(out_sil, 1000, out_sil.size(), expected_lag / 2);
     REQUIRE(corr_half < 0.3f);
 }
+
+// -----------------------------------------------------------------------
+// (f) Fix round: a quality change requested while frozen must not corrupt
+// EchoEngine's unfreeze continuity math. Sequence: record under kHiFi,
+// freeze, request kHiFi -> kClouds while still frozen (deferred per the
+// existing "ignore while frozen" rule), then unfreeze. TimeChangeMode
+// defaults to kTape; slew_seconds is forced to the slow (worst-case) end.
+//
+// Broken-code observation (pre-fix, probed by running this test against
+// the unmodified quality-change condition, i.e. before adding the
+// freeze_falling_edge guard): DelayTimeSeconds() read immediately after
+// the unfreeze block came back as exactly 0.0f, not the sane ~0.15 s this
+// fixture produces once fixed. That 0.0f is itself a clamp artifact:
+// EchoEngine::CurrentDelaySamples() does `std::max(0.f, delay_frames_) *
+// decimation`, and the falling-edge equiv_delay computed against a write
+// head that Clear() had already reset to 0 (while frozen_read_pos was
+// still the large, stale, pre-clear value) came out deeply negative —
+// large enough that the max(0.f, ...) clamp masks the sign, and even a
+// full second of slow (slew_seconds=1.0) tape-mode slewing afterward
+// barely dents it. So a naive ">= 0" bound alone can't tell "healthy
+// small delay" from "corrupted and clamped to 0" — the assertion below
+// requires delay_s to be bounded *away* from that 0.0f collapse as well.
+// |out| stayed within +/-2 on the broken run too (the duck mutes the wet
+// path over the same window), so only this delay-time probe (not the
+// amplitude bound) catches the corruption — documented per the task
+// brief's request to probe and record the actual broken value.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: pending change deferred one more block past unfreeze, no corruption") {
+    Proc proc;
+    const float sr = 48000.f;
+    EchosParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kHiFi terms
+    p.time = 0.f;
+    p.time_change_mode = TimeChangeMode::kTape;  // default; explicit for clarity
+    p.slew_seconds = 1.0f;                       // slow: worst case per the brief
+    p.quality = QualityMode::kHiFi;
+    proc.p.SetParameters(p);
+
+    // Record 2 s of white noise under kHiFi (reuses test (e)'s fixture
+    // pattern) so the frozen slice has real content.
+    size_t rec_n = static_cast<size_t>(2.0f * sr);
+    std::vector<StereoFrame> record(rec_n);
+    Lcg rng(0x51ce5eedu);
+    for (auto& f : record) {
+        float s = rng.NextBipolar() * 0.9f;
+        f = {s, s};
+    }
+    std::vector<StereoFrame> discard(rec_n);
+    proc.p.Process(record.data(), discard.data(), rec_n);
+
+    // Freeze, then let it settle for a while (several blocks) so prev_freeze
+    // is genuinely "steady frozen" before the quality change is requested.
+    p.freeze = true;
+    proc.p.SetParameters(p);
+    size_t settle_n = static_cast<size_t>(0.5f * sr);
+    std::vector<StereoFrame> in_settle(settle_n, StereoFrame{0.f, 0.f}),
+        out_settle(settle_n);
+    proc.p.Process(in_settle.data(), out_settle.data(), settle_n);
+
+    // Request kHiFi -> kClouds while still frozen: must be deferred, not
+    // applied immediately (existing "ignore while frozen" behavior).
+    p.quality = QualityMode::kClouds;
+    proc.p.SetParameters(p);
+    size_t still_frozen_n = static_cast<size_t>(0.1f * sr);
+    std::vector<StereoFrame> in_sf(still_frozen_n, StereoFrame{0.f, 0.f}),
+        out_sf(still_frozen_n);
+    proc.p.Process(in_sf.data(), out_sf.data(), still_frozen_n);
+
+    // Unfreeze. The very first internal block (kMaxBlockSize frames) after
+    // this is where the bug fires: the quality-change branch used to see
+    // !freeze and apply on the same block as the falling edge.
+    p.freeze = false;
+    proc.p.SetParameters(p);
+
+    std::vector<StereoFrame> in_first(kMaxBlockSize, StereoFrame{0.f, 0.f}),
+        out_first(kMaxBlockSize);
+    proc.p.Process(in_first.data(), out_first.data(), kMaxBlockSize);
+
+    for (auto& f : out_first) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+
+    // The real corruption signature: delay time must stay within sane
+    // bounds — not just ">= 0" (the CurrentDelaySamples() clamp makes a
+    // deeply-negative corrupted value read back as exactly 0.0f, so that
+    // alone can't distinguish broken from healthy; see the broken-value
+    // note above) but bounded away from that collapse-to-zero artifact,
+    // and <= the effective buffer duration for whichever quality mode is
+    // active post-unfreeze (8 s for kClouds's decimation of 2).
+    float delay_s = proc.p.DelayTimeSeconds();
+    REQUIRE(std::isfinite(delay_s));
+    REQUIRE(delay_s > 0.01f);
+    REQUIRE(delay_s <= 8.0f);
+
+    // Process the remainder of 1 s total post-unfreeze with silence,
+    // wet-only, confirming no corruption persists.
+    size_t remaining_n = static_cast<size_t>(1.0f * sr) - kMaxBlockSize;
+    std::vector<StereoFrame> in_rest(remaining_n, StereoFrame{0.f, 0.f}),
+        out_rest(remaining_n);
+    proc.p.Process(in_rest.data(), out_rest.data(), remaining_n);
+
+    for (auto& f : out_rest) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+}
