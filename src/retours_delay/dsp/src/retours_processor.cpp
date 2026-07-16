@@ -58,9 +58,9 @@ void RetoursProcessor::Init(void* memory, size_t memory_size, float sample_rate)
 
     // Initial decimation factor (HiFi = 1x); RecordingBuffer::Init already
     // defaults to 1, but set it explicitly to document the tie to
-    // prev_quality's kHiFi default (mirrors Particules::Init).
+    // prev_quality's kBrightDigital default (mirrors Particules::Init).
     impl_->recording_buffer.SetDecimationFactor(
-        particules_dsp::DecimationFactorForQuality(QualityMode::kHiFi));
+        particules_dsp::DecimationFactorForQuality(QualityMode::kBrightDigital));
 
     impl_->saturation.Init();
     impl_->quality_processor.Init(sample_rate);

@@ -144,8 +144,8 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
     const size_t quality_period_steps =
         std::max<size_t>(1, static_cast<size_t>(0.5f * sr) / chunk);
 
-    QualityMode qualities[4] = {QualityMode::kHiFi, QualityMode::kClouds,
-                                 QualityMode::kCleanLoFi, QualityMode::kTape};
+    QualityMode qualities[4] = {QualityMode::kBrightDigital, QualityMode::kColdDigital,
+                                 QualityMode::kSunnyTape, QualityMode::kScorchedCassette};
     float densities[2] = {0.f, 1.f};
     float times[2] = {0.f, 1.f};
 

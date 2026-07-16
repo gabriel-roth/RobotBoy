@@ -28,18 +28,18 @@ struct StereoFrame {
 };
 
 enum class QualityMode : uint8_t {
-    kHiFi = 0,
-    kClouds = 1,
-    kCleanLoFi = 2,
-    kTape = 3
+    kBrightDigital = 0,
+    kColdDigital = 1,
+    kSunnyTape = 2,
+    kScorchedCassette = 3
 };
 
 inline int DecimationFactorForQuality(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kHiFi:      return 1;
-        case QualityMode::kClouds:    return 2;
-        case QualityMode::kCleanLoFi: return 8;
-        case QualityMode::kTape:      return 4;
+        case QualityMode::kBrightDigital:      return 1;
+        case QualityMode::kColdDigital:    return 2;
+        case QualityMode::kSunnyTape: return 8;
+        case QualityMode::kScorchedCassette:      return 4;
     }
     return 1;
 }

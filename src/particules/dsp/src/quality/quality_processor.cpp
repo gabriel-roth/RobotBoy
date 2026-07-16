@@ -33,8 +33,8 @@ void QualityProcessor::Init(float sample_rate) {
     noise_gen_.Init(0xBEAD5EED);
 
     // Force coefficient recomputation on first call
-    prev_input_mode_ = QualityMode::kHiFi;
-    prev_output_mode_ = QualityMode::kHiFi;
+    prev_input_mode_ = QualityMode::kBrightDigital;
+    prev_output_mode_ = QualityMode::kBrightDigital;
     current_input_cutoff_hz_ = kCloudsInputLpHz;
     current_output_cutoff_hz_ = kCleanLoFiLpHz;
 }
@@ -44,17 +44,17 @@ void QualityProcessor::Init(float sample_rate) {
 // ---------------------------------------------------------------------------
 static float InputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kClouds:    return QualityProcessor::kCloudsInputLpHz;
-        case QualityMode::kCleanLoFi: return QualityProcessor::kCleanLoFiInputLpHz;
-        case QualityMode::kTape:      return QualityProcessor::kTapeLpHz;
+        case QualityMode::kColdDigital:    return QualityProcessor::kCloudsInputLpHz;
+        case QualityMode::kSunnyTape: return QualityProcessor::kCleanLoFiInputLpHz;
+        case QualityMode::kScorchedCassette:      return QualityProcessor::kTapeLpHz;
         default:                      return QualityProcessor::kCloudsInputLpHz;
     }
 }
 
 static float OutputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kCleanLoFi: return QualityProcessor::kCleanLoFiLpHz;
-        case QualityMode::kTape:      return QualityProcessor::kTapeLpHz;
+        case QualityMode::kSunnyTape: return QualityProcessor::kCleanLoFiLpHz;
+        case QualityMode::kScorchedCassette:      return QualityProcessor::kTapeLpHz;
         default:                      return QualityProcessor::kCleanLoFiLpHz;
     }
 }
@@ -83,21 +83,21 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
 
     StereoFrame result;
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             // No input degradation — use unfiltered signal
             result = input;
             break;
 
-        case QualityMode::kCleanLoFi:
+        case QualityMode::kSunnyTape:
             // Anti-aliasing LP for 8x decimation (effective Nyquist = 3 kHz)
             result = { filtered_l, filtered_r };
             break;
 
-        case QualityMode::kClouds:
+        case QualityMode::kColdDigital:
             result = { filtered_l, filtered_r };
             break;
 
-        case QualityMode::kTape: {
+        case QualityMode::kScorchedCassette: {
             // Mono sum
             float mono = (filtered_l + filtered_r) * 0.5f;
             // Add subtle tape hiss
@@ -142,11 +142,11 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
 
     StereoFrame result;
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             result = input;
             break;
 
-        case QualityMode::kClouds: {
+        case QualityMode::kColdDigital: {
             // 12-bit quantization
             float l = std::round(input.l * kQuantScale) / kQuantScale;
             float r = std::round(input.r * kQuantScale) / kQuantScale;
@@ -154,11 +154,11 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
             break;
         }
 
-        case QualityMode::kCleanLoFi:
+        case QualityMode::kSunnyTape:
             result = { lp_l, lp_r };
             break;
 
-        case QualityMode::kTape: {
+        case QualityMode::kScorchedCassette: {
             // Mu-law expansion.  The output LP was already ticked above
             // with the raw (compressed) input, which keeps the filter
             // state tracking the signal.  The LP result (lp_l/lp_r)
@@ -188,7 +188,7 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
 // Flutter = fast (~6 Hz), +/- 0.003 semitones
 // ---------------------------------------------------------------------------
 float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples) {
-    if (mode != QualityMode::kTape) {
+    if (mode != QualityMode::kScorchedCassette) {
         return 1.0f;
     }
 

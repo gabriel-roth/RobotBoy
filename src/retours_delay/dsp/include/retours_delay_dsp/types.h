@@ -46,7 +46,7 @@ struct RetoursParameters {
     bool  clock_connected = false;  // SEED jack patched
     bool  freeze = false;
 
-    QualityMode quality = QualityMode::kHiFi;
+    QualityMode quality = QualityMode::kBrightDigital;
     TimeChangeMode time_change_mode = TimeChangeMode::kTape;
     bool  envelope_pre_feedback = false;  // false = feedback taps post-envelope
     float input_trim_db = 0.0f;           // -12..+12

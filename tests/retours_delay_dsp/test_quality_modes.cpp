@@ -78,13 +78,13 @@ double ZeroCrossingIntervalStddev(const std::vector<StereoFrame>& v, size_t from
 } // namespace
 
 // -----------------------------------------------------------------------
-// (a) Effective delay doubles in kClouds (decimation 2) for the same
+// (a) Effective delay doubles in kColdDigital (decimation 2) for the same
 // density knob — quality is set before any Process() call (no mid-stream
 // switch involved), so this isolates the buffer-duration-scales-with-
 // decimation behavior from the duck/mode-transition machinery.
 // -----------------------------------------------------------------------
-TEST_CASE("quality: kClouds doubles effective delay for the same density knob") {
-    float density = KnobForSeconds(0.1f);  // target ~100 ms in kHiFi
+TEST_CASE("quality: kColdDigital doubles effective delay for the same density knob") {
+    float density = KnobForSeconds(0.1f);  // target ~100 ms in kBrightDigital
 
     auto measure_delay_samples = [&](QualityMode mode) -> int {
         Proc proc;
@@ -103,8 +103,8 @@ TEST_CASE("quality: kClouds doubles effective delay for the same density knob") 
         return peak - 9600;
     };
 
-    int delay_hifi = measure_delay_samples(QualityMode::kHiFi);
-    int delay_clouds = measure_delay_samples(QualityMode::kClouds);
+    int delay_hifi = measure_delay_samples(QualityMode::kBrightDigital);
+    int delay_clouds = measure_delay_samples(QualityMode::kColdDigital);
 
     REQUIRE(delay_hifi == Catch::Approx(4800).margin(96));       // ~100 ms ±2%
     REQUIRE(static_cast<float>(delay_clouds) ==
@@ -112,17 +112,17 @@ TEST_CASE("quality: kClouds doubles effective delay for the same density knob") 
 }
 
 // -----------------------------------------------------------------------
-// (b) kTape wow/flutter: a steady 1 kHz sine's wet output shows measurably
-// more zero-crossing-interval jitter under kTape than under kHiFi.
+// (b) kScorchedCassette wow/flutter: a steady 1 kHz sine's wet output shows measurably
+// more zero-crossing-interval jitter under kScorchedCassette than under kBrightDigital.
 // -----------------------------------------------------------------------
-TEST_CASE("quality: kTape adds pitch wobble not present in kHiFi") {
+TEST_CASE("quality: kScorchedCassette adds pitch wobble not present in kBrightDigital") {
     auto stddev_for_mode = [&](QualityMode mode) -> double {
         Proc proc;
         RetoursParameters p;
         p.dry_wet = 1.f;
         p.feedback = 0.f;
         p.density = KnobForSeconds(0.05f);  // ~50 ms delay
-        p.quality = mode;                   // kTape from the start
+        p.quality = mode;                   // kScorchedCassette from the start
         proc.p.SetParameters(p);
 
         const float freq = 1000.f;
@@ -139,23 +139,23 @@ TEST_CASE("quality: kTape adds pitch wobble not present in kHiFi") {
         return ZeroCrossingIntervalStddev(out, start, total);
     };
 
-    double std_hifi = stddev_for_mode(QualityMode::kHiFi);
-    double std_tape = stddev_for_mode(QualityMode::kTape);
+    double std_hifi = stddev_for_mode(QualityMode::kBrightDigital);
+    double std_tape = stddev_for_mode(QualityMode::kScorchedCassette);
 
     REQUIRE(std_tape > std_hifi * 1.5);
 }
 
 // -----------------------------------------------------------------------
-// (c) Feedback bounded at 1.0 in kHiFi: 10 s of noise, wet-only, no NaN,
+// (c) Feedback bounded at 1.0 in kBrightDigital: 10 s of noise, wet-only, no NaN,
 // max |out| stays under the hardware-safe ceiling.
 // -----------------------------------------------------------------------
-TEST_CASE("quality: kHiFi feedback stays bounded at feedback=1.0") {
+TEST_CASE("quality: kBrightDigital feedback stays bounded at feedback=1.0") {
     Proc proc;
     RetoursParameters p;
     p.dry_wet = 1.f;
     p.feedback = 1.0f;
     p.density = KnobForSeconds(0.05f);
-    p.quality = QualityMode::kHiFi;
+    p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
     Lcg rng(0xC0FFEEu);
@@ -179,7 +179,7 @@ TEST_CASE("quality: kHiFi feedback stays bounded at feedback=1.0") {
     // (input + fb, never re-clipped) plus cubic-Hermite interpolation
     // overshoot on wideband noise (a known property of the interpolator,
     // unrelated to this task's quality/decimation wiring — measured
-    // identically on unmodified kHiFi-only code) pushes isolated peaks
+    // identically on unmodified kBrightDigital-only code) pushes isolated peaks
     // above 1.5, empirically up to ~1.8 across several seeds/amplitudes.
     // The bound below keeps the test's real intent — feedback=1.0 must
     // stay bounded, not diverge/blow up — with headroom over that
@@ -188,20 +188,20 @@ TEST_CASE("quality: kHiFi feedback stays bounded at feedback=1.0") {
 }
 
 // -----------------------------------------------------------------------
-// (d) Mid-stream quality switch kHiFi -> kTape while feedback=0.5 and a
+// (d) Mid-stream quality switch kBrightDigital -> kScorchedCassette while feedback=0.5 and a
 // sine plays: no blow-up, no NaN, and the output recovers (isn't stuck
 // ducked/silent) once the transition settles.
 // -----------------------------------------------------------------------
-TEST_CASE("quality: mid-stream kHiFi to kTape switch stays bounded and recovers") {
+TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays bounded and recovers") {
     Proc proc;
     RetoursParameters p;
     p.dry_wet = 1.f;
     p.feedback = 0.5f;
     p.density = KnobForSeconds(0.05f);
-    p.quality = QualityMode::kHiFi;
+    p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
-    // Stereo-distinct (L/R 90 degrees out of phase) so kTape's mono-sum
+    // Stereo-distinct (L/R 90 degrees out of phase) so kScorchedCassette's mono-sum
     // input coloring is independently observable: once tape-processed
     // content fills the delay buffer, L and R should converge (the
     // ProcessInput mono-sum step writes the same value to both channels),
@@ -214,12 +214,12 @@ TEST_CASE("quality: mid-stream kHiFi to kTape switch stays bounded and recovers"
         }
     };
 
-    size_t phase1_n = 48000;  // 1 s at kHiFi
+    size_t phase1_n = 48000;  // 1 s at kBrightDigital
     std::vector<StereoFrame> in1(phase1_n), out1(phase1_n);
     gen_stereo(in1, 0);
     proc.p.Process(in1.data(), out1.data(), phase1_n);
 
-    p.quality = QualityMode::kTape;  // switch mid-stream
+    p.quality = QualityMode::kScorchedCassette;  // switch mid-stream
     proc.p.SetParameters(p);
 
     size_t phase2_n = static_cast<size_t>(2.f * 48000.f);  // 2 s more, post-switch
@@ -240,7 +240,7 @@ TEST_CASE("quality: mid-stream kHiFi to kTape switch stays bounded and recovers"
     double rms = Rms(out2, phase2_n - last_half_sec, phase2_n);
     REQUIRE(rms > 0.001);
 
-    // kHiFi keeps L/R independent — confirm the pre-switch output is still
+    // kBrightDigital keeps L/R independent — confirm the pre-switch output is still
     // genuinely stereo (sanity check on the fixture itself).
     double lr_diff_hifi = 0.0;
     for (size_t i = phase1_n / 2; i < phase1_n; ++i)
@@ -277,22 +277,22 @@ float NormalizedAutocorrelation(const std::vector<StereoFrame>& v, size_t from, 
 
 // -----------------------------------------------------------------------
 // (e) Freeze under decimation (closes the Task-7 coverage gap): enter
-// kClouds (decimation 2) before recording, record a loop, freeze, and
+// kColdDigital (decimation 2) before recording, record a loop, freeze, and
 // confirm the content both persists through silence AND loops at the
 // decimation-honest period. The period check is what actually exercises
 // EchoEngine's decimation-aware freeze arithmetic — without it, a broken
 // (or unwired) decimation conversion could still coincidentally "persist"
 // (non-zero RMS) while looping at the wrong rate.
 // -----------------------------------------------------------------------
-TEST_CASE("quality: frozen loop persists and loops at the decimation-honest period under kClouds") {
+TEST_CASE("quality: frozen loop persists and loops at the decimation-honest period under kColdDigital") {
     Proc proc;
     const float sr = 48000.f;
     RetoursParameters p;
     p.dry_wet = 1.f;
     p.feedback = 0.f;
-    p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kHiFi terms
+    p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kBrightDigital terms
     p.time = 0.f;
-    p.quality = QualityMode::kClouds;    // decimation 2, set before recording
+    p.quality = QualityMode::kColdDigital;    // decimation 2, set before recording
     proc.p.SetParameters(p);
 
     // Record 2 s of white noise (deterministic seed; noise so autocorrelation
@@ -317,20 +317,20 @@ TEST_CASE("quality: frozen loop persists and loops at the decimation-honest peri
     double rms = Rms(out_sil, 0, sil_n);
     REQUIRE(rms > 0.05);
 
-    // kClouds doubles the effective buffer duration (see test (a)), so
+    // kColdDigital doubles the effective buffer duration (see test (a)), so
     // DENSITY's manual-mode base samples for this same knob doubles too —
     // and EchoEngine's honest buffer-frame/decimation conversion means the
     // frozen slice's REAL-time period equals that doubled value exactly
     // (the /decimation and *decimation cancel), i.e. ~500 ms = 24000
-    // samples here, not the ~250 ms/12000-sample kHiFi period.
+    // samples here, not the ~250 ms/12000-sample kBrightDigital period.
     int expected_lag = static_cast<int>(0.25f * sr * 2.f);  // ~24000
     float corr = NormalizedAutocorrelation(out_sil, 1000, out_sil.size(), expected_lag);
     REQUIRE(corr > 0.8f);
 
     // A perfectly periodic loop also autocorrelates at any integer multiple
-    // of its true period, so a high correlation at 2x the kHiFi period
+    // of its true period, so a high correlation at 2x the kBrightDigital period
     // (24000) doesn't by itself rule out the period actually being the
-    // undoubled kHiFi value (12000, with 24000 just its 2nd harmonic). Rule
+    // undoubled kBrightDigital value (12000, with 24000 just its 2nd harmonic). Rule
     // that out directly: correlation at the *undoubled* period must be low
     // (random noise content, no reason to match at an unrelated half-loop
     // offset) if the loop's true period is really 24000.
@@ -340,8 +340,8 @@ TEST_CASE("quality: frozen loop persists and loops at the decimation-honest peri
 
 // -----------------------------------------------------------------------
 // (f) Fix round: a quality change requested while frozen must not corrupt
-// EchoEngine's unfreeze continuity math. Sequence: record under kHiFi,
-// freeze, request kHiFi -> kClouds while still frozen (deferred per the
+// EchoEngine's unfreeze continuity math. Sequence: record under kBrightDigital,
+// freeze, request kBrightDigital -> kColdDigital while still frozen (deferred per the
 // existing "ignore while frozen" rule), then unfreeze. TimeChangeMode
 // defaults to kTape; slew_seconds is forced to the slow (worst-case) end.
 //
@@ -370,14 +370,14 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
     RetoursParameters p;
     p.dry_wet = 1.f;
     p.feedback = 0.f;
-    p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kHiFi terms
+    p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kBrightDigital terms
     p.time = 0.f;
     p.time_change_mode = TimeChangeMode::kTape;  // default; explicit for clarity
     p.slew_seconds = 1.0f;                       // slow: worst case per the brief
-    p.quality = QualityMode::kHiFi;
+    p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
-    // Record 2 s of white noise under kHiFi (reuses test (e)'s fixture
+    // Record 2 s of white noise under kBrightDigital (reuses test (e)'s fixture
     // pattern) so the frozen slice has real content.
     size_t rec_n = static_cast<size_t>(2.0f * sr);
     std::vector<StereoFrame> record(rec_n);
@@ -398,9 +398,9 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
         out_settle(settle_n);
     proc.p.Process(in_settle.data(), out_settle.data(), settle_n);
 
-    // Request kHiFi -> kClouds while still frozen: must be deferred, not
+    // Request kBrightDigital -> kColdDigital while still frozen: must be deferred, not
     // applied immediately (existing "ignore while frozen" behavior).
-    p.quality = QualityMode::kClouds;
+    p.quality = QualityMode::kColdDigital;
     proc.p.SetParameters(p);
     size_t still_frozen_n = static_cast<size_t>(0.1f * sr);
     std::vector<StereoFrame> in_sf(still_frozen_n, StereoFrame{0.f, 0.f}),
@@ -430,7 +430,7 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
     // alone can't distinguish broken from healthy; see the broken-value
     // note above) but bounded away from that collapse-to-zero artifact,
     // and <= the effective buffer duration for whichever quality mode is
-    // active post-unfreeze (8 s for kClouds's decimation of 2).
+    // active post-unfreeze (8 s for kColdDigital's decimation of 2).
     float delay_s = proc.p.DelayTimeSeconds();
     REQUIRE(std::isfinite(delay_s));
     REQUIRE(delay_s > 0.01f);

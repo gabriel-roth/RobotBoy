@@ -123,7 +123,7 @@ TEST_CASE("high feedback decays instead of self-oscillating (fb HP must not peak
     // empirically verified (probe harness, not asserted here) to still
     // sharply discriminate the Q bug with this fixture: at Q=1 the HP's
     // ~1.155x peak pushes the loop over unity and the burst grows to the
-    // kHiFi clip ceiling (measured late RMS ~0.72 vs. early ~0.002); at
+    // kBrightDigital clip ceiling (measured late RMS ~0.72 vs. early ~0.002); at
     // Q=0.707 the HP's max gain is capped at 1.0 so the loop stays at
     // ~0.967 and the burst fully decays (measured late RMS ~0.0000). The
     // brief's suggested 0.85 turned out NOT to discriminate reliably at this

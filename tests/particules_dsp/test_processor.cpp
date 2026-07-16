@@ -105,7 +105,7 @@ TEST_CASE("ParticulesProcessor: No NaN in output with extreme parameters", "[pro
     params.reverb = 1.0f;
     params.size = 0.5f;
     params.pitch = 24.0f;  // 2 octaves up
-    params.quality_mode = QualityMode::kTape;
+    params.quality_mode = QualityMode::kScorchedCassette;
     params.manual_gain_db = 0.0f;  // Fixed gain to avoid auto-gain runaway
     tp.processor.SetParameters(params);
 
@@ -202,9 +202,9 @@ TEST_CASE("ParticulesProcessor: Mode transitions produce no NaN", "[processor][d
 
     // Cycle through all quality modes rapidly
     QualityMode modes[] = {
-        QualityMode::kHiFi, QualityMode::kClouds,
-        QualityMode::kCleanLoFi, QualityMode::kTape,
-        QualityMode::kHiFi
+        QualityMode::kBrightDigital, QualityMode::kColdDigital,
+        QualityMode::kSunnyTape, QualityMode::kScorchedCassette,
+        QualityMode::kBrightDigital
     };
 
     for (auto mode : modes) {
@@ -233,7 +233,7 @@ TEST_CASE("ParticulesProcessor: LoFi delay mode produces output", "[processor][d
     TestProcessor tp;
 
     ParticulesParameters params;
-    params.quality_mode = QualityMode::kCleanLoFi;
+    params.quality_mode = QualityMode::kSunnyTape;
     params.size = 1.0f;      // Delay mode
     params.density = 0.3f;   // Moderate base delay
     params.time = 0.0f;      // Short delay (read near write head)

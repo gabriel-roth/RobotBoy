@@ -139,16 +139,16 @@ TEST_CASE("Saturation: HiFi hard clips at 1.0", "[saturation]") {
     Saturation sat;
     sat.Init();
 
-    REQUIRE(sat.Process(0.5f, QualityMode::kHiFi) == Approx(0.5f));
-    REQUIRE(sat.Process(1.5f, QualityMode::kHiFi) == Approx(1.0f));
-    REQUIRE(sat.Process(-1.5f, QualityMode::kHiFi) == Approx(-1.0f));
+    REQUIRE(sat.Process(0.5f, QualityMode::kBrightDigital) == Approx(0.5f));
+    REQUIRE(sat.Process(1.5f, QualityMode::kBrightDigital) == Approx(1.0f));
+    REQUIRE(sat.Process(-1.5f, QualityMode::kBrightDigital) == Approx(-1.0f));
 }
 
 TEST_CASE("Saturation: Clouds soft clips", "[saturation]") {
     Saturation sat;
     sat.Init();
 
-    float result = sat.Process(2.0f, QualityMode::kClouds);
+    float result = sat.Process(2.0f, QualityMode::kColdDigital);
     // Should be less than 2.0 (saturated) but more than 0
     REQUIRE(result < 2.0f);
     REQUIRE(result > 0.5f);
@@ -170,7 +170,7 @@ TEST_CASE("QualityProcessor: HiFi passthrough", "[quality]") {
     qp.Init(kSampleRate);
 
     StereoFrame in = {0.5f, -0.3f};
-    StereoFrame out = qp.ProcessInput(in, QualityMode::kHiFi);
+    StereoFrame out = qp.ProcessInput(in, QualityMode::kBrightDigital);
     REQUIRE(out.l == Approx(0.5f));
     REQUIRE(out.r == Approx(-0.3f));
 }
@@ -184,7 +184,7 @@ TEST_CASE("QualityProcessor: Tape mode pitch modulation", "[quality]") {
     // After ~24000 samples (quarter cycle), modulation should be significant
     float mod = 1.0f;
     for (int i = 0; i < 24000; ++i) {
-        mod = qp.GetPitchModulation(QualityMode::kTape);
+        mod = qp.GetPitchModulation(QualityMode::kScorchedCassette);
     }
     // After advancing, modulation should deviate from 1.0
     // wow: 0.02 semitones peak = SemitonesToRatio(0.02) ≈ 1.0012

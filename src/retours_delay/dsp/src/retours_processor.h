@@ -35,7 +35,7 @@ struct RetoursProcessor::Impl {
     // Quality-mode change tracking (block-rate edge detect). Change is
     // ignored while frozen (see self-review in task-8 report) — deferred
     // change is picked up on the first block after unfreeze.
-    QualityMode prev_quality = QualityMode::kHiFi;
+    QualityMode prev_quality = QualityMode::kBrightDigital;
     // Previous block's freeze state, so the quality-change branch can tell
     // "steady-state unfrozen" apart from "this is the unfreeze block" (the
     // falling edge). Applying a pending quality change on the falling-edge

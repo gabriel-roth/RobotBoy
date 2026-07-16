@@ -18,7 +18,7 @@ TEST_CASE("QualityModes: CleanLoFi feedback limiter is bounded", "[quality][satu
     const float inputs[] = {-20.0f, -10.0f, -3.0f, 0.0f, 3.0f, 10.0f, 20.0f};
     float previous = -2.0f;
     for (float input : inputs) {
-        const float output = saturation.LimitFeedback(input, QualityMode::kCleanLoFi);
+        const float output = saturation.LimitFeedback(input, QualityMode::kSunnyTape);
         REQUIRE(std::isfinite(output));
         REQUIRE(output >= -1.0f);
         REQUIRE(output <= 1.0f);
@@ -42,7 +42,7 @@ TEST_CASE("QualityModes: Clouds output quantization is detectable", "[quality]")
     for (int i = 0; i < 1000; ++i) {
         float val = static_cast<float>(i) / 1000.0f * 0.1f;  // 0 to 0.1 ramp
         StereoFrame in = {val, val};
-        StereoFrame out = qp.ProcessOutput(in, QualityMode::kClouds);
+        StereoFrame out = qp.ProcessOutput(in, QualityMode::kColdDigital);
 
         if (!first && out.l != prev_out) {
             step_changes++;
@@ -73,8 +73,8 @@ TEST_CASE("QualityModes: Tape mode reduces high-frequency content", "[quality]")
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
-        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kHiFi);
-        StereoFrame tape_out = qp.ProcessInput(in, QualityMode::kTape);
+        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kBrightDigital);
+        StereoFrame tape_out = qp.ProcessInput(in, QualityMode::kScorchedCassette);
 
         hifi_energy += hifi_out.l * hifi_out.l;
         tape_energy += tape_out.l * tape_out.l;
@@ -93,7 +93,7 @@ TEST_CASE("QualityModes: HiFi ProcessInput is near-passthrough", "[quality]") {
     for (int i = 0; i < 1000; ++i) {
         float val = std::sin(static_cast<float>(i) / kSampleRate * 440.0f * 2.0f * kPi);
         StereoFrame in = {val, -val};
-        StereoFrame out = qp.ProcessInput(in, QualityMode::kHiFi);
+        StereoFrame out = qp.ProcessInput(in, QualityMode::kBrightDigital);
         max_error = std::max(max_error, std::abs(out.l - val));
         max_error = std::max(max_error, std::abs(out.r - (-val)));
     }
@@ -109,7 +109,7 @@ TEST_CASE("QualityModes: HiFi ProcessOutput is near-passthrough", "[quality]") {
     for (int i = 0; i < 1000; ++i) {
         float val = std::sin(static_cast<float>(i) / kSampleRate * 440.0f * 2.0f * kPi);
         StereoFrame in = {val, -val};
-        StereoFrame out = qp.ProcessOutput(in, QualityMode::kHiFi);
+        StereoFrame out = qp.ProcessOutput(in, QualityMode::kBrightDigital);
         max_error = std::max(max_error, std::abs(out.l - val));
         max_error = std::max(max_error, std::abs(out.r - (-val)));
     }
@@ -153,8 +153,8 @@ TEST_CASE("QualityModes: CleanLoFi output LP attenuates high frequencies", "[qua
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
-        StereoFrame hifi_out = qp_hifi.ProcessOutput(in, QualityMode::kHiFi);
-        StereoFrame lofi_out = qp_lofi.ProcessOutput(in, QualityMode::kCleanLoFi);
+        StereoFrame hifi_out = qp_hifi.ProcessOutput(in, QualityMode::kBrightDigital);
+        StereoFrame lofi_out = qp_lofi.ProcessOutput(in, QualityMode::kSunnyTape);
 
         hifi_energy += hifi_out.l * hifi_out.l;
         lofi_energy += lofi_out.l * lofi_out.l;
@@ -180,8 +180,8 @@ TEST_CASE("QualityModes: Tape wow/flutter does not pump amplitude", "[quality]")
     for (int i = 0; i < total_samples; ++i) {
         float val = 0.5f * std::sin(static_cast<float>(i) / kSampleRate * 440.0f * 2.0f * kPi);
         StereoFrame in = {val, val};
-        StereoFrame processed = qp.ProcessInput(in, QualityMode::kTape);
-        StereoFrame out = qp.ProcessOutput(processed, QualityMode::kTape);
+        StereoFrame processed = qp.ProcessInput(in, QualityMode::kScorchedCassette);
+        StereoFrame out = qp.ProcessOutput(processed, QualityMode::kScorchedCassette);
         output_samples.push_back(out.l);
     }
 
@@ -214,7 +214,7 @@ TEST_CASE("QualityModes: Tape pitch modulation ratio stays within tight range", 
     float max_ratio = 0.0f;
 
     for (int i = 0; i < total_samples; ++i) {
-        float ratio = qp.GetPitchModulation(QualityMode::kTape, 1);
+        float ratio = qp.GetPitchModulation(QualityMode::kScorchedCassette, 1);
         if (ratio < min_ratio) min_ratio = ratio;
         if (ratio > max_ratio) max_ratio = ratio;
     }
@@ -233,8 +233,8 @@ TEST_CASE("QualityModes: Tape ProcessInput/ProcessOutput roundtrip preserves amp
 
     for (int i = 0; i < total_samples; ++i) {
         StereoFrame in = {0.5f, 0.5f};
-        StereoFrame processed = qp.ProcessInput(in, QualityMode::kTape);
-        StereoFrame out = qp.ProcessOutput(processed, QualityMode::kTape);
+        StereoFrame processed = qp.ProcessInput(in, QualityMode::kScorchedCassette);
+        StereoFrame out = qp.ProcessOutput(processed, QualityMode::kScorchedCassette);
 
         if (i >= settle_samples) {
             REQUIRE(out.l >= 0.3f);
@@ -252,8 +252,8 @@ TEST_CASE("QualityModes: Mode crossfade produces smooth transition", "[quality]"
     // Process several samples in HiFi mode
     for (int i = 0; i < 100; ++i) {
         StereoFrame in = {0.5f, 0.5f};
-        qp.ProcessInput(in, QualityMode::kHiFi);
-        qp.ProcessOutput(in, QualityMode::kHiFi);
+        qp.ProcessInput(in, QualityMode::kBrightDigital);
+        qp.ProcessOutput(in, QualityMode::kBrightDigital);
     }
 
     // Switch to Clouds and check the transition frames
@@ -261,7 +261,7 @@ TEST_CASE("QualityModes: Mode crossfade produces smooth transition", "[quality]"
     float max_delta = 0.0f;
     for (int i = 0; i < 100; ++i) {
         StereoFrame in = {0.5f, 0.5f};
-        StereoFrame out = qp.ProcessOutput(in, QualityMode::kClouds);
+        StereoFrame out = qp.ProcessOutput(in, QualityMode::kColdDigital);
         float delta = std::abs(out.l - prev_l);
         max_delta = std::max(max_delta, delta);
         prev_l = out.l;
@@ -284,9 +284,9 @@ TEST_CASE("QualityModes: Tape LimitFeedback does not create gain in compress/exp
     float test_values[] = {0.1f, 0.3f, 0.5f, 0.7f, 0.9f, -0.3f, -0.7f};
     for (float val : test_values) {
         StereoFrame in = {val, val};
-        StereoFrame compressed = qp.ProcessInput(in, QualityMode::kTape);
-        StereoFrame limited = sat.LimitFeedback(compressed, QualityMode::kTape);
-        StereoFrame expanded = qp.ProcessOutput(limited, QualityMode::kTape);
+        StereoFrame compressed = qp.ProcessInput(in, QualityMode::kScorchedCassette);
+        StereoFrame limited = sat.LimitFeedback(compressed, QualityMode::kScorchedCassette);
+        StereoFrame expanded = qp.ProcessOutput(limited, QualityMode::kScorchedCassette);
 
         // Output amplitude should not exceed input amplitude (no gain)
         float input_amp = std::abs(val);
@@ -309,8 +309,8 @@ TEST_CASE("QualityModes: LoFi input LP attenuates above 2.5kHz", "[quality][deci
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
-        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kHiFi);
-        StereoFrame lofi_out = qp_lofi.ProcessInput(in, QualityMode::kCleanLoFi);
+        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kBrightDigital);
+        StereoFrame lofi_out = qp_lofi.ProcessInput(in, QualityMode::kSunnyTape);
 
         hifi_energy += hifi_out.l * hifi_out.l;
         lofi_energy += lofi_out.l * lofi_out.l;
@@ -336,8 +336,8 @@ TEST_CASE("QualityModes: Tape input LP attenuates above 5kHz", "[quality][decima
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
-        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kHiFi);
-        StereoFrame tape_out = qp_tape.ProcessInput(in, QualityMode::kTape);
+        StereoFrame hifi_out = qp_hifi.ProcessInput(in, QualityMode::kBrightDigital);
+        StereoFrame tape_out = qp_tape.ProcessInput(in, QualityMode::kScorchedCassette);
 
         hifi_energy += hifi_out.l * hifi_out.l;
         tape_energy += tape_out.l * tape_out.l;
@@ -373,11 +373,11 @@ TEST_CASE("QualityModes: Tape feedback loop converges with low feedback", "[qual
         in.r += feedback_sample.r * feedback_gain;
 
         // ProcessInput (compress)
-        StereoFrame compressed = qp.ProcessInput(in, QualityMode::kTape);
+        StereoFrame compressed = qp.ProcessInput(in, QualityMode::kScorchedCassette);
         // LimitFeedback
-        StereoFrame limited = sat.LimitFeedback(compressed, QualityMode::kTape);
+        StereoFrame limited = sat.LimitFeedback(compressed, QualityMode::kScorchedCassette);
         // ProcessOutput (expand) — simulates buffer readback
-        StereoFrame expanded = qp.ProcessOutput(limited, QualityMode::kTape);
+        StereoFrame expanded = qp.ProcessOutput(limited, QualityMode::kScorchedCassette);
         // Capture feedback
         feedback_sample = expanded;
 
