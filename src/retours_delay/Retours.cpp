@@ -125,7 +125,7 @@ struct Retours : Module {
 #else
 		configButton<RetoursQualityParamQuantity>(QUALITY_PARAM, "Quality");
 #endif
-		configParam(DENSITY_PARAM, 0.f, 1.f, 0.5f, "Density");
+		configParam(DENSITY_PARAM, 0.f, 1.f, 0.35f, "Density");
 		configParam(TIME_PARAM, 0.f, 1.f, 0.f, "Time");
 		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
 		configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
@@ -595,7 +595,7 @@ struct RetoursWidget : ModuleWidget {
 #else
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(27.940f, 15.875f)), module, Retours::QUALITY_PARAM, Retours::QUALITY_R_LIGHT));
 #endif
-		addParam(createParamCentered<VCVBezel>(mm2px(Vec(39.940f, 15.875f)), module, Retours::CLOCK_PARAM));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(39.940f, 15.875f)), module, Retours::CLOCK_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.940f, 15.875f)), module, Retours::CLOCK_INPUT));
 
 		// --- Primary knobs, CV inputs, attenuverters (Density has no attenuverter;
