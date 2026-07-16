@@ -16,6 +16,13 @@
   attenurandomizers. VCV Rack + MetaModule.
 - Particules: fixed a macOS-simulator portability issue in the `memalign()`
   usage guard (real firmware and VCV Rack behavior unchanged).
+- **Particules & Retours** — fixed an inverted quality-mode fidelity ladder
+  inherited from the upstream Beads DSP: Sunny tape and Scorched cassette had
+  their decimation swapped. Now degradation increases monotonically Bright →
+  Cold → Sunny → Scorched (buffer 4/8/16/32 s), so Scorched cassette is the
+  most-degraded, longest mode. Anti-aliasing filters were re-tuned to each
+  mode's new rate, Sunny tape gained gentle wow/flutter, and the internal
+  quality enum was renamed to match the Beads labels.
 
 ## [2.0.1] — 2026-07-11
 
