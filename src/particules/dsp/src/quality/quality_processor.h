@@ -62,10 +62,14 @@ public:
     static constexpr float kWowSemitones = 0.02f;
     static constexpr float kFlutterSemitones = 0.003f;
 
-    static constexpr float kCloudsInputLpHz    = 10000.0f;
-    static constexpr float kCleanLoFiLpHz      = 10000.0f;
-    static constexpr float kCleanLoFiInputLpHz = 2500.0f;
-    static constexpr float kTapeLpHz           = 5000.0f;
+    // Anti-alias input LPs must sit below each mode's decimated Nyquist; output
+    // LPs are tonal shaping at host rate. See DecimationFactorForQuality:
+    // Bright 1x, Cold 2x, Sunny 4x (Nyquist 6k), Scorched 8x (Nyquist 3k).
+    static constexpr float kColdDigitalInputLpHz = 10000.0f;  // 2x -> Nyquist 12k
+    static constexpr float kSunnyTapeInputLpHz   = 5000.0f;   // 4x anti-alias (was 2500 @ 8x)
+    static constexpr float kSunnyTapeOutputLpHz  = 10000.0f;  // tone (bright)
+    static constexpr float kScorchedInputLpHz    = 2500.0f;   // 8x anti-alias (was 5000 @ 4x)
+    static constexpr float kScorchedOutputLpHz   = 5000.0f;   // cassette tone (dark)
 
 private:
 

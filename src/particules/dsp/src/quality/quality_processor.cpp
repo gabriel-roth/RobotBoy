@@ -13,10 +13,10 @@ void QualityProcessor::Init(float sample_rate) {
 
     // Set default cutoff frequencies — they'll be overridden per-mode in
     // Process*, but a sane default avoids uninitialized filter state.
-    input_lp_l_.SetFrequencyHz(kCloudsInputLpHz, sample_rate_);
-    input_lp_r_.SetFrequencyHz(kCloudsInputLpHz, sample_rate_);
-    output_lp_l_.SetFrequencyHz(kCleanLoFiLpHz, sample_rate_);
-    output_lp_r_.SetFrequencyHz(kCleanLoFiLpHz, sample_rate_);
+    input_lp_l_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
+    input_lp_r_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
+    output_lp_l_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
+    output_lp_r_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
 
     // Gentle resonance (Butterworth-ish)
     input_lp_l_.SetQ(0.707f);
@@ -35,8 +35,8 @@ void QualityProcessor::Init(float sample_rate) {
     // Force coefficient recomputation on first call
     prev_input_mode_ = QualityMode::kBrightDigital;
     prev_output_mode_ = QualityMode::kBrightDigital;
-    current_input_cutoff_hz_ = kCloudsInputLpHz;
-    current_output_cutoff_hz_ = kCleanLoFiLpHz;
+    current_input_cutoff_hz_ = kColdDigitalInputLpHz;
+    current_output_cutoff_hz_ = kSunnyTapeOutputLpHz;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,18 +44,18 @@ void QualityProcessor::Init(float sample_rate) {
 // ---------------------------------------------------------------------------
 static float InputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kColdDigital:    return QualityProcessor::kCloudsInputLpHz;
-        case QualityMode::kSunnyTape: return QualityProcessor::kCleanLoFiInputLpHz;
-        case QualityMode::kScorchedCassette:      return QualityProcessor::kTapeLpHz;
-        default:                      return QualityProcessor::kCloudsInputLpHz;
+        case QualityMode::kColdDigital:      return QualityProcessor::kColdDigitalInputLpHz;
+        case QualityMode::kSunnyTape:        return QualityProcessor::kSunnyTapeInputLpHz;
+        case QualityMode::kScorchedCassette: return QualityProcessor::kScorchedInputLpHz;
+        default:                             return QualityProcessor::kColdDigitalInputLpHz;
     }
 }
 
 static float OutputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kSunnyTape: return QualityProcessor::kCleanLoFiLpHz;
-        case QualityMode::kScorchedCassette:      return QualityProcessor::kTapeLpHz;
-        default:                      return QualityProcessor::kCleanLoFiLpHz;
+        case QualityMode::kSunnyTape:        return QualityProcessor::kSunnyTapeOutputLpHz;
+        case QualityMode::kScorchedCassette: return QualityProcessor::kScorchedOutputLpHz;
+        default:                             return QualityProcessor::kSunnyTapeOutputLpHz;
     }
 }
 
@@ -89,7 +89,7 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
             break;
 
         case QualityMode::kSunnyTape:
-            // Anti-aliasing LP for 8x decimation (effective Nyquist = 3 kHz)
+            // Anti-aliasing LP for 4x decimation (effective Nyquist = 6 kHz)
             result = { filtered_l, filtered_r };
             break;
 

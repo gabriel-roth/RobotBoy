@@ -12,7 +12,7 @@ using Catch::Approx;
 
 static constexpr float kSampleRate = 48000.0f;
 
-TEST_CASE("QualityModes: CleanLoFi feedback limiter is bounded", "[quality][saturation]") {
+TEST_CASE("QualityModes: Sunny tape feedback limiter is bounded", "[quality][saturation]") {
     Saturation saturation;
     saturation.Init();
     const float inputs[] = {-20.0f, -10.0f, -3.0f, 0.0f, 3.0f, 10.0f, 20.0f};
@@ -61,7 +61,7 @@ TEST_CASE("QualityModes: Tape mode reduces high-frequency content", "[quality]")
     QualityProcessor qp;
     qp.Init(kSampleRate);
 
-    // Generate a high-frequency signal (20kHz) well above tape LP at 5kHz
+    // Generate a high-frequency signal (20kHz) well above Scorched LP at 2.5kHz
     float hifi_energy = 0.0f;
     float tape_energy = 0.0f;
 
@@ -80,7 +80,7 @@ TEST_CASE("QualityModes: Tape mode reduces high-frequency content", "[quality]")
         tape_energy += tape_out.l * tape_out.l;
     }
 
-    // Tape LP filter at 5kHz should heavily attenuate 20kHz
+    // Scorched LP filter at 2.5kHz should heavily attenuate 20kHz
     REQUIRE(tape_energy < hifi_energy * 0.5f);
 }
 
@@ -139,7 +139,7 @@ TEST_CASE("QualityModes: Each mode produces finite output", "[quality]") {
     }
 }
 
-TEST_CASE("QualityModes: CleanLoFi output LP attenuates high frequencies", "[quality]") {
+TEST_CASE("QualityModes: Sunny tape output LP attenuates high frequencies", "[quality]") {
     QualityProcessor qp_lofi, qp_hifi;
     qp_lofi.Init(kSampleRate);
     qp_hifi.Init(kSampleRate);
@@ -160,7 +160,7 @@ TEST_CASE("QualityModes: CleanLoFi output LP attenuates high frequencies", "[qua
         lofi_energy += lofi_out.l * lofi_out.l;
     }
 
-    // CleanLoFi LP at 10kHz should attenuate 18kHz
+    // Sunny tape output LP at 10kHz should attenuate 18kHz
     REQUIRE(lofi_energy < hifi_energy * 0.5f);
 }
 
@@ -295,17 +295,17 @@ TEST_CASE("QualityModes: Tape LimitFeedback does not create gain in compress/exp
     }
 }
 
-TEST_CASE("QualityModes: LoFi input LP attenuates above 2.5kHz", "[quality][decimation]") {
+TEST_CASE("QualityModes: Sunny tape input LP attenuates above 5kHz", "[quality][decimation]") {
     QualityProcessor qp_lofi, qp_hifi;
     qp_lofi.Init(kSampleRate);
     qp_hifi.Init(kSampleRate);
 
-    // Generate a 4kHz signal (above LoFi's 2.5kHz anti-aliasing cutoff)
+    // Generate a 9kHz signal (above Sunny tape's 5kHz anti-aliasing cutoff)
     float hifi_energy = 0.0f;
     float lofi_energy = 0.0f;
 
     for (int i = 0; i < 10000; ++i) {
-        float phase = static_cast<float>(i) / kSampleRate * 4000.0f * 2.0f * kPi;
+        float phase = static_cast<float>(i) / kSampleRate * 9000.0f * 2.0f * kPi;
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
@@ -316,23 +316,23 @@ TEST_CASE("QualityModes: LoFi input LP attenuates above 2.5kHz", "[quality][deci
         lofi_energy += lofi_out.l * lofi_out.l;
     }
 
-    // LoFi LP at 2.5kHz should significantly attenuate 4kHz
+    // Sunny tape LP at 5kHz should significantly attenuate 9kHz
     REQUIRE(lofi_energy < hifi_energy * 0.3f);
 }
 
-TEST_CASE("QualityModes: Tape input LP attenuates above 5kHz", "[quality][decimation]") {
+TEST_CASE("QualityModes: Scorched input LP attenuates above 2.5kHz", "[quality][decimation]") {
     QualityProcessor qp_tape, qp_hifi;
     qp_tape.Init(kSampleRate);
     qp_hifi.Init(kSampleRate);
 
-    // Generate a 15kHz signal (well above Tape's 5kHz cutoff).
-    // Use a high frequency because tape mode's mu-law compression
+    // Generate an 8kHz signal (well above Scorched's 2.5kHz cutoff).
+    // Use a high frequency because Scorched mode's mu-law compression
     // re-expands attenuated signals, so we need strong LP rejection.
     float hifi_energy = 0.0f;
     float tape_energy = 0.0f;
 
     for (int i = 0; i < 10000; ++i) {
-        float phase = static_cast<float>(i) / kSampleRate * 15000.0f * 2.0f * kPi;
+        float phase = static_cast<float>(i) / kSampleRate * 8000.0f * 2.0f * kPi;
         float val = std::sin(phase);
         StereoFrame in = {val, val};
 
@@ -343,7 +343,7 @@ TEST_CASE("QualityModes: Tape input LP attenuates above 5kHz", "[quality][decima
         tape_energy += tape_out.l * tape_out.l;
     }
 
-    // Tape LP at 5kHz should heavily attenuate 15kHz
+    // Scorched LP at 2.5kHz should heavily attenuate 8kHz
     REQUIRE(tape_energy < hifi_energy * 0.3f);
 }
 
