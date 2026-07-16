@@ -135,6 +135,26 @@ three separate loop passes (clean seam looping), 0 NaN/Inf.
   decisions awaiting sign-off (module name Échos, MM access to the menu
   sliders, SlowRandomLfo shared wander, and the spec decision log).
 
+## 2026-07-15 — final whole-branch review: Ready to merge
+
+- Independent final review (fresh reviewer, whole branch b67a0b6..HEAD)
+  found two real bugs the per-task gates missed, both fixed in `01afee3`
+  with RED-verified regression tests: (1) a NaN on any CV input
+  permanently killed the DSP (slew/shifter state poisoned; now sanitized
+  at adapter, SetParameters, SetTargets, and SetRatio); (2) unfreezing
+  from a wrapped slice hard-snapped the read head instead of slewing
+  (equiv_delay now wrapped).
+- Also restored the plan's >1 runaway feedback via a piecewise knob map
+  (unity at 0.9, 1.1 at max — reviewer verified continuity empirically:
+  decay ratios 0.988/0.999/1.009 at knobs 0.89/0.90/0.91), applied input
+  trim to the dry path per the spec diagram, removed dead code, and added
+  kCrossfade + envelope_pre_feedback coverage. 54 test cases, all green;
+  both builds clean.
+- Re-review verdict: **Ready to merge.** Branch left unmerged for
+  Gabriel's checklist pass; the Beads-manual-PDF-in-history question is
+  cheapest to settle before merging.
+- VCV plugin (with all fixes) installed to the Rack2 plugins dir.
+
 ## 2026-07-15 — final review fixes
 
 Full-branch review of Échos (post Task-13) surfaced 7 findings. All fixed
