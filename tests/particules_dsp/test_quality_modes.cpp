@@ -390,3 +390,21 @@ TEST_CASE("QualityModes: Tape feedback loop converges with low feedback", "[qual
     // and not grow beyond the input amplitude (no feedback-induced gain)
     REQUIRE(max_output < 0.8f);  // Well below 1.0, reasonable for 0.5 input through mu-law
 }
+
+TEST_CASE("QualityModes: Sunny tape wow is present but gentler than Scorched", "[quality]") {
+    QualityProcessor qp;
+    qp.Init(kSampleRate);
+    auto span = [&](QualityMode m) {
+        float lo = 2.0f, hi = 0.0f;
+        for (int i = 0; i < 96000; ++i) {
+            float r = qp.GetPitchModulation(m, 1);
+            lo = std::min(lo, r);
+            hi = std::max(hi, r);
+        }
+        return hi - lo;
+    };
+    float sunny = span(QualityMode::kSunnyTape);
+    float scorched = span(QualityMode::kScorchedCassette);
+    REQUIRE(sunny > 0.0005f);            // modulation is present
+    REQUIRE(sunny < scorched * 0.75f);   // gentler than full-depth Scorched
+}

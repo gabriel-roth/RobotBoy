@@ -180,15 +180,26 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
     return result;
 }
 
+// Wow/flutter depth by mode: full on Scorched cassette, half on Sunny tape
+// (both are tape emulations, per the Beads manual), none elsewhere.
+static float WowDepthForMode(QualityMode mode) {
+    switch (mode) {
+        case QualityMode::kScorchedCassette: return 1.0f;
+        case QualityMode::kSunnyTape:        return 0.5f;
+        default:                             return 0.0f;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // GetPitchModulation: returns a pitch *ratio* multiplier for the current
-// sample.  Only tape mode produces modulation; all others return 1.0.
+// sample.  Both tape modes modulate (Sunny tape at half depth); others 1.0.
 //
-// Wow  = slow (~0.5 Hz), +/- 0.02 semitones
-// Flutter = fast (~6 Hz), +/- 0.003 semitones
+// Wow  = slow (~0.5 Hz), +/- 0.02 semitones (full depth)
+// Flutter = fast (~6 Hz), +/- 0.003 semitones (full depth)
 // ---------------------------------------------------------------------------
 float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples) {
-    if (mode != QualityMode::kScorchedCassette) {
+    float depth = WowDepthForMode(mode);
+    if (depth == 0.0f) {
         return 1.0f;
     }
 
@@ -201,12 +212,12 @@ float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples)
     flutter_phase_ += flutter_increment_ * advance;
     while (flutter_phase_ >= 1.0f) flutter_phase_ -= 1.0f;
 
-    // Combined pitch deviation in semitones
+    // Combined pitch deviation in semitones, scaled by per-mode depth
     float wow_st     = kWowSemitones     * std::sin(wow_phase_     * kTwoPi);
     float flutter_st = kFlutterSemitones * std::sin(flutter_phase_ * kTwoPi);
 
     // Convert semitones offset to ratio
-    return SemitonesToRatio(wow_st + flutter_st);
+    return SemitonesToRatio(depth * (wow_st + flutter_st));
 }
 
 } // namespace particules_dsp
