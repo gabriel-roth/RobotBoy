@@ -66,8 +66,16 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
     float slew_s = std::max(slew_seconds, 1e-4f);
     slew_coeff_ = 1.f - std::exp(-1.f / (slew_s * sample_rate_));
 
-    if (delay_frames_ < 0.f) {
+    if (delay_frames_ < 0.f || !std::isfinite(delay_frames_)) {
         // First-ever target: snap instead of gliding from the placeholder.
+        // Also snaps out of a NaN-poisoned state: `delay_frames_ < 0.f` is
+        // false for NaN (every comparison with NaN is false), so without the
+        // explicit isfinite() check a single glitched target would leave
+        // delay_frames_ NaN forever (the tape-mode slew below is
+        // `delay_frames_ += slew_coeff_ * (target - delay_frames_)`, which
+        // never recovers once NaN). Belt-and-braces: SetParameters() sanitizes
+        // the upstream params NaN can enter from, so `frames` here should
+        // already be finite in practice.
         delay_frames_ = frames;
         target_frames_ = frames;
     }
@@ -142,7 +150,16 @@ void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_in
         // tape/crossfade path resumes with no jump and then slews/crossfades
         // away from there toward the live TIME target on its own.
         float frozen_read_pos = WrapPosition(slice_start_ + slice_phase_, size_f);
-        float equiv_delay = read_subsample_ - frozen_read_pos;
+        // Wrap into [0, size): a high slice index can anchor slice_start_
+        // just past the write head (slice_count*base sits just under the
+        // buffer duration, so it wraps to a small positive offset ahead of
+        // the anchor rather than behind it), making the raw difference
+        // negative even though it's a perfectly valid delay once wrapped.
+        // Left unwrapped, that negative value satisfies SetTargets()'s
+        // "delay_frames_ < 0.f" first-target sentinel on the very next
+        // block, snapping straight to the live target instead of slewing
+        // away from here.
+        float equiv_delay = WrapPosition(read_subsample_ - frozen_read_pos, size_f);
         if (mode_ == TimeChangeMode::kTape) {
             delay_frames_ = equiv_delay;
         } else {  // kCrossfade: fade from the frozen-equivalent offset to

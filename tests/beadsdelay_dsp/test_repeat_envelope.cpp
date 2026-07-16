@@ -150,3 +150,51 @@ TEST_CASE("RepeatEnvelope: shape=0.25 gates a constant wet signal per period") {
     REQUIRE(rms_first_half > 0.3f);       // gate is open, signal present
     REQUIRE(rms_last15 < rms_first_half * 0.4f);  // gate closed late in period
 }
+
+// (e) Fix round (final review, coverage gap): envelope_pre_feedback had no
+// dedicated test (ledger note T5). With it true, feedback taps the wet
+// signal BEFORE the repeat envelope closes the gate, so repeats keep
+// sustaining even while the envelope silences the output; with it false
+// (default), feedback taps the post-envelope (already-gated) signal, so a
+// closing gate quiets the feedback loop too and repeats die out faster.
+// Moderate shape (0.5, a partial gate/Hann crossfade -- not fully closed,
+// not fully open) and moderate feedback make the difference measurable
+// without either extreme (full gate closure or full sustain) saturating it.
+TEST_CASE("RepeatEnvelope: envelope_pre_feedback sustains repeats measurably longer") {
+    auto measure_tail_rms = [](bool pre_feedback) -> double {
+        Proc proc;
+        EchosParameters params;
+        params.dry_wet = 1.f;
+        params.feedback = 0.7f;                 // knob; mapped gain ~0.778, sub-unity
+        params.shape = 0.5f;                     // moderate envelope gating
+        params.density = KnobForSeconds(0.1f);   // ~100 ms period
+        params.envelope_pre_feedback = pre_feedback;
+        proc.p.SetParameters(params);
+
+        const float sr = 48000.f;
+        size_t total = static_cast<size_t>(3.0f * sr);
+        std::vector<StereoFrame> in(total, StereoFrame{0.f, 0.f});
+        size_t burst_n = static_cast<size_t>(0.02f * sr);
+        for (size_t i = 0; i < burst_n; ++i) {
+            float s = 0.8f * std::sin(2.f * 3.14159265f * 440.f *
+                                        static_cast<float>(i) / sr);
+            in[i] = {s, s};
+        }
+        std::vector<StereoFrame> out(total);
+        proc.p.Process(in.data(), out.data(), total);
+
+        size_t tail_from = static_cast<size_t>(2.5f * sr);
+        double sum_sq = 0.0;
+        for (size_t i = tail_from; i < total; ++i)
+            sum_sq += static_cast<double>(out[i].l) * out[i].l;
+        return std::sqrt(sum_sq / static_cast<double>(total - tail_from));
+    };
+
+    double rms_pre = measure_tail_rms(true);
+    double rms_post = measure_tail_rms(false);
+    INFO("rms_pre=" << rms_pre << " rms_post=" << rms_post);
+
+    // T5's own measurement found ~21x; require >=2x for a robust margin
+    // rather than pinning to that exact ratio.
+    REQUIRE(rms_pre > rms_post * 2.0);
+}

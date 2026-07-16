@@ -93,6 +93,40 @@ void EchosProcessor::Init(void* memory, size_t memory_size, float sample_rate) {
 void EchosProcessor::SetParameters(const EchosParameters& params) {
     if (!impl_) return;
     impl_->params = params;
+
+    // Guard every float field against NaN at the parameter-ingestion
+    // boundary. Several of these drive persistent state that a single NaN
+    // permanently poisons: EchoEngine::delay_frames_/target_frames_ (a
+    // `state += coeff * (NaN - state)` slew never recovers), the per-sample
+    // OnePole-smoothed dry_wet/feedback (same mechanism), and
+    // RotaryShifter::phase_ (`phase_ += NaN` poisons it since neither
+    // `NaN >= 1` nor `NaN < 0` is ever true, so the wrap-around checks never
+    // fire). Adapter-side CV sanitization (Echos.cpp updateSlowParams) is the
+    // first line of defense; this is belt-and-braces for any other caller
+    // (tests, a future host) and for knob/AR fields the adapter doesn't
+    // separately guard. particules_dsp::Clamp() is built on std::min/std::max,
+    // which leave a NaN operand unclamped, so nothing upstream reliably
+    // sanitizes this -- it has to be fixed at ingestion. Defaults mirror each
+    // field's declared default in EchosParameters (types.h).
+    EchosParameters& p = impl_->params;
+    if (!std::isfinite(p.density))         p.density         = 0.5f;
+    if (!std::isfinite(p.time))            p.time            = 0.0f;
+    if (!std::isfinite(p.pitch_semitones)) p.pitch_semitones = 0.0f;
+    if (!std::isfinite(p.shape))           p.shape           = 0.0f;
+    if (!std::isfinite(p.feedback))        p.feedback        = 0.0f;
+    if (!std::isfinite(p.dry_wet))         p.dry_wet         = 0.5f;
+    if (!std::isfinite(p.density_cv))      p.density_cv      = 0.0f;
+    if (!std::isfinite(p.time_cv))         p.time_cv         = 0.0f;
+    if (!std::isfinite(p.pitch_cv))        p.pitch_cv        = 0.0f;
+    if (!std::isfinite(p.shape_cv))        p.shape_cv        = 0.0f;
+    if (!std::isfinite(p.feedback_cv))     p.feedback_cv     = 0.0f;
+    if (!std::isfinite(p.dry_wet_cv))      p.dry_wet_cv      = 0.0f;
+    if (!std::isfinite(p.time_ar))         p.time_ar         = 0.0f;
+    if (!std::isfinite(p.pitch_ar))        p.pitch_ar        = 0.0f;
+    if (!std::isfinite(p.shape_ar))        p.shape_ar        = 0.0f;
+    if (!std::isfinite(p.input_trim_db))   p.input_trim_db   = 0.0f;
+    if (!std::isfinite(p.slew_seconds))    p.slew_seconds    = kSlewSecondsDefault;
+    if (!std::isfinite(p.random_lfo_hz))   p.random_lfo_hz   = kRandomLfoHz;
 }
 
 void EchosProcessor::Process(const StereoFrame* input, StereoFrame* output, size_t num_frames) {
@@ -199,8 +233,19 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
     s.shifter.SetRatio(shift_ratio);
 
     // Block-rate: FEEDBACK/BLEND CV (no AR), smoothing targets.
-    float feedback_eff = particules_dsp::Clamp(
+    float feedback_knob = particules_dsp::Clamp(
         s.params.feedback + s.params.feedback_cv / 5.f, 0.f, 1.f);
+    // FEEDBACK gain range is 0..1.1, not 0..1: per spec, >1 loop gain is
+    // signature Beads behavior (runaway/self-oscillation is a feature, not
+    // a bug to clamp away). Piecewise so the first 90% of knob travel still
+    // maps onto the familiar 0..1 unity-at-max feel (unity lands exactly at
+    // knob position 0.9, not squeezed/stretched across the whole range), and
+    // the last 10% opens up to 1.1 gain. Saturation::LimitFeedback
+    // (per-quality, applied below) bounds the loop regardless of how far
+    // past unity this pushes it, so runaway is reachable but never unsafe.
+    float feedback_eff = (feedback_knob <= 0.9f)
+                              ? feedback_knob / 0.9f
+                              : 1.0f + (feedback_knob - 0.9f);
     float dry_wet_eff = particules_dsp::Clamp(
         s.params.dry_wet + s.params.dry_wet_cv / 5.f, 0.f, 1.f);
 
@@ -278,9 +323,12 @@ void EchosProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, size_
             s.recording_buffer.Write(to_write.l, to_write.r);
         }
 
+        // Input trim sits at the very front of the signal flow per spec, so
+        // it applies to the dry tap here too, not just the path written to
+        // the delay buffer above. Default 0 dB -> gain 1.0 -> no change.
         float mix = s.smoothed_dry_wet;
-        out[i].l = input.l * (1.f - mix) + wet.l * mix;
-        out[i].r = input.r * (1.f - mix) + wet.r * mix;
+        out[i].l = trimmed_l * (1.f - mix) + wet.l * mix;
+        out[i].r = trimmed_r * (1.f - mix) + wet.r * mix;
     }
 
     // NaN guard: flush feedback/filter state once per block (not per sample)

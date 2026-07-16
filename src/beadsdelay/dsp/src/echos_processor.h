@@ -55,8 +55,6 @@ struct EchosProcessor::Impl {
     float smoothed_dry_wet = 0.5f;
     float smoothed_feedback = 0.f;
 
-    StereoFrame wet_buf[kMaxBlockSize];
-
     static constexpr size_t kAlignment = 16;
 };
 

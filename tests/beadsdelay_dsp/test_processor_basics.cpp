@@ -55,3 +55,25 @@ TEST_CASE("dry passthrough at dry_wet 0") {
     for (size_t i = 128; i < out.size(); ++i)
         REQUIRE(out[i].l == Catch::Approx(in[i].l).margin(0.02));
 }
+
+// Fix round (final review): input trim sits at the very front of the signal
+// flow per spec, so it must also apply to the dry tap in the final mix, not
+// just the path written to the delay buffer (echos_processor.cpp's to_write
+// computation already applied it there). -12 dB -> gain 10^(-12/20) ~=
+// 0.2512.
+TEST_CASE("input trim also applies to the dry tap") {
+    Proc proc;
+    EchosParameters params;
+    params.dry_wet = 0.f;         // dry only
+    params.input_trim_db = -12.f;
+    proc.p.SetParameters(params);
+    std::vector<StereoFrame> in(256), out(256);
+    for (size_t i = 0; i < in.size(); ++i)
+        in[i] = {std::sin(0.1f * i), std::cos(0.1f * i)};
+    proc.p.Process(in.data(), out.data(), in.size());
+    const float expected_gain = 0.25119f;  // 10^(-12/20)
+    for (size_t i = 128; i < out.size(); ++i) {
+        REQUIRE(out[i].l == Catch::Approx(in[i].l * expected_gain).margin(0.01f));
+        REQUIRE(out[i].r == Catch::Approx(in[i].r * expected_gain).margin(0.01f));
+    }
+}

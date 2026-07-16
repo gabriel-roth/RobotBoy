@@ -10,7 +10,6 @@ class RotaryShifter {
 public:
     void Init(float sample_rate);
     void SetRatio(float ratio);        // block rate; 1.0 = bypass request
-    bool Bypassed() const;
     StereoFrame Process(StereoFrame in);   // per sample
 
 private:

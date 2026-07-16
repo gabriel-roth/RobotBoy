@@ -101,6 +101,17 @@ rendered WAVs from the verification sweep are in the session scratchpad
        per-instance? (Ledger T6 — your call.)
 10. [ ] Reverb, AGC, buffer persistence: out of scope for v1 (spec
         non-goals) — confirm.
+11. [ ] **Feedback >1 runaway restored per plan** (final review, 2026-07-15):
+        the knob's gain mapping is now piecewise 0..1.1 — unity gain lands at
+        knob position 0.9, and the last 10% of travel opens up to 1.1
+        (self-sustaining/growing feedback, signature Beads behavior). The
+        per-quality feedback limiter still bounds it safely. Ear-check the
+        0.9–1.0 knob range.
+12. [ ] `resources/Mutable-Beads-manual.pdf` is now tracked in-repo per your
+        instruction — note it will be in public history if this repo's
+        releases stay public; drop before merge if unwanted.
+13. [ ] Pitch notches delivered as the Particules map (0, ±7, ±12, ±19) vs.
+        the spec's ±5 mention — confirm OK.
 
 ## Housekeeping (non-blocking)
 

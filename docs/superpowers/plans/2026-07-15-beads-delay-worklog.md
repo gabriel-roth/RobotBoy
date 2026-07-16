@@ -134,3 +134,110 @@ three separate loop passes (clean seam looping), 0 NaN/Inf.
   — GUI checks, audible checks of the three demo patches, and the design
   decisions awaiting sign-off (module name Échos, MM access to the menu
   sliders, SlowRandomLfo shared wander, and the spec decision log).
+
+## 2026-07-15 — final review fixes
+
+Full-branch review of Échos (post Task-13) surfaced 7 findings. All fixed
+in one pass, verified, docs/checklist updated.
+
+1. **NaN CV inputs permanently kill the DSP (critical).** A NaN on any CV
+   jack reached `EchoEngine::delay_frames_`/`target_frames_` (the tape-mode
+   slew `state += coeff*(target-state)` never recovers from NaN),
+   `RotaryShifter::phase_` (wrap checks `>=1`/`<0` are never true for NaN),
+   and `smoothed_dry_wet`/`smoothed_feedback` — permanently, even after the
+   glitch input returned to normal. The existing first-target snap guard
+   (`delay_frames_ < 0.f`) didn't catch it (NaN fails every comparison).
+   Fixed in three layers: (a) `Echos.cpp updateSlowParams` sanitizes all six
+   CV reads to 0 V if non-finite; (b) `EchosProcessor::SetParameters` now
+   guards every float field of `EchosParameters` (mirrors
+   `particules_processor.cpp`'s pattern), `EchoEngine::SetTargets`'s
+   first-target snap also fires on `!isfinite(delay_frames_)`, and
+   `RotaryShifter::SetRatio` sanitizes its input. New regression test
+   (`test_hardening.cpp`, "NaN CV input for one block does not permanently
+   poison the DSP") glitches `density_cv` then `dry_wet_cv` for one block
+   each, mid-stream, then asserts full recovery (finite output, correct
+   delay time, impulse echoes on time). **Confirmed red** against the
+   unfixed `SetParameters` (temporarily reverted the guard block): the tail
+   of the run stayed non-finite; green after restoring.
+
+2. **Unfreeze from a wrapped slice snapped instead of slewing (important).**
+   `EchoEngine::NotifyFreeze`'s falling edge computed
+   `equiv_delay = read_subsample_ - frozen_read_pos` unwrapped. A high slice
+   index (TIME=1.0) anchors `slice_start_` just past the write head once
+   wrapped (since `slice_count*base` sits just under the buffer duration),
+   making `equiv_delay` negative — which then satisfied `SetTargets()`'s
+   "first-ever target" sentinel (`delay_frames_ < 0.f`) on the very next
+   block, snapping straight to the live TIME target instead of continuing
+   the slew. Fixed by wrapping `equiv_delay` into `[0, size)` via the
+   existing `WrapPosition` helper (both tape and crossfade branches). New
+   regression test (`test_freeze_slicer.cpp`, "unfreeze from a wrapped
+   high-slice-index position slews, doesn't snap"). **Confirmed red**: the
+   unfixed code read `DelayTimeSeconds() == 0` right after unfreeze (the
+   negative delay clamped by `CurrentDelaySamples()`'s `max(0.f, ...)`) then
+   `== 0.5` (the final target) just 3 blocks later — an instant snap, not a
+   slew; green after the fix (still >1 s three blocks in, converges to 0.5 s
+   given enough time).
+
+3. **Feedback knob range restored to 0→1.1 (plan restoration).** The plan
+   called for feedback >1 ("runaway", signature Beads self-oscillation
+   behavior); the code clamped to 1.0. Restored a piecewise mapping in
+   `echos_processor.cpp`: knob k≤0.9 → gain k/0.9 (0..1, unity at k=0.9);
+   k>0.9 → gain 1.0+(k-0.9) (up to 1.1). The per-quality
+   `Saturation::LimitFeedback` still bounds the loop regardless. Test
+   fallout: `test_echo_engine.cpp`'s Q-bug regression ("high feedback decays
+   instead of self-oscillating") used knob 0.95, which now maps *above*
+   unity (1.05 gain) by design, so it no longer isolates the Q bug from the
+   new intentional-runaway behavior. Moved to knob 0.87 (gain ≈0.967, still
+   sub-unity) after probing several values with a small harness: the brief's
+   suggested 0.85 turned out NOT to discriminate reliably at this fixture's
+   burst amplitude (both Q=1 and Q=0.707 decayed there; the growth/decay
+   knife-edge sits nearer knob 0.853). At 0.87 the separation is stark
+   (Q=1: late RMS 0.72 vs. early 0.002, grows to clip; Q=0.707: late RMS
+   0.0000, fully decays) — **confirmed red** with `SetQ(0.707f)` temporarily
+   removed, green restored. The two feedback=1.0 tests the brief flagged
+   (`test_hardening.cpp` corner stress, `test_quality_modes.cpp` (c)) were
+   re-run as-is (now exercising gain 1.1 instead of 1.0) and both still pass
+   unmodified — the limiter's boundedness/finiteness guarantee holds at the
+   higher gain, no threshold changes needed. New test added
+   (`test_echo_engine.cpp`, "feedback knob at max (gain 1.1) sustains/grows
+   and stays bounded"): a burst at knob=1.0 sustains/grows to the limiter
+   ceiling over 5 s (tail RMS ≥ RMS at 1 s) and stays within the documented
+   ±2.0 headroom bound. User checklist updated with an ear-check item for
+   the 0.9–1.0 knob range.
+
+4. **Input trim didn't reach the dry path (important).** `input_gain`
+   multiplied only the path written to the delay buffer; the spec puts trim
+   at the very front of the signal flow, before the dry/wet split. Fixed by
+   using the already-computed `trimmed_l`/`trimmed_r` (not raw `input.l/r`)
+   in the final dry/wet mix. Default trim (0 dB, gain 1.0) is a no-op, so no
+   existing test's expectations changed. New test
+   (`test_processor_basics.cpp`, "input trim also applies to the dry tap"):
+   -12 dB trim, dry_wet=0 → output ≈ input × 0.2512.
+
+5. **Dead code removed.** `EchosProcessor::Impl::wet_buf`
+   (`echos_processor.h`) and `RotaryShifter::Bypassed()`
+   (`pitch/rotary_shifter.h`/`.cpp`) had zero callers (grep-confirmed before
+   removal; MetaModule's symbol map showing the compiled function was just
+   the pre-removal binary, not a live caller).
+
+6. **Coverage gaps closed.** (a) `TimeChangeMode::kCrossfade` had no
+   dedicated test: added "retarget mid-stream declicks and reaches the new
+   target" (no sample-to-sample jump ≥0.5 across the retarget boundary with
+   a 0.3-amplitude sine, lands on the new target once the 1024-sample fade
+   completes) and "retarget during an in-progress fade queues cleanly" (a
+   second retarget mid-fade queues via `queued_target_` rather than
+   corrupting state; stays finite, eventually reaches the queued target).
+   (b) `envelope_pre_feedback` had no dedicated test (ledger T5): added
+   "envelope_pre_feedback sustains repeats measurably longer" — tail RMS
+   with the flag true vs. false differs by ≥2x (T5's own probe measured
+   ~21x; 2x is a robust floor, not a pin to that exact number).
+
+7. **Hygiene.** `tests/echos/mm_sim/*.wav` added to `.gitignore`
+   (reproducible render fixtures, were showing as untracked). User
+   checklist's decision-log section gained two more items: the
+   in-repo-tracked Beads manual PDF's public-history exposure, and the
+   pitch-notch-map (0/±7/±12/±19) vs. the spec's "±5" mention.
+
+**Verification:** `tests/beadsdelay_dsp` 54 cases (was 47), `tests/particules_dsp`
+and root `tests/` lanes unaffected and still green, `make -C vcv -j8` and
+`cmake --build metamodule/build` both clean.

@@ -319,6 +319,85 @@ TEST_CASE("telemetry: BaseTimeSeconds/DelayTimeSeconds match impulse-measured de
     REQUIRE(delay_seconds == Catch::Approx(measured_seconds).epsilon(0.05));
 }
 
+// ---------------------------------------------------------------------------
+// (e) Fix round: a single block of NaN on a CV input must not permanently
+// poison the DSP. Pre-fix, a NaN density_cv reaches
+// BaseTimeControl::Update() -> base = buffer_samples_ * exp2(-octaves*d) *
+// exp2(-density_cv_volts) -> NaN base_samples -> NaN delay_samples fed into
+// EchoEngine::SetTargets() -> NaN target_frames_/delay_frames_. The
+// first-target snap guard (`delay_frames_ < 0.f`) is false for NaN (all
+// comparisons with NaN are false), so a later, valid density_cv can never
+// re-snap delay_frames_ away from NaN -- `delay_frames_ += slew_coeff_ *
+// (target - delay_frames_)` keeps it NaN forever once poisoned. Separately, a
+// NaN dry_wet_cv poisons dry_wet_eff -> smoothed_dry_wet via the per-sample
+// OnePole (same permanent-poison mechanism). Fixed by sanitizing every float
+// field of EchosParameters at the SetParameters() ingestion boundary (mirrors
+// Particules' pattern) plus a NaN-aware first-target snap in
+// EchoEngine::SetTargets(). Density case verified RED against the unfixed
+// core (temporarily reverting the EchosProcessor::SetParameters guard block):
+// DelayTimeSeconds() stayed NaN for the remainder of the run even after
+// density_cv returned to 0; with the fix, it recovers within this test's
+// post-glitch window.
+// ---------------------------------------------------------------------------
+TEST_CASE("NaN CV input for one block does not permanently poison the DSP") {
+    const float sr = 48000.f;
+    Proc proc(sr);
+    EchosParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.density = KnobForSeconds(0.15f);  // ~150 ms
+    params.time = 0.f;
+    proc.p.SetParameters(params);
+
+    // Settle the delay-time slew before the glitch.
+    std::vector<StereoFrame> settle(static_cast<size_t>(0.5f * sr), StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+    REQUIRE(std::isfinite(proc.p.DelayTimeSeconds()));
+
+    // Glitch block 1: NaN density_cv for one SetParameters/Process call.
+    params.density_cv = std::nanf("");
+    proc.p.SetParameters(params);
+    std::vector<StereoFrame> glitch_in(kMaxBlockSize, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> glitch_out(kMaxBlockSize);
+    proc.p.Process(glitch_in.data(), glitch_out.data(), kMaxBlockSize);
+
+    // Restore density_cv; glitch dry_wet_cv instead for a second block.
+    params.density_cv = 0.f;
+    params.dry_wet_cv = std::nanf("");
+    proc.p.SetParameters(params);
+    proc.p.Process(glitch_in.data(), glitch_out.data(), kMaxBlockSize);
+
+    // Restore everything to sane values.
+    params.dry_wet_cv = 0.f;
+    proc.p.SetParameters(params);
+
+    // Run for a further 0.5 s: output must be finite throughout, and the wet
+    // delay must still be functioning (impulse echoes at the expected time,
+    // DelayTimeSeconds() sane).
+    std::vector<StereoFrame> post(static_cast<size_t>(0.5f * sr), StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> post_out(post.size());
+    proc.p.Process(post.data(), post_out.data(), post.size());
+    for (auto& f : post_out) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+    }
+
+    float delay_s = proc.p.DelayTimeSeconds();
+    REQUIRE(std::isfinite(delay_s));
+    REQUIRE(delay_s == Catch::Approx(0.15f).margin(0.02f));
+
+    // Impulse test: the wet delay is still functioning normally.
+    std::vector<StereoFrame> imp_in(static_cast<size_t>(1.0f * sr), StereoFrame{0.f, 0.f});
+    const int impulse_at = 4800;
+    imp_in[impulse_at] = {1.f, 1.f};
+    std::vector<StereoFrame> imp_out(imp_in.size());
+    proc.p.Process(imp_in.data(), imp_out.data(), imp_in.size());
+    int peak = FindPeak(imp_out, impulse_at + 100);
+    float measured_seconds = static_cast<float>(peak - impulse_at) / sr;
+    REQUIRE(measured_seconds == Catch::Approx(0.15f).epsilon(0.05));
+}
+
 TEST_CASE("telemetry: IsClocked false->true after two ticks->false after timeout") {
     const float sr = 48000.f;
     Proc proc(sr);

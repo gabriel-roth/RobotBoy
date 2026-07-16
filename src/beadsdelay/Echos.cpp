@@ -267,15 +267,22 @@ struct Echos : Module {
 		// stages apply their own documented scaling (density_cv: -1 V/oct via
 		// exp2; feedback_cv/dry_wet_cv: /5 V direct add; time/pitch/shape_cv:
 		// consumed by ArModulator, also /5 V or *12 internally).
-		params_.density_cv = inputs[DENSITY_CV_INPUT].getVoltage();
-		params_.time_cv           = inputs[TIME_CV_INPUT].getVoltage();
+		//
+		// getVoltage() can return NaN on a hostile/broken patch cable feed
+		// (e.g. another module divides by zero upstream); sanitize to 0 V
+		// here at the ingestion boundary rather than let it reach
+		// EchosProcessor (which also guards, belt-and-braces, in
+		// SetParameters -- see echos_processor.cpp).
+		auto sanitizeVoltage = [](float v) { return std::isfinite(v) ? v : 0.f; };
+		params_.density_cv = sanitizeVoltage(inputs[DENSITY_CV_INPUT].getVoltage());
+		params_.time_cv           = sanitizeVoltage(inputs[TIME_CV_INPUT].getVoltage());
 		params_.time_cv_connected = inputs[TIME_CV_INPUT].isConnected();
-		params_.pitch_cv           = inputs[PITCH_CV_INPUT].getVoltage();
+		params_.pitch_cv           = sanitizeVoltage(inputs[PITCH_CV_INPUT].getVoltage());
 		params_.pitch_cv_connected = inputs[PITCH_CV_INPUT].isConnected();
-		params_.shape_cv           = inputs[SHAPE_CV_INPUT].getVoltage();
+		params_.shape_cv           = sanitizeVoltage(inputs[SHAPE_CV_INPUT].getVoltage());
 		params_.shape_cv_connected = inputs[SHAPE_CV_INPUT].isConnected();
-		params_.feedback_cv = inputs[FEEDBACK_CV_INPUT].getVoltage();
-		params_.dry_wet_cv  = inputs[DRY_WET_CV_INPUT].getVoltage();
+		params_.feedback_cv = sanitizeVoltage(inputs[FEEDBACK_CV_INPUT].getVoltage());
+		params_.dry_wet_cv  = sanitizeVoltage(inputs[DRY_WET_CV_INPUT].getVoltage());
 
 		params_.time_ar  = params[TIME_AR_PARAM].getValue();
 		params_.pitch_ar = params[PITCH_AR_PARAM].getValue();

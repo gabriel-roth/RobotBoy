@@ -244,3 +244,91 @@ TEST_CASE("freeze: unfreeze resumes writes, new input reappears") {
     REQUIRE(post_std < frozen_std * 0.3f);   // tone's oscillation is gone
     REQUIRE(post_mean > 0.15f);              // and the new DC content is present
 }
+
+// (e) Fix round: unfreezing from a slice that wraps past the write head must
+// slew, not snap. With a high slice index (TIME=1.0 -> slice_index ==
+// slice_count-1), NotifyFreeze's rising edge anchors slice_start_ at
+// anchor - slice_count*slice_len (mod buffer size); since slice_count*base
+// is engineered to sit just under the buffer duration, slice_start_ lands
+// just AHEAD of (i.e. numerically past) the anchor once wrapped, not behind
+// it. slice_phase_ then grows the frozen read position further ahead still.
+// So at the falling edge, `equiv_delay = read_subsample_ - frozen_read_pos`
+// (echo_engine.cpp) is negative -- unwrapped, that negative delay_frames_
+// then satisfies SetTargets()'s `delay_frames_ < 0.f` "first-ever target"
+// sentinel on the very next block, snapping delay_frames_ straight to that
+// block's target instead of continuing the slew from where the frozen
+// playback actually left off. Fixed by wrapping equiv_delay into [0, size)
+// before assigning it (both tape and crossfade branches), so it's always a
+// valid non-negative "current delay" a normal slew can continue from.
+TEST_CASE("freeze: unfreeze from a wrapped high-slice-index position slews, doesn't snap") {
+    Proc proc;
+    const float sr = 48000.f;
+    EchosParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.density = KnobForSeconds(0.5f);  // base ~= 0.5 s
+    params.time = 1.f;                      // slice_index == slice_count-1 (high)
+    proc.p.SetParameters(params);
+
+    // Record 2 s of noise so the buffer/write head are in a realistic state
+    // (the wrap behavior itself is a property of slice_count*base vs. the
+    // buffer size, not of how much content has actually been recorded).
+    size_t rec_n = static_cast<size_t>(2.0f * sr);
+    std::vector<StereoFrame> record(rec_n);
+    std::mt19937 rng(0xF12EE2E);
+    std::uniform_real_distribution<float> dist(-0.9f, 0.9f);
+    for (auto& f : record) { float s = dist(rng); f = {s, s}; }
+    std::vector<StereoFrame> discard(rec_n);
+    proc.p.Process(record.data(), discard.data(), rec_n);
+
+    // Freeze at the high slice index, let it settle for a bit (less than one
+    // slice period) so slice_phase_ has advanced but not wrapped.
+    params.freeze = true;
+    proc.p.SetParameters(params);
+    size_t settle_n = static_cast<size_t>(0.2f * sr);
+    std::vector<StereoFrame> in_settle(settle_n, StereoFrame{0.f, 0.f}),
+        out_settle(settle_n);
+    proc.p.Process(in_settle.data(), out_settle.data(), settle_n);
+
+    // Unfreeze and retarget TIME back to 0 (multiplier 1x -> final target
+    // ~= base, 0.5 s) so the eventual settled delay is clearly far from the
+    // frozen-equivalent position this test is probing (which, once wrapped,
+    // sits close to a full buffer length away -- see comment above).
+    params.freeze = false;
+    params.time = 0.f;
+    proc.p.SetParameters(params);
+
+    // The falling-edge block itself (the very first internal kMaxBlockSize
+    // chunk after unfreeze).
+    std::vector<StereoFrame> in1(kMaxBlockSize, StereoFrame{0.f, 0.f}), out1(kMaxBlockSize);
+    proc.p.Process(in1.data(), out1.data(), kMaxBlockSize);
+    float delay_s1 = proc.p.DelayTimeSeconds();
+
+    // Two more blocks (3 total post-unfreeze) -- still deep in the slew,
+    // nowhere near the final 0.5 s target given the default ~0.08 s slew
+    // time constant (3 blocks == 192 samples == 4 ms, a small fraction of
+    // one time constant).
+    std::vector<StereoFrame> in2(2 * kMaxBlockSize, StereoFrame{0.f, 0.f}),
+        out2(2 * kMaxBlockSize);
+    proc.p.Process(in2.data(), out2.data(), in2.size());
+    float delay_s3 = proc.p.DelayTimeSeconds();
+
+    INFO("delay_s1=" << delay_s1 << " delay_s3=" << delay_s3);
+
+    // Discriminator: a genuine slew from the wrapped frozen-equivalent delay
+    // (which sits close to a full buffer length -- several seconds) toward a
+    // 0.5 s target moves only a small fraction of that distance in 3 blocks
+    // (192 samples), so delay_s3 must still be well above the target. The
+    // broken code instead snaps delay_frames_ straight to the target on the
+    // block immediately after the falling edge (via the mis-triggered
+    // "first-ever target" sentinel), landing at ~0.5 s already by this point.
+    REQUIRE(delay_s3 > 1.0f);
+
+    // Sanity: it does eventually converge given enough time, proving this
+    // is genuinely a slew (not just permanently stuck).
+    std::vector<StereoFrame> in3(static_cast<size_t>(2.0f * sr), StereoFrame{0.f, 0.f}),
+        out3(static_cast<size_t>(2.0f * sr));
+    proc.p.Process(in3.data(), out3.data(), in3.size());
+    float delay_converged = proc.p.DelayTimeSeconds();
+    REQUIRE(delay_converged == Catch::Approx(0.5f).margin(0.05f));
+}

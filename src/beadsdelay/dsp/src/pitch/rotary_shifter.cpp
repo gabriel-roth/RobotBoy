@@ -38,11 +38,14 @@ void RotaryShifter::Init(float sample_rate) {
 }
 
 void RotaryShifter::SetRatio(float ratio) {
+    // Belt-and-braces: a NaN/non-positive ratio would poison phase_inc_, and
+    // `phase_ += NaN` (Process()) never recovers -- neither `phase_ >= 1.f`
+    // nor `phase_ < 0.f` is ever true for NaN, so the wrap-around never
+    // fires. 1.0 (bypass) is the safe fallback.
+    if (!std::isfinite(ratio) || ratio <= 0.f) ratio = 1.f;
     phase_inc_ = (1.f - ratio) / static_cast<float>(kShifterSize);
     bypass_ = std::fabs(1.f - ratio) < kRatioEpsilon;
 }
-
-bool RotaryShifter::Bypassed() const { return bypass_; }
 
 StereoFrame RotaryShifter::Process(StereoFrame in) {
     // Ramp the dry/shifted crossfade toward the current bypass target.
