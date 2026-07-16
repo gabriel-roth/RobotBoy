@@ -36,10 +36,10 @@ enum class QualityMode : uint8_t {
 
 inline int DecimationFactorForQuality(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kBrightDigital:      return 1;
-        case QualityMode::kColdDigital:    return 2;
-        case QualityMode::kSunnyTape: return 8;
-        case QualityMode::kScorchedCassette:      return 4;
+        case QualityMode::kBrightDigital:    return 1;
+        case QualityMode::kColdDigital:      return 2;
+        case QualityMode::kSunnyTape:        return 4;   // was 8 (fidelity ladder was inverted)
+        case QualityMode::kScorchedCassette: return 8;   // was 4
     }
     return 1;
 }
@@ -56,7 +56,7 @@ static constexpr int kMaxGrains = 30;
 
 // Recording buffer size in frames (fixed memory budget).
 // 4 seconds at 48kHz; at 96kHz the same frame count gives 2 seconds.
-// Decimation extends effective duration: HiFi 4s, Clouds 8s, Tape 16s, LoFi 32s.
+// Decimation extends effective duration: Bright 4s, Cold 8s, Sunny 16s, Scorched 32s.
 static constexpr size_t kDefaultBufferFrames = 48000 * 4;  // 192000 frames
 
 // Reverb delay memory size (12 partitioned delay lines, ~12K samples needed)
