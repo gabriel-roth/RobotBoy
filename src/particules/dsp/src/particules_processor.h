@@ -44,7 +44,7 @@ struct ParticulesProcessor::Impl {
     bool prev_freeze = false;
 
     // Quality mode transition
-    QualityMode prev_quality_mode = QualityMode::kHiFi;
+    QualityMode prev_quality_mode = QualityMode::kBrightDigital;
     // Duck duration must cover the buffer clear time. At 64 samples/block
     // (MetaModule), clearing 128 chunks takes 8192 samples (~170ms at 48kHz).
     static constexpr int kQualityXfadeSamples = 8192;

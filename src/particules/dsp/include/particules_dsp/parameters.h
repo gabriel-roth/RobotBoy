@@ -40,7 +40,7 @@ struct ParticulesParameters {
     bool gate = false;
     bool freeze = false;
     TriggerMode trigger_mode = TriggerMode::kLatched;
-    QualityMode quality_mode = QualityMode::kHiFi;
+    QualityMode quality_mode = QualityMode::kBrightDigital;
 
     // MIDI note control (set by host when trigger_mode == kMidi)
     float midi_pitch_offset = 0.0f;   // Semitones offset from MIDI note (C4=0)

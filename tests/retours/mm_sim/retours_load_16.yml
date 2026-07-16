@@ -1,0 +1,27 @@
+PatchData:
+  patch_name: retours_load_16
+  description: Retours CPU load test, 16 instances
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Retours'
+    2: 'RobotBoy:Retours'
+    3: 'RobotBoy:Retours'
+    4: 'RobotBoy:Retours'
+    5: 'RobotBoy:Retours'
+    6: 'RobotBoy:Retours'
+    7: 'RobotBoy:Retours'
+    8: 'RobotBoy:Retours'
+    9: 'RobotBoy:Retours'
+    10: 'RobotBoy:Retours'
+    11: 'RobotBoy:Retours'
+    12: 'RobotBoy:Retours'
+    13: 'RobotBoy:Retours'
+    14: 'RobotBoy:Retours'
+    15: 'RobotBoy:Retours'
+    16: 'RobotBoy:Retours'
+  int_cables: []
+  mapped_ins: []
+  mapped_outs: []
+  static_knobs: []
+  vcvModuleStates: []
+  bypassed_modules: []

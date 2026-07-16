@@ -150,7 +150,7 @@ TEST_CASE("Click prevention: Quality mode switch mid-stream produces finite outp
     params.time = 0.5f;
     params.manual_gain_db = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;
-    params.quality_mode = QualityMode::kHiFi;
+    params.quality_mode = QualityMode::kBrightDigital;
     tp.processor.SetParameters(params);
 
     std::vector<StereoFrame> input(kBlockSize);
@@ -165,8 +165,8 @@ TEST_CASE("Click prevention: Quality mode switch mid-stream produces finite outp
 
     // Switch through all quality modes rapidly, check no NaN/Inf and no huge jumps
     QualityMode modes[] = {
-        QualityMode::kClouds, QualityMode::kTape,
-        QualityMode::kCleanLoFi, QualityMode::kHiFi
+        QualityMode::kColdDigital, QualityMode::kScorchedCassette,
+        QualityMode::kSunnyTape, QualityMode::kBrightDigital
     };
 
     for (auto mode : modes) {

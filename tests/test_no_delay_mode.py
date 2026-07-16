@@ -12,13 +12,15 @@ class NoDelayModeTest(unittest.TestCase):
         self.assertFalse((ROOT / "tests/particules_dsp/test_delay.cpp").exists())
 
     def test_delay_mode_symbols_are_removed(self):
+        # Guards the *old* Particules delay engine's removal (2026-07-07).
+        # Scoped to Particules core files only — the standalone beadsdelay module
+        # (2026-07-15) is a separate, intentional implementation.
         paths = [
             "src/particules/dsp/include/particules_dsp/parameters.h",
             "src/particules/dsp/include/particules_dsp/particules_dsp.h",
             "src/particules/dsp/src/particules_processor.h",
             "src/particules/dsp/src/particules_processor.cpp",
             "src/particules/dsp/src/grain/grain_engine.cpp",
-            "metamodule/CMakeLists.txt",
         ]
         forbidden = (
             "delay_mode",

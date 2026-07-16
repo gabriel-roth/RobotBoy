@@ -2,8 +2,27 @@
 
 ## [Unreleased]
 
-### Fixed
-
+- **Onbetap** — Polivoks-style stereo multimode filter, new module.
+- **Yellowjacket** — new module: EDP Wasp-style CMOS state-variable filter, with
+  Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
+  self-oscillation mod, true self-oscillation) character modes.
+- **Retours** — new module: a delay based on the hidden delay mode of Mutable
+  Instruments Beads. Manual, clocked, or tap-tempo base time with
+  subdivisions (DENSITY, down to audio rates for Karplus-Strong playing),
+  delay-time multiplier that becomes a beat slicer under FREEZE (TIME),
+  rotary-head pitch shifter inside the feedback path (PITCH, ±24 st with
+  notches), tempo-synced repeat envelope (SHAPE), per-quality feedback
+  limiting, the four Beads quality modes, and slow-random
+  attenurandomizers. VCV Rack + MetaModule.
+- Particules: fixed a macOS-simulator portability issue in the `memalign()`
+  usage guard (real firmware and VCV Rack behavior unchanged).
+- **Particules & Retours** — fixed an inverted quality-mode fidelity ladder
+  inherited from the upstream Beads DSP: Sunny tape and Scorched cassette had
+  their decimation swapped. Now degradation increases monotonically Bright →
+  Cold → Sunny → Scorched (buffer 4/8/16/32 s), so Scorched cassette is the
+  most-degraded, longest mode. Anti-aliasing filters were re-tuned to each
+  mode's new rate, Sunny tape gained gentle wow/flutter, and the internal
+  quality enum was renamed to match the Beads labels.
 - **Loooop & Löp — param IDs now match between VCV and MetaModule.** The VCV
   `ParamId` order was reordered to be identical to the MetaModule `Elem` /
   `Elements` order, so a patch authored on one host maps its knob values onto

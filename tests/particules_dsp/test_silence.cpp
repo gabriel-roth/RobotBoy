@@ -22,8 +22,8 @@ struct TestProcessor {
 // Test each quality mode in grain mode to find which one is silent
 TEST_CASE("Silence hunt: grain mode output level per quality mode", "[silence]") {
     QualityMode modes[] = {
-        QualityMode::kHiFi, QualityMode::kClouds,
-        QualityMode::kCleanLoFi, QualityMode::kTape
+        QualityMode::kBrightDigital, QualityMode::kColdDigital,
+        QualityMode::kSunnyTape, QualityMode::kScorchedCassette
     };
     const char* names[] = {"HiFi", "Clouds", "CleanLoFi", "Tape"};
 
@@ -70,8 +70,8 @@ TEST_CASE("Silence hunt: grain mode output level per quality mode", "[silence]")
 // Test each quality mode in delay mode
 TEST_CASE("Silence hunt: delay mode output level per quality mode", "[silence]") {
     QualityMode modes[] = {
-        QualityMode::kHiFi, QualityMode::kClouds,
-        QualityMode::kCleanLoFi, QualityMode::kTape
+        QualityMode::kBrightDigital, QualityMode::kColdDigital,
+        QualityMode::kSunnyTape, QualityMode::kScorchedCassette
     };
     const char* names[] = {"HiFi", "Clouds", "CleanLoFi", "Tape"};
 
@@ -116,8 +116,8 @@ TEST_CASE("Silence hunt: delay mode output level per quality mode", "[silence]")
 // Test dry signal passthrough (dry_wet = 0.5)
 TEST_CASE("Silence hunt: dry signal passthrough", "[silence]") {
     QualityMode modes[] = {
-        QualityMode::kHiFi, QualityMode::kClouds,
-        QualityMode::kCleanLoFi, QualityMode::kTape
+        QualityMode::kBrightDigital, QualityMode::kColdDigital,
+        QualityMode::kSunnyTape, QualityMode::kScorchedCassette
     };
     const char* names[] = {"HiFi", "Clouds", "CleanLoFi", "Tape"};
 

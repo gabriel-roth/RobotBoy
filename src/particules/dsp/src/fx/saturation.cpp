@@ -22,19 +22,19 @@ float Saturation::AsymmetricSoftClip(float x) {
 // ---------------------------------------------------------------------------
 float Saturation::Process(float input, QualityMode mode) {
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             // Clean hard clip — transparent brickwall
             return HardClip(input, 1.0f);
 
-        case QualityMode::kClouds:
+        case QualityMode::kColdDigital:
             // Medium-drive soft clip (tanh-like)
             return SoftClip(input * 1.5f);
 
-        case QualityMode::kCleanLoFi:
+        case QualityMode::kSunnyTape:
             // Asymmetric tape-style soft clip, moderate drive
             return AsymmetricSoftClip(input);
 
-        case QualityMode::kTape:
+        case QualityMode::kScorchedCassette:
             // Mu-law compression for warm tape character
             return MuLawCompress(input, 64.0f);
     }
@@ -56,19 +56,19 @@ StereoFrame Saturation::Process(StereoFrame input, QualityMode mode) {
 // ---------------------------------------------------------------------------
 float Saturation::LimitFeedback(float input, QualityMode mode) {
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             // Brickwall at +/-1
             return HardClip(input, 1.0f);
 
-        case QualityMode::kClouds:
+        case QualityMode::kColdDigital:
             // Soft clip with moderate headroom
             return SoftClip(input);
 
-        case QualityMode::kCleanLoFi:
+        case QualityMode::kSunnyTape:
             // Slightly compressed feedback
             return AsymmetricSoftClip(input * 0.9f);
 
-        case QualityMode::kTape:
+        case QualityMode::kScorchedCassette:
             // The signal is already mu-law compressed (mu=64) from
             // ProcessInput.  A second MuLawCompress here with a
             // different mu creates a compress/expand mismatch that

@@ -13,10 +13,10 @@ void QualityProcessor::Init(float sample_rate) {
 
     // Set default cutoff frequencies — they'll be overridden per-mode in
     // Process*, but a sane default avoids uninitialized filter state.
-    input_lp_l_.SetFrequencyHz(kCloudsInputLpHz, sample_rate_);
-    input_lp_r_.SetFrequencyHz(kCloudsInputLpHz, sample_rate_);
-    output_lp_l_.SetFrequencyHz(kCleanLoFiLpHz, sample_rate_);
-    output_lp_r_.SetFrequencyHz(kCleanLoFiLpHz, sample_rate_);
+    input_lp_l_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
+    input_lp_r_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
+    output_lp_l_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
+    output_lp_r_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
 
     // Gentle resonance (Butterworth-ish)
     input_lp_l_.SetQ(0.707f);
@@ -33,10 +33,10 @@ void QualityProcessor::Init(float sample_rate) {
     noise_gen_.Init(0xBEAD5EED);
 
     // Force coefficient recomputation on first call
-    prev_input_mode_ = QualityMode::kHiFi;
-    prev_output_mode_ = QualityMode::kHiFi;
-    current_input_cutoff_hz_ = kCloudsInputLpHz;
-    current_output_cutoff_hz_ = kCleanLoFiLpHz;
+    prev_input_mode_ = QualityMode::kBrightDigital;
+    prev_output_mode_ = QualityMode::kBrightDigital;
+    current_input_cutoff_hz_ = kColdDigitalInputLpHz;
+    current_output_cutoff_hz_ = kSunnyTapeOutputLpHz;
 }
 
 // ---------------------------------------------------------------------------
@@ -44,18 +44,18 @@ void QualityProcessor::Init(float sample_rate) {
 // ---------------------------------------------------------------------------
 static float InputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kClouds:    return QualityProcessor::kCloudsInputLpHz;
-        case QualityMode::kCleanLoFi: return QualityProcessor::kCleanLoFiInputLpHz;
-        case QualityMode::kTape:      return QualityProcessor::kTapeLpHz;
-        default:                      return QualityProcessor::kCloudsInputLpHz;
+        case QualityMode::kColdDigital:      return QualityProcessor::kColdDigitalInputLpHz;
+        case QualityMode::kSunnyTape:        return QualityProcessor::kSunnyTapeInputLpHz;
+        case QualityMode::kScorchedCassette: return QualityProcessor::kScorchedInputLpHz;
+        default:                             return QualityProcessor::kColdDigitalInputLpHz;
     }
 }
 
 static float OutputCutoffForMode(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kCleanLoFi: return QualityProcessor::kCleanLoFiLpHz;
-        case QualityMode::kTape:      return QualityProcessor::kTapeLpHz;
-        default:                      return QualityProcessor::kCleanLoFiLpHz;
+        case QualityMode::kSunnyTape:        return QualityProcessor::kSunnyTapeOutputLpHz;
+        case QualityMode::kScorchedCassette: return QualityProcessor::kScorchedOutputLpHz;
+        default:                             return QualityProcessor::kSunnyTapeOutputLpHz;
     }
 }
 
@@ -83,21 +83,21 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
 
     StereoFrame result;
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             // No input degradation — use unfiltered signal
             result = input;
             break;
 
-        case QualityMode::kCleanLoFi:
-            // Anti-aliasing LP for 8x decimation (effective Nyquist = 3 kHz)
+        case QualityMode::kSunnyTape:
+            // Anti-aliasing LP for 4x decimation (effective Nyquist = 6 kHz)
             result = { filtered_l, filtered_r };
             break;
 
-        case QualityMode::kClouds:
+        case QualityMode::kColdDigital:
             result = { filtered_l, filtered_r };
             break;
 
-        case QualityMode::kTape: {
+        case QualityMode::kScorchedCassette: {
             // Mono sum
             float mono = (filtered_l + filtered_r) * 0.5f;
             // Add subtle tape hiss
@@ -142,11 +142,11 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
 
     StereoFrame result;
     switch (mode) {
-        case QualityMode::kHiFi:
+        case QualityMode::kBrightDigital:
             result = input;
             break;
 
-        case QualityMode::kClouds: {
+        case QualityMode::kColdDigital: {
             // 12-bit quantization
             float l = std::round(input.l * kQuantScale) / kQuantScale;
             float r = std::round(input.r * kQuantScale) / kQuantScale;
@@ -154,11 +154,11 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
             break;
         }
 
-        case QualityMode::kCleanLoFi:
+        case QualityMode::kSunnyTape:
             result = { lp_l, lp_r };
             break;
 
-        case QualityMode::kTape: {
+        case QualityMode::kScorchedCassette: {
             // Mu-law expansion.  The output LP was already ticked above
             // with the raw (compressed) input, which keeps the filter
             // state tracking the signal.  The LP result (lp_l/lp_r)
@@ -180,15 +180,26 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
     return result;
 }
 
+// Wow/flutter depth by mode: full on Scorched cassette, half on Sunny tape
+// (both are tape emulations, per the Beads manual), none elsewhere.
+static float WowDepthForMode(QualityMode mode) {
+    switch (mode) {
+        case QualityMode::kScorchedCassette: return 1.0f;
+        case QualityMode::kSunnyTape:        return 0.5f;
+        default:                             return 0.0f;
+    }
+}
+
 // ---------------------------------------------------------------------------
 // GetPitchModulation: returns a pitch *ratio* multiplier for the current
-// sample.  Only tape mode produces modulation; all others return 1.0.
+// sample.  Both tape modes modulate (Sunny tape at half depth); others 1.0.
 //
-// Wow  = slow (~0.5 Hz), +/- 0.02 semitones
-// Flutter = fast (~6 Hz), +/- 0.003 semitones
+// Wow  = slow (~0.5 Hz), +/- 0.02 semitones (full depth)
+// Flutter = fast (~6 Hz), +/- 0.003 semitones (full depth)
 // ---------------------------------------------------------------------------
 float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples) {
-    if (mode != QualityMode::kTape) {
+    float depth = WowDepthForMode(mode);
+    if (depth == 0.0f) {
         return 1.0f;
     }
 
@@ -201,12 +212,12 @@ float QualityProcessor::GetPitchModulation(QualityMode mode, size_t num_samples)
     flutter_phase_ += flutter_increment_ * advance;
     while (flutter_phase_ >= 1.0f) flutter_phase_ -= 1.0f;
 
-    // Combined pitch deviation in semitones
+    // Combined pitch deviation in semitones, scaled by per-mode depth
     float wow_st     = kWowSemitones     * std::sin(wow_phase_     * kTwoPi);
     float flutter_st = kFlutterSemitones * std::sin(flutter_phase_ * kTwoPi);
 
     // Convert semitones offset to ratio
-    return SemitonesToRatio(wow_st + flutter_st);
+    return SemitonesToRatio(depth * (wow_st + flutter_st));
 }
 
 } // namespace particules_dsp

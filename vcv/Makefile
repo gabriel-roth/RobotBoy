@@ -24,6 +24,18 @@ SOURCES += $(wildcard ../src/particules/*.cpp)
 SOURCES += $(wildcard ../src/particules/dsp/src/*.cpp)
 SOURCES += $(wildcard ../src/particules/dsp/src/*/*.cpp)
 
+# Retours (retours delay) reaches into particules_dsp/src's internal headers
+# (buffer/, fx/, quality/, util/, random/ — see retours_processor.h), so its
+# include path mirrors particules_dsp's own dsp/include *and* dsp/src, in
+# addition to retours_delay's own dsp/include and dsp/src (mirrors
+# tests/retours_delay_dsp/CMakeLists.txt's four include dirs).
+FLAGS += -I../src/retours_delay/dsp/include -I../src/retours_delay/dsp/src \
+         -I../src/particules/dsp/src
+
+SOURCES += $(wildcard ../src/retours_delay/*.cpp)
+SOURCES += $(wildcard ../src/retours_delay/dsp/src/*.cpp)
+SOURCES += $(wildcard ../src/retours_delay/dsp/src/*/*.cpp)
+
 DISTRIBUTABLES += res plugin.json
 
 include $(RACK_DIR)/plugin.mk

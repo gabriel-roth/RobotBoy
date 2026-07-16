@@ -63,7 +63,7 @@ void ParticulesProcessor::Init(void* memory, size_t memory_size, float sample_ra
 
     // Set initial decimation factor (HiFi = 1x, no change from current behavior)
     impl_->recording_buffer.SetDecimationFactor(
-        DecimationFactorForQuality(QualityMode::kHiFi));
+        DecimationFactorForQuality(QualityMode::kBrightDigital));
 
     // Initialize sub-processors
     impl_->grain_engine.Init(sample_rate, &impl_->recording_buffer);
@@ -128,9 +128,9 @@ void ParticulesProcessor::SetParameters(const ParticulesParameters& params) {
     // Quality mode affects reverb LP: Tape=warmest, HiFi=brightest
     float reverb_lp;
     switch (params.quality_mode) {
-        case QualityMode::kTape:      reverb_lp = 0.3f; break;
-        case QualityMode::kCleanLoFi: reverb_lp = 0.5f; break;
-        case QualityMode::kClouds:    reverb_lp = 0.6f; break;
+        case QualityMode::kScorchedCassette:      reverb_lp = 0.3f; break;
+        case QualityMode::kSunnyTape: reverb_lp = 0.5f; break;
+        case QualityMode::kColdDigital:    reverb_lp = 0.6f; break;
         default:                      reverb_lp = 0.7f; break;
     }
     impl_->reverb.SetLpCutoff(reverb_lp);

@@ -20,8 +20,11 @@ target_sources(RobotBoy PRIVATE
     # VCV-adapter modules
     ${SRC}/src/plugin.cpp
     ${SRC}/src/mf20/MF20Filter.cpp
+    ${SRC}/src/Onbetap.cpp
     ${SRC}/src/particules/Particules.cpp
     ${SRC}/src/particules/Ondes.cpp
+    ${SRC}/src/Yellowjacket.cpp
+    ${SRC}/src/retours_delay/Retours.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
@@ -41,6 +44,11 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/particules/dsp/src/random/attenurandomizer.cpp
     ${SRC}/src/particules/dsp/src/random/random.cpp
     ${SRC}/src/particules/dsp/src/wavetable/wavetable_oscillator.cpp
+    # Retours delay DSP engine
+    ${SRC}/src/retours_delay/dsp/src/retours_processor.cpp
+    ${SRC}/src/retours_delay/dsp/src/time/base_time.cpp
+    ${SRC}/src/retours_delay/dsp/src/engine/echo_engine.cpp
+    ${SRC}/src/retours_delay/dsp/src/pitch/rotary_shifter.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
@@ -48,6 +56,10 @@ target_include_directories(RobotBoy PRIVATE
     ${SRC}/src/mf20
     ${SRC}/src/particules
     ${SRC}/src/particules/dsp/include
+    ${SRC}/src/particules/dsp/src
+    ${SRC}/src/retours_delay
+    ${SRC}/src/retours_delay/dsp/include
+    ${SRC}/src/retours_delay/dsp/src
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
