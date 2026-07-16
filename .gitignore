@@ -33,3 +33,6 @@ __pycache__/
 
 # SDD / subagent-driven-development scratch (ledgers, briefs, reports)
 .superpowers/
+
+# scratch prompts, not part of the repo
+prompts/

@@ -24,7 +24,15 @@ struct LoooopInfo : ModuleInfoBase {
     // BaseElement: {x_mm, y_mm, coords, short_name, long_name, width_mm, height_mm}
     // Positions mirror the 38 HP VCV panel (res/Loooop.svg). Keep this array and
     // the Elem enum below in the SAME order — SmartCoreProcessor maps
-    // enum->element by index. Global params and jacks come FIRST (so the
+    // enum->element by index.
+    //
+    // INVARIANT: the PARAM-type elements here must appear in the SAME order as
+    // the VCV ParamId enum (src/loooop/Loooop.cpp). MetaModule assigns param IDs
+    // by Elements-array position and VCV↔MM patch conversion maps by ID, so if
+    // the two orders diverge a patch's knob values load onto the wrong control
+    // when it crosses hosts. (Inputs/outputs likewise mirror InputId/OutputId.)
+    //
+    // Global params and jacks come FIRST (so the
     // MetaModule manual lists them at the top), then params and jacks grouped
     // PER HEAD (head 1's Size/Pos/Speed/Jitter/Pan/Level, then head 2, etc.) so
     // the MetaModule mapping menu lists everything for one head together.

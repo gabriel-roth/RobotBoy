@@ -8,8 +8,12 @@ namespace MetaModule
 
 // HAND-MAINTAINED FILE — never overwrite with `panel_gen.py --metamodule`.
 // Same contract as Loooop_info.hh: Elements array and Elem enum stay in the
-// SAME order, mirroring the VCV enums in src/loooop/Lop.cpp. After a panel
-// change run: python3 metamodule/loooop/sync_info_positions.py
+// SAME order. INVARIANT: the param-type elements must appear in the SAME order
+// as the VCV ParamId enum in src/loooop/Lop.cpp (and inputs/outputs mirror
+// InputId/OutputId) — MetaModule assigns IDs by Elements-array position and
+// VCV↔MM patch conversion maps by ID, so divergence scrambles a patch's knobs
+// across hosts. After a panel change run:
+// python3 metamodule/loooop/sync_info_positions.py
 struct LopInfo : ModuleInfoBase {
     static constexpr std::string_view slug{"Lop"};
     static constexpr std::string_view description{"Stereo RAM looper, one interpolating playhead. Lightweight Loooop."};

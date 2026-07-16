@@ -9,14 +9,15 @@
 #include <vector>
 
 struct Lop : Module {
-    // Param/jack order mirrors Loooop's per-head block (minus the pan/level it
-    // lacks). NOTE: the MetaModule Elem order (Lop_info.hh) is NOT one-for-one
-    // with this ParamId order — MM groups the menu-only params (Crossfade,
-    // Trigger, Speed-V/Oct) into a trailing "Options" block for its roller; the
-    // core maps by element name, not index.
+    // This ParamId order is IDENTICAL to the MetaModule Elem order
+    // (Lop_info.hh): MetaModule assigns param IDs by Elements-array position and
+    // VCV↔MM patch conversion maps by ID, so the two must line up
+    // element-for-element or a patch's knob values land on the wrong control
+    // when it crosses hosts. Order: panel knobs, then globals, then the
+    // menu-only "Options" (Crossfade, Trigger, Speed-V/Oct). Keep in lockstep.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
-                   TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
-                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, CROSSFADE_PARAM, GRID_PARAM, PARAMS_LEN };
+                   DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, GRID_PARAM,
+                   CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, PARAMS_LEN };
     enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };

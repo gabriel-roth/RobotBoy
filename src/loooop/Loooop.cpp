@@ -19,19 +19,25 @@ static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
     std::string(loooop::kHeadColors[3].name) + " playhead"};
 
 struct Loooop : Module {
-    // Global params and jacks come FIRST, then params and inputs grouped PER
-    // HEAD. Each head is a contiguous block of HEAD_PARAMS params / HEAD_INPUTS
-    // inputs — index a head with `X1_PARAM + HEAD_PARAMS * h`.
-    // NOTE: the MetaModule Elem order (metamodule/loooop/Loooop_info.hh) is NOT
-    // one-for-one with this ParamId order — MM groups the menu-only params
-    // (Crossfade, per-head Trig-mode/Speed-V/Oct/Grid-exclude) into a trailing
-    // "Options" block for its module-view roller, whereas VCV keeps them here
-    // interleaved per head. The MetaModule cores map by element name, not index.
-    enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM, CROSSFADE_PARAM,
-                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM, TRIG_MODE1_PARAM, SPEED_VOCT1_PARAM, EXCLUDE_GRID1_PARAM,
-                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM, TRIG_MODE2_PARAM, SPEED_VOCT2_PARAM, EXCLUDE_GRID2_PARAM,
-                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM, TRIG_MODE3_PARAM, SPEED_VOCT3_PARAM, EXCLUDE_GRID3_PARAM,
-                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM, TRIG_MODE4_PARAM, SPEED_VOCT4_PARAM, EXCLUDE_GRID4_PARAM,
+    // Global params come FIRST, then the panel KNOBS grouped PER HEAD (a
+    // contiguous block of HEAD_PARAMS knobs each — index with
+    // `X1_PARAM + HEAD_PARAMS * h`), then a trailing "Options" block of the
+    // menu-only params grouped by command (Crossfade, then per-head Trig-mode,
+    // Speed-V/Oct, Grid-exclude — each a contiguous run indexed `X1_PARAM + h`).
+    // This ParamId order is IDENTICAL to the MetaModule Elem order
+    // (metamodule/loooop/Loooop_info.hh): MetaModule assigns param IDs by
+    // Elements-array position, and VCV↔MM patch conversion maps by ID, so the
+    // two must line up element-for-element or knob values land on the wrong
+    // control when a patch crosses hosts. Keep them in lockstep.
+    enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM,
+                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM,
+                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM,
+                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM,
+                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM,
+                   CROSSFADE_PARAM,
+                   TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
+                   SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
+                   EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
@@ -39,7 +45,7 @@ struct Loooop : Module {
                    SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
                    SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
                    INPUTS_LEN };
-    static constexpr int HEAD_PARAMS = 9;   // per-head param stride: Size,Pos,Speed,Jitter,Pan,Level,TrigMode,SpeedVoct,ExcludeGrid
+    static constexpr int HEAD_PARAMS = 6;   // per-head KNOB stride: Size,Pos,Speed,Jitter,Pan,Level (menu-only params trail in per-command runs, indexed `X1_PARAM + h`)
     static constexpr int HEAD_INPUTS = 8;   // per-head input stride: SizeCV,PosCV,SpeedCV,JitterCV,PanCV,LevelCV,Trig,Jump
     enum OutputId { MIX_L_OUTPUT, MIX_R_OUTPUT,
                     HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
@@ -70,11 +76,11 @@ struct Loooop : Module {
             // Menu switches opt out of Randomize: a randomized one-shot with
             // no trigger patched silences the head with nothing on the panel
             // to show why.
-            configSwitch(TRIG_MODE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " one-shot",
+            configSwitch(TRIG_MODE1_PARAM + h, 0.f, 1.f, 0.f, n + " one-shot",
                 {"Off", "On"})->randomizeEnabled = false;
-            configSwitch(SPEED_VOCT1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
+            configSwitch(SPEED_VOCT1_PARAM + h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
                 {"Off", "On"})->randomizeEnabled = false;
-            configSwitch(EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f,
+            configSwitch(EXCLUDE_GRID1_PARAM + h, 0.f, 1.f, 0.f,
                 n + " exclude from Grid", {"Off", "On"})->randomizeEnabled = false;
             configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, n + " speed CV");
             configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, n + " position CV");
@@ -150,7 +156,7 @@ struct Loooop : Module {
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             float spKnob = params[SPEED1_PARAM + HEAD_PARAMS * h].getValue();
             float spCv = inputs[SPEED1_CV_INPUT + HEAD_INPUTS * h].getVoltage();
-            engine.setSpeed(h, params[SPEED_VOCT1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f
+            engine.setSpeed(h, params[SPEED_VOCT1_PARAM + h].getValue() > 0.5f
                 ? loooop::speedFromVOct(spKnob, spCv)
                 : loooop::speedFromControls(spKnob, spCv));
             engine.setPosition(h, loooop::normalizedControl(
@@ -166,9 +172,9 @@ struct Loooop : Module {
                 params[JITTER1_PARAM + HEAD_PARAMS * h].getValue(),
                 inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
             engine.setGridExclude(h,
-                params[EXCLUDE_GRID1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f);
+                params[EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f);
 
-            bool oneShot = params[TRIG_MODE1_PARAM + HEAD_PARAMS * h].getValue() > 0.5f;
+            bool oneShot = params[TRIG_MODE1_PARAM + h].getValue() > 0.5f;
             engine.setOneShot(h, oneShot);
             if (headTrig[h].process(inputs[TRIG1_INPUT + HEAD_INPUTS * h].getVoltage(), 0.1f, 2.f)) {
                 if (oneShot) engine.triggerOneShot(h);
@@ -334,23 +340,23 @@ struct LoooopWidget : ModuleWidget {
         menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f; },
                     [m, h](bool v) {
-                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
         }));
         menu->addChild(createSubmenuItem("One-shot on trigger", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + h].getValue() > 0.5f; },
                     [m, h](bool v) {
-                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
         }));
         menu->addChild(createSubmenuItem("Speed CV = V/Oct", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h].getValue() > 0.5f; },
+                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + h].getValue() > 0.5f; },
                     [m, h](bool v) {
-                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + Loooop::HEAD_PARAMS * h]->setValue(v ? 1.f : 0.f); }));
+                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
         }));
         menu->addChild(createBoolMenuItem("Crossfade", "",
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
