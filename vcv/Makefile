@@ -24,6 +24,18 @@ SOURCES += $(wildcard ../src/particules/*.cpp)
 SOURCES += $(wildcard ../src/particules/dsp/src/*.cpp)
 SOURCES += $(wildcard ../src/particules/dsp/src/*/*.cpp)
 
+# Echos (beads-delay) reaches into particules_dsp/src's internal headers
+# (buffer/, fx/, quality/, util/, random/ — see echos_processor.h), so its
+# include path mirrors particules_dsp's own dsp/include *and* dsp/src, in
+# addition to beadsdelay's own dsp/include and dsp/src (mirrors
+# tests/beadsdelay_dsp/CMakeLists.txt's four include dirs).
+FLAGS += -I../src/beadsdelay/dsp/include -I../src/beadsdelay/dsp/src \
+         -I../src/particules/dsp/src
+
+SOURCES += $(wildcard ../src/beadsdelay/*.cpp)
+SOURCES += $(wildcard ../src/beadsdelay/dsp/src/*.cpp)
+SOURCES += $(wildcard ../src/beadsdelay/dsp/src/*/*.cpp)
+
 DISTRIBUTABLES += res plugin.json
 
 include $(RACK_DIR)/plugin.mk

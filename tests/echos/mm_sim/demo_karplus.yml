@@ -1,0 +1,32 @@
+PatchData:
+  patch_name: demo_karplus
+  description: >-
+    Echos Karplus-Strong demo - DENSITY=0 pushes the manual base time to the
+    kMinDelaySeconds clamp (2 ms -> 500 Hz), FEEDBACK=0.95 rings it out.
+    Input: demo_karplus_in.wav (8 ms noise burst on ch0). Mono in (IN_R left
+    unmapped so it normals from L). Expect a pitched ~500 Hz pluck decaying
+    over roughly the full 2 s render.
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Echos'
+  int_cables: []
+  mapped_ins:
+    - panel_jack_id: 0
+      ins:
+        - module_id: 1
+          jack_id: 0
+  mapped_outs:
+    - panel_jack_id: 0
+      out:
+        module_id: 1
+        jack_id: 0
+    - panel_jack_id: 1
+      out:
+        module_id: 1
+        jack_id: 1
+  static_knobs:
+    - {module_id: 1, param_id: 1, value: 0.0}
+    - {module_id: 1, param_id: 5, value: 0.95}
+    - {module_id: 1, param_id: 6, value: 0.5}
+  vcvModuleStates: []
+  bypassed_modules: []

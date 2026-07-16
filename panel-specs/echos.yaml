@@ -1,0 +1,70 @@
+# Échos — beads-style delay, 12 HP. House theme (dark panel, Futura labels,
+# Shuttleblock title, upper casing) auto-inherited from
+# ~/.config/vcv-panel-gen/theme.yaml. Layout, top to bottom:
+#   header   — Freeze (latching light button), Quality (RGB light button),
+#              Seed (momentary light button); mirrors Particules' header row.
+#   row 1    — hero knobs Density, Time, Pitch.
+#   row 2    — knobs Shape, Feedback, Blend (Blend = DRY_WET_PARAM).
+#   row 3    — Density/Time/Pitch/Shape CV, one `params` group (MF20Filter's
+#              attenuverator idiom): Time/Pitch/Shape are attenuverator
+#              trimpots (blank label — the knob above already carries the
+#              name) with their CV jack stacked below via `cv:` (automatic
+#              connecting bar, no manual `connectors:` needed); Density has
+#              no attenuverator, so its CV jack sits bare in the same group
+#              (`type: inputs` override), `align: center` puts it on the
+#              trimpots' shared control line.
+#   row 4    — Feedback CV, Blend CV, Seed, Freeze jacks (no attenuverators).
+#   row 5    — audio In/Out, stereo pairs sharing one label each (house
+#              convention: in/out share the bottom row).
+slug: Echos
+name: ÉCHOS
+hp: 12
+title_size: 7
+side_margin: 3
+title_valign: center
+# The house title font (Shuttleblock Test, all weights) has no É glyph — same
+# gap Löp hit with Ö, documented in lop.yaml. A traced logo is the house fix
+# for that, but a per-panel font override is the least-invasive fix available
+# without drawing letterforms; DejaVu Sans (bundled, full Unicode) covers É.
+# Revisit with a proper wordmark if the house look matters here later.
+theme:
+  title_font: [DejaVu Sans]
+
+rows:
+  - type: buttons
+    items:
+      - {label: Freeze,  name: FREEZE_PARAM,  widget: VCVBezel}
+      - {label: Quality, name: QUALITY_PARAM, widget: VCVBezel}
+      - {label: Seed,    name: SEED_PARAM,    widget: VCVBezel}
+
+  - type: knobs
+    items:
+      - {label: Density, name: DENSITY_PARAM, hero: true}
+      - {label: Time,    name: TIME_PARAM,    hero: true}
+      - {label: Pitch,   name: PITCH_PARAM,   hero: true}
+
+  - type: knobs
+    items:
+      - {label: Shape,    name: SHAPE_PARAM}
+      - {label: Feedback, name: FEEDBACK_PARAM}
+      - {label: Blend,    name: DRY_WET_PARAM}
+
+  - type: params
+    align: center
+    items:
+      - {label: Density,   name: DENSITY_CV_INPUT, type: inputs}
+      - {label: "{blank}", name: TIME_AR_PARAM,  widget: Trimpot, small: true, cv: TIME_CV_INPUT}
+      - {label: "{blank}", name: PITCH_AR_PARAM, widget: Trimpot, small: true, cv: PITCH_CV_INPUT}
+      - {label: "{blank}", name: SHAPE_AR_PARAM, widget: Trimpot, small: true, cv: SHAPE_CV_INPUT}
+
+  - type: inputs
+    items:
+      - {label: FB,     name: FEEDBACK_CV_INPUT}
+      - {label: Blend,  name: DRY_WET_CV_INPUT}
+      - {label: Seed,   name: SEED_INPUT}
+      - {label: Freeze, name: FREEZE_INPUT}
+
+  - type: inputs
+    items:
+      - {label: In,  name: IN_L_INPUT,  pair: IN_R_INPUT}
+      - {label: Out, name: OUT_L_OUTPUT, pair: OUT_R_OUTPUT, type: outputs}

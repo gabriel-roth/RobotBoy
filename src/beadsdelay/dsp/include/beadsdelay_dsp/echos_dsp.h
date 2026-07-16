@@ -1,0 +1,27 @@
+#pragma once
+#include "types.h"
+
+namespace beadsdelay_dsp {
+
+class EchosProcessor {
+public:
+    struct MemoryRequirements { size_t total_bytes; size_t alignment; };
+    static MemoryRequirements GetMemoryRequirements(float sample_rate);
+
+    void Init(void* memory, size_t memory_size, float sample_rate);
+    void SetParameters(const EchosParameters& params);
+    void Process(const StereoFrame* input, StereoFrame* output, size_t num_frames);
+    void ClearBuffer();
+
+    // Telemetry (block-rate; for panel lights)
+    float BaseTimeSeconds() const;    // current base delay time
+    bool  IsClocked() const;
+    float DelayTimeSeconds() const;   // actual tap-1 delay after multiplier
+
+private:
+    struct Impl;
+    Impl* impl_ = nullptr;
+    void ProcessBlock(const StereoFrame* input, StereoFrame* output, size_t n);
+};
+
+} // namespace beadsdelay_dsp

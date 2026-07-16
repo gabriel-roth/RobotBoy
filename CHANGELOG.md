@@ -6,6 +6,14 @@
 - **Yellowjacket** — new module: EDP Wasp-style CMOS state-variable filter, with
   Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
   self-oscillation mod, true self-oscillation) character modes.
+- **Échos** — new module: a delay based on the hidden delay mode of Mutable
+  Instruments Beads. Manual, clocked, or tap-tempo base time with
+  subdivisions (DENSITY, down to audio rates for Karplus-Strong playing),
+  delay-time multiplier that becomes a beat slicer under FREEZE (TIME),
+  rotary-head pitch shifter inside the feedback path (PITCH, ±24 st with
+  notches), tempo-synced repeat envelope (SHAPE), per-quality feedback
+  limiting, the four Beads quality modes, and slow-random
+  attenurandomizers. VCV Rack + MetaModule.
 - Particules: fixed a macOS-simulator portability issue in the `memalign()`
   usage guard (real firmware and VCV Rack behavior unchanged).
 
