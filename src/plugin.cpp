@@ -3,7 +3,7 @@
 #ifdef METAMODULE_BUILTIN
 // Combined MetaModule build (both the .mmplugin build and the simulator
 // built-in build enter through init_RobotBoy). Loooop/Löp are provided by native
-// SmartCore cores; MF-20/Onbetap/Yellowjacket/Particules/Ondes/Echos by the
+// SmartCore cores; MF-20/Onbetap/Yellowjacket/Particules/Ondes/Retours by the
 // VCV adapter. This one function registers all eight so the same code path
 // works whether it is called by metamodule/register.cc's init() (.mmplugin)
 // or by the simulator's generated init_RobotBoy dispatch (built-in). The VCV
@@ -25,7 +25,7 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
 	p->addModel(modelYellowjacket);
-	p->addModel(modelEchos);
+	p->addModel(modelRetours);
 }
 #else
 // VCV Rack build: standard single init() registering all six modules.
@@ -39,6 +39,6 @@ void init(Plugin* p) {
 	p->addModel(modelParticules);
 	p->addModel(modelOndes);
 	p->addModel(modelYellowjacket);
-	p->addModel(modelEchos);
+	p->addModel(modelRetours);
 }
 #endif

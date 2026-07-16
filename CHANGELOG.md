@@ -6,7 +6,7 @@
 - **Yellowjacket** — new module: EDP Wasp-style CMOS state-variable filter, with
   Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
   self-oscillation mod, true self-oscillation) character modes.
-- **Échos** — new module: a delay based on the hidden delay mode of Mutable
+- **Retours** — new module: a delay based on the hidden delay mode of Mutable
   Instruments Beads. Manual, clocked, or tap-tempo base time with
   subdivisions (DENSITY, down to audio rates for Karplus-Strong playing),
   delay-time multiplier that becomes a beat slicer under FREEZE (TIME),
