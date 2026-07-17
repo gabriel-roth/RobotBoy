@@ -57,14 +57,29 @@
 # tools/extract_reference.py) — approximate, since a path bbox includes
 # Bezier control points and can overshoot a curved glyph's true rendered
 # baseline by a few hundredths of a mm (see that tool's own docstring); the
-# three-label rows (TIME/DENSITY/PITCH at y~33.3-33.5, SHAPE/FEEDBACK at
-# y~75.61) each measured slightly differently letter-to-letter for exactly
-# that reason, so one representative baseline is used per row rather than
-# hunting for false per-letter precision. Not byte-exact (panel-path parity
-# isn't asserted for this hand-built module) but visually faithful to the
-# shipped panel. DRY/WET is the one label that measurably sits lower than
-# its row-mates in the original (baseline 76.32 vs ~75.61, a +0.71mm drop),
-# mirrored here with an explicit per-label dy — same kind of one-off quirk
+# three-label rows (TIME/DENSITY/PITCH, SHAPE/FEEDBACK/DRY-WET) each measured
+# slightly differently letter-to-letter for exactly that reason, so one
+# representative baseline is used per row rather than hunting for false
+# per-letter precision. Not byte-exact (panel-path parity isn't asserted for
+# this hand-built module) but visually faithful to the shipped panel.
+#
+# CORRECTED (post-migration review, folding in a transform extract_reference.py
+# does not account for): the hand-built original's row-1 label paths
+# (TIME/DENSITY/PITCH) each carry `transform="translate(0,1.142)"`, and its
+# row-2 label paths (SHAPE/FEEDBACK/DRY-WET) each carry
+# `transform="translate(0,-1.142)"` — tools/extract_reference.py's
+# `_path_bbox` reads only the raw `d` coordinates and ignores `transform`
+# entirely, so the first migration pass baked in the untransformed
+# (pre-render) baselines: row-1 measured ~33.4 raw, but the transform pushes
+# it down 1.142mm at render time -> true baseline 34.542; row-2 measured
+# ~75.61 raw, but its transform pushes it up 1.142mm -> true baseline
+# 74.468. Both grids.labels rows below now carry the transform-corrected
+# (true rendered) baseline instead of the raw untransformed one. DRY/WET's
+# own per-label `dy: 0.71` is unaffected by this correction: it and its
+# row-mates (FEEDBACK/SHAPE) all carry the *same* -1.142 row-2 transform, so
+# the relative +0.71mm gap between DRY/WET's raw-measured baseline (76.322)
+# and its row-mates' (~75.611) is a real quirk in the original independent
+# of the transform bug, not an artifact of it — same kind of one-off quirk
 # Particules' own DRY/WET label has (there: +0.32mm on a different panel).
 #
 # No connector bars: every primary/secondary knob stacks its own CV jack
@@ -113,12 +128,19 @@ grids:
       atten2: 102.227
 
   # Label baselines above each knob row (measured from the hand-built
-  # original; see header comment for the bbox-overshoot caveat).
+  # original; see header comment for the bbox-overshoot caveat AND the
+  # transform-correction note -- these are the transform-corrected true
+  # rendered baselines, not extract_reference.py's raw untransformed
+  # measurements: row1 = 33.4 raw + 1.142 (path's own translate(0,1.142));
+  # row2 = 75.61 raw - 1.142 (path's own translate(0,-1.142)). The
+  # hand-built original applied these as SVG `transform` attributes on the
+  # label paths themselves, which extract_reference.py's bbox scan does not
+  # read.
   labels:
     cols: [11.34, 27.94, 44.54]
     rows:
-      row1: 33.4
-      row2: 75.61
+      row1: 34.542
+      row2: 74.468
 
 elements:
   # --- Transport row: FREEZE (input + latch button), QUALITY (bezel),
