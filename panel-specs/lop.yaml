@@ -1,100 +1,143 @@
-# Lop (display name Löp) — single-playhead lightweight Loooop. 12 HP, no
-# group tints: one flat set of controls. Dark panel; screen up top, bleeding to
-# 1.5mm from the panel edges; 3mm side margins; centered title. Three control
-# rows under the screen, rows 2-3 center-aligned (labels on one line, control
-# centers on one line, jacks on one line):
-#   row 1: Size / Pos / Speed / Jitter knob+cv stacks;
-#   row 2: Trig and Jump jacks, then the Grid knob — Grid mirrors Loooop's: a
-#          small 6-position snap knob (Off/4/8/16/32/64) with its values
-#          printed close around it (Ø = off); RoundSmallBlackSnapKnob is shared
-#          from src/loooop;
-#   row 3: Dry/Wet knob+cv stack, then Clear and Record as stacked button+trig
-#          groups (button over jack, tied by the connecting bar).
-# The last row is In / Overdub / Out: the stereo In and Out pairs under single
-# labels, with the Overdub mode button on the jack center line between them
-# (label below, matching the jack labels).
+# Löp panel spec (panel-gen v2) — generates res/Lop.svg with the
+# component-center and label-path layout of the shipped panel. Regenerate
+# with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/lop.yaml --out res/Lop.svg
+#
+# Component `name`s are the FULL C++ enum names (helper.py reads the id
+# verbatim, splitting off "#Widget"), matching Lop.cpp.
+#
+# All x/y values below (grid columns/rows, absolute positions, label
+# baselines) are the exact centers/baselines of the shipped panel — this
+# spec reproduces the RESULTING layout, not any particular band-math
+# derivation.
 #
 # metamodule/loooop/Lop_info.hh is HAND-MAINTAINED — regenerate only the SVG,
 # then carry positions to the MetaModule header and the VCV display rect with:
 #     python3 metamodule/loooop/sync_info_positions.py
-# (header sync is delegated to ~/Dev/vcv-panel-gen/mm_sync.py --strict,
-# name-matched through metamodule/loooop/sync-map-lop.yaml).
-#
-# The title is a baked vector wordmark (lop-logo.svg): "Löp" in Shuttleblock
-# Demi, traced from ../Shuttleblock-Demi.png. The "Shuttleblock Test Demi" trial
-# font installed on this machine has no U+00D6 (Ö) glyph, so the name can't be
-# set as live text here — the logo carries the real letterforms instead.
-# title_logo replaces the drawn title text; the logo is scaled to the title cap
-# height at title_size and centered (nudge TITLE to fine-tune).
 slug: Lop
 name: LÖP
 hp: 12
-title_size: 9
 side_margin: 3
-title_valign: center
-title_logo: lop-logo.svg
-# A single neutral control zone, echoing Loooop's per-channel colored group
-# tints, but white and unified since Löp has one flat control set. The rect
-# backs only the top two rows (Size/Pos/Speed/Jitter and Trig/Jump/Grid): its
-# top keeps the 1.5mm edge inset below the screen (y=35.15) and its bottom edge
-# encloses the Grid value ring (~3mm below it), clear of Row 3's labels.
+
+title:
+  # The "Shuttleblock Test Demi" trial font installed on this machine has no
+  # U+00D6 (Ö) glyph, so "LÖP" can't be set as live text — lop-logo.svg is a
+  # baked vector wordmark (traced from the real Shuttleblock Demi) that
+  # carries the real letterforms instead. size 9 + valign center reproduce
+  # v1's title_size/title_valign; the generator scales/centers/bakes it (see
+  # logo.py) with no transform= surviving in the output.
+  logo: lop-logo.svg
+  size: 9
+  valign: center
+  # v1's valign:center formula centered the title in the headroom above the
+  # title band PLUS the first row's gap_above (the screen row had gap_above:
+  # 0.4); v2's _resolve_title has no row model to consult, so it centers in
+  # the bare TITLE_BAND_MM only, landing 0.2mm high. dy restores that 0.4/2 =
+  # 0.2mm the old formula added, reproducing the shipped panel exactly.
+  dy: 0.2
+
+# One neutral control-zone tint (white, unified) behind rows 1-2 only;
+# defaults (fill #ffffff, opacity 0.14, rx 2.0) match the shipped panel
+# exactly.
 zones:
   - {x: 1.5, y: 35.15, w: 57.96, h: 46}
-# Vertical air: rows 1 and 3 pull their label/knob/jack stacks in (label_gap
-# 0.7, stack_gap 1.6 vs the 1.0/2.0 defaults); row 2 spends the space as
-# label_gap 1.8, so the Trig/Jump labels and the Grid value ring below the knob
-# stay clear. Row 3's larger gap_above shifts it down, opening room below the
-# zone's bottom edge and closing the gap to the In/Overdub/Out row, which lands
-# at cy 116.05 (Loooop's bottom-jack height) naturally — no nudge needed.
-rows:
-  - type: screen
-    height: 22.35
-    bleed: true
-    gap_above: 0.4
-  - type: params
-    gap_above: 3.6
-    label_gap: 0.7
-    stack_gap: 1.6
-    items:
-      - {label: Size,   name: SIZE_PARAM,     cv: SIZE_CV_INPUT}
-      - {label: Pos,    name: POSITION_PARAM, cv: POSITION_CV_INPUT}
-      - {label: Speed,  name: SPEED_PARAM,    cv: SPEED_CV_INPUT}
-      - {label: Jitter, name: JITTER_PARAM,   cv: JITTER_CV_INPUT}
-  # Row 2: Trig / Jump / Grid — three equal columns. With Overdub moved to the
-  # audio row, the wide OVERDUB column is gone, so no per-column weights are
-  # needed. label_gap 1.8 keeps the labels clear of the controls and the Grid
-  # value ring below the knob.
-  - type: params
-    align: center
-    gap_above: 2.0
-    label_gap: 1.8
-    items:
-      - {label: Trig, name: TRIG_INPUT, type: inputs}
-      - {label: Jump, name: JUMP_INPUT, type: inputs}
-      - {label: Grid, name: GRID_PARAM, small: true,
-         widget: RoundSmallBlackSnapKnob,
-         positions: ["Ø", "4", "8", "16", "32", "64"]}
-  # Row 3: Dry/Wet knob+cv stack, then Clear and Record as stacked button+trig
-  # groups (button over jack, tied by the connecting bar) — three equal columns.
-  - type: params
-    align: center
-    gap_above: 4.1
-    label_gap: 0.7
-    stack_gap: 1.6
-    items:
-      - {label: Dry/Wet, name: DRYWET_PARAM, cv: DRYWET_CV_INPUT}
-      - {label: Clear,  name: CLEAR_PARAM,  control: button,
-         trig: CLEAR_TRIG_INPUT}
-      - {label: Record, name: RECORD_PARAM, control: button,
-         trig: RECORD_TRIG_INPUT}
-  # Audio row: In / Overdub / Out. Overdub is a param-kind button (type:
-  # buttons) sharing the jacks row — placed on the jack center line between the
-  # stereo pairs, label below to match the In/Out labels.
-  - type: inputs
-    label_side: below
-    gap_above: 2.3
-    items:
-      - {label: In,      name: AUDIO_L_INPUT, pair: AUDIO_R_INPUT}
-      - {label: Overdub, name: OVERDUB_PARAM, type: buttons,
-         widget: OverdubButton}
-      - {label: Out,     name: OUT_L_OUTPUT,  pair: OUT_R_OUTPUT, type: outputs}
+
+grids:
+  # Row 1: Size/Pos/Speed/Jitter knob+CV stacks — 4 even columns; {count:4,
+  # from:9.87, to:51.09} lands exactly on the shipped centers (step 13.74).
+  row1:
+    cols: {count: 4, from: 9.87, to: 51.09}
+    rows:
+      knob: 46.05
+      cv: 58.0
+      label: 39.35
+
+  # Rows 2-3 share the same 3 even columns (12.16/30.48/48.8, step 18.32):
+  # row 2 is Trig/Jump/Grid; row 3 is Dry/Wet+CV, Clear (button+trig stack),
+  # Record (button+trig stack).
+  row23:
+    cols: {count: 3, from: 12.16, to: 48.8}
+    rows:
+      row2_label: 67.35
+      row2: 74.15
+      row3_label: 86.25
+      row3_top: 92.95
+      row3_bot: 104.9
+
+elements:
+  # Screen: bleeds to 1.5mm from the panel edges, below the top-inset screws
+  # (matches the shipped panel's rect exactly).
+  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 10.4, w: 57.96, h: 22.35}}
+
+  # Row 1 labels + knob/CV stacks.
+  - {text: Size,   grid: row1, col: 1, row: label}
+  - {text: Pos,    grid: row1, col: 2, row: label}
+  - {text: Speed,  grid: row1, col: 3, row: label}
+  - {text: Jitter, grid: row1, col: 4, row: label}
+  - {name: SIZE_PARAM,      grid: row1, col: 1, row: knob}
+  - {name: POSITION_PARAM,  grid: row1, col: 2, row: knob}
+  - {name: SPEED_PARAM,     grid: row1, col: 3, row: knob}
+  - {name: JITTER_PARAM,    grid: row1, col: 4, row: knob}
+  - {name: SIZE_CV_INPUT,     grid: row1, col: 1, row: cv}
+  - {name: POSITION_CV_INPUT, grid: row1, col: 2, row: cv}
+  - {name: SPEED_CV_INPUT,    grid: row1, col: 3, row: cv}
+  - {name: JITTER_CV_INPUT,   grid: row1, col: 4, row: cv}
+
+  # Row 2: Trig / Jump jacks, Grid snap knob (small, shared RoundSmallBlack-
+  # SnapKnob widget from src/loooop) with its position values printed in a
+  # close ring around it.
+  - {text: Trig, grid: row23, col: 1, row: row2_label}
+  - {text: Jump, grid: row23, col: 2, row: row2_label}
+  - {text: Grid, grid: row23, col: 3, row: row2_label}
+  - {name: TRIG_INPUT, grid: row23, col: 1, row: row2}
+  - {name: JUMP_INPUT, grid: row23, col: 2, row: row2}
+  - {name: GRID_PARAM, widget: RoundSmallBlackSnapKnob, grid: row23, col: 3, row: row2}
+  - {ring: ["Ø", "4", "8", "16", "32", "64"], around: GRID_PARAM}
+
+  # Row 3: Dry/Wet knob+CV stack, Clear and Record as button+trig stacks.
+  - {text: Dry/Wet, grid: row23, col: 1, row: row3_label}
+  - {text: Clear,   grid: row23, col: 2, row: row3_label}
+  - {text: Record,  grid: row23, col: 3, row: row3_label}
+  - {name: DRYWET_PARAM,     grid: row23, col: 1, row: row3_top}
+  - {name: CLEAR_PARAM,      widget: VCVButton, grid: row23, col: 2, row: row3_top}
+  - {name: RECORD_PARAM,     widget: VCVButton, grid: row23, col: 3, row: row3_top}
+  - {name: DRYWET_CV_INPUT,   grid: row23, col: 1, row: row3_bot}
+  - {name: CLEAR_TRIG_INPUT,  grid: row23, col: 2, row: row3_bot}
+  - {name: RECORD_TRIG_INPUT, grid: row23, col: 3, row: row3_bot}
+
+  # Audio row: In/Out stereo pairs sharing one centered label each; Overdub
+  # mode button on the jack center line between them, label below (matching
+  # the jack labels' "below" placement).
+  - {name: AUDIO_L_INPUT, x: 7.35, y: 116.05}
+  - {name: AUDIO_R_INPUT, x: 17.05, y: 116.05}
+  - {name: OVERDUB_PARAM, widget: OverdubButton, x: 30.48, y: 116.05}
+  - {name: OUT_L_OUTPUT, x: 43.91, y: 116.05}
+  - {name: OUT_R_OUTPUT, x: 53.61, y: 116.05}
+  - {text: In,      x: 12.2,  y: 124.55}
+  - {text: Overdub, x: 30.48, y: 124.55}
+  # "Out" at its exact shipped position sits 0.2mm inside the bottom-right
+  # mounting screw's conservative SCREW_RADIUS_MM=2.0 keep-out circle (the
+  # drawn marker itself is only r=1.6 and doesn't visually touch it) --
+  # inherited unchanged from the shipped panel, which this spec reproduces
+  # exactly; nudging Out's position to clear the keep-out circle would break
+  # exact path parity with the shipped panel. Deliberate and suppressed
+  # below via overlaps_ok's text:/screw@x,y forms.
+  - {text: Out,     x: 48.76, y: 124.55}
+
+# Vertical bars: each row-1 knob down to its own CV jack, and each row-3
+# button down to its own trig jack (button over jack, tied by the bar). Row
+# 2 (Trig/Jump/Grid) has no stacks, so no connectors there.
+connectors:
+  - [SIZE_PARAM, SIZE_CV_INPUT]
+  - [POSITION_PARAM, POSITION_CV_INPUT]
+  - [SPEED_PARAM, SPEED_CV_INPUT]
+  - [JITTER_PARAM, JITTER_CV_INPUT]
+  - [DRYWET_PARAM, DRYWET_CV_INPUT]
+  - [CLEAR_PARAM, CLEAR_TRIG_INPUT]
+  - [RECORD_PARAM, RECORD_TRIG_INPUT]
+
+overlaps_ok:
+  # The "Out" label sits 0.2mm into the bottom-right mounting screw's drawn
+  # keep-out circle -- inherited unchanged from the shipped panel itself
+  # (see the comment by the Out element above); deliberate.
+  - [text:OUT, "screw@53.46,125.50"]

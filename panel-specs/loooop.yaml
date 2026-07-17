@@ -1,112 +1,223 @@
+# Loooop panel spec (panel-gen v2) — generates res/Loooop.svg with the
+# component-center and label-path layout of the shipped panel. Regenerate
+# with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/loooop.yaml --out res/Loooop.svg
+#
+# Component `name`s are the FULL C++ enum names (helper.py reads the id
+# verbatim, splitting off "#Widget"), matching Loooop.cpp.
+#
+# All x/y values below (grid columns/rows, absolute positions, label
+# baselines) are the exact centers/baselines of the shipped panel — this
+# spec reproduces the RESULTING layout, not any particular band-math
+# derivation. The four label baselines (39.35 / 68.05 / 96.75 / 126.05) and
+# every label's x (always the component's own center, or the pair midpoint
+# for stereo groups) were derived this way.
+#
 # NOTE: metamodule/loooop/Loooop_info.hh is HAND-MAINTAINED (element names/
 # order are a contract with LoooopCore.cc). Regenerate only the SVG from this
 # spec, then carry positions to the MetaModule header and the VCV display
 # rect with:
 #     python3 metamodule/loooop/sync_info_positions.py
-# (header sync is delegated to ~/Dev/vcv-panel-gen/mm_sync.py --strict,
-# name-matched through metamodule/loooop/sync-map-loooop.yaml).
-
-# Loooop panel — 38 HP with 3mm side margins (tints run ~1.5mm from the
-# edges; the screen bleeds to match their outer edges). Centered title;
-# screen at top; four head groups (Size/Pos/Speed over Jitter/Pan/Level, CV
-# under every knob; Trig, Jump, stereo Out pair below, labels above the
-# jacks), each on its own generated tint; global bottom row: In pair,
-# Record+trig, Overdub button, Clear+trig, Grid knob, Dry/Wet knob+CV, Out
-# pair
-# (master — enum names stay MIX_*). Overdub is a 5-state cycling color
-# button (OverdubButton, custom widget): Layer / Decay / Add / Replace /
-# Lock, default Layer — it absorbs the old Overdub on/off (Lock = off) and
-# Write mode menu params. Grid is a small 6-position snap knob
-# (Off/4/8/16/32/64) with its values printed close around it (Ø = off);
-# RoundSmallBlackSnapKnob is defined in Loooop.cpp (Rack has no stock one).
-# Neither gets a companion jack. Crossfade, trigger flavor, and V/Oct remain
-# context-menu params with no panel control. Component `name`s match the
-# VCV enum ids exactly. Tints must match LoopWaveformRenderer::HEAD_COLORS.
-#
-# Vertical rhythm: each function group (label + knob + CV jack) is a tight
-# stack — the generator's label/stack gaps — and the space saved there is
-# pinned between the groups (gap_above 2.0 on the Size/Level and
-# Trig/Jump/Out rows) so the functions read as separate bands inside each
-# head tint. Screen-to-tint stays 3.6 (minus the 1.2mm tint label headroom
-# = 2.4 visual); tint-to-bottom-row stays 1.3.
 slug: Loooop
 name: LOOOOP
 hp: 38
-title_size: 9
 side_margin: 3
-title_valign: center
-group_style:
-  gutter: 4
-  # Hues mirror loooop::kHeadColors (src/loooop/HeadColors.hpp), guarded by
-  # tests/test_head_colors.py: H1 red, H2 yellow, H3 blue, H4 magenta. Yellow
-  # carries its own alpha (0x33 ≈ 0.2) because at the shared 0.14 it renders
-  # gold/olive on the dark panel; red/blue/magenta use the default 0.14.
-  tints: ['#ff3b30', '#fff70a33', '#3f8cff', '#ff5af0']
-  opacity: 0.14
-rows:
-  - type: screen
-    height: 22.35
-    bleed: true
-    gap_above: 0.4
-  - type: params
-    gap_above: 3.6
-    groups:
-      - - {label: Size,  name: SIZE1_PARAM,     cv: SIZE1_CV_INPUT}
-        - {label: Pos,   name: POSITION1_PARAM, cv: POSITION1_CV_INPUT}
-        - {label: Speed, name: SPEED1_PARAM,    cv: SPEED1_CV_INPUT}
-      - - {label: Size,  name: SIZE2_PARAM,     cv: SIZE2_CV_INPUT}
-        - {label: Pos,   name: POSITION2_PARAM, cv: POSITION2_CV_INPUT}
-        - {label: Speed, name: SPEED2_PARAM,    cv: SPEED2_CV_INPUT}
-      - - {label: Size,  name: SIZE3_PARAM,     cv: SIZE3_CV_INPUT}
-        - {label: Pos,   name: POSITION3_PARAM, cv: POSITION3_CV_INPUT}
-        - {label: Speed, name: SPEED3_PARAM,    cv: SPEED3_CV_INPUT}
-      - - {label: Size,  name: SIZE4_PARAM,     cv: SIZE4_CV_INPUT}
-        - {label: Pos,   name: POSITION4_PARAM, cv: POSITION4_CV_INPUT}
-        - {label: Speed, name: SPEED4_PARAM,    cv: SPEED4_CV_INPUT}
-  - type: params
-    gap_above: 2.0
-    groups:
-      - - {label: Jitter, name: JITTER1_PARAM, cv: JITTER1_CV_INPUT}
-        - {label: Pan,    name: PAN1_PARAM,    cv: PAN1_CV_INPUT}
-        - {label: Level,  name: LEVEL1_PARAM,  cv: LEVEL1_CV_INPUT}
-      - - {label: Jitter, name: JITTER2_PARAM, cv: JITTER2_CV_INPUT}
-        - {label: Pan,    name: PAN2_PARAM,    cv: PAN2_CV_INPUT}
-        - {label: Level,  name: LEVEL2_PARAM,  cv: LEVEL2_CV_INPUT}
-      - - {label: Jitter, name: JITTER3_PARAM, cv: JITTER3_CV_INPUT}
-        - {label: Pan,    name: PAN3_PARAM,    cv: PAN3_CV_INPUT}
-        - {label: Level,  name: LEVEL3_PARAM,  cv: LEVEL3_CV_INPUT}
-      - - {label: Jitter, name: JITTER4_PARAM, cv: JITTER4_CV_INPUT}
-        - {label: Pan,    name: PAN4_PARAM,    cv: PAN4_CV_INPUT}
-        - {label: Level,  name: LEVEL4_PARAM,  cv: LEVEL4_CV_INPUT}
-  - type: inputs
-    label_side: above
-    gap_above: 2.0
-    groups:
-      - - {label: Trig, name: TRIG1_INPUT}
-        - {label: Jump, name: JUMP1_INPUT}
-        - {label: Out,  name: HEAD1_L_OUTPUT, pair: HEAD1_R_OUTPUT, type: outputs}
-      - - {label: Trig, name: TRIG2_INPUT}
-        - {label: Jump, name: JUMP2_INPUT}
-        - {label: Out,  name: HEAD2_L_OUTPUT, pair: HEAD2_R_OUTPUT, type: outputs}
-      - - {label: Trig, name: TRIG3_INPUT}
-        - {label: Jump, name: JUMP3_INPUT}
-        - {label: Out,  name: HEAD3_L_OUTPUT, pair: HEAD3_R_OUTPUT, type: outputs}
-      - - {label: Trig, name: TRIG4_INPUT}
-        - {label: Jump, name: JUMP4_INPUT}
-        - {label: Out,  name: HEAD4_L_OUTPUT, pair: HEAD4_R_OUTPUT, type: outputs}
-  - type: inputs
-    # All labels below, matching the companion-pair default the row already
-    # uses — a standalone button/knob would otherwise label above, adding
-    # headroom the 128.5mm panel doesn't have.
-    label_side: below
-    gap_above: 1.3
-    items:
-      - {label: In,      name: AUDIO_L_INPUT, pair: AUDIO_R_INPUT, weight: 1}
-      - {label: Record,  name: RECORD_PARAM,  type: buttons, trig: RECORD_TRIG_INPUT}
-      - {label: Overdub, name: OVERDUB_PARAM, type: buttons, widget: OverdubButton}
-      - {label: Clear,   name: CLEAR_PARAM,   type: buttons, trig: CLEAR_TRIG_INPUT}
-      - {label: Grid,    name: GRID_PARAM,    type: knobs,   small: true,
-         widget: RoundSmallBlackSnapKnob,
-         positions: ["Ø", "4", "8", "16", "32", "64"]}
-      - {label: Dry/Wet, name: DRYWET_PARAM,  type: knobs,   cv: DRYWET_CV_INPUT}
-      - {label: Out,     name: MIX_L_OUTPUT,  pair: MIX_R_OUTPUT, type: outputs, weight: 1}
+
+title:
+  size: 9
+  valign: center
+  # v1's valign:center formula centered the title in the headroom above the
+  # title band PLUS the first row's gap_above (the screen row had gap_above:
+  # 0.4, same as Löp's); v2's _resolve_title has no row model to consult, so
+  # it centers in the bare TITLE_BAND_MM only, landing 0.2mm high. dy
+  # restores that 0.4/2 = 0.2mm the old formula added (matches the shipped
+  # panel's title exactly).
+  dy: 0.2
+
+# Four head tints, mirroring loooop::kHeadColors: H1 red, H2 yellow, H3 blue,
+# H4 magenta. Yellow carries its own alpha (0x33 = 0.2) because at the shared
+# 0.14 it renders gold/olive on the dark panel; red/blue/magenta use the
+# default 0.14 explicitly for clarity.
+zones:
+  - {x: 1.5,    y: 35.15, w: 46.76, h: 73.6, fill: "#ff3b30", opacity: 0.14}
+  - {x: 49.26,  y: 35.15, w: 46.76, h: 73.6, fill: "#fff70a", opacity: 0.2}
+  - {x: 97.02,  y: 35.15, w: 46.76, h: 73.6, fill: "#3f8cff", opacity: 0.14}
+  - {x: 144.78, y: 35.15, w: 46.76, h: 73.6, fill: "#ff5af0", opacity: 0.14}
+
+# One 3-column grid per head (Size/Pos/Speed over Jitter/Pan/Level, CV under
+# every knob); columns step 14.587mm apart, bases 47.76mm apart (both steps
+# are exactly uniform across all 4 heads). Column x-values are the exact
+# (full float precision) shipped-panel centers -- they carry repeating-
+# decimal remainders (a /3 split somewhere in the original band math), so a
+# rounded 3-decimal literal isn't quite enough to survive downstream rounding
+# at every derived coordinate; the explicit list here copies those doubles
+# verbatim.
+grids:
+  head1:
+    cols: [10.293333333333333, 24.88, 39.46666666666667]
+    rows: {label1: 39.35, knobs1: 46.35, cv1: 58.7, label2: 68.05, knobs2: 75.05, cv2: 87.4}
+  head2:
+    cols: [58.05333333333333, 72.64, 87.22666666666666]
+    rows: {label1: 39.35, knobs1: 46.35, cv1: 58.7, label2: 68.05, knobs2: 75.05, cv2: 87.4}
+  head3:
+    cols: [105.81333333333333, 120.39999999999999, 134.98666666666668]
+    rows: {label1: 39.35, knobs1: 46.35, cv1: 58.7, label2: 68.05, knobs2: 75.05, cv2: 87.4}
+  head4:
+    cols: [153.57333333333332, 168.16, 182.74666666666667]
+    rows: {label1: 39.35, knobs1: 46.35, cv1: 58.7, label2: 68.05, knobs2: 75.05, cv2: 87.4}
+
+elements:
+  # Screen: bleeds to the panel's outer edges (matches the shipped panel's
+  # rect exactly), mirroring the tints' own 1.5mm inset.
+  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 10.4, w: 190.04, h: 22.35}}
+
+  # --- Head 1 ---------------------------------------------------------
+  - row: {grid: head1, at: label1}
+    place: [Size, Pos, Speed]
+  - row: {grid: head1, at: knobs1, widget: RoundBlackKnob}
+    place: [{name: SIZE1_PARAM}, {name: POSITION1_PARAM}, {name: SPEED1_PARAM}]
+  - row: {grid: head1, at: cv1}
+    place: [{name: SIZE1_CV_INPUT}, {name: POSITION1_CV_INPUT}, {name: SPEED1_CV_INPUT}]
+  - row: {grid: head1, at: label2}
+    place: [Jitter, Pan, Level]
+  - row: {grid: head1, at: knobs2, widget: RoundBlackKnob}
+    place: [{name: JITTER1_PARAM}, {name: PAN1_PARAM}, {name: LEVEL1_PARAM}]
+  - row: {grid: head1, at: cv2}
+    place: [{name: JITTER1_CV_INPUT}, {name: PAN1_CV_INPUT}, {name: LEVEL1_CV_INPUT}]
+  # Trig/Jump jacks + stereo Out pair, labels above (uneven spacing: 12.68mm
+  # trig->jump->outL gaps, 9.7mm stereo pair gap — not a uniform grid).
+  - {text: Trig, x: 7.35,  y: 96.75}
+  - {text: Jump, x: 20.03, y: 96.75}
+  - {text: Out,  x: 37.56, y: 96.75}
+  - {name: TRIG1_INPUT,     x: 7.35,  y: 102.1}
+  - {name: JUMP1_INPUT,     x: 20.03, y: 102.1}
+  - {name: HEAD1_L_OUTPUT,  x: 32.71, y: 102.1}
+  - {name: HEAD1_R_OUTPUT,  x: 42.41, y: 102.1}
+
+  # --- Head 2 ---------------------------------------------------------
+  - row: {grid: head2, at: label1}
+    place: [Size, Pos, Speed]
+  - row: {grid: head2, at: knobs1, widget: RoundBlackKnob}
+    place: [{name: SIZE2_PARAM}, {name: POSITION2_PARAM}, {name: SPEED2_PARAM}]
+  - row: {grid: head2, at: cv1}
+    place: [{name: SIZE2_CV_INPUT}, {name: POSITION2_CV_INPUT}, {name: SPEED2_CV_INPUT}]
+  - row: {grid: head2, at: label2}
+    place: [Jitter, Pan, Level]
+  - row: {grid: head2, at: knobs2, widget: RoundBlackKnob}
+    place: [{name: JITTER2_PARAM}, {name: PAN2_PARAM}, {name: LEVEL2_PARAM}]
+  - row: {grid: head2, at: cv2}
+    place: [{name: JITTER2_CV_INPUT}, {name: PAN2_CV_INPUT}, {name: LEVEL2_CV_INPUT}]
+  - {text: Trig, x: 55.11, y: 96.75}
+  - {text: Jump, x: 67.78999999999999, y: 96.75}
+  - {text: Out,  x: 85.32000000000001, y: 96.75}
+  - {name: TRIG2_INPUT,     x: 55.11, y: 102.1}
+  - {name: JUMP2_INPUT,     x: 67.79, y: 102.1}
+  - {name: HEAD2_L_OUTPUT,  x: 80.47, y: 102.1}
+  - {name: HEAD2_R_OUTPUT,  x: 90.17, y: 102.1}
+
+  # --- Head 3 ---------------------------------------------------------
+  - row: {grid: head3, at: label1}
+    place: [Size, Pos, Speed]
+  - row: {grid: head3, at: knobs1, widget: RoundBlackKnob}
+    place: [{name: SIZE3_PARAM}, {name: POSITION3_PARAM}, {name: SPEED3_PARAM}]
+  - row: {grid: head3, at: cv1}
+    place: [{name: SIZE3_CV_INPUT}, {name: POSITION3_CV_INPUT}, {name: SPEED3_CV_INPUT}]
+  - row: {grid: head3, at: label2}
+    place: [Jitter, Pan, Level]
+  - row: {grid: head3, at: knobs2, widget: RoundBlackKnob}
+    place: [{name: JITTER3_PARAM}, {name: PAN3_PARAM}, {name: LEVEL3_PARAM}]
+  - row: {grid: head3, at: cv2}
+    place: [{name: JITTER3_CV_INPUT}, {name: PAN3_CV_INPUT}, {name: LEVEL3_CV_INPUT}]
+  - {text: Trig, x: 102.86999999999999, y: 96.75}
+  - {text: Jump, x: 115.54999999999998, y: 96.75}
+  - {text: Out,  x: 133.07999999999998, y: 96.75}
+  - {name: TRIG3_INPUT,     x: 102.87, y: 102.1}
+  - {name: JUMP3_INPUT,     x: 115.55, y: 102.1}
+  - {name: HEAD3_L_OUTPUT,  x: 128.23, y: 102.1}
+  - {name: HEAD3_R_OUTPUT,  x: 137.93, y: 102.1}
+
+  # --- Head 4 ---------------------------------------------------------
+  - row: {grid: head4, at: label1}
+    place: [Size, Pos, Speed]
+  - row: {grid: head4, at: knobs1, widget: RoundBlackKnob}
+    place: [{name: SIZE4_PARAM}, {name: POSITION4_PARAM}, {name: SPEED4_PARAM}]
+  - row: {grid: head4, at: cv1}
+    place: [{name: SIZE4_CV_INPUT}, {name: POSITION4_CV_INPUT}, {name: SPEED4_CV_INPUT}]
+  - row: {grid: head4, at: label2}
+    place: [Jitter, Pan, Level]
+  - row: {grid: head4, at: knobs2, widget: RoundBlackKnob}
+    place: [{name: JITTER4_PARAM}, {name: PAN4_PARAM}, {name: LEVEL4_PARAM}]
+  - row: {grid: head4, at: cv2}
+    place: [{name: JITTER4_CV_INPUT}, {name: PAN4_CV_INPUT}, {name: LEVEL4_CV_INPUT}]
+  - {text: Trig, x: 150.63, y: 96.75}
+  - {text: Jump, x: 163.31, y: 96.75}
+  - {text: Out,  x: 180.84, y: 96.75}
+  - {name: TRIG4_INPUT,     x: 150.63, y: 102.1}
+  - {name: JUMP4_INPUT,     x: 163.31, y: 102.1}
+  - {name: HEAD4_L_OUTPUT,  x: 175.99, y: 102.1}
+  - {name: HEAD4_R_OUTPUT,  x: 185.69, y: 102.1}
+
+  # --- Global bottom row (y=116.05), labels below (y=126.05) -----------
+  # Bottom-row button/knob x-values below are exact shipped-panel doubles (a
+  # justification remainder, like the head columns above) -- see the grids
+  # comment.
+  - {name: AUDIO_L_INPUT, x: 7.35,  y: 116.05}
+  - {name: AUDIO_R_INPUT, x: 17.05, y: 116.05}
+  - {name: RECORD_PARAM,      widget: VCVButton, x: 36.451604817708336, y: 116.05}
+  - {name: RECORD_TRIG_INPUT, x: 47.30160481770833, y: 116.05}
+  - {name: OVERDUB_PARAM, widget: OverdubButton, x: 69.54339518229166, y: 116.05}
+  - {name: CLEAR_PARAM,      widget: VCVButton, x: 91.78518554687498, y: 116.05}
+  - {name: CLEAR_TRIG_INPUT, x: 102.63518554687498, y: 116.05}
+  - {name: GRID_PARAM, widget: RoundSmallBlackSnapKnob, x: 122.68679036458332, y: 116.05}
+  - {name: DRYWET_PARAM,    x: 143.48839518229164, y: 116.05}
+  - {name: DRYWET_CV_INPUT, x: 155.83839518229166, y: 116.05}
+  - {name: MIX_L_OUTPUT, x: 175.99, y: 116.05}
+  - {name: MIX_R_OUTPUT, x: 185.69, y: 116.05}
+
+  - {text: In,      x: 12.2,               y: 126.05}
+  - {text: Record,  x: 41.87660481770833,  y: 126.05}
+  - {text: Overdub, x: 69.54339518229166,  y: 126.05}
+  - {text: Clear,   x: 97.21018554687498,  y: 126.05}
+  - {text: Grid,    x: 122.68679036458332, y: 126.05}
+  - {text: Dry/Wet, x: 149.66339518229165, y: 126.05}
+  - {text: Out,     x: 180.84,             y: 126.05}
+
+  # Grid snap knob's value-ring labels, printed in a close ring around it
+  # (same technique/gap as Löp's Grid knob).
+  - {ring: ["Ø", "4", "8", "16", "32", "64"], around: GRID_PARAM}
+
+# Vertical bars: each row-1/row-2 knob down to its own CV jack, per head (6
+# per head x 4 heads = 24, matching every #808080 rect in the shipped panel).
+# The jacks row (Trig/Jump/Out) and bottom row (Record/Clear/Dry-Wet) have no
+# vertical stacks -- their button/jack pairs sit side by side at the same y.
+connectors:
+  - [SIZE1_PARAM, SIZE1_CV_INPUT]
+  - [POSITION1_PARAM, POSITION1_CV_INPUT]
+  - [SPEED1_PARAM, SPEED1_CV_INPUT]
+  - [JITTER1_PARAM, JITTER1_CV_INPUT]
+  - [PAN1_PARAM, PAN1_CV_INPUT]
+  - [LEVEL1_PARAM, LEVEL1_CV_INPUT]
+  - [SIZE2_PARAM, SIZE2_CV_INPUT]
+  - [POSITION2_PARAM, POSITION2_CV_INPUT]
+  - [SPEED2_PARAM, SPEED2_CV_INPUT]
+  - [JITTER2_PARAM, JITTER2_CV_INPUT]
+  - [PAN2_PARAM, PAN2_CV_INPUT]
+  - [LEVEL2_PARAM, LEVEL2_CV_INPUT]
+  - [SIZE3_PARAM, SIZE3_CV_INPUT]
+  - [POSITION3_PARAM, POSITION3_CV_INPUT]
+  - [SPEED3_PARAM, SPEED3_CV_INPUT]
+  - [JITTER3_PARAM, JITTER3_CV_INPUT]
+  - [PAN3_PARAM, PAN3_CV_INPUT]
+  - [LEVEL3_PARAM, LEVEL3_CV_INPUT]
+  - [SIZE4_PARAM, SIZE4_CV_INPUT]
+  - [POSITION4_PARAM, POSITION4_CV_INPUT]
+  - [SPEED4_PARAM, SPEED4_CV_INPUT]
+  - [JITTER4_PARAM, JITTER4_CV_INPUT]
+  - [PAN4_PARAM, PAN4_CV_INPUT]
+  - [LEVEL4_PARAM, LEVEL4_CV_INPUT]
+
+overlaps_ok:
+  # The bottom-right "Out" label sits 0.47mm into the bottom-right mounting
+  # screw's drawn keep-out circle -- inherited unchanged from the shipped
+  # panel itself (same situation as Löp's "Out" label); deliberate.
+  - [text:OUT, "screw@185.54,125.50"]

@@ -1,0 +1,172 @@
+# Particules panel spec (panel-gen v2) — generates res/Particules.svg.
+# UNLIKE Löp/Loooop/MF-20, the panel this replaces was a HAND-BUILT Inkscape
+# original, not a generated SVG, so panel-path byte parity is NOT the goal
+# here. Component-CENTER parity IS mandatory (the firmware's
+# mm2px(Vec(...)) coordinates in src/particules/Particules.cpp are locked to
+# it, and MetaModule's coordinate sync depends on it). Regenerate with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/particules.yaml --out res/Particules.svg
+#
+# Every x/y below is copied verbatim from Particules.cpp's
+# createParamCentered/createInputCentered/createOutputCentered/
+# createLightCentered mm2px(Vec(...)) call sites — these are the ground
+# truth (not any particular band-math derivation) — cross-checked against
+# the hand-built original's own (bare-id, true-radius) components layer:
+# every center matched to the mm, confirming cpp and the shipped panel agree
+# exactly.
+#
+# One documented exception: the hand-built original's components layer had a
+# circle named DENSITY_AR_PARAM at (29.6, 62.746) where current cpp instead
+# has GRAIN_LIGHT at the *identical* position. GRAIN_LIGHT has occupied this
+# slot in Particules.cpp since the repo's first tracked commit;
+# DENSITY_AR_PARAM never appears in Particules.cpp history. The stale name
+# existed only in the hand-built SVG's invisible (display:none) components
+# layer, a leftover from earlier design iterations. This spec follows cpp
+# (GRAIN_LIGHT, matching the module's actual current behavior).
+#
+# Widget classes: cpp wraps FREEZE_PARAM and QUALITY_PARAM in light-capable
+# templates (VCVLightLatch<MediumSimpleLight<WhiteLight>>,
+# VCVLightBezel<RedGreenBlueLight> on desktop — QUALITY_PARAM has a
+# MetaModule-only alternate widget behind #ifdef METAMODULE that this SVG,
+# shared by both builds, doesn't need to represent). Per Loooop's precedent
+# (VCVLightButton<MediumSimpleLight<RedLight>> -> widget: VCVButton), these
+# collapse to their base components.yaml shape class: VCVButton (d=6.1) and
+# VCVBezel (d=7.2) -- confirmed against the hand-built original's own
+# true-radius circles (FREEZE_PARAM r=3.05 = 6.1/2; QUALITY_PARAM r=3.6 =
+# 7.2/2, exact).
+#
+# Label/title positions and baselines: measured directly from the hand-built
+# original's own "text" layer (an Inkscape layer separate from "panel",
+# unlike the panel_gen dialect that bakes labels as <path> inside "panel") --
+# each label's path bounding-box max-y is its rendering baseline. Not
+# byte-exact (rounded for readability; panel-path parity isn't asserted for
+# this module) but visually faithful to the shipped panel.
+#
+# Glyph placements (density tick scales, resize arrow, grain-shape icons,
+# noise-to-arrow attenuverter marks) are copied verbatim (same [x, y], same
+# asset files) from panel-specs/glyphs/particules/ -- those assets were
+# extracted from, and verified against, the hand-built original.
+slug: Particules
+name: PARTICULES
+hp: 15
+
+theme:
+  screws: none    # the module widget draws its own ScrewBlack corners.
+
+title:
+  size: 6.35
+  tracking: 0.74
+  # v2's default baseline formula (valign: baseline -> size + 1.0 = 7.35)
+  # doesn't match this panel; dy shifts it to the shipped panel's measured
+  # baseline (bbox max-y of the "PARTICULES" text path = 8.561).
+  dy: 1.211
+
+zones:
+  - {x: 1.5, y: 28, w: 73.2, h: 79.6, rx: 2, fill: "#cf99a5", opacity: 0.5}
+
+grids:
+  # Main 4-column knob/CV/attenuverter grid. Columns and rows are the exact
+  # cpp mm2px coordinates (see header comment).
+  main:
+    cols: [12.6, 29.6, 46.6, 63.6]
+    rows:
+      knob1: 42.088
+      cv1: 53.746
+      atten1: 62.746
+      knob2: 82.096
+      cv2: 92.696
+      atten2: 101.696
+
+  # Label baselines above each knob row (measured from the hand-built
+  # original; see header comment). Row 1's labels sit well clear of their
+  # knobs -- the density tick-scale glyphs occupy the space between label and
+  # knob in that column -- while row 2's labels sit closer, directly above
+  # their knobs.
+  labels:
+    cols: [12.6, 29.6, 46.6, 63.6]
+    rows:
+      row1: 33.48
+      row2: 75.44
+
+elements:
+  # --- Transport row: FREEZE (input + latch button), QUALITY (bezel), SEED
+  # (input) -- all at y=15.875, cpp's exact x values.
+  - {name: FREEZE_INPUT, x: 11.9, y: 15.875}
+  - {name: FREEZE_PARAM, widget: VCVButton, x: 20.4, y: 15.875}
+  - {name: QUALITY_PARAM, widget: VCVBezel, x: 38.1, y: 15.875}
+  - {name: SEED_INPUT, x: 59.845, y: 15.875}
+  # Transport labels: FREEZE sits off the FREEZE_INPUT/FREEZE_PARAM pair's
+  # exact midpoint (16.15) at the shipped panel's own measured 15.67 -- taken
+  # as-is, not re-centered. QUALITY/SEED sit exactly over their own
+  # components.
+  - {text: FREEZE, x: 15.67, y: 24.0, size: 3.175}
+  - {text: QUALITY, x: 38.1, y: 24.05, size: 3.175}
+  - {text: SEED, x: 59.845, y: 24.0, size: 3.175}
+
+  # --- Row 1: TIME / DENSITY / PITCH / SIZE knobs, each over its own CV
+  # jack (no connecting bar -- cpp draws none, and neither did the
+  # original). DENSITY's attenuverter slot instead holds the GRAIN_LIGHT
+  # indicator (see header comment); TIME/PITCH/SIZE keep their trimpots.
+  - {text: TIME,    grid: labels, col: 1, row: row1}
+  - {text: DENSITY, grid: labels, col: 2, row: row1}
+  - {text: PITCH,   grid: labels, col: 3, row: row1}
+  - {text: SIZE,    grid: labels, col: 4, row: row1}
+  - {name: TIME_PARAM,    widget: RoundBlackKnob, grid: main, col: 1, row: knob1}
+  - {name: DENSITY_PARAM, widget: RoundBlackKnob, grid: main, col: 2, row: knob1}
+  - {name: PITCH_PARAM,   widget: RoundBlackKnob, grid: main, col: 3, row: knob1}
+  - {name: SIZE_PARAM,    widget: RoundBlackKnob, grid: main, col: 4, row: knob1}
+  - {name: TIME_INPUT,     grid: main, col: 1, row: cv1}
+  - {name: DENSITY_INPUT,  grid: main, col: 2, row: cv1}
+  - {name: PITCH_INPUT,    grid: main, col: 3, row: cv1}
+  - {name: SIZE_INPUT,     grid: main, col: 4, row: cv1}
+  - {name: TIME_AR_PARAM,  widget: Trimpot, grid: main, col: 1, row: atten1}
+  - {name: GRAIN_LIGHT,    widget: "MediumLight<WhiteLight>", grid: main, col: 2, row: atten1}
+  - {name: PITCH_AR_PARAM, widget: Trimpot, grid: main, col: 3, row: atten1}
+  - {name: SIZE_AR_PARAM,  widget: Trimpot, grid: main, col: 4, row: atten1}
+
+  # --- Row 2: SHAPE / FEEDBACK / REVERB / DRY_WET knobs, each over its own
+  # CV jack and its own attenuverter trimpot.
+  - {text: SHAPE,    grid: labels, col: 1, row: row2}
+  - {text: FEEDBACK, grid: labels, col: 2, row: row2}
+  - {text: REVERB,   grid: labels, col: 3, row: row2}
+  # DRY/WET's label sits 0.32mm lower than its row-mates in the shipped panel
+  # (measured bbox max-y 75.798 vs ~75.44) -- kept as-is, not normalized.
+  - {text: "DRY/WET", grid: labels, col: 4, row: row2, dy: 0.32}
+  - {name: SHAPE_PARAM,    widget: RoundBlackKnob, grid: main, col: 1, row: knob2}
+  - {name: FEEDBACK_PARAM, widget: RoundBlackKnob, grid: main, col: 2, row: knob2}
+  - {name: REVERB_PARAM,   widget: RoundBlackKnob, grid: main, col: 3, row: knob2}
+  - {name: DRY_WET_PARAM,  widget: RoundBlackKnob, grid: main, col: 4, row: knob2}
+  - {name: SHAPE_INPUT,    grid: main, col: 1, row: cv2}
+  - {name: FEEDBACK_INPUT, grid: main, col: 2, row: cv2}
+  - {name: REVERB_INPUT,   grid: main, col: 3, row: cv2}
+  - {name: DRY_WET_INPUT,  grid: main, col: 4, row: cv2}
+  - {name: SHAPE_AR_PARAM,    widget: Trimpot, grid: main, col: 1, row: atten2}
+  - {name: FEEDBACK_AMT_PARAM, widget: Trimpot, grid: main, col: 2, row: atten2}
+  - {name: REVERB_AMT_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
+  - {name: DRY_WET_AMT_PARAM, widget: Trimpot, grid: main, col: 4, row: atten2}
+
+  # --- Stereo audio I/O, one shared label per pair centered on the pair's
+  # own midpoint (matches the shipped panel exactly: IN at 20.1 =
+  # (15.25+24.95)/2, OUT at 56.1 = (51.25+60.95)/2).
+  - {name: IN_L_INPUT,   x: 15.25, y: 114.3}
+  - {name: IN_R_INPUT,   x: 24.95, y: 114.3}
+  - {name: OUT_L_OUTPUT, x: 51.25, y: 114.3}
+  - {name: OUT_R_OUTPUT, x: 60.95, y: 114.3}
+  - {text: IN,  x: 20.1, y: 123.0, size: 3.175}
+  - {text: OUT, x: 56.1, y: 123.0, size: 3.175}
+
+# Knob-surround marks (density tick scales, a resize arrow, grain-shape
+# icons, noise-to-arrow attenuverter marks) at the same mm positions as the
+# hand-built original -- see the header comment for provenance.
+glyphs:
+  - {src: glyphs/particules/atten-random.svg, at: [12.625, 59.449]}
+  - {src: glyphs/particules/atten-random.svg, at: [46.625, 59.449]}
+  - {src: glyphs/particules/atten-random.svg, at: [63.625, 59.449]}
+  - {src: glyphs/particules/atten-random.svg, at: [12.625, 98.386]}
+  - {src: glyphs/particules/ticks-uneven.svg, at: [34.768, 48.025]}
+  - {src: glyphs/particules/ticks-even.svg,   at: [24.269, 48.025]}
+  - {src: glyphs/particules/tick-tiny.svg,    at: [29.6,   34.91]}
+  - {src: glyphs/particules/resize-arrow.svg, at: [59.657, 35.616]}
+  - {src: glyphs/particules/shape-curve.svg,  at: [7.844,  77.333]}
+  - {src: glyphs/particules/shape-wave.svg,   at: [17.369, 77.333]}
+  - {src: glyphs/particules/shape-caret.svg,  at: [17.325, 86.858]}
+  - {src: glyphs/particules/shape-pulse.svg,  at: [7.8,    86.858]}
