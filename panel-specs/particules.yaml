@@ -42,9 +42,12 @@
 # this module) but visually faithful to the shipped panel.
 #
 # Glyph placements (density tick scales, resize arrow, grain-shape icons,
-# noise-to-arrow attenuverter marks) are copied verbatim (same [x, y], same
-# asset files) from panel-specs/glyphs/particules/ -- those assets were
-# extracted from, and verified against, the hand-built original.
+# noise-to-arrow attenuverter marks) come from panel-specs/glyphs/particules/
+# -- assets extracted from, and verified against, the hand-built original.
+# Two intentional deviations from the original's placements: the tiny hyphen
+# tick above the Density knob was dropped, and the Size resize-arrow was
+# pulled in toward its knob (its knob-edge gap halved, 59.657,35.616 ->
+# 60.380,36.802) so it clears the lowered TIME/DENSITY/PITCH/SIZE labels.
 slug: Particules
 name: PARTICULES
 hp: 15
@@ -82,17 +85,16 @@ grids:
       cv2: 92.696
       atten2: 101.696
 
-  # Label baselines above each knob row. Row 1 is the hand-built original's
-  # measured baseline (see header comment); its labels sit well clear of the
-  # knobs -- the density tick-scale glyphs occupy the space between label and
-  # knob in that column. Row 2 was raised from the original's measured 75.44
-  # to 74.468 so its label-to-knob gap (82.096 - 74.468 = 7.628mm) matches
-  # Retours' row-2 gap -- the original placed it ~1mm closer to the knobs
-  # than Retours, and there's no glyph spacer in this row to justify that.
+  # Label baselines above each knob row. Row 2 was raised from the original's
+  # measured 75.44 to 74.468 so its label-to-knob gap (82.096 - 74.468 =
+  # 7.628mm) matches Retours' row-2 gap. Row 1 now sits at 33.96 -- a
+  # label-to-knob gap of 8.128mm (42.088 - 33.96), a hair (~0.5mm) more open
+  # than row 2, once the above-knob glyphs in this row (the Density hyphen
+  # tick, the Size resize-arrow) were removed/tucked in.
   labels:
     cols: [12.6, 29.6, 46.6, 63.6]
     rows:
-      row1: 33.48
+      row1: 33.96
       row2: 74.468
 
 elements:
@@ -172,8 +174,7 @@ glyphs:
   - {src: glyphs/particules/atten-random.svg, at: [12.625, 98.386]}
   - {src: glyphs/particules/ticks-uneven.svg, at: [34.768, 48.025]}
   - {src: glyphs/particules/ticks-even.svg,   at: [24.269, 48.025]}
-  - {src: glyphs/particules/tick-tiny.svg,    at: [29.6,   34.91]}
-  - {src: glyphs/particules/resize-arrow.svg, at: [59.657, 35.616]}
+  - {src: glyphs/particules/resize-arrow.svg, at: [60.380, 36.802]}
   - {src: glyphs/particules/shape-curve.svg,  at: [7.844,  77.333]}
   - {src: glyphs/particules/shape-wave.svg,   at: [17.369, 77.333]}
   - {src: glyphs/particules/shape-caret.svg,  at: [17.325, 86.858]}
