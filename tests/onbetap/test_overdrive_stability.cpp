@@ -50,7 +50,10 @@ static Meas measure(float cutoff, float tone, float amp, float res, float onset,
 
     OnbetapFilter f; f.setLimit(OnbetapFilter::Limit::Hard);
     f.setMismatch(0, 0); f.setOffset(0);
-    f.setLeak(kTwoPi * OnbetapFilter::kLeakPoleHz / fsOs);
+    // Mirror the wrapper: leak pole boosted below kLeakCornerHz.
+    float boost = std::clamp(OnbetapFilter::kLeakCornerHz / cutoff,
+                             1.f, OnbetapFilter::kLeakBoostMax);
+    f.setLeak(kTwoPi * OnbetapFilter::kLeakPoleHz / fsOs * boost);
     f.reset();
     DCBlock dc; DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
     float dcCoef = 1.f - kTwoPi * 1.6f / fs;

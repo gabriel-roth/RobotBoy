@@ -81,6 +81,12 @@ public:
     static constexpr float kAsymNeg  = 0.93f;  // negative window ratio
     static constexpr float kGin      = 1.2f;   // Erica 47k/39k input ratio
     static constexpr float kLeakPoleHz = 15.f; // drive-gated state-leak pole
+    // Below kLeakCornerHz the wrapper boosts the leak pole by corner/fc
+    // (capped at kLeakBoostMax) — stronger damping at the lowest cutoffs,
+    // where residual deep-drive dropouts were still audible (user report,
+    // 2026-07-18). No effect at or above the corner.
+    static constexpr float kLeakCornerHz  = 80.f;
+    static constexpr float kLeakBoostMax  = 4.f;
     static constexpr float kSatLeak    = 0.05f;// sat() slope beyond the clamp
 
     static float cutoffToG(float fcHz, float fsOs) {

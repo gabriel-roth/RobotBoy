@@ -459,3 +459,12 @@ survival + rumble ceiling at the patch conditions, rail-pin audibility,
 self-osc preservation at fc 750/80/40, 9 V bound). Verified red pre-fix
 (note 0.32 V, rumble 7.3 V, pin 0.000 V). Full suite 181 green; drive-grit
 THD moved 31.1 → 31.8 % (inside guards), everything else unchanged.
+
+**Follow-up (same day):** residual by-ear dropouts on certain notes at low
+cutoff (steady-state and note-transition harnesses could not reproduce them).
+Per user request, the gated-leak pole now scales up below 80 Hz cutoff —
+boost = clamp(80/fc, 1, 4), i.e. up to a 60 Hz pole at fc 20, unchanged at
+fc ≥ 80. Constants `kLeakCornerHz`/`kLeakBoostMax` on OnbetapFilter; wrapper
+computes the boost per voice in modulate(). Guards re-run: burst margins
+improved (note@0.85 0.84 → 0.97 V), self-osc untouched, rail-pin output
+3.46 → 2.98 V (still well above the 0.5 V audibility floor). Suite green.

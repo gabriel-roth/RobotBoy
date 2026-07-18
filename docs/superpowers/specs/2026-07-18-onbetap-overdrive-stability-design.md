@@ -70,7 +70,10 @@ Two guards in `OnbetapFilter.hpp`, both inert in normal operation:
    (adding the slope there measured 10 V peaks — rejected).
 
 `setLeak()` is called from `modulate()` (fsOs varies with the oversampling
-menu). Host-free default is `leak = 0` (off) so the core class alone is
+menu). **Amendment (same day, user request):** the pole is boosted below
+`kLeakCornerHz = 80` by `clamp(80/fc, 1, kLeakBoostMax = 4)` — up to a 60 Hz
+pole at fc 20 — after residual by-ear dropouts on certain low notes;
+unchanged at fc ≥ 80, and the zero-input gate still protects self-osc. Host-free default is `leak = 0` (off) so the core class alone is
 unchanged unless configured; the committed tests mirror the wrapper's
 configuration.
 
