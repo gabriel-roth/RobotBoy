@@ -68,7 +68,7 @@ struct Onbetap : Module {
 	int oversample = 2;                             // 1 / 2 / 4
 	// Tuning menu (Task 4): defaults = spec values
 	float tuneDriveDb = 36.f;    // drive span in dB (−12 → +24)
-	float tuneHeadroom = 1.f;    // scales kBaseTrim
+	float tuneHeadroom = 1.f;    // scales input-drive trim (see onbetap/drive.hpp)
 	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
 	float tuneOutDb = 0.f;       // output trim ±12 dB
 
