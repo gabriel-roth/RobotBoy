@@ -209,6 +209,9 @@ struct Onbetap : Module {
 			}
 			v.fL.setLimit(limitMode);
 			v.fR.setLimit(limitMode);
+			float leak = kTwoPi * OnbetapFilter::kLeakPoleHz / fsOs;
+			v.fL.setLeak(leak);
+			v.fR.setLeak(leak);
 		}
 	}
 

@@ -47,6 +47,21 @@
  * off is a DC current injected at the node (per-unit offsets, ×48 noise gain;
  * vintage mode scales it with cutoff → sweep thump).
  *
+ * Deep-overdrive guards (2026-07-18, see the overdrive-stability spec):
+ * at extreme input drive the huge node swing swamps n1, collapsing the
+ * loop's damping — the resonant mode comes unhooked and rings at ~cutoff
+ * (a subsonic burst that swallows the note when cutoff is low), and the
+ * asymmetric rectification DC can drag both states to the negative rail
+ * where a hard-flat saturator would pass nothing (absolute silence). Two
+ * guards, both inert in normal operation:
+ *   - drive-gated state leak: pole kLeakPoleHz at full gate, gate =
+ *     min(|xin|/8, 1) — zero-input self-oscillation is untouched at every
+ *     cutoff because the gate keys on input depth, not frequency;
+ *   - sat() keeps a kSatLeak residual slope beyond the former hard clamp,
+ *     so small-signal gain never reaches exactly zero (a real diff pair
+ *     chokes asymptotically, never completely). tanhish itself stays exact
+ *     (the output VCA's 9 V bound depends on it).
+ *
  * Signal convention: normalised core units, window = ±1 ≈ 2.4 V physical.
  * The module wrapper owns volts↔core scaling, drive, oversampling, taps.
  */
@@ -65,6 +80,8 @@ public:
     static constexpr float kSoftMax  = 4.0f;   // soft-limit asymptote
     static constexpr float kAsymNeg  = 0.93f;  // negative window ratio
     static constexpr float kGin      = 1.2f;   // Erica 47k/39k input ratio
+    static constexpr float kLeakPoleHz = 15.f; // drive-gated state-leak pole
+    static constexpr float kSatLeak    = 0.05f;// sat() slope beyond the clamp
 
     static float cutoffToG(float fcHz, float fsOs) {
         float fc = std::clamp(fcHz, 0.5f, fsOs * 0.245f);
@@ -78,9 +95,14 @@ public:
         return x * (27.f + x2) / (27.f + 9.f * x2);
     }
 
-    // Diff-pair saturator, asymmetric window (+1 / −kAsymNeg).
+    // Diff-pair saturator, asymmetric window (+1 / −kAsymNeg), with a
+    // kSatLeak residual slope beyond the tanhish clamp (|v| > 3·window) so
+    // small-signal gain never reaches exactly zero (rail-pin guard).
     static float sat(float v) {
-        return (v >= 0.f) ? tanhish(v) : kAsymNeg * tanhish(v / kAsymNeg);
+        float lim  = (v >= 0.f) ? 3.f : -3.f * kAsymNeg;
+        float core = (v >= 0.f) ? tanhish(v) : kAsymNeg * tanhish(v / kAsymNeg);
+        float over = (v >= 0.f) ? std::max(v - lim, 0.f) : std::min(v - lim, 0.f);
+        return core + kSatLeak * over;
     }
 
     // Secant gain sat(v)/v — the linearised per-sample gain. →1 as v→0.
@@ -93,6 +115,8 @@ public:
     void setLimit(Limit m) { limit = m; }
     void setMismatch(float m1, float m2) { gs1 = 1.f + m1; gs2 = 1.f + m2; }
     void setOffset(float o) { off = o; }
+    // Per-substep state-leak coefficient at full gate: 2π·kLeakPoleHz/fsOs.
+    void setLeak(float l) { leak = l; }
     void reset() { s1 = s2 = 0.f; }
     bool stateFinite() const { return std::isfinite(s1) && std::isfinite(s2); }
 
@@ -115,6 +139,13 @@ public:
 
         s1 = 2.f * y1 - s1;
         s2 = 2.f * y2 - s2;
+        if (leak > 0.f) {
+            // Drive-gated: full leak only when the input swing is far beyond
+            // the diff-pair window; zero input (self-osc) → zero leak.
+            float gate = std::min(std::fabs(xin) * 0.125f, 1.f);
+            float l = 1.f - leak * gate;
+            s1 *= l; s2 *= l;
+        }
         clampStates();
 
         return { y2, y1, hp };
@@ -126,6 +157,7 @@ private:
     float s1 = 0.f, s2 = 0.f;      // BP, LP states
     float gs1 = 1.f, gs2 = 1.f;    // per-stage g scale (mismatch)
     float off = 0.f;               // node DC offset
+    float leak = 0.f;              // gated state leak per substep (0 = off)
     Limit limit = Limit::Hard;
 
     float solveY1(float xin, float g1, float g2, float kEff,
