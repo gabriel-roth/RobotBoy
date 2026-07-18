@@ -5,7 +5,7 @@ rects from the canonical res/*.svg panels at the repo root.
 The headers are HAND-MAINTAINED: element names, order, structs, defaults, and
 menu-only alt-params are a contract with the matching *Core.cc. Header
 element coordinates are synced by the generic tool
-~/Dev/vcv-panel-gen-redux/mm_sync.py (strict mode, name-matched through each
+~/Dev/vcv-panel-gen/mm_sync.py (strict mode, name-matched through each
 module's sync-map-*.yaml); this script then
 patches the waveform display widget's rect in the matching src/loooop/*.cpp
 from the SVG's SCREEN rect — the one coordinate neither mm_sync nor the
@@ -25,7 +25,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PANEL_GEN = os.path.expanduser("~/Dev/vcv-panel-gen-redux")
+PANEL_GEN = os.path.expanduser("~/Dev/vcv-panel-gen")
 
 # HERE is metamodule/loooop/; the repo root is two levels up. The canonical
 # panel SVGs live at res/ (vcv/res is a build-time copy) and the module

@@ -8,14 +8,14 @@ Declarative panel layouts (v2 spec format) for every RobotBoy module. Each
 Generate, using redux venv path per the migration's ground rules:
 
 ```bash
-~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py \
+~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py \
     panel-specs/<spec>.yaml --out res/<Slug>.svg
 ```
 
 Validate a spec without writing anything:
 
 ```bash
-~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py \
+~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py \
     panel-specs/<spec>.yaml --check
 ```
 
@@ -23,7 +23,7 @@ Preview (composites real ComponentLibrary art onto the panel, opens a
 browser):
 
 ```bash
-~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py \
+~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py \
     panel-specs/<spec>.yaml --out res/<Slug>.svg --preview --open
 ```
 
@@ -40,8 +40,8 @@ generate. Per-panel overrides live in the spec's own `theme:` block (see
   the `vcv-panel` skill, not here — read that before writing or editing a
   spec.
 - Tool internals and the full spec-format reference:
-  `~/Dev/vcv-panel-gen-redux/README.md` and
-  `~/Dev/vcv-panel-gen-redux/docs/superpowers/specs/2026-07-17-grid-panel-generator-design.md`.
+  `~/Dev/vcv-panel-gen/README.md` and
+  `~/Dev/vcv-panel-gen/docs/superpowers/specs/2026-07-17-grid-panel-generator-design.md`.
 
 ## Rules
 

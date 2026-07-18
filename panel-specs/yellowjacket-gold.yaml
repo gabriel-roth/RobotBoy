@@ -1,7 +1,7 @@
 # Yellowjacket GOLD panel spec (panel-gen v2) — generates
 # res/Yellowjacket-gold.svg, the alternate panel theme selected via the
 # module's context menu. Regenerate with:
-#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/yellowjacket-gold.yaml --out res/Yellowjacket-gold.svg
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/yellowjacket-gold.yaml --out res/Yellowjacket-gold.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id
 # verbatim, splitting off "#Widget"), matching src/Yellowjacket.cpp.

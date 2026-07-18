@@ -1,7 +1,7 @@
 # MF-20 panel spec (panel-gen v2) — generates res/MF20Filter.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
 # with:
-#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/mf20filter.yaml --out res/MF20Filter.svg
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/mf20filter.yaml --out res/MF20Filter.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id
 # verbatim, splitting off "#Widget"), matching MF20Filter.cpp.

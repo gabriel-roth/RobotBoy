@@ -4,7 +4,7 @@
 # here. Component-CENTER parity IS mandatory (the firmware's
 # mm2px(Vec(...)) coordinates in src/retours_delay/Retours.cpp are locked to
 # it, and MetaModule's coordinate sync depends on it). Regenerate with:
-#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/retours.yaml --out res/Retours.svg
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/retours.yaml --out res/Retours.svg
 #
 # Every x/y below is copied verbatim from Retours.cpp's
 # createParamCentered/createInputCentered/createOutputCentered/
