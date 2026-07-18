@@ -24,7 +24,9 @@ Onbetap supports polyphony on both VCV Rack and MetaModule (voices follow the wi
 - **Resonance limiting** — **Soft** (default, diode-clamp mod) or **Hard** (factory/Erica rails). At full resonance both flavors emerge near-square through the output stage (measured crest factors 1.044 Hard vs. 1.052 Soft — close enough that "squarer vs. rounder" isn't reliably audible); what does survive is pitch (308 Hz Hard vs. 362 Hz Soft under identical conditions) and behavior near onset.
 - **Oversampling** — 1× / **2×** (default) / 4×. Raising it to 4× reduces the aliasing produced at maximum drive, at roughly double the CPU cost; 1× is available for CPU-constrained patches.
 
-The calibration constants that used to live in a Tuning submenu (drive span, drive grit, core headroom, self-osc onset trim, output trim) are baked in as of 2026-07: span 36 dB, grit 3.5 dB, headroom 1×, onset trim 0, output trim 0 dB.
+- **Self-osc onset trim** (±0.1, default 0) — nudges where on the Q knob self-oscillation begins. Positive values delay it (more damping near the knee).
+
+The other calibration constants that used to live in a Tuning submenu (drive span, drive grit, core headroom, output trim) are baked in as of 2026-07: span 36 dB, grit 3.5 dB, headroom 1×, output trim 0 dB.
 
 ## Character
 

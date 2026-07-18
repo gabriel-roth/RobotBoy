@@ -475,7 +475,11 @@ By-ear final from the user: **Drive span 36 dB** (knob = −12…+24 dB), **grit
 3.5 dB**, headroom 1×, onset trim 0, output trim 0 dB — baked as constants
 (`onbetap::kDriveSpanDb`, `onbetap::kDefaultGritDb`; the rest are literals at
 the driveGains call). The **Tuning submenu is removed**; old patches' stored
-tune* JSON keys are deliberately ignored. **Resonance limiting defaults to
+tune* JSON keys are deliberately ignored. **Exception (same day):** the
+**self-osc onset trim** slider came back as a single top-level menu slider —
+near the knee, k is only \~0.02–0.1, so a 0.044 trim shifts onset by \~8 % of
+the Q knob and triples the Q at res 0.68; too musical a control to bake. Its
+`tuneOnset` JSON key persists again (old patches regain their stored trim). **Resonance limiting defaults to
 Soft** (listed first in the menu); Hard remains an option.
 
 Span 36 is viable again — the choke reversal that motivated the 30 dB trim is
