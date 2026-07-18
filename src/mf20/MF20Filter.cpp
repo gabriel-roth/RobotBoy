@@ -54,10 +54,24 @@ struct MF20FilterModule : Module {
     // 1/√drive feeds the diode clip character.
     OnePoleSmoother _driveSqrtSlew   { 1.f };
     OnePoleSmoother _clipThreshSlew  { 1.f };
+    OnePoleSmoother _fbThreshSlew    { 1.f };
     float _driveSqrtTarget  = 1.f;
     float _clipThreshTarget = 1.f;
+    float _fbThreshTarget   = 1.f;
     float _driveSqrt = 1.f;   // current smoothed value, used by otaPreGain
     float _clipThresh = 1.f;
+    float _fbThresh = 1.f;    // current smoothed K35 feedback-loop clip threshold
+    // Resonance retention [0,1]: how much Drive is stopped from squashing the
+    // resonant peak. Baked in — the path differs by mode (see modulate()): OTA
+    // eases its feedback diode toward the Drive-1 threshold while keeping full
+    // input pre-gain; K35 keeps its forward clip at full drive (grit) and
+    // instead opens the resonance-loop clip.
+    // See docs/superpowers/specs/2026-07-18-mf20-resonance-retention-design.md.
+    static constexpr float kResRetention = 0.75f;
+    // Max K35 feedback-loop clip threshold at full retention (threshold 1.0 =
+    // stock). Bounded so the loop stays stable (saturated-region slope is
+    // unchanged).
+    static constexpr float kK35FbRetentionMax = 3.f;
     // Deterministic denormal-prevention dither: alternates sign each sample.
     // Replaces the RNG dither — cheaper, and bit-reproducible between the
     // VCV and MetaModule builds (relevant to headless comparison testing).
@@ -119,6 +133,7 @@ struct MF20FilterModule : Module {
         }
         _driveSqrtSlew.setAlpha(alpha);
         _clipThreshSlew.setAlpha(alpha);
+        _fbThreshSlew.setAlpha(alpha);
         _modulationSteps = static_cast<int>(e.sampleRate * 0.0025f);  // 2.5 ms
         _steps = _modulationSteps;
     }
@@ -134,7 +149,24 @@ struct MF20FilterModule : Module {
         float drive = params[DRIVE_PARAM].getValue();
         _drive = drive;
         _driveSqrtTarget  = std::sqrt(drive);
-        _clipThreshTarget = 1.f / _driveSqrtTarget;
+        // Resonance retention takes a different, mode-appropriate path so each
+        // mode keeps its Drive character while regaining resonance:
+        //   OTA — ease the feedback-diode threshold from 1/√drive toward 1.0
+        //         (its Drive-1 value). Input pre-gain (_driveSqrt) is untouched,
+        //         so Drive keeps its loudness/edge; only the resonance-crushing
+        //         diode relaxes.
+        //   K35 — keep the forward clip at full drive (1/√drive → grit intact),
+        //         and instead open the resonance-loop clip threshold from 1.0
+        //         toward kK35FbRetentionMax, so the peak rings back up above the
+        //         saturation without easing the grit.
+        constexpr float r = kResRetention;
+        if (_filterMode == MF20Filter::Mode::K35) {
+            _clipThreshTarget = 1.f / _driveSqrtTarget;
+            _fbThreshTarget   = 1.f + r * (kK35FbRetentionMax - 1.f);
+        } else {
+            _clipThreshTarget = (1.f - r) * (1.f / _driveSqrtTarget) + r;
+            _fbThreshTarget   = 1.f;  // OTA ignores the feedback-loop threshold
+        }
 
         float cutoffLog = params[CUTOFF_PARAM].getValue();
         float hpLog     = params[HP_CUTOFF_PARAM].getValue();
@@ -190,6 +222,8 @@ struct MF20FilterModule : Module {
 
         eng.hpFilter.setDriveCharacterFromThreshold(_clipThresh);
         eng.lpFilter.setDriveCharacterFromThreshold(_clipThresh);
+        eng.hpFilter.setFbThreshold(_fbThresh);
+        eng.lpFilter.setFbThreshold(_fbThresh);
 
         // OTA mode: piecewise-linear pre-gain — amplifies by √drive (smoothed
         //   in process() into _driveSqrt), soft-clips at ±5 V.
@@ -228,6 +262,8 @@ struct MF20FilterModule : Module {
             // True stereo: process R through its own filter pair.
             eng.hpFilterR.setDriveCharacterFromThreshold(_clipThresh);
             eng.lpFilterR.setDriveCharacterFromThreshold(_clipThresh);
+            eng.hpFilterR.setFbThreshold(_fbThresh);
+            eng.lpFilterR.setFbThreshold(_fbThresh);
             float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
             inR += _dither;
             inR = otaPreGain(inR);
@@ -256,6 +292,7 @@ struct MF20FilterModule : Module {
         _dither = -_dither;
         _driveSqrt  = _driveSqrtSlew.process(_driveSqrtTarget);
         _clipThresh = _clipThreshSlew.process(_clipThreshTarget);
+        _fbThresh   = _fbThreshSlew.process(_fbThreshTarget);
         for (int c = 0; c < voices; c++)
             processChannel(args, c);
     }
