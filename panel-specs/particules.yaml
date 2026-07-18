@@ -134,9 +134,9 @@ elements:
   - {text: SHAPE,    grid: labels, col: 1, row: row2}
   - {text: FEEDBACK, grid: labels, col: 2, row: row2}
   - {text: REVERB,   grid: labels, col: 3, row: row2}
-  # DRY/WET's label sits 0.32mm lower than its row-mates in the shipped panel
-  # (measured bbox max-y 75.798 vs ~75.44) -- kept as-is, not normalized.
-  - {text: "DRY/WET", grid: labels, col: 4, row: row2, dy: 0.32}
+  # DRY/WET shares the row2 baseline with SHAPE/FEEDBACK/REVERB (the shipped
+  # panel dropped it 0.32mm lower, misaligning the row; that drop is dropped).
+  - {text: "DRY/WET", grid: labels, col: 4, row: row2}
   - {name: SHAPE_PARAM,    widget: RoundBlackKnob, grid: main, col: 1, row: knob2}
   - {name: FEEDBACK_PARAM, widget: RoundBlackKnob, grid: main, col: 2, row: knob2}
   - {name: REVERB_PARAM,   widget: RoundBlackKnob, grid: main, col: 3, row: knob2}

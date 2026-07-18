@@ -75,13 +75,11 @@
 # it down 1.142mm at render time -> true baseline 34.542; row-2 measured
 # ~75.61 raw, but its transform pushes it up 1.142mm -> true baseline
 # 74.468. Both grids.labels rows below now carry the transform-corrected
-# (true rendered) baseline instead of the raw untransformed one. DRY/WET's
-# own per-label `dy: 0.71` is unaffected by this correction: it and its
-# row-mates (FEEDBACK/SHAPE) all carry the *same* -1.142 row-2 transform, so
-# the relative +0.71mm gap between DRY/WET's raw-measured baseline (76.322)
-# and its row-mates' (~75.611) is a real quirk in the original independent
-# of the transform bug, not an artifact of it — same kind of one-off quirk
-# Particules' own DRY/WET label has (there: +0.32mm on a different panel).
+# (true rendered) baseline instead of the raw untransformed one. The
+# hand-built original set DRY/WET's baseline +0.71mm below its row-mates
+# (FEEDBACK/SHAPE) — a one-off quirk (Particules' own DRY/WET has the same
+# kind, +0.32mm there) — but that misaligns the row, so DRY/WET now shares
+# its row-mates' row2 baseline (no per-label dy) rather than reproducing it.
 #
 # No connector bars: every primary/secondary knob stacks its own CV jack
 # below it with no bar between them (the original draws none, and neither
@@ -185,10 +183,9 @@ elements:
   # and its own attenuverter trimpot.
   - {text: SHAPE,    grid: labels, col: 1, row: row2, size: 3.175}
   - {text: FEEDBACK, grid: labels, col: 2, row: row2, size: 3.175}
-  # DRY/WET's label sits 0.71mm lower than its row-mates in the shipped
-  # panel (measured bbox max-y 76.322 vs ~75.61) -- kept as-is, not
-  # normalized (see header comment).
-  - {text: "DRY/WET", grid: labels, col: 3, row: row2, dy: 0.71, size: 3.175}
+  # DRY/WET shares the row2 baseline with SHAPE/FEEDBACK (the original's
+  # +0.71mm drop dropped -- see header comment -- so the row aligns).
+  - {text: "DRY/WET", grid: labels, col: 3, row: row2, size: 3.175}
   - {name: SHAPE_PARAM,    grid: main, col: 1, row: knob2}
   - {name: FEEDBACK_PARAM, grid: main, col: 2, row: knob2}
   - {name: DRY_WET_PARAM,  grid: main, col: 3, row: knob2}
