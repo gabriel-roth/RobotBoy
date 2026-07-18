@@ -74,8 +74,10 @@ struct OnbetapVoice {
     OnePoleSmoother kSlew      { 1.02f };
     OnePoleSmoother driveSlew  { 0.25f };
     OnePoleSmoother makeupSlew { 1.f };
+    OnePoleSmoother pushSlew   { 1.f };
     float gTarget = kDefaultG, kTarget = 1.02f;
     float driveTarget = 0.25f, makeupTarget = 1.f;
+    float pushTarget = 1.f;
     float xPrevL = 0.f, xPrevR = 0.f;
     float fRgRatio = 1.f;
     DCBlock dcL, dcR;
@@ -85,13 +87,16 @@ struct OnbetapVoice {
     void setAlpha(float a) {
         gSlew.setAlpha(a); kSlew.setAlpha(a);
         driveSlew.setAlpha(a); makeupSlew.setAlpha(a);
+        pushSlew.setAlpha(a);
     }
     void reset() {
         fL.reset(); fR.reset();
         gSlew.reset(kDefaultG); kSlew.reset(1.02f);
         driveSlew.reset(0.25f); makeupSlew.reset(1.f);
+        pushSlew.reset(1.f);
         gTarget = kDefaultG; kTarget = 1.02f;
         driveTarget = 0.25f; makeupTarget = 1.f;
+        pushTarget = 1.f;
         xPrevL = xPrevR = 0.f;
         fRgRatio = 1.f;
         dcL.reset();
