@@ -82,16 +82,18 @@ grids:
       cv2: 92.696
       atten2: 101.696
 
-  # Label baselines above each knob row (measured from the hand-built
-  # original; see header comment). Row 1's labels sit well clear of their
+  # Label baselines above each knob row. Row 1 is the hand-built original's
+  # measured baseline (see header comment); its labels sit well clear of the
   # knobs -- the density tick-scale glyphs occupy the space between label and
-  # knob in that column -- while row 2's labels sit closer, directly above
-  # their knobs.
+  # knob in that column. Row 2 was raised from the original's measured 75.44
+  # to 74.468 so its label-to-knob gap (82.096 - 74.468 = 7.628mm) matches
+  # Retours' row-2 gap -- the original placed it ~1mm closer to the knobs
+  # than Retours, and there's no glyph spacer in this row to justify that.
   labels:
     cols: [12.6, 29.6, 46.6, 63.6]
     rows:
       row1: 33.48
-      row2: 75.44
+      row2: 74.468
 
 elements:
   # --- Transport row: FREEZE (input + latch button), QUALITY (bezel), SEED
