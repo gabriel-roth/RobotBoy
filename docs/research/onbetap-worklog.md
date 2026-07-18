@@ -428,3 +428,34 @@ monotony is asserted only at res 0.30/0.50.
 escape hatch / monotony, top-decile THD rise + floor, knee level gain, mid-knob
 budget, level monotony, 9 V bound). Red baseline = the `gritDb 0` sweep row.
 Design: `2026-07-18-onbetap-drive-grit-design.md`.
+
+## 2026-07-18 — Deep-overdrive guards: gated state leak + sat residual slope
+
+User report from patch audition (`\~/Desktop/test-patches/6.vcv`): at low
+cutoff + max Drive the signal disappears. Two core pathologies found (details
+and measurements: `2026-07-18-onbetap-overdrive-stability-design.md`):
+
+1. **Subsonic burst** — deep drive swamps n1, collapsing loop damping; the
+   resonant mode rings free at \~cutoff (7.3 V RMS of 20–40 Hz rumble) while
+   the note halves. Not numerics (8-pass solve identical), not the asym DC
+   (survives symmetrized core). Onset \~node ≥ 8 units (span 36+ territory;
+   default span 30 tops out at 7.9).
+2. **Rail-pin silence** — rectification DC pins both states at −4.1 where
+   the sat was hard-flat (zero gain) → absolute silence (\~span 48 + 10 V).
+
+**Rejected:** input pre-clipper (measured byte-identical — clipping moves no
+node zero-crossing, so the loop never sees it); fixed-Hz state leak (kills
+legit self-osc at fc 40/80 — burst and self-osc share frequencies; the
+discriminator is input depth).
+
+**Fix:** (a) drive-gated state leak, pole 15 Hz at full gate,
+`gate = min(|xin|/8, 1)` — zero-input self-osc untouched at every cutoff;
+(b) sat() keeps a 5 % residual slope beyond the former hard clamp (real diff
+pairs choke asymptotically, never to zero). tanhish stays exact (output-VCA
+9 V bound). Wrapper sets the leak from fsOs in modulate().
+
+**Guards:** `tests/onbetap/test_overdrive_stability.cpp` (8 checks: note
+survival + rumble ceiling at the patch conditions, rail-pin audibility,
+self-osc preservation at fc 750/80/40, 9 V bound). Verified red pre-fix
+(note 0.32 V, rumble 7.3 V, pin 0.000 V). Full suite 181 green; drive-grit
+THD moved 31.1 → 31.8 % (inside guards), everything else unchanged.
