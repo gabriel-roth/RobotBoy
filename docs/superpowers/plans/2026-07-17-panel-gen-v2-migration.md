@@ -85,3 +85,33 @@ like Particules, whose v1 spec exists only in the panel-refactor worktree.
   branch; it can be archived.
 - The redux repo's `skills/vcv-panel/SKILL.md` description drops its
   "v1 stays for onbetap/ondes/yellowjacket" clause as part of this migration.
+
+## Migration verification (Task 7)
+
+Date: 2026-07-17. One script regenerated all nine committed specs (no
+`--theme`) and re-ran every gate against `res/*.svg` and the pre-migration
+commit `afe2148`.
+
+| Panel | `--check` warnings | Byte-identical | Parity/centers vs pre-migration |
+|---|---|---|---|
+| MF20Filter | 0 | yes | full parity |
+| Lop | 0 | yes | full parity |
+| Loooop | 0 | yes | full parity |
+| Onbetap | 0 | yes | full parity |
+| Ondes | 0 | yes | full parity |
+| Yellowjacket | 0 | yes | full parity |
+| Yellowjacket-gold | 0 | yes | full parity |
+| Particules | 0 | yes | centers exact (32/32, incl. `DENSITY_AR_PARAM`→`GRAIN_LIGHT`) |
+| Retours | 0 | yes | centers exact (27/27, incl. the 8 documented stale-name remaps) |
+
+All nine byte-identical to committed `res/`; all nine `--check` clean.
+
+- Sync idempotency (Task 6): `sync_info_positions.py` against v2-generated
+  `Loooop`/`Lop` produced **zero** diffs in `Loooop_info.hh`, `Lop_info.hh`,
+  `Loooop.cpp`, `Lop.cpp` vs. pre-run backups — confirmed again this task by
+  re-deriving the same SVGs.
+- MetaModule PNG regen (Task 6): Particules/Retours PNGs regenerated at
+  47.44 dpi, pixel dimensions unchanged (142×240, 104×240).
+- Build: `make -C vcv -B -j4` — exit 0, `vcv/plugin.dylib` produced, all nine
+  SVGs synced into `vcv/res/`; only pre-existing Rack-SDK
+  `-Wdeprecated-this-capture` warnings, zero errors.
