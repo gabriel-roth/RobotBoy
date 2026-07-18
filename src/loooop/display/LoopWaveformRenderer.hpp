@@ -21,7 +21,7 @@ public:
     static constexpr uint8_t WAVE[3] = {0x51, 0x66, 0x7A};   // muted blue-gray (neutral)
     static constexpr uint8_t GRID[3] = {0x2E, 0x3A, 0x46};   // segment bars: above BG, below WAVE
     // Per-head lane/cluster colors — the single source is loooop::kHeadColors
-    // (src/loooop/HeadColors.hpp): H1 red, H2 yellow, H3 blue, H4 magenta. The
+    // (src/loooop/HeadColors.hpp): H1 red, H2 yellow, H3 blue, H4 purple. The
     // panel group tints (panel-specs/loooop.yaml) mirror these hues.
     static_assert(std::size(loooop::kHeadColors) == LoopEngine::NUM_HEADS,
                   "kHeadColors must have one entry per head");

@@ -1312,7 +1312,62 @@ static void test_grid_32_segments() {
           "grid32: snapshot window is one 1/32 segment on boundaries");
 }
 
+// "Trigger when recording = Starts overdubbing": the record toggle that closes
+// the initial pass freezes the loop AND keeps recording as an overdub pass.
+static void test_continue_overdub_on_close() {
+    LoopEngine e; e.reset(48000.f);
+    soloHead0(e);
+    e.setWriteMode(LoopEngine::WriteMode::Replace);   // overdub enabled (not Lock)
+    e.toggleRecord();                                  // start initial pass
+    std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+    for (int i = 0; i < 100; ++i) e.process(0.5f, 0.5f, hs);
+    e.toggleRecord(true);                              // close with continueOverdub
+    check(e.hasLoop(), "continue_overdub: loop frozen on close");
+    check(e.loopLength() == 100, "continue_overdub: loop length = frames recorded");
+    check(e.isRecording(), "continue_overdub: still recording after close");
+}
+
+// With Overdub = Lock (overdub disabled), the setting is overridden: closing the
+// initial pass stops recording regardless of continueOverdub.
+static void test_continue_overdub_lock_stops() {
+    LoopEngine e; e.reset(48000.f);
+    soloHead0(e);
+    e.setOverdub(false);                               // Lock: overdub disabled
+    e.toggleRecord();
+    std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+    for (int i = 0; i < 100; ++i) e.process(0.5f, 0.5f, hs);
+    e.toggleRecord(true);
+    check(e.hasLoop(), "lock_stops: loop frozen on close");
+    check(!e.isRecording(), "lock_stops: recording stopped despite continueOverdub");
+}
+
+// An armed one-shot head (silent, waiting for a trigger) must still reflect
+// Size/Position changes on the display window.
+static void test_armed_oneshot_window_tracks_size() {
+    LoopEngine e; e.reset(48000.f);
+    soloHead0(e);
+    e.toggleRecord();
+    std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+    for (int i = 0; i < 480; ++i) e.process(0.2f, 0.2f, hs);
+    e.toggleRecord();                 // freeze loop, head 0 loops
+    e.setOneShot(0, true);            // arm: head 0 goes silent
+    e.setSize(0, 0.5f);
+    e.setPosition(0, 0.5f);
+    e.process(0.f, 0.f, hs);          // one idle sample
+    auto s1 = e.displaySnapshot();
+    const float halfWin = s1.winEnd01[0] - s1.winStart01[0];
+    e.setSize(0, 1.0f);               // grow the window
+    e.process(0.f, 0.f, hs);
+    auto s2 = e.displaySnapshot();
+    const float fullWin = s2.winEnd01[0] - s2.winStart01[0];
+    check(fullWin > halfWin + 0.1f, "armed one-shot: window grows with Size");
+    check(!s2.playing[0], "armed one-shot: head still not playing (silent)");
+}
+
 int main() {
+    test_continue_overdub_on_close();
+    test_continue_overdub_lock_stops();
+    test_armed_oneshot_window_tracks_size();
     test_minimum_audible_window();
     test_crossfade_declicks_seam();
     test_single_head_engine();

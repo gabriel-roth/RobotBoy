@@ -55,7 +55,7 @@ void LoopEngine::setSampleRate(float sampleRate) {
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
 }
 
-void LoopEngine::toggleRecord() {
+void LoopEngine::toggleRecord(bool continueOverdub) {
     // Overdub gate: with a loop already frozen, a new record pass is an
     // overdub — ignore the toggle when overdub is disabled. Stopping an
     // in-progress recording and the initial record pass are never gated.
@@ -77,12 +77,28 @@ void LoopEngine::toggleRecord() {
         dispRecording_.store(true, std::memory_order_relaxed);
         dispRecLen_.store(0, std::memory_order_relaxed);
     } else if (loopLen_ == 0) {
-        // Stopping the initial pass freezes immediately: there is no prior
-        // content to blend with, and the seam crossfade declicks the join.
-        recording_ = false;
+        // Closing the initial pass freezes the loop length now: there is no
+        // prior content to blend with, and the seam crossfade declicks the join.
         loopLen_ = writeIdx_;
-        dispRecording_.store(false, std::memory_order_relaxed);
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+        if (continueOverdub && overdubEnabled_) {
+            // "Trigger when recording = Starts overdubbing": don't stop — keep
+            // recording as an overdub pass from the loop start, arming the same
+            // declick ramp the overdub-start branch above uses. Lock disables
+            // overdubEnabled_, so Lock always falls through to the stop path.
+            writeIdx_ = 0;
+            odGain_ = xfadeSamples_ ? 0.f : 1.f;
+            odGainStep_ = xfadeSamples_ ? 1.f / static_cast<float>(xfadeSamples_) : 0.f;
+            stopPending_ = false;
+            if (writeMode_ == WriteMode::Decay) {
+                decayLpL_ = bufL_[0];
+                decayLpR_ = bufR_[0];
+            }
+            // recording_ and dispRecording_ stay true.
+        } else {
+            recording_ = false;
+            dispRecording_.store(false, std::memory_order_relaxed);
+        }
         // The freeze changes what the waveform region shows (grid bars are
         // drawn only over a frozen loop) even though no sample was written,
         // so the hosts' waveform caches must be invalidated here too.
@@ -510,7 +526,20 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
     if (loopLen_ > 0) {
         for (int i = 0; i < numHeads_; ++i) {
             PlayHead& h = heads_[i];
-            if (!h.playing) continue;
+            if (!h.playing) {
+                // Armed / finished one-shot: silent, but keep the displayed
+                // window in sync with Size/Position so the panel tracks the
+                // knob. Park the head marker at the window start (direction-
+                // aware) so it stays inside the window bar.
+                double ws, wl;
+                windowBounds(h, ws, wl);
+                const float invL = 1.f / static_cast<float>(loopLen_);
+                const double hp = h.speed < 0.f ? ws + wl - 1.0 : ws;
+                dispPos01_[i].store(static_cast<float>(hp) * invL, std::memory_order_relaxed);
+                dispWinStart01_[i].store(static_cast<float>(ws) * invL, std::memory_order_relaxed);
+                dispWinEnd01_[i].store(static_cast<float>(ws + wl) * invL, std::memory_order_relaxed);
+                continue;
+            }
             double winStart, winLen;
             windowBounds(h, winStart, winLen);
             float l, r; readHead(h, winStart, winLen, l, r);
