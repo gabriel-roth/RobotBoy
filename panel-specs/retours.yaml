@@ -20,20 +20,21 @@
 # an earlier naming scheme, that never matched any tracked cpp history):
 # hand-built TIME_INPUT/DENSITY_INPUT/PITCH_INPUT/SHAPE_INPUT/FEEDBACK_INPUT/
 # DRY_WET_INPUT (no "_CV_" infix) correspond to cpp's TIME_CV_INPUT/
-# DENSITY_CV_INPUT/PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT/
-# DRY_WET_CV_INPUT, and hand-built FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM
+# INTERVAL_CV_INPUT/PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT/
+# DRY_WET_CV_INPUT (DENSITY_CV_INPUT before the delay-mode rename below),
+# and hand-built FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM
 # ("_AMT_") correspond to cpp's FEEDBACK_AR_PARAM/DRY_WET_AR_PARAM ("_AR_").
 # This spec follows cpp throughout (matching the module's actual current
 # param/input ids).
 #
-# Widget classes: cpp wraps FREEZE_PARAM and QUALITY_PARAM (desktop build) in
+# Widget classes: cpp wraps SLICE_PARAM and QUALITY_PARAM (desktop build) in
 # light-capable templates (VCVLightLatch<MediumSimpleLight<WhiteLight>>,
 # VCVLightBezel<RedGreenBlueLight>) and CLOCK_PARAM is a plain VCVButton;
 # QUALITY_PARAM has a MetaModule-only alternate widget (QualityMmSwitch)
 # behind #ifdef METAMODULE that this SVG, shared by both builds, doesn't
 # need to represent (same precedent as Particules' QUALITY_PARAM). Per
 # Particules' precedent, the light-capable templates collapse to their base
-# components.yaml shape class: FREEZE_PARAM/CLOCK_PARAM -> VCVButton (d=6.1),
+# components.yaml shape class: SLICE_PARAM/CLOCK_PARAM -> VCVButton (d=6.1),
 # QUALITY_PARAM -> VCVBezel (d=7.2).
 #
 # One documented radius-only discrepancy (not a centers/gate concern —
@@ -85,8 +86,17 @@
 # below it with no bar between them (the original draws none, and neither
 # does cpp's addChild sequence — no rects in its panel layer besides the
 # background and the grey control-plate zone). The clock LED occupies the
-# DENSITY column's attenuverter slot in row 1 (no attenuverter trimpot
-# there — DENSITY_PARAM has none in cpp's ParamId enum).
+# INTERVAL column's attenuverter slot in row 1 (no attenuverter trimpot
+# there — INTERVAL_PARAM has none in cpp's ParamId enum).
+#
+# RENAME (delay-mode labels): the FREEZE control was renamed SLICE and the
+# DENSITY control renamed INTERVAL, to match their delay-mode function (SLICE
+# freezes the buffer and loops a slice; INTERVAL sets the base repeat interval
+# that TIME multiplies). cpp enum ids, tooltips, and these element names/labels
+# all follow the new names. The historical measurement-provenance comments
+# above still say FREEZE/DENSITY where they describe the ORIGINAL hand-built
+# panel's actual lettering — that lettering really was FREEZE/DENSITY, so those
+# notes are left as-is for accuracy.
 slug: Retours
 name: RETOURS
 hp: 11
@@ -147,33 +157,33 @@ grids:
       row2: 74.468
 
 elements:
-  # --- Transport row: FREEZE (input + latch button), QUALITY (bezel),
+  # --- Transport row: SLICE (input + latch button), QUALITY (bezel),
   # CLOCK (button + input) -- all at y=15.875, cpp's exact x values. Labels
   # sit at each pair's/component's own measured x center (all within
   # ~0.1mm of the exact midpoint -- no deliberate off-center nudge here,
   # unlike Particules' FREEZE label).
-  - {name: FREEZE_INPUT, x: 6.94, y: 15.875}
-  - {name: FREEZE_PARAM, widget: VCVButton, x: 15.94, y: 15.875}
+  - {name: SLICE_INPUT, x: 6.94, y: 15.875}
+  - {name: SLICE_PARAM, widget: VCVButton, x: 15.94, y: 15.875}
   - {name: QUALITY_PARAM, widget: VCVBezel, x: 27.94, y: 15.875}
   - {name: CLOCK_PARAM, widget: VCVButton, x: 39.94, y: 15.875}
   - {name: CLOCK_INPUT, x: 48.94, y: 15.875}
-  - {text: FREEZE, x: 11.44, y: 24.0, size: 3.175}
+  - {text: SLICE, x: 11.44, y: 24.0, size: 3.175}
   - {text: QUALITY, x: 27.94, y: 24.096, size: 3.175}
   - {text: CLOCK, x: 44.44, y: 24.045, size: 3.175}
 
-  # --- Row 1: TIME / DENSITY / PITCH knobs, each over its own CV jack (no
+  # --- Row 1: TIME / INTERVAL / PITCH knobs, each over its own CV jack (no
   # connecting bar -- cpp draws none, and neither did the original).
-  # DENSITY's attenuverter slot instead holds the CLOCK_LIGHT indicator
-  # (cpp's DENSITY_PARAM has no attenuverter); TIME/PITCH keep their
+  # INTERVAL's attenuverter slot instead holds the CLOCK_LIGHT indicator
+  # (cpp's INTERVAL_PARAM has no attenuverter); TIME/PITCH keep their
   # trimpots.
   - {text: TIME,    grid: labels, col: 1, row: row1, size: 3.175}
-  - {text: DENSITY, grid: labels, col: 2, row: row1, size: 3.175}
+  - {text: INTERVAL, grid: labels, col: 2, row: row1, size: 3.175}
   - {text: PITCH,   grid: labels, col: 3, row: row1, size: 3.175}
   - {name: TIME_PARAM,    grid: main, col: 1, row: knob1}
-  - {name: DENSITY_PARAM, grid: main, col: 2, row: knob1}
+  - {name: INTERVAL_PARAM, grid: main, col: 2, row: knob1}
   - {name: PITCH_PARAM,   grid: main, col: 3, row: knob1}
   - {name: TIME_CV_INPUT,     grid: main, col: 1, row: cv1}
-  - {name: DENSITY_CV_INPUT,  grid: main, col: 2, row: cv1}
+  - {name: INTERVAL_CV_INPUT,  grid: main, col: 2, row: cv1}
   - {name: PITCH_CV_INPUT,    grid: main, col: 3, row: cv1}
   - {name: TIME_AR_PARAM,  widget: Trimpot, grid: main, col: 1, row: atten1}
   - {name: CLOCK_LIGHT,    widget: "MediumLight<WhiteLight>", grid: main, col: 2, row: atten1}

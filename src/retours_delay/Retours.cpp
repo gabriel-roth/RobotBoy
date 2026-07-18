@@ -30,8 +30,8 @@ struct RetoursQualityParamQuantity : ParamQuantity {
 
 struct Retours : Module {
 	enum ParamId {
-		FREEZE_PARAM,
-		DENSITY_PARAM,
+		SLICE_PARAM,
+		INTERVAL_PARAM,
 		TIME_PARAM,
 		PITCH_PARAM,
 		SHAPE_PARAM,
@@ -49,14 +49,14 @@ struct Retours : Module {
 	enum InputId {
 		IN_L_INPUT,
 		IN_R_INPUT,
-		DENSITY_CV_INPUT,
+		INTERVAL_CV_INPUT,
 		TIME_CV_INPUT,
 		PITCH_CV_INPUT,
 		SHAPE_CV_INPUT,
 		FEEDBACK_CV_INPUT,
 		DRY_WET_CV_INPUT,
 		CLOCK_INPUT,
-		FREEZE_INPUT,
+		SLICE_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -68,7 +68,7 @@ struct Retours : Module {
 		QUALITY_R_LIGHT,
 		QUALITY_G_LIGHT,
 		QUALITY_B_LIGHT,
-		FREEZE_BUTTON_LIGHT,
+		SLICE_BUTTON_LIGHT,
 		CLOCK_LIGHT,
 		LIGHTS_LEN
 	};
@@ -87,7 +87,7 @@ struct Retours : Module {
 	// Module state
 	int quality_state_ = 0;   // 0-3, same encoding/colors as Particules
 	bool prev_quality_button_ = false;
-	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
+	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on SLICE gate
 	dsp::SchmittTrigger clock_gate_;     // same for CLOCK jack
 	bool prev_clock_button_ = false;     // CLOCK momentary button edge detect
 	retours_delay_dsp::TimeChangeMode time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
@@ -113,8 +113,8 @@ struct Retours : Module {
 	Retours() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		// configSwitch does NOT disable randomization (only configButton does),
-		// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
-		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
+		// so SLICE needs the explicit flag or Ctrl+R randomly latches freeze.
+		configSwitch(SLICE_PARAM, 0.f, 1.f, 0.f, "Slice", {"Off", "On"})
 			->randomizeEnabled = false;
 #ifdef METAMODULE
 		// MetaModule: a real 4-position switch so the firmware shows the mode
@@ -125,7 +125,7 @@ struct Retours : Module {
 #else
 		configButton<RetoursQualityParamQuantity>(QUALITY_PARAM, "Quality");
 #endif
-		configParam(DENSITY_PARAM, 0.f, 1.f, 0.35f, "Density");
+		configParam(INTERVAL_PARAM, 0.f, 1.f, 0.35f, "Interval");
 		configParam(TIME_PARAM, 0.f, 1.f, 0.f, "Time");
 		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
 		configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
@@ -140,19 +140,19 @@ struct Retours : Module {
 
 		configInput(IN_L_INPUT, "Audio in L");
 		configInput(IN_R_INPUT, "Audio in R");
-		configInput(DENSITY_CV_INPUT, "Density CV");
+		configInput(INTERVAL_CV_INPUT, "Interval CV");
 		configInput(TIME_CV_INPUT, "Time CV");
 		configInput(PITCH_CV_INPUT, "Pitch CV");
 		configInput(SHAPE_CV_INPUT, "Shape CV");
 		configInput(FEEDBACK_CV_INPUT, "Feedback CV");
 		configInput(DRY_WET_CV_INPUT, "Dry/wet CV");
 		configInput(CLOCK_INPUT, "Clock");
-		configInput(FREEZE_INPUT, "Freeze gate");
+		configInput(SLICE_INPUT, "Slice gate");
 		configOutput(OUT_L_OUTPUT, "Audio out L");
 		configOutput(OUT_R_OUTPUT, "Audio out R");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
-		// FREEZE and QUALITY lights are embedded in their button params (tooltips
+		// SLICE and QUALITY lights are embedded in their button params (tooltips
 		// come from configParam); CLOCK_LIGHT is a standalone delay-tick indicator.
 		configLight(CLOCK_LIGHT, "Clock");
 
@@ -254,7 +254,7 @@ struct Retours : Module {
 	}
 
 	void updateSlowParams(bool frozen) {
-		params_.density = params[DENSITY_PARAM].getValue();
+		params_.density = params[INTERVAL_PARAM].getValue();
 		params_.time     = params[TIME_PARAM].getValue();
 		{
 			float raw = params[PITCH_PARAM].getValue();
@@ -279,7 +279,7 @@ struct Retours : Module {
 		// RetoursProcessor (which also guards, belt-and-braces, in
 		// SetParameters -- see retours_processor.cpp).
 		auto sanitizeVoltage = [](float v) { return std::isfinite(v) ? v : 0.f; };
-		params_.density_cv = sanitizeVoltage(inputs[DENSITY_CV_INPUT].getVoltage());
+		params_.density_cv = sanitizeVoltage(inputs[INTERVAL_CV_INPUT].getVoltage());
 		params_.time_cv           = sanitizeVoltage(inputs[TIME_CV_INPUT].getVoltage());
 		params_.time_cv_connected = inputs[TIME_CV_INPUT].isConnected();
 		params_.pitch_cv           = sanitizeVoltage(inputs[PITCH_CV_INPUT].getVoltage());
@@ -314,8 +314,8 @@ struct Retours : Module {
 			metamodule_fpu_configured_ = true;
 			particules::EnableMetaModuleFlushToZero();
 		}
-		bool freeze_latch = params[FREEZE_PARAM].getValue() > 0.5f;
-		freeze_gate_.process(inputs[FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
+		bool freeze_latch = params[SLICE_PARAM].getValue() > 0.5f;
+		freeze_gate_.process(inputs[SLICE_INPUT].getVoltage(), 0.1f, 1.f);
 		bool frozen = freeze_latch || freeze_gate_.isHigh();
 
 		// CLOCK: jack rising edge (Schmitt) OR button rising edge both count
@@ -379,7 +379,7 @@ struct Retours : Module {
 		}
 
 		// Light updates
-		lights[FREEZE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
+		lights[SLICE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
 
 		if (quality_state_ != light_quality_state_) {
 			light_quality_state_ = quality_state_;
@@ -587,9 +587,9 @@ struct RetoursWidget : ModuleWidget {
 
 		// Panel layout: mm centers of the components in res/Retours.svg,
 		// carried verbatim into these mm2px(Vec(...)) calls.
-		// --- Top row: freeze jack/button, quality, tap-tempo button, clock jack ---
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(6.940f, 15.875f)), module, Retours::FREEZE_INPUT));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(15.940f, 15.875f)), module, Retours::FREEZE_PARAM, Retours::FREEZE_BUTTON_LIGHT));
+		// --- Top row: slice jack/button, quality, tap-tempo button, clock jack ---
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(6.940f, 15.875f)), module, Retours::SLICE_INPUT));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(15.940f, 15.875f)), module, Retours::SLICE_PARAM, Retours::SLICE_BUTTON_LIGHT));
 #ifdef METAMODULE
 		addParam(createParamCentered<QualityMmSwitch>(mm2px(Vec(27.940f, 15.875f)), module, Retours::QUALITY_PARAM));
 #else
@@ -598,14 +598,14 @@ struct RetoursWidget : ModuleWidget {
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(39.940f, 15.875f)), module, Retours::CLOCK_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.940f, 15.875f)), module, Retours::CLOCK_INPUT));
 
-		// --- Primary knobs, CV inputs, attenuverters (Density has no attenuverter;
+		// --- Primary knobs, CV inputs, attenuverters (Interval has no attenuverter;
 		// the clock-tick light sits in that column) ---
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.340f, 42.088f)), module, Retours::TIME_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(27.940f, 42.088f)), module, Retours::DENSITY_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(27.940f, 42.088f)), module, Retours::INTERVAL_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(44.540f, 42.088f)), module, Retours::PITCH_PARAM));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.340f, 53.217f)), module, Retours::TIME_CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.940f, 53.217f)), module, Retours::DENSITY_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.940f, 53.217f)), module, Retours::INTERVAL_CV_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(44.540f, 53.217f)), module, Retours::PITCH_CV_INPUT));
 
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.340f, 62.219f)), module, Retours::TIME_AR_PARAM));
