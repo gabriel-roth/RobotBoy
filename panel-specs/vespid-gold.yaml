@@ -51,8 +51,6 @@ theme:
   text_color: "#ffffff"   # white control labels
   title_color: "#000000"  # black logo/title
   value_color: "#ffffff"  # Blend ring labels white, matching the other labels
-  screws: light           # light screws on the gold background (the default
-                          # charcoal variant keeps the global dark screws).
 
 grids:
   # 3-column control cluster: Res (col 1) | Freq hero (col 2) | Drive (col 3).

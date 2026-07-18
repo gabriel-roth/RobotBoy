@@ -494,6 +494,7 @@ struct VespidWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
 
 	// Swap the faceplate SVG for the selected theme (0 = charcoal, 1 = gold).
+	// Screws stay dark (ScrewBlack) on both themes.
 	void setPanelTheme(int t) {
 		std::string f = (t == 1) ? "res/Vespid-gold.svg" : "res/Vespid.svg";
 		panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
