@@ -26,7 +26,11 @@ public:
     void process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads);
     float process(float in);      // mono convenience: inL=inR=in, returns summed head L
 
-    void toggleRecord();          // momentary toggle: record <-> stop/overdub
+    // Momentary toggle: record <-> stop/overdub. continueOverdub only affects
+    // the toggle that CLOSES the initial recording pass: when true (and overdub
+    // is enabled, i.e. not Lock), the loop length freezes and recording keeps
+    // going as an overdub pass instead of stopping.
+    void toggleRecord(bool continueOverdub = false);
     void clear();                 // erase loop
     void setOverdub(bool on) { overdubEnabled_ = on; }   // gate post-loop record toggles
     void setCrossfade(bool on) { crossfade_ = on; }      // declick each head's loop seam
