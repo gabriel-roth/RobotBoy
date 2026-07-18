@@ -4,10 +4,10 @@
     <rect x="0" y="0" width="50.8" height="128.5" fill="#d4ad3f"/>
     <rect class="zone" x="1.50" y="15.00" width="47.80" height="48.10" rx="2.00" fill="#2e2e2e" fill-opacity="0.89"/>
     <rect class="zone" x="1.50" y="80.00" width="47.80" height="50.50" rx="2.00" fill="#2e2e2e" fill-opacity="0.89"/>
-    <circle cx="7.5" cy="3.0" r="1.6" fill="#333333"/>
-    <circle cx="43.3" cy="3.0" r="1.6" fill="#333333"/>
-    <circle cx="7.5" cy="125.5" r="1.6" fill="#333333"/>
-    <circle cx="43.3" cy="125.5" r="1.6" fill="#333333"/>
+    <circle cx="7.5" cy="3.0" r="1.6" fill="#c0c0c0"/>
+    <circle cx="43.3" cy="3.0" r="1.6" fill="#c0c0c0"/>
+    <circle cx="7.5" cy="125.5" r="1.6" fill="#c0c0c0"/>
+    <circle cx="43.3" cy="125.5" r="1.6" fill="#c0c0c0"/>
     <rect x="10.316666666666666" y="32.0" width="0.3" height="13.0" fill="#808080"/>
     <rect x="10.316666666666666" y="45.0" width="0.3" height="11.25" fill="#808080"/>
     <rect x="25.25" y="29.2" width="0.3" height="15.8" fill="#808080"/>
