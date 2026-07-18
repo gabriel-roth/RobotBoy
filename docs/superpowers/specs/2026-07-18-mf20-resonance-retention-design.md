@@ -19,61 +19,70 @@ tunable control that lets the user keep more resonance at high Drive.
 
 ## Mechanism
 
-Drive is delivered to the filter core through two smoothed values
-(`MF20Filter.cpp`):
+Both modes must **keep their Drive character (grit) and regain the
+resonant peak**. Each mode gets a different, mode-appropriate retention
+path (`modulate()` branches on `_filterMode`), because the two revisions
+squash resonance through different stages.
 
-- `_driveSqrt` = √drive — OTA **input pre-gain** only (`otaPreGain`).
-- `_clipThresh` = 1/√drive — the saturating **clip threshold**, fed to
-  `setDriveCharacterFromThreshold()`. This is the value that squashes
-  resonance:
-  - **OTA**: it is the feedback-diode clip threshold. Lower threshold →
-    the resonant peak at the BP node clips sooner → resonance squashed.
-  - **K35**: it sets the forward-clip pre-gain (`in / clipThreshold` =
-    `in × √drive`). More pre-gain → input saturation floods the output
-    with harmonics and the resonant peak no longer stands out.
+Drive reaches the filter core through smoothed values (`MF20Filter.cpp`):
+`_driveSqrt` = √drive (OTA input pre-gain), `_clipThresh` (the saturating
+clip threshold fed to `setDriveCharacterFromThreshold()`), and the new
+`_fbThresh` (K35 resonance-loop clip threshold, via `setFbThreshold()`).
 
-Both squashing paths run off `_clipThresh`. So a single change addresses
-both modes: interpolate the clip-threshold **target** away from
-`1/√drive` toward `1.0` (its Drive-1 value) by a retention amount
-`r ∈ [0, 1]`:
+Let `r = _resRetention ∈ [0, 1]`.
+
+**OTA** — the feedback diode (threshold = `_clipThresh`) is what clips the
+resonant BP-node peak; the input pre-gain (`_driveSqrt`) is a separate
+stage and is the grit source. So retention eases only the diode:
 
 ```
 _clipThreshTarget = (1 − r) · (1 / √drive) + r · 1.0
 ```
 
-- `r = 0` → `1/√drive` → **current behavior, unchanged** (patch-compatible).
-- `r = 1` → `1.0` → the clip threshold no longer moves with Drive, so
-  the feedback diode (OTA) / forward clip (K35) behaves as at Drive 1 →
-  resonance preserved.
-- At Drive 1, `1/√drive = 1.0`, so `r` has no effect (nothing to retain).
+Input pre-gain is untouched → Drive keeps its loudness/edge; the diode
+relaxes toward its Drive-1 threshold → the peak rings back. Both endpoints
+are known-stable (Drive-8 / Drive-1).
 
-`satSlope = 0.25 · clipThreshold` is derived inside
-`setDriveCharacterFromThreshold()`, so it tracks the retained threshold
-automatically. Both endpoints are known-stable (Drive-8 and Drive-1
-behavior respectively), so no new stability regime is introduced.
+**K35** — the *forward input clip* does double duty: it is both the grit
+source and (because it is the only Drive-dependent stage) the resonance
+squasher. Easing it would take the grit with it. Instead, split the two
+jobs:
 
-Note the tradeoff differs by mode, and that is expected:
-- **OTA** keeps its input pre-gain (`_driveSqrt`, untouched), so Drive
-  keeps its loudness/edge — retention only stops it from crushing the
-  feedback peak. Clean win.
-- **K35** has no separate pre-gain; `_clipThresh` is its only Drive path,
-  so retaining resonance necessarily eases the input saturation. Higher
-  retention = more resonance but gentler Drive coloring. Honest tradeoff,
-  acceptable for this control.
+- Forward clip stays at **full drive** (`_clipThresh = 1/√drive`,
+  retention-independent) → grit intact.
+- The resonance-loop clip threshold opens with retention:
+
+```
+_fbThreshTarget = 1.0 + r · (kK35FbRetentionMax − 1.0)   // kK35FbRetentionMax = 3.0
+```
+
+Raising the loop clip lets the resonant peak ring higher, back up above
+the saturation, so the squelch returns *without* touching the grit. The
+loop stays bounded because the saturated-region slope (0.25) is unchanged;
+verified finite at res 1.0 / Drive 8 / r = 1.0.
+
+Measured (LP 500 Hz, res 0.80, noise ~1 V), resonant peak-to-shoulder and
+grit (median PSD 1.5–5 kHz) as retention goes 0 → 100 % at Drive 8:
+
+| Mode | peak-to-shoulder | grit |
+|------|------------------|------|
+| OTA  | 9.7 → 19.5 dB    | −81.7 dB (flat) |
+| K35  | 11.1 → 21.0 dB   | −76.9 dB (flat, +13 dB vs Drive-1 → grit kept) |
 
 ## Control
 
 One context-menu control, "Resonance retention", shared by both modes.
 
-- Stored as `float _resRetention` in [0, 1], default **0.0**
-  (= current behavior; existing patches sound identical on reload).
+- Stored as `float _resRetention` in [0, 1], default **0.75** (we ship a
+  high value; existing-patch compatibility is explicitly not a goal).
 - Persisted in `dataToJson`/`dataFromJson` as `resRetention` (json_real,
   clamped [0,1]), mirroring the existing `_filterMode` persistence.
-- Read in `modulate()` and folded into `_clipThreshTarget`; slewed by the
-  existing `_clipThreshSlew` so slider moves don't zipper.
+- Read in `modulate()`, branched by mode into `_clipThreshTarget`
+  (OTA) / `_fbThreshTarget` (K35); slewed by `_clipThreshSlew` /
+  `_fbThreshSlew` so slider moves don't zipper.
 - UI follows the established Vespid/Particules pattern:
   - VCV desktop: `ui::Slider` + `Quantity` (`#ifndef METAMODULE`),
-    displayed 0–100 %.
+    displayed 0–100 %, reset (double-click) to 75 %.
   - MetaModule: `createIndexSubmenuItem` discrete list
     (0 % / 25 % / 50 % / 75 % / 100 %) under `#ifdef METAMODULE`, snapping
     to the nearest value — same float/JSON field either way.
@@ -82,13 +91,15 @@ One context-menu control, "Resonance retention", shared by both modes.
 
 - No panel/param change; menu-only, like the filter-revision toggle.
 - No makeup gain or resonance-frequency compensation.
-- K35 "split path" (keep full drive color *and* full resonance) is a
-  possible future refinement, not this prototype.
+- No CV control of retention.
 
 ## Verification
 
-Re-run the headless resonance measurement (scratchpad `mf20_drive_test.py`,
-extended with a `resRetention` state field) at Drive 8 for r ∈ {0, 0.5, 1}
-in both modes. Expect: r=0 matches the current numbers above; r=1 restores
-the resonant peak toward the Drive-1 level. Confirm r=0 output is
-bit-identical / RMS-identical to pre-change Drive-8 output (patch-compat).
+Headless resonance measurement (scratchpad `mf20_split_test.py`, driving a
+`resRetention` state field through the vcv-headless host's `state` support),
+Drive 8, retention sweep, both modes. Confirmed:
+- Resonant peak-to-shoulder rises monotonically with retention (both modes).
+- K35 grit (median PSD 1.5–5 kHz) stays flat across the sweep and ~13 dB
+  above the Drive-1 reference → grit kept while resonance returns.
+- OTA regression matches the pre-split build.
+- `finite = True` at every setting, including res 1.0 / Drive 8 / r = 1.0.

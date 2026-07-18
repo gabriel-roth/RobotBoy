@@ -129,6 +129,15 @@ public:
         satSlope      = 0.25f * t;
     }
 
+    /** K35 resonance-loop clip threshold (normalised). Default 1.0 = original
+        Korg35 behaviour. Raising it lets the resonant peak ring higher before
+        the loop transistor clips — the "resonance retention" split path keeps
+        the forward clip (grit) at full drive and opens this instead, so the
+        peak returns above the saturation without losing the grit. The loop
+        stays bounded because the saturated-region slope (0.25) is unchanged.
+        OTA mode ignores this. */
+    void setFbThreshold(float t) { fbThreshold = t; }
+
     /** Bilinear prewarp gain g = tan(π·fc/fs), fc clamped to [1, fs·0.498).
         Hosts call this at modulate rate and slew g itself, keeping tan/pow
         out of the audio path entirely. */
@@ -201,6 +210,7 @@ private:
     float s2            = 0.f;    // LP integrator state
     float clipThreshold = 1.f;    // diode clip threshold (normalised ±1 V)
     float satSlope      = 0.25f;  // gain in saturation region
+    float fbThreshold   = 1.f;    // K35 resonance-loop clip threshold (see setFbThreshold)
     Mode  mode          = Mode::OTA;
 
     Out processOTA(float in, float g, float res) {
@@ -254,10 +264,11 @@ private:
         // when the module's resTaper() pushes k past the linear-oscillation
         // threshold 8/3 (max k = 1.025 × 8/3 ≈ 2.733). Fixed normalised
         // threshold/slope: drive shapes the input clip only.
-        // Linear region (|k·x₁| ≤ 1) is algebraically identical to the
+        // Linear region (|k·x₁| ≤ threshold) is algebraically identical to the
         // previous formulation: base − g·k = (1+g)² − g·(k − 2/3).
-        constexpr float kFbThreshold = 1.f;
-        constexpr float kFbSlope     = 0.25f;
+        // Threshold is settable (default 1.0); higher = peak rings freer.
+        const float kFbThreshold = fbThreshold;
+        constexpr float kFbSlope = 0.25f;
 
         float rhs  = s1 + g * (clip_in - s2);
         float base = (1.f + g) * (1.f + g) + (2.f / 3.f) * g;
