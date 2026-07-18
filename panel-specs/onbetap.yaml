@@ -1,60 +1,89 @@
-# Onbetap — Polivoks-style multimode filter. Regenerated with vcv-panel-gen;
-# house theme inherited from ~/.config/vcv-panel-gen/theme.yaml.
+# Onbetap panel spec (panel-gen v2) — generates res/Onbetap.svg with the
+# component-center and label-path layout of the shipped panel. Regenerate
+# with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/onbetap.yaml --out res/Onbetap.svg
 #
-# Layout: Cutoff hero at top-center, flanked a little below by Resonance (left)
-# and Drive (right). Three aligned columns, each knob -> attenuverter -> CV jack;
-# Cutoff labelled above, Resonance/Drive labelled below their jacks. Mode is a
-# hero snap knob with the five responses ringed around it. Stereo In/Out below.
+# Component `name`s are the FULL C++ enum names (helper.py reads the id
+# verbatim, splitting off "#Widget"), matching Onbetap.cpp.
+#
+# All x/y values below (grid columns/rows, absolute positions, label
+# baselines) are the exact centers/baselines of the shipped panel — this
+# spec reproduces the RESULTING layout, not any particular band-math
+# derivation.
+#
+# Layout intent (carried forward from the panel's original design): Cutoff
+# hero at top-center, flanked a little below by Q/Resonance (left) and Drive
+# (right) — three aligned columns, each knob -> attenuverter -> CV jack.
+# Cutoff's label sits above it at the row's nominal (un-nudged) line; Q and
+# Drive sit at that same nominal baseline even though their knobs were
+# dropped 7mm to flank the hero, so all three labels read as one line above
+# the cluster. Mode is a hero snap knob below, with its five filter
+# responses ringed around it and "Mode" labelled below. Stereo In/Out below
+# that.
 slug: Onbetap
 name: ONBETAP
 hp: 10
 side_margin: 5
-title_size: 9
 
-rows:
-  # Q (resonance) / Cutoff (hero) / Drive. All three labelled above their knobs;
-  # sharing this row, Q and Drive get the same label-to-knob-edge gap as Cutoff.
-  # Reso/Drive nudged down to flank the hero.
-  - type: knobs
-    gap_above: 7           # seat the CUTOFF label on the red rect, clear of the title
-    items:
-      - {label: Q,      name: RES_PARAM}
-      - {label: Cutoff, name: CUTOFF_PARAM, hero: true}
-      - {label: Drive,  name: DRIVE_PARAM}
+title:
+  size: 9
+  dy: 2.3   # drops the wordmark below the top screws, clear of the title band
 
-  # Attenuverters (Trimpot), one per column, all blank.
-  - type: knobs
-    gap_above: 1
-    items:
-      - {label: "{blank}", name: RES_CV_PARAM,    widget: Trimpot, small: true}
-      - {label: "{blank}", name: CUTOFF_CV_PARAM, widget: Trimpot, small: true}
-      - {label: "{blank}", name: DRIVE_CV_PARAM,  widget: Trimpot, small: true}
+# Soviet-red control zone tint behind the whole control cluster; the I/O row
+# sits below it.
+zones:
+  - {x: 1.5, y: 15, w: 47.8, h: 92, fill: "#9e2b25", opacity: 0.25}
 
-  # CV jacks, one per column. A knobs row (shared column centres) with per-item
-  # input overrides keeps them aligned under the attenuverters. All unlabelled —
-  # each column is named by the knob label at the top of its stack.
-  - type: knobs
-    gap_above: 1
-    items:
-      - {label: "{blank}", name: RES_INPUT,    type: inputs}
-      - {label: "{blank}", name: CUTOFF_INPUT, type: inputs}
-      - {label: "{blank}", name: DRIVE_INPUT,  type: inputs}
+grids:
+  # 3-column control grid, same columns as MF-20's: Q (col 1) | Cutoff/Mode
+  # (col 2) | Drive (col 3).
+  main:
+    cols: [11.8, 25.4, 39.0]
+    rows:
+      hero:   30.0     # Cutoff hero knob (RoundBigBlackKnob), center column only
+      flank:  37.0     # Q / Drive knobs (RoundBlackKnob), outer columns —
+                       # dropped 7mm below the row's nominal line to flank
+                       # the taller hero knob
+      atten:  49.0     # Q/Cutoff/Drive CV attenuverters (Trimpot)
+      cv_jack: 67.35   # CV input jacks, stacked below the attenuverters
+      mode:   89.833333333333  # Mode hero snap knob
 
-  # Mode: hero snap knob with the five filter responses ringed around it.
-  - type: knobs
-    label_side: below
-    label_gap: 2
-    items:
-      - {label: Mode, name: MODE_PARAM, hero: true,
-         positions: [LP, BP, HP, N, P]}
+elements:
+  # Row 1 — Cutoff hero (center) flanked by Q and Drive (outer columns,
+  # dropped 7mm below the hero to visually flank it).
+  - {name: CUTOFF_PARAM, widget: RoundBigBlackKnob, grid: main, col: 2, row: hero}
+  - {name: RES_PARAM, grid: main, col: 1, row: flank}
+  - {name: DRIVE_PARAM, grid: main, col: 3, row: flank}
+  - {text: Q, x: 11.8, y: 27.0}
+  - {text: Cutoff, x: 25.4, y: 20.0}
+  - {text: Drive, x: 39.0, y: 27.0}
 
-  # Stereo audio I/O.
-  - type: inputs
-    items:
-      - {label: In,  name: AUDIO_INPUT,  pair: AUDIO_INPUT_R}
-      - {label: Out, name: AUDIO_OUTPUT, pair: AUDIO_OUTPUT_R, type: outputs}
+  # Row 2 — attenuverters (Trimpot), one per column, unlabelled.
+  - {name: RES_CV_PARAM, widget: Trimpot, grid: main, col: 1, row: atten}
+  - {name: CUTOFF_CV_PARAM, widget: Trimpot, grid: main, col: 2, row: atten}
+  - {name: DRIVE_CV_PARAM, widget: Trimpot, grid: main, col: 3, row: atten}
 
-# Vertical lines tying each column's knob -> attenuverter -> jack.
+  # Row 3 — CV jacks, one per column, unlabelled (each column is named by
+  # the knob label at the top of its stack).
+  - {name: RES_INPUT, grid: main, col: 1, row: cv_jack}
+  - {name: CUTOFF_INPUT, grid: main, col: 2, row: cv_jack}
+  - {name: DRIVE_INPUT, grid: main, col: 3, row: cv_jack}
+
+  # Mode: hero snap knob (center column) with its five filter responses
+  # ringed around it, labelled below.
+  - {name: MODE_PARAM, widget: RoundBigBlackKnob, grid: main, col: 2, row: mode}
+  - {ring: [LP, BP, HP, N, P], around: MODE_PARAM}
+  - {text: Mode, x: 25.4, y: 103.833333333333}
+
+  # Stereo audio I/O, sharing one centered label each.
+  - {name: AUDIO_INPUT, x: 9.35, y: 114.016666666667}
+  - {name: AUDIO_INPUT_R, kind: input, x: 19.05, y: 114.016666666667}
+  - {name: AUDIO_OUTPUT, x: 31.75, y: 114.016666666667}
+  - {name: AUDIO_OUTPUT_R, kind: output, x: 41.45, y: 114.016666666667}
+  - {text: In, x: 14.2, y: 122.366666666667}
+  - {text: Out, x: 36.6, y: 122.366666666667}
+
+# Vertical bars: each column's knob -> attenuverter -> CV jack.
 connectors:
   - [RES_PARAM, RES_CV_PARAM]
   - [RES_CV_PARAM, RES_INPUT]
@@ -62,13 +91,3 @@ connectors:
   - [CUTOFF_CV_PARAM, CUTOFF_INPUT]
   - [DRIVE_PARAM, DRIVE_CV_PARAM]
   - [DRIVE_CV_PARAM, DRIVE_INPUT]
-
-# Soviet-red control zone behind the cluster; the I/O row sits below it.
-zones:
-  - {x: 1.5, y: 15, w: 47.8, h: 92, fill: "#9e2b25", opacity: 0.25}
-
-nudges:
-  TITLE: [0, 2.3]           # drop the wordmark below the top screws
-  RES_PARAM:   [0, 7]       # drop Q to flank the cutoff hero a little below
-  DRIVE_PARAM: [0, 7]
-  MODE_PARAM:  [0, -5]      # lift Mode so its label stays on the rect

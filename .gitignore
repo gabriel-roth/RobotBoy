@@ -13,7 +13,7 @@ metamodule/metamodule-plugins/
 .DS_Store
 metamodule/.cache/
 
-# throwaway composite panel previews (vcv-panel-gen preview.py)
+# throwaway composite panel previews (vcv-panel-gen-redux preview.py)
 *.preview.svg
 *.preview.html
 

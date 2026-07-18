@@ -1,53 +1,85 @@
-# Ondes — wavetable oscillator, 8 HP. Regenerated with vcv-panel-gen; house
-# theme (dark panel, Futura labels, Shuttleblock title) inherited from
-# ~/.config/vcv-panel-gen/theme.yaml. Layout: title, wavetable display
-# (screen), Pitch knob + V/Oct beside it, then Bank/Position columns each as
-# knob -> CV jack -> attenuverter, Out centered at the bottom. A single cyan
-# plate (zones:) backs Pitch/Bank/Position but not the Out jack — its geometry
-# is derived from the generated component positions (see plan Task 1).
+# Ondes panel spec (panel-gen v2) — generates res/Ondes.svg with the
+# component-center and label-path layout of the shipped panel. Regenerate
+# with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/ondes.yaml --out res/Ondes.svg
+#
+# Component `name`s are the FULL C++ enum names (helper.py reads the id
+# verbatim, splitting off "#Widget"), matching src/particules/Ondes.cpp.
+#
+# All x/y values below (grid columns/rows, absolute positions, label
+# baselines) are the exact centers/baselines of the shipped panel — this
+# spec reproduces the RESULTING layout, not any particular band-math
+# derivation.
+#
+# Layout intent (carried forward from the panel's original design): logo,
+# then a wavetable display (screen) drawing the live cyan trace, then Pitch
+# knob + V/Oct jack side by side, then Bank/Position as two columns each
+# knob -> CV jack -> attenuverter (Trimpot), Out centered at the bottom
+# outside the cyan control plate. The cyan plate backs Pitch/Bank/Position
+# but not the Out jack.
 slug: Ondes
 name: ONDES
 hp: 8
-title_size: 9            # bigger logo — dropped below the screws (see TITLE nudge)
-side_margin: 3
-title_valign: baseline
-rows:
-  - type: screen
-    height: 22             # taller display
-    gap_above: 4.35        # display just below the logo (Löp logo->display gap 2.05)
-  - type: inputs           # Pitch knob + V/Oct jack, horizontal companion
-    label_side: above
-    gap_above: 5.0         # distribute controls within the rect
-    items:
-      - {label: Pitch, name: PITCH_PARAM, type: knobs, cv: VOCT_INPUT}
-  - type: params           # Bank / Position: knob over stacked CV jack (aligned)
-    gap_above: 5.0
-    items:
-      - {label: Bank,     name: BANK_PARAM,     cv: BANK_INPUT}
-      - {label: Position, name: POSITION_PARAM, cv: POSITION_INPUT}
-  - type: knobs            # Bank / Position attenuverters (unlabeled trimpots),
-    gap_above: -3.0        # tucked up close to the CV jacks above them
-    items:
-      - {label: "{blank}", name: BANK_AMT_PARAM,     widget: Trimpot, small: true}
-      - {label: "{blank}", name: POSITION_AMT_PARAM, widget: Trimpot, small: true}
-  - type: outputs          # Out — outside the cyan plate, at MF-20 Out level (~113.7)
-    label_side: below
-    gap_above: 1.3
-    items:
-      - {label: Out, name: OUT_OUTPUT}
-# Vertical lines tying each CV jack to the attenuverter tucked below it.
-connectors:
-  - [BANK_INPUT, BANK_AMT_PARAM]
-  - [POSITION_INPUT, POSITION_AMT_PARAM]
-nudges:
-  TITLE: [0, 2.3]          # logo just below the top screws
-  # Bank/Position group nudged down a touch (knobs, CV jacks, attenuverters,
-  # labels and connectors move together); Pitch and Out stay put.
-  BANK_PARAM: [0, 2.0]
-  POSITION_PARAM: [0, 2.0]
-  BANK_AMT_PARAM: [0, 2.0]
-  POSITION_AMT_PARAM: [0, 2.0]
+side_margin: 3   # vestigial: every grid column below is an explicit literal,
+                 # so side_margin has no effect on resolved geometry (kept
+                 # for provenance parity with the v1 spec's value).
+
+title:
+  size: 9
+  dy: 2.3   # drops the wordmark below the top screws, clear of the title band
+
+# Wavetable display: LedDisplay widget drawing the live cyan trace (see
+# WavetableDisplay::drawLayer in Ondes.cpp) — bare rect placeholder here,
+# same as Löp/Loooop's SCREEN.
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 3.0, y: 14.35, w: 34.64, h: 22.0}}
+
+  # Pitch knob + V/Oct jack: a horizontal pair (not a grid column — each
+  # side sits at its own one-off x), sharing a label centered on their
+  # midpoint (= panel center, 20.32).
+  - {name: PITCH_PARAM, x: 14.145, y: 51.35}
+  - {name: VOCT_INPUT, x: 26.495, y: 51.35}
+  - {text: Pitch, grid: main, col: 2, y: 44.35}
+
+  # Bank (left) / Position (right): knob -> CV jack -> attenuverter
+  # (Trimpot), each column labelled above the knob.
+  - {text: Bank, grid: main, col: 1, row: ctrl_label}
+  - {text: Position, grid: main, col: 3, row: ctrl_label}
+  - {name: BANK_PARAM, grid: main, col: 1, row: knob}
+  - {name: POSITION_PARAM, grid: main, col: 3, row: knob}
+  - {name: BANK_INPUT, grid: main, col: 1, row: jack}
+  - {name: POSITION_INPUT, grid: main, col: 3, row: jack}
+  - {name: BANK_AMT_PARAM, widget: Trimpot, grid: main, col: 1, row: amt}
+  - {name: POSITION_AMT_PARAM, widget: Trimpot, grid: main, col: 3, row: amt}
+
+  # Out — outside the cyan plate, centered on the panel.
+  - {name: OUT_OUTPUT, grid: main, col: 2, row: out}
+  - {text: Out, grid: main, col: 2, row: out_label}
+
+grids:
+  # Bank (col 1) / center (col 2, shared by Pitch's label and Out) /
+  # Position (col 3).
+  main:
+    cols: [11.66, 20.32, 28.98]
+    rows:
+      ctrl_label: 67.35   # Bank / Position labels
+      knob:       74.35   # Bank / Position knobs
+      jack:       86.7    # Bank / Position CV jacks
+      amt:        97.05   # Bank / Position attenuverters (Trimpot)
+      out:        113.7   # Out jack
+      out_label:  122.05  # Out label
+
+# Cyan plate behind Pitch/Bank/Position; does not extend down to the Out
+# jack. Carried verbatim from the v1 spec / reference SVG's own
+# <rect class="zone">.
 zones:
-  # Cyan plate behind Pitch/Bank/Position; geometry re-derived from the new
-  # component positions (below the display, above the Out jack).
-  - {x: 3.0, y: 38.75, w: 34.64, h: 68.25, fill: "#00e5ff", opacity: 0.25, rx: 2}
+  - {x: 3.0, y: 38.75, w: 34.64, h: 68.25, fill: "#00e5ff", opacity: 0.25}
+
+# Vertical bars: each column's knob -> CV jack -> attenuverter. No connector
+# between Pitch and V/Oct (horizontal pair, not a stack) or to Out (sits
+# outside the plate on its own).
+connectors:
+  - [BANK_PARAM, BANK_INPUT]
+  - [BANK_INPUT, BANK_AMT_PARAM]
+  - [POSITION_PARAM, POSITION_INPUT]
+  - [POSITION_INPUT, POSITION_AMT_PARAM]

@@ -1,0 +1,206 @@
+# Retours panel spec (panel-gen v2) — generates res/Retours.svg.
+# LIKE Particules, the panel this replaces was a HAND-BUILT Inkscape
+# original, not a generated SVG, so panel-path byte parity is NOT the goal
+# here. Component-CENTER parity IS mandatory (the firmware's
+# mm2px(Vec(...)) coordinates in src/retours_delay/Retours.cpp are locked to
+# it, and MetaModule's coordinate sync depends on it). Regenerate with:
+#   ~/Dev/vcv-panel-gen-redux/.venv/bin/python ~/Dev/vcv-panel-gen-redux/panelgen.py panel-specs/retours.yaml --out res/Retours.svg
+#
+# Every x/y below is copied verbatim from Retours.cpp's
+# createParamCentered/createInputCentered/createOutputCentered/
+# createLightCentered mm2px(Vec(...)) call sites (module code comment: "mm
+# centers of the components in res/Retours.svg, carried verbatim into these
+# mm2px(Vec(...)) calls") — these are the ground truth, cross-checked
+# against the hand-built original's own (bare-id, non-true-radius)
+# components layer: every center matched to the mm.
+#
+# Eight documented name-only exceptions, all at cpp-identical positions (same
+# pattern as Particules' DENSITY_AR_PARAM/GRAIN_LIGHT footnote — a stale name
+# baked into the hand-built SVG's invisible components layer, left over from
+# an earlier naming scheme, that never matched any tracked cpp history):
+# hand-built TIME_INPUT/DENSITY_INPUT/PITCH_INPUT/SHAPE_INPUT/FEEDBACK_INPUT/
+# DRY_WET_INPUT (no "_CV_" infix) correspond to cpp's TIME_CV_INPUT/
+# DENSITY_CV_INPUT/PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT/
+# DRY_WET_CV_INPUT, and hand-built FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM
+# ("_AMT_") correspond to cpp's FEEDBACK_AR_PARAM/DRY_WET_AR_PARAM ("_AR_").
+# This spec follows cpp throughout (matching the module's actual current
+# param/input ids).
+#
+# Widget classes: cpp wraps FREEZE_PARAM and QUALITY_PARAM (desktop build) in
+# light-capable templates (VCVLightLatch<MediumSimpleLight<WhiteLight>>,
+# VCVLightBezel<RedGreenBlueLight>) and CLOCK_PARAM is a plain VCVButton;
+# QUALITY_PARAM has a MetaModule-only alternate widget (QualityMmSwitch)
+# behind #ifdef METAMODULE that this SVG, shared by both builds, doesn't
+# need to represent (same precedent as Particules' QUALITY_PARAM). Per
+# Particules' precedent, the light-capable templates collapse to their base
+# components.yaml shape class: FREEZE_PARAM/CLOCK_PARAM -> VCVButton (d=6.1),
+# QUALITY_PARAM -> VCVBezel (d=7.2).
+#
+# One documented radius-only discrepancy (not a centers/gate concern —
+# components_of never reads r, only cx/cy): the hand-built original's
+# SHAPE_PARAM/FEEDBACK_PARAM/DRY_WET_PARAM circles are drawn at r=3.67, but
+# cpp's createParamCentered<RoundBlackKnob> calls for all three are the same
+# RoundBlackKnob widget (d=9.6, r=4.8) as the primary knobs row -- the
+# hand-built artist apparently drew the secondary row's marker circles
+# smaller for visual hierarchy even though the code has always used a
+# same-size knob there. This spec follows cpp (uniform RoundBlackKnob,
+# panel-gen's default widget for a _PARAM-suffixed name, no override needed).
+#
+# One deliberate visual departure from the original hand-built panel (called
+# out in the panel-refactor worktree's v1-format spec that first proposed
+# it): the audio I/O is labelled as true stereo pairs, IN / OUT, each
+# centered on its own pair's midpoint -- not the original's per-channel
+# "L IN R" / "L OUT R" lettering -- matching how every other RobotBoy module
+# labels its stereo jacks.
+#
+# Label positions/baselines: measured directly from the hand-built
+# original's own panel-layer <path> bounding boxes (max-y = baseline,
+# tools/extract_reference.py) — approximate, since a path bbox includes
+# Bezier control points and can overshoot a curved glyph's true rendered
+# baseline by a few hundredths of a mm (see that tool's own docstring); the
+# three-label rows (TIME/DENSITY/PITCH, SHAPE/FEEDBACK/DRY-WET) each measured
+# slightly differently letter-to-letter for exactly that reason, so one
+# representative baseline is used per row rather than hunting for false
+# per-letter precision. Not byte-exact (panel-path parity isn't asserted for
+# this hand-built module) but visually faithful to the shipped panel.
+#
+# CORRECTED (post-migration review, folding in a transform extract_reference.py
+# does not account for): the hand-built original's row-1 label paths
+# (TIME/DENSITY/PITCH) each carry `transform="translate(0,1.142)"`, and its
+# row-2 label paths (SHAPE/FEEDBACK/DRY-WET) each carry
+# `transform="translate(0,-1.142)"` — tools/extract_reference.py's
+# `_path_bbox` reads only the raw `d` coordinates and ignores `transform`
+# entirely, so the first migration pass baked in the untransformed
+# (pre-render) baselines: row-1 measured ~33.4 raw, but the transform pushes
+# it down 1.142mm at render time -> true baseline 34.542; row-2 measured
+# ~75.61 raw, but its transform pushes it up 1.142mm -> true baseline
+# 74.468. Both grids.labels rows below now carry the transform-corrected
+# (true rendered) baseline instead of the raw untransformed one. DRY/WET's
+# own per-label `dy: 0.71` is unaffected by this correction: it and its
+# row-mates (FEEDBACK/SHAPE) all carry the *same* -1.142 row-2 transform, so
+# the relative +0.71mm gap between DRY/WET's raw-measured baseline (76.322)
+# and its row-mates' (~75.611) is a real quirk in the original independent
+# of the transform bug, not an artifact of it — same kind of one-off quirk
+# Particules' own DRY/WET label has (there: +0.32mm on a different panel).
+#
+# No connector bars: every primary/secondary knob stacks its own CV jack
+# below it with no bar between them (the original draws none, and neither
+# does cpp's addChild sequence — no rects in its panel layer besides the
+# background and the grey control-plate zone). The clock LED occupies the
+# DENSITY column's attenuverter slot in row 1 (no attenuverter trimpot
+# there — DENSITY_PARAM has none in cpp's ParamId enum).
+slug: Retours
+name: RETOURS
+hp: 11
+side_margin: 3.04   # vestigial: every grid column below is an explicit
+                     # literal (matching the 3.04mm side margin the
+                     # panel-refactor worktree's v1 spec used to derive the
+                     # same 11.34/27.94/44.54mm columns), kept for
+                     # provenance parity with that spec's own value.
+
+title:
+  size: 6.35
+  tracking: 0.661458
+  # v2's default baseline formula (valign: baseline -> size + 1.0 = 7.35)
+  # doesn't match this panel; dy shifts it to the shipped panel's measured
+  # baseline (bbox max-y of the "RETOURS" text path = 8.000).
+  dy: 0.65
+
+theme:
+  screws: none    # the module widget draws its own ScrewBlack corners.
+
+# Opaque grey control plate behind the knob cluster (the original has no
+# opacity set on this rect -- fully opaque, unlike Particules' translucent
+# tint zone).
+zones:
+  - {x: 1.5, y: 29.142, w: 52.88, h: 78.458, rx: 2, fill: "#888888", opacity: 1.0}
+
+grids:
+  # 3-column knob/CV/attenuverter grid. Columns and rows are the exact cpp
+  # mm2px coordinates (see header comment).
+  main:
+    cols: [11.34, 27.94, 44.54]
+    rows:
+      knob1: 42.088
+      cv1: 53.217
+      atten1: 62.219
+      knob2: 82.096
+      cv2: 93.225
+      atten2: 102.227
+
+  # Label baselines above each knob row (measured from the hand-built
+  # original; see header comment for the bbox-overshoot caveat AND the
+  # transform-correction note -- these are the transform-corrected true
+  # rendered baselines, not extract_reference.py's raw untransformed
+  # measurements: row1 = 33.4 raw + 1.142 (path's own translate(0,1.142));
+  # row2 = 75.61 raw - 1.142 (path's own translate(0,-1.142)). The
+  # hand-built original applied these as SVG `transform` attributes on the
+  # label paths themselves, which extract_reference.py's bbox scan does not
+  # read.
+  labels:
+    cols: [11.34, 27.94, 44.54]
+    rows:
+      row1: 34.542
+      row2: 74.468
+
+elements:
+  # --- Transport row: FREEZE (input + latch button), QUALITY (bezel),
+  # CLOCK (button + input) -- all at y=15.875, cpp's exact x values. Labels
+  # sit at each pair's/component's own measured x center (all within
+  # ~0.1mm of the exact midpoint -- no deliberate off-center nudge here,
+  # unlike Particules' FREEZE label).
+  - {name: FREEZE_INPUT, x: 6.94, y: 15.875}
+  - {name: FREEZE_PARAM, widget: VCVButton, x: 15.94, y: 15.875}
+  - {name: QUALITY_PARAM, widget: VCVBezel, x: 27.94, y: 15.875}
+  - {name: CLOCK_PARAM, widget: VCVButton, x: 39.94, y: 15.875}
+  - {name: CLOCK_INPUT, x: 48.94, y: 15.875}
+  - {text: FREEZE, x: 11.44, y: 24.0, size: 3.175}
+  - {text: QUALITY, x: 27.94, y: 24.096, size: 3.175}
+  - {text: CLOCK, x: 44.44, y: 24.045, size: 3.175}
+
+  # --- Row 1: TIME / DENSITY / PITCH knobs, each over its own CV jack (no
+  # connecting bar -- cpp draws none, and neither did the original).
+  # DENSITY's attenuverter slot instead holds the CLOCK_LIGHT indicator
+  # (cpp's DENSITY_PARAM has no attenuverter); TIME/PITCH keep their
+  # trimpots.
+  - {text: TIME,    grid: labels, col: 1, row: row1, size: 3.175}
+  - {text: DENSITY, grid: labels, col: 2, row: row1, size: 3.175}
+  - {text: PITCH,   grid: labels, col: 3, row: row1, size: 3.175}
+  - {name: TIME_PARAM,    grid: main, col: 1, row: knob1}
+  - {name: DENSITY_PARAM, grid: main, col: 2, row: knob1}
+  - {name: PITCH_PARAM,   grid: main, col: 3, row: knob1}
+  - {name: TIME_CV_INPUT,     grid: main, col: 1, row: cv1}
+  - {name: DENSITY_CV_INPUT,  grid: main, col: 2, row: cv1}
+  - {name: PITCH_CV_INPUT,    grid: main, col: 3, row: cv1}
+  - {name: TIME_AR_PARAM,  widget: Trimpot, grid: main, col: 1, row: atten1}
+  - {name: CLOCK_LIGHT,    widget: "MediumLight<WhiteLight>", grid: main, col: 2, row: atten1}
+  - {name: PITCH_AR_PARAM, widget: Trimpot, grid: main, col: 3, row: atten1}
+
+  # --- Row 2: SHAPE / FEEDBACK / DRY_WET knobs, each over its own CV jack
+  # and its own attenuverter trimpot.
+  - {text: SHAPE,    grid: labels, col: 1, row: row2, size: 3.175}
+  - {text: FEEDBACK, grid: labels, col: 2, row: row2, size: 3.175}
+  # DRY/WET's label sits 0.71mm lower than its row-mates in the shipped
+  # panel (measured bbox max-y 76.322 vs ~75.61) -- kept as-is, not
+  # normalized (see header comment).
+  - {text: "DRY/WET", grid: labels, col: 3, row: row2, dy: 0.71, size: 3.175}
+  - {name: SHAPE_PARAM,    grid: main, col: 1, row: knob2}
+  - {name: FEEDBACK_PARAM, grid: main, col: 2, row: knob2}
+  - {name: DRY_WET_PARAM,  grid: main, col: 3, row: knob2}
+  - {name: SHAPE_CV_INPUT,    grid: main, col: 1, row: cv2}
+  - {name: FEEDBACK_CV_INPUT, grid: main, col: 2, row: cv2}
+  - {name: DRY_WET_CV_INPUT,  grid: main, col: 3, row: cv2}
+  - {name: SHAPE_AR_PARAM,    widget: Trimpot, grid: main, col: 1, row: atten2}
+  - {name: FEEDBACK_AR_PARAM, widget: Trimpot, grid: main, col: 2, row: atten2}
+  - {name: DRY_WET_AR_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
+
+  # --- Stereo audio I/O, one shared label per pair centered on the pair's
+  # own midpoint (IN at 14.088 = (8.532+19.644)/2, OUT at 41.792 =
+  # (36.236+47.348)/2) -- see header comment on the IN/OUT-vs-per-channel
+  # departure from the original.
+  - {name: IN_L_INPUT,   x: 8.532,  y: 114.3}
+  - {name: IN_R_INPUT,   x: 19.644, y: 114.3}
+  - {name: OUT_L_OUTPUT, x: 36.236, y: 114.3}
+  - {name: OUT_R_OUTPUT, x: 47.348, y: 114.3}
+  - {text: IN,  x: 14.088, y: 121.9, size: 3.175}
+  - {text: OUT, x: 41.792, y: 121.9, size: 3.175}
