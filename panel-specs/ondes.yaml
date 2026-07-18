@@ -81,9 +81,11 @@ grids:
 
 # Cyan plate behind Pitch/Bank/Position; does not extend down to the Out
 # jack. Top raised 2.45mm (the other half of the logo-shrink gain, keeping
-# the 2.4mm gap under the display); bottom unchanged at 107.0.
+# the 2.4mm gap under the display); bottom lowered 0.6mm to 107.6 (36.3 +
+# 71.3) so it lines up with Particules' and Retours' plate bottoms (both
+# 107.6).
 zones:
-  - {x: 3.0, y: 36.3, w: 34.64, h: 70.7, fill: "#00e5ff", opacity: 0.25}
+  - {x: 3.0, y: 36.3, w: 34.64, h: 71.3, fill: "#00e5ff", opacity: 0.25}
 
 overlaps_ok:
   # The wordmark's bounding box nicks both top screw keep-outs by 0.15mm,

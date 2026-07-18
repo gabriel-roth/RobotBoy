@@ -2,7 +2,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.0.dtd" version="1.1" width="40.64mm" height="128.5mm" viewBox="0 0 40.64 128.5">
   <g inkscape:label="panel" inkscape:groupmode="layer" id="panel">
     <rect x="0" y="0" width="40.64" height="128.5" fill="#3d3d3d"/>
-    <rect class="zone" x="3.00" y="36.30" width="34.64" height="70.70" rx="2.00" fill="#00e5ff" fill-opacity="0.25"/>
+    <rect class="zone" x="3.00" y="36.30" width="34.64" height="71.30" rx="2.00" fill="#00e5ff" fill-opacity="0.25"/>
     <circle cx="7.5" cy="3.0" r="1.6" fill="#333333"/>
     <circle cx="33.14" cy="3.0" r="1.6" fill="#333333"/>
     <circle cx="7.5" cy="125.5" r="1.6" fill="#333333"/>
