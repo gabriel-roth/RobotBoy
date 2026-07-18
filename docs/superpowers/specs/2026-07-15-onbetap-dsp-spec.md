@@ -129,9 +129,13 @@ processed through its own filter when connected, mirrored from L when not.
 - **Resonance:** knob [0,1] + CV/5V × attenuverter, clamped, → k map (§2).
 - **Drive:** knob [0,1] + CV/5V × attenuverter → input gain, exponential map
   across ≈ −12 dB…+24 dB (36 dB span, default 0 = −12 dB ≈ hardware "advised
-  −10 dB input" [emulations §3.4 Bareille]); partial output makeup gain
-  `1/sqrt(driveGain)` above unity so sweeps don't just get louder. Constants
-  behind context-menu tuning sliders (§6).
+  −10 dB input" [emulations §3.4 Bareille]). Constants behind context-menu
+  tuning sliders (§6).
+  **Superseded (2026-07-18):** the "partial output makeup gain `1/sqrt(driveGain)`
+  so sweeps don't just get louder" is removed — the makeup is now a *constant*
+  buffer gain. The core's rail clamping already compresses level, so a
+  drive-dependent makeup double-compensated (Drive made the module quieter and
+  cleaner). See `2026-07-18-onbetap-drive-hw-path-design.md`.
 - **Mode:** 5-position snap knob LP/BP/HP/Notch/Peak (scaffold). All taps
   computed from the one solved core; mode switch crossfades over \~5 ms to
   avoid clicks (Erica V2 behavior; the factory's DC thump belongs to Vintage).
