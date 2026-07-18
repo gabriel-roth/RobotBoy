@@ -134,8 +134,8 @@ struct OndesWidget : ModuleWidget {
 
         addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(20.32, 113.7)), module, Ondes::OUT_OUTPUT));
 
-        WavetableDisplay* display = createWidget<WavetableDisplay>(mm2px(Vec(3.0, 14.35)));
-        display->box.size = mm2px(Vec(34.64, 22.0));
+        WavetableDisplay* display = createWidget<WavetableDisplay>(mm2px(Vec(3.0, 9.4)));
+        display->box.size = mm2px(Vec(34.64, 24.5));
         display->module = module;
         addChild(display);
     }

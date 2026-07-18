@@ -9,7 +9,9 @@
 # All x/y values below (grid columns/rows, absolute positions, label
 # baselines) are the exact centers/baselines of the shipped panel — this
 # spec reproduces the RESULTING layout, not any particular band-math
-# derivation.
+# derivation. Exception: the top area (title/SCREEN/zone top) was reworked
+# after shipping — logo shrunk to the house 6.35 wordmark size, display
+# enlarged, zone top raised; see the comments on those elements.
 #
 # Layout intent (carried forward from the panel's original design): logo,
 # then a wavetable display (screen) drawing the live cyan trace, then Pitch
@@ -25,14 +27,22 @@ side_margin: 3   # vestigial: every grid column below is an explicit literal,
                  # for provenance parity with the v1 spec's value).
 
 title:
-  size: 9
-  dy: 2.3   # drops the wordmark below the top screws, clear of the title band
+  # Same wordmark size as Particules/Retours; at 6.35 it fits between the
+  # top screws (untracked: the letterforms are 21.13mm wide, and any added
+  # tracking would push into the screw keep-outs), so it sits at the
+  # default baseline (size + 1.0 = 7.35) instead of the old size-9
+  # dy: 2.3 drop below the screw line.
+  size: 6.35
 
 # Wavetable display: LedDisplay widget drawing the live cyan trace (see
 # WavetableDisplay::drawLayer in Ondes.cpp) — bare rect placeholder here,
 # same as Löp/Loooop's SCREEN.
 elements:
-  - {name: SCREEN, kind: widget, rect: {x: 3.0, y: 14.35, w: 34.64, h: 22.0}}
+  # Shrinking the logo freed 4.95mm: the display's top follows the wordmark
+  # up (keeping the 2.05mm gap under it) and half the gain enlarges the
+  # display (h 22.0 -> 24.5); the other half raises the zone rect's top.
+  # Keep in sync with the WavetableDisplay position/size in Ondes.cpp.
+  - {name: SCREEN, kind: widget, rect: {x: 3.0, y: 9.4, w: 34.64, h: 24.5}}
 
   # Pitch knob + V/Oct jack: a horizontal pair (not a grid column — each
   # side sits at its own one-off x), sharing a label centered on their
@@ -70,10 +80,18 @@ grids:
       out_label:  122.05  # Out label
 
 # Cyan plate behind Pitch/Bank/Position; does not extend down to the Out
-# jack. Carried verbatim from the v1 spec / reference SVG's own
-# <rect class="zone">.
+# jack. Top raised 2.45mm (the other half of the logo-shrink gain, keeping
+# the 2.4mm gap under the display); bottom unchanged at 107.0.
 zones:
-  - {x: 3.0, y: 38.75, w: 34.64, h: 68.25, fill: "#00e5ff", opacity: 0.25}
+  - {x: 3.0, y: 36.3, w: 34.64, h: 70.7, fill: "#00e5ff", opacity: 0.25}
+
+overlaps_ok:
+  # The wordmark's bounding box nicks both top screw keep-outs by 0.15mm,
+  # but the drawn art doesn't touch: the O/S left/right extremes sit at mid
+  # cap height (~y 5.1), where the round screw circles have curved away to
+  # ~0.9mm clear of the letterforms.
+  - [title, "screw@7.50,3.00"]
+  - [title, "screw@33.14,3.00"]
 
 # Vertical bars: each column's knob -> CV jack -> attenuverter. No connector
 # between Pitch and V/Oct (horizontal pair, not a stack) or to Out (sits
