@@ -496,3 +496,123 @@ mid-knob +2.2 pp. `test_drive_grit` now measures at `kDriveSpanDb`;
 Hard in the deep-drive regimes — states sit below the clamp knee there).
 `test_drive_level` keeps its explicit span-30/grit-0 reference config (a law
 guard, not a shipped-config guard).
+
+## 2026-07-18 — 4x decimator upgrade: two-stage FIR cascade
+
+Tasks 2–3 (commits `68e0612` + `57b038d`) replaced the 4x oversampling path's
+boxcar-average decimator with a two-stage FIR cascade, so 2x and 4x now share
+a decimation quality and the comparison isolates the oversampling factor
+(design: `2026-07-18-onbetap-4x-decimator-design.md`). `src/Onbetap.cpp`
+`processSide` is now three explicit branches: **4x** (new) — 4 substeps;
+stage A (`DecimFir9`) pushed every substep; stage B (`DecimFir13`, the same
+instances the 2x path uses) pushed on substeps 2 and 4; the substep-4 output
+kept. **2x** — unchanged, byte-identical. **1x** — unchanged, byte-identical
+(verified: `git diff HEAD~1 -- src/Onbetap.cpp` at commit `57b038d` shows only
+the doc comment, the new 4x branch body, `if (oversample == 2)` →
+`else if (oversample == 2)`, and the two call sites' three trailing args — no
+line inside the 2x branch body or the trailing generic `else` block, the 1x
+path, appears in the diff at all).
+
+**Stage A (`DecimFir9`, `src/onbetap/engine.hpp`):** 9-tap Kaiser-windowed
+FIR, `scipy.signal.firwin(9, 45500, window=("kaiser", 3.25), fs=192000)`,
+decimating 192 kHz → 96 kHz ahead of the same `DecimFir13` stage B the 2x
+path uses. Design criteria (only the 72–96 kHz band folds into the audible
+0–24 kHz range after both decimations; 48–72 kHz folds to 24–48 kHz, already
+covered by stage B's stopband): ≥40 dB attenuation over 72–96 kHz, ≤0.1 dB
+droop at 20 kHz. Measured: passband dev ≤ 0.096 dB to 20 kHz, stopband
+≤ −41 dB over 72–96 kHz; group delay 4 samples at 192 kHz (≈1 host sample;
+stage B adds ~3 more).
+
+### Measurement harness
+
+Host-free, in the style of `tests/onbetap/test_drive_level.cpp::sideLP`
+(same drive-gains call, DC blocker, output VCA, Soft limiting, `kOnsetTrim`/
+`kCLag`/gated-leak formulas as the shipped module), extended with a
+decimator-mode switch: `os2` (shipped 2x), `os4box` (OLD 4x boxcar, a
+same-harness baseline), `os4cas` (NEW 4x cascade). Scenarios per the design's
+success criteria: **spur** — 5 kHz sine, 5 V, drive 1.0
+(`onbetap::driveGains(1.f, onbetap::kDriveSpanDb, 1.f, 0.f,
+onbetap::kDefaultGritDb)`), res 0, LP, cutoff 20 kHz, 48 kHz, 1 s warmup + 4 s
+capture, Blackman-Harris windowed rFFT, worst bin in 0–24 kHz outside
+±3 bins of a 5 kHz harmonic, dB re the 5 kHz fundamental. **droop** — 1 kHz
+and 18 kHz sines, 1 V, drive 0, res 0, same LP/cutoff, 0.5 s warmup + 1 s
+capture each, RMS ratio in dB.
+(`<scratchpad>/onbetap-4x/measure.cpp` + `analyze.py`, scratch-only.)
+
+### Measured
+
+```
+mode      worst spur (dB)  spur freq (Hz)   droop@18k (dB)
+os2               -14.09           23000            -2.33
+os4box            -14.33           23000            -4.67
+os4cas            -14.38           23000            -3.75
+```
+
+Gate 1 (spec success criterion 1): `os4cas` worst spur **< −35 dB**
+(expected ≤ −45 dB) → measured **−14.4 dB, FAIL**.
+Gate 2 (criterion 2): `os4cas` droop @18 kHz **≤ 1.76 dB** → measured
+**3.75 dB, FAIL**.
+
+### Investigation: harness ruled out, root cause is not the decimator
+
+`os2`/`os4box` land ~15 dB short of Task 5's historical baseline (−29 dB /
+−35 dB) — per the task's own ">5 dB off, suspect the harness" guidance,
+cross-checked the harness against the actual installed VCV plugin via
+`vcv-headless` (same drive=1.0/cutoff=20 kHz/5 V/res=0 conditions, `oversample`
+JSON override for 2x vs 4x): the plugin reproduces the harness numbers almost
+exactly — spur −14.11 dB (2x) / −14.37 dB (4x) at 23 kHz, droop −2.38 dB (2x)
+/ −3.81 dB (4x), both within 0.06 dB of the harness. The harness is faithful;
+the divergence from Task 5 is real DSP behavior, not a bug:
+
+- **Spur:** at `drive=1.0` with the *shipped* `kDriveSpanDb=36`/
+  `kDefaultGritDb=3.5` (baked well after Task 5's original −29/−35 dB
+  measurement — see the makeup fix, drive-grit push, and voicing-bake entries
+  above), the 5 V/5 kHz input at cutoff 20 kHz drives the core into a full
+  output-VCA rail clamp: peak exactly 9.0 V, RMS ≈ 8.8–8.9 V, essentially a
+  rail-to-rail square wave — identically for `os2`, `os4box`, and `os4cas`.
+  This intermodulation-rich clipping dominates the spectrum and swamps
+  whatever the decimator contributes; Task 5's much gentler, pre-revision
+  drive path never drove the core anywhere near this hard, so its baseline no
+  longer describes what `drive=1.0` does today. No decimator design can move
+  a spur figure dominated by post-decimation-irrelevant, pre-decimator core
+  saturation.
+- **Droop:** `os4cas` (−3.75 dB) is *worse* than `os2` (−2.33 dB), the
+  opposite of the design doc's expectation that 4x should droop less (stage B
+  is a copy of the 2x decimator, so "the 4x passband matches 2x by
+  construction"). Traced to the `kCLag` phase-lag term in
+  `kEff = max(k − kCLag·g²/(1+g²), −0.31)`: `g = tan(π·fc/fsOs)` differs
+  sharply between `fsOs` = 96 kHz (2x, g=0.767) and 192 kHz (4x, g=0.340) for
+  the same 20 kHz cutoff, so the correction subtracted from `k` is much
+  smaller at 4x (0.026) than at 2x (0.093), leaving `kEff`(4x) ≈ 1.039
+  slightly *more* damped (lower Q) than `kEff`(2x) ≈ 0.972 at the identical
+  nominal cutoff — a core-filter/oversampling-ratio interaction, not a
+  decimator-quality issue, that the original success-criteria comparison
+  didn't account for.
+
+Both root causes sit outside the decimator's own passband/stopband design,
+so the brief's 11-tap stage-A fallback (a coefficient swap aimed at stopband
+rejection) would not move either number — not attempted. **Status: BLOCKED**
+on Gates 1–2 pending a controller decision (e.g. re-scope the gate's drive
+config to the non-shipped span-30/grit-0 "law guard" `test_drive_level.cpp`
+already uses, or address `kCLag`'s `fsOs` dependence, or accept as a
+documented limitation).
+
+### Benchmark
+
+`<scratchpad>/bench_os.cpp`, `processSide<OS>` extended so `OS==4` runs the
+cascade (stage A every substep, stage B on substeps 2 and 4), matching Task 3
+byte-for-byte; `c++ -std=c++17 -O3 -I ~/Dev/RobotBoy/src bench_os.cpp -o
+bench_os`, 4M-stereo-sample runs:
+
+```
+per host sample, stereo (ns): 1x 36.3 | 2x 93.4 | 4x 197.5
+ratios vs 2x: 1x 0.39 | 4x 2.11
+```
+
+Pre-change baseline (boxcar 4x): 37 / 97 / 160 ns, ratio 1.66. The cascade's
+4x/2x ratio widens to 2.11 (up from 1.66), as the design doc anticipated ("expect
+the ratio to widen somewhat") — the 4x path now runs the full 9+13-tap FIR
+chain on every host sample instead of a 4-sample average.
+
+The linear-interp upsampler ahead of the decimators remains untouched and out
+of scope, per the design doc — still the deferred later task.
