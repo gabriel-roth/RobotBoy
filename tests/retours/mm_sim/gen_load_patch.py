@@ -5,7 +5,7 @@ load-test amplification. A single instance's cost is too small to resolve
 above timer noise on a fast host; N copies scale up the signal N x so the
 per-instance cost can be recovered by dividing the total measured time by N.
 
-Copied/adapted from tests/yellowjacket/mm_sim/gen_load_patch.py
+Copied/adapted from tests/vespid/mm_sim/gen_load_patch.py
 (worktree-wasp) -- same technique, different module.
 
 IMPORTANT: module_id 0 is hardcoded by patch_player.hh as the Hub/panel

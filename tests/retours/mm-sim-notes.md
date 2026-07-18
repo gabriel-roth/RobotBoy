@@ -52,7 +52,7 @@ don't touch that guard).
 
 Registered the plugin as a simulator built-in (source-compiled — the
 simulator can't load `.mmplugin` files), same technique as the prior
-Yellowjacket/Wasp task, pointed at this worktree:
+Vespid/Wasp task, pointed at this worktree:
 
 ```
 cd /Users/gabrielroth/Dev/metamodule/simulator
@@ -160,18 +160,18 @@ concern threshold — no optimization pass needed (linear tap2 / hoisted wrap
 checks / LUT shifter windows from the plan are not applied; noted here as
 deferred-not-needed rather than skipped-under-pressure).
 
-As in the prior Yellowjacket/Wasp task, this is a host-relative number, not a
+As in the prior Vespid/Wasp task, this is a host-relative number, not a
 real MetaModule (Cortex-A7) hardware measurement — no ARM MM device is
 available in this environment, and there's still no shipped module benchmarked
 on both this host and real MM hardware to calibrate a conversion factor.
-Given the ~0.19% figure is roughly 25-75x below the 15% line (vs. Yellowjacket's
+Given the ~0.19% figure is roughly 25-75x below the 15% line (vs. Vespid's
 4x-oversampling case, which straddled a 60% line and triggered a real design
 decision), this margin is comfortable enough that the host/hardware gap
 doesn't change the conclusion.
 
 **16-instance load-test cross-check was inconclusive, not confirmatory:**
 `gen_load_patch.py`'s technique (N modules, no cabling, comment inherited from
-the Yellowjacket task claiming "the patch player runs process() on every
+the Vespid task claiming "the patch player runs process() on every
 loaded module regardless of cabling") gave non-monotonic numbers here — N=1
 uncabled: 0.171%; N=16 uncabled: 0.014%; N=64 uncabled: 0.074% (all measured
 over the same 100 s silence run) — inconsistent with linear scaling in
@@ -180,7 +180,7 @@ either direction. By contrast, the single **cabled** instance gave consistent
 run. This suggests Retours's cost is not (or not fully) incurred by an
 uncabled instance on this simulator/patch-player version — possibly a
 cabling-dependent fast path — so the load-test technique that worked for
-Yellowjacket does not transfer as a reliable amplifier here. Trusted the
+Vespid does not transfer as a reliable amplifier here. Trusted the
 consistent cabled single-instance number instead; flagging the discrepancy
 as a simulator-behavior question for whoever next relies on
 `gen_load_patch.py`'s "no cabling needed" assumption, rather than a Retours bug.

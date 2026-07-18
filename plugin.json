@@ -14,7 +14,7 @@
     { "slug": "Onbetap", "name": "Onbetap", "description": "Polivoks-style multimode filter.", "tags": ["Filter"] },
     { "slug": "Particules", "name": "Particules", "description": "Granular texture synthesizer.", "tags": ["Granular", "Reverb", "Sampler", "Effect"] },
     { "slug": "Ondes", "name": "Ondes", "description": "Wavetable oscillator.", "tags": ["Oscillator", "Wavetable"] },
-    { "slug": "Yellowjacket", "name": "Yellowjacket", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] },
+    { "slug": "Vespid", "name": "Vespid", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] },
     { "slug": "Retours", "name": "Retours", "description": "Beads-style delay: clockable, freezable, pitch-shifting.", "tags": ["Delay", "Effect"] }
   ]
 }

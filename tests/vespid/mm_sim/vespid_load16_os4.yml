@@ -1,0 +1,59 @@
+PatchData:
+  patch_name: vespid_load_16
+  description: Vespid CPU load test, 16 instances, osMenu=4
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Vespid'
+    2: 'RobotBoy:Vespid'
+    3: 'RobotBoy:Vespid'
+    4: 'RobotBoy:Vespid'
+    5: 'RobotBoy:Vespid'
+    6: 'RobotBoy:Vespid'
+    7: 'RobotBoy:Vespid'
+    8: 'RobotBoy:Vespid'
+    9: 'RobotBoy:Vespid'
+    10: 'RobotBoy:Vespid'
+    11: 'RobotBoy:Vespid'
+    12: 'RobotBoy:Vespid'
+    13: 'RobotBoy:Vespid'
+    14: 'RobotBoy:Vespid'
+    15: 'RobotBoy:Vespid'
+    16: 'RobotBoy:Vespid'
+  int_cables: []
+  mapped_ins: []
+  mapped_outs: []
+  static_knobs: []
+  vcvModuleStates:
+    - module_id: 1
+      data: '{"osMenu": 4}'
+    - module_id: 2
+      data: '{"osMenu": 4}'
+    - module_id: 3
+      data: '{"osMenu": 4}'
+    - module_id: 4
+      data: '{"osMenu": 4}'
+    - module_id: 5
+      data: '{"osMenu": 4}'
+    - module_id: 6
+      data: '{"osMenu": 4}'
+    - module_id: 7
+      data: '{"osMenu": 4}'
+    - module_id: 8
+      data: '{"osMenu": 4}'
+    - module_id: 9
+      data: '{"osMenu": 4}'
+    - module_id: 10
+      data: '{"osMenu": 4}'
+    - module_id: 11
+      data: '{"osMenu": 4}'
+    - module_id: 12
+      data: '{"osMenu": 4}'
+    - module_id: 13
+      data: '{"osMenu": 4}'
+    - module_id: 14
+      data: '{"osMenu": 4}'
+    - module_id: 15
+      data: '{"osMenu": 4}'
+    - module_id: 16
+      data: '{"osMenu": 4}'
+  bypassed_modules: []

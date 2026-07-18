@@ -32,7 +32,7 @@ browser):
 House defaults are read automatically from `~/.config/vcv-panel-gen/theme.yaml`
 (same schema across v1 and v2); no flag needed for a normal RobotBoy
 generate. Per-panel overrides live in the spec's own `theme:` block (see
-`yellowjacket-gold.yaml` for an example).
+`vespid-gold.yaml` for an example).
 
 ## More
 

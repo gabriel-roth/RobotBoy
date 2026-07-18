@@ -6,7 +6,7 @@ fail=0
 # /tmp path, so parallel runs from different worktrees don't clobber each other
 out_dir="../build/tests"
 mkdir -p "$out_dir"
-for d in mf20 loooop particules onbetap yellowjacket; do
+for d in mf20 loooop particules onbetap vespid; do
   [ -d "$d" ] || continue
   for t in "$d"/test_*.cpp; do
     [ -e "$t" ] || continue

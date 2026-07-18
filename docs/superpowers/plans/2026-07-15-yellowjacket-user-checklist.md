@@ -1,5 +1,9 @@
 # Yellowjacket — user-run checklist (2026-07-15)
 
+> **2026-07-17: module renamed to Vespid** (slug, code, panels, docs). This
+> checklist predates the rename; read "Yellowjacket" as "Vespid" throughout
+> (paths: `tests/vespid/`, `src/Vespid.cpp`, `res/Vespid*.svg`).
+
 Branch `worktree-wasp`. DSP is complete and test-covered (`tests/run.sh` green,
 plus the Task 5 MetaModule headless-simulator WAV/spectrum/CPU pass — see
 `tests/yellowjacket/mm-sim-notes.md`). These are the GUI/listening/hardware

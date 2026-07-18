@@ -2,7 +2,7 @@
 """Read the minimal WAV format written by simulator/src/headless/wav_file.hh's
 WavWriter (float32, extended fmt chunk, no fact/LIST chunks).
 
-Copied verbatim from tests/yellowjacket/mm_sim/read_mm_wav.py (worktree-wasp)
+Copied verbatim from tests/vespid/mm_sim/read_mm_wav.py (worktree-wasp)
 -- same simulator, same WAV convention.
 """
 import struct
