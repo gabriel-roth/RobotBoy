@@ -318,3 +318,60 @@ output matches vcv-headless to 2.7e-6; unit lane fully green. Open items for
 the user: GUI checklist (see Task 7 section), screenshots/Onbetap.png,
 real-device MM CPU check, and the documented max-drive aliasing gap (−29 dB at
 2× OS, −35 dB at 4×; 4× is the menu escape valve).
+
+## 2026-07-18 — Drive makeup was double-compensating (fixed)
+
+**Symptom (user, by ear):** with a note held at ~cutoff and Q ~70%, turning
+Drive up past ~50% made the filter *quieter and cleaner*, not "louder and
+dirtier" as intended. Ring suppression ("rings less") was correct.
+
+**Root cause:** the output makeup gain `(0.25/driveGain)^0.75 · kOutScale` was
+calibrated at res=0 / cutoff=20 kHz (filter wide open, sub-saturation — that's
+the only condition where test 1b's +1.35 dB was measured). But the core's
+integrator states clamp at their rails, which *is* a level compressor — the
+authentic "natural compression between signal and self-osc" (emulations §4.4).
+At moderate/high Q the resonant peak pins the core at its rails even at Drive=0,
+so more input can't raise the level. The makeup then compensated a **second**
+time on top of that, overshooting into net attenuation — and shrank the signal
+below the output-VCA (`9·tanhish(v/9)`) knee, which is where most of the audible
+grit at low Drive actually lives, so it stripped the dirt too.
+
+**Measured, tone at cutoff (dB re 1 V RMS / THD):**
+
+| Drive | old, res 0.70 | old, res 0.30 | new (const gain), res 0.70 | new, res 0.30 |
+|------:|--------------:|--------------:|---------------------------:|--------------:|
+| 0.0   | +16.5 / 11.6% | +15.4 / 7.9%  | +16.5 / 11.6%              | +15.4 / 7.9%  |
+| 0.5   | +8.3 / 1.3%   | +8.3 / 1.2%   | +17.3 / 16.8%             | +17.3 / 16.7% |
+| 1.0   | −0.7 / 1.4%   | −4.8 / 1.4%   | +17.6 / 4.4%*             | +17.4 / 17.4% |
+
+(* res 0.70 top-of-sweep enters chaotic self-osc; THD non-monotonic there.)
+
+**Fix:** output makeup is now a *constant* buffer gain (the ×11 clone
+output-buffer analog), independent of Drive — the core's rail clamping is left
+as the sole, authentic level-compression mechanism. Drive=0 is bit-identical to
+before (both give `makeup = kOutScale`), preserving the test-1a calibration.
+Gain mapping extracted to `src/onbetap/drive.hpp` and unit-tested by
+`tests/onbetap/test_drive_level.cpp` (level holds/rises + THD rises with Drive
+at res 0.0/0.30/0.70; verified red against the old formula, green after).
+
+**Retired:** the "+6 dB drive budget" (test 1b) — it encoded the very
+behavior being removed. New intent: level holds at high Q, rises then plateaus
+at low Q; dirt rises with Drive. Design: `2026-07-18-onbetap-drive-hw-path-design.md`.
+
+**Caveat:** at high Drive the output now runs hot (~+17 dB ≈ 7 V RMS, peaks
+clipping into the 9 V VCA — the intended "ferocious" behavior, bounded within
+±10 V). If ever too hot, use a *constant* trim (`kOutScale` or the Output-trim
+menu slider), never a drive-dependent one. Default level unchanged.
+
+**Follow-up — Drive span 36 → 30 dB:** user then reported Drive adds level/grit
+up to ~90% then smooths and quietens again. Measured: no reversal at moderate Q
+(core tap flat, fund −1.0 dB / THD 1.5% across drive 0.7→1.0 at res 0.50); the
+effect is only near the self-osc knee (res ≈ 0.70), where Drive chokes the
+resonance that supplies the high-Q level/edge — the resonance-suppression
+feature at its extreme. Since grit is sourced from the core (minimal path), max
+Drive suppresses resonance and resonance-grit together. Trimmed default
+`tuneDriveDb` 36 → 30 dB (max +24 → +18 dB): at span 36 the drive=1.0 THD at
+res 0.70 collapses to ~7.5%, at span ≤32 it recovers to ~16–20%; span 30 maps
+the last-productive knob point off the end. Doesn't remove self-osc chaos at the
+knee (physics, bounded). Menu range unchanged (24–48); saved patches keep their
+stored span. See `2026-07-18-onbetap-drive-hw-path-design.md` (Follow-up).
