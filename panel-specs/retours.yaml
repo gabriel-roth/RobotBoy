@@ -14,16 +14,17 @@
 # against the hand-built original's own (bare-id, non-true-radius)
 # components layer: every center matched to the mm.
 #
-# Six documented name-only exceptions, all at cpp-identical positions (same
+# Eight documented name-only exceptions, all at cpp-identical positions (same
 # pattern as Particules' DENSITY_AR_PARAM/GRAIN_LIGHT footnote — a stale name
 # baked into the hand-built SVG's invisible components layer, left over from
 # an earlier naming scheme, that never matched any tracked cpp history):
-# hand-built TIME_INPUT/DENSITY_INPUT/PITCH_INPUT/SHAPE_INPUT/FEEDBACK_INPUT
-# (no "_CV_" infix) correspond to cpp's TIME_CV_INPUT/DENSITY_CV_INPUT/
-# PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT, and hand-built
-# FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM ("_AMT_") correspond to cpp's
-# FEEDBACK_AR_PARAM/DRY_WET_AR_PARAM ("_AR_"). This spec follows cpp
-# throughout (matching the module's actual current param/input ids).
+# hand-built TIME_INPUT/DENSITY_INPUT/PITCH_INPUT/SHAPE_INPUT/FEEDBACK_INPUT/
+# DRY_WET_INPUT (no "_CV_" infix) correspond to cpp's TIME_CV_INPUT/
+# DENSITY_CV_INPUT/PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT/
+# DRY_WET_CV_INPUT, and hand-built FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM
+# ("_AMT_") correspond to cpp's FEEDBACK_AR_PARAM/DRY_WET_AR_PARAM ("_AR_").
+# This spec follows cpp throughout (matching the module's actual current
+# param/input ids).
 #
 # Widget classes: cpp wraps FREEZE_PARAM and QUALITY_PARAM (desktop build) in
 # light-capable templates (VCVLightLatch<MediumSimpleLight<WhiteLight>>,
