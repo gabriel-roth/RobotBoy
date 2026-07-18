@@ -11,10 +11,12 @@ def parse_table_hues():
     return ["%02x%02x%02x" % (int(r,16), int(g,16), int(b,16)) for r,g,b in rows]
 
 def parse_spec_hues():
+    # v2 spec format: the four head tints are zone entries (one rect per
+    # head, in H1..H4 order) whose fill is the head color.
     with open(os.path.join(ROOT, "panel-specs/loooop.yaml")) as f:
         spec = f.read()
-    line = next(l for l in spec.splitlines() if "tints:" in l and "#" in l)
-    hexes = re.findall(r"#([0-9A-Fa-f]{6,8})", line)
+    hexes = [re.search(r'fill:\s*"#([0-9A-Fa-f]{6,8})"', l).group(1)
+             for l in spec.splitlines() if re.match(r"\s*-\s*\{x:", l) and "fill" in l]
     return [h[:6].lower() for h in hexes]   # strip any alpha suffix
 
 class HeadColorSync(unittest.TestCase):
