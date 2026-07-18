@@ -11,7 +11,7 @@
 
 // Playhead display names follow the head colors on the panel/display
 // (loooop::kHeadColors / LoopWaveformRenderer::HEAD_COLORS): H1 red, H2 yellow,
-// H3 blue, H4 magenta. Derived from the one color table so names can't drift.
+// H3 blue, H4 purple. Derived from the one color table so names can't drift.
 static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
     std::string(loooop::kHeadColors[0].name) + " playhead",
     std::string(loooop::kHeadColors[1].name) + " playhead",

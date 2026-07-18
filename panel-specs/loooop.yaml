@@ -35,8 +35,8 @@ title:
   dy: 0.2
 
 # Four head tints, mirroring loooop::kHeadColors: H1 red, H2 yellow, H3 blue,
-# H4 magenta. Yellow carries its own alpha (0x33 = 0.2) because at the shared
-# 0.14 it renders gold/olive on the dark panel; red/blue/magenta use the
+# H4 purple. Yellow carries its own alpha (0x33 = 0.2) because at the shared
+# 0.14 it renders gold/olive on the dark panel; red/blue/purple use the
 # default 0.14 explicitly for clarity.
 zones:
   - {x: 1.5,    y: 35.15, w: 46.76, h: 73.6, fill: "#ff3b30", opacity: 0.14}
