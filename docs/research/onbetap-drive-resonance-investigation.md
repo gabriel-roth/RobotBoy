@@ -381,6 +381,10 @@ MM build); GUI audition (user checklist).
 Recommendation: (1) unless the calm-at-top is judged a real playability problem,
 in which case (3) is the principled fix and (2) is the cheap partial one.
 
+**Resolution (2026-07-18, later the same day):** option (3) implemented — a
+Drive-following push into the existing output VCA; see
+`docs/superpowers/specs/2026-07-18-onbetap-drive-grit-design.md`.
+
 ---
 
 ## 9. Reproduction notes

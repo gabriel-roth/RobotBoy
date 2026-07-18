@@ -375,3 +375,56 @@ res 0.70 collapses to ~7.5%, at span ≤32 it recovers to ~16–20%; span 30 map
 the last-productive knob point off the end. Doesn't remove self-osc chaos at the
 knee (physics, bounded). Menu range unchanged (24–48); saved patches keep their
 stored span. See `2026-07-18-onbetap-drive-hw-path-design.md` (Follow-up).
+
+## 2026-07-18 — Drive grit: VCA push keeps the top of the knob dirty
+
+**Why:** the span trim above mitigated but could not cure the top-of-knob
+calm zone (investigation report, Finding 3): at high Q the (authentic)
+resonance choke takes the resonance-derived grit and \~1 dB of level with it,
+so max Drive got smoother/softer — contradicting every hardware account
+("majestic Polivoks roars" when overdriven; resonance steps "much accentuated
+if the filter is overloaded"). Root cause: in the minimal core-only path,
+high-Q grit rides on the very resonance Drive chokes; the real circuit's
+input-clip roar has no downstream voice.
+
+**Fix (voicing, deliberately not circuit-derived):** Drive-following push into
+the existing output VCA — `out = 9·tanhish(push·v/9)`,
+`push = exp2(gritDb/6.0206·drive²)`, new `vcaPush` field from
+`onbetap::driveGains`. Always ≥ 1 (a boost into the fixed 9 V ceiling, never a
+cut — cannot re-create the double-compensation bug), `push(0) = 1` exactly
+(Drive-0 bit-identity), quadratic so the mid-knob voicing stays put. New
+Tuning slider **Drive grit** 0–12 dB, default `onbetap::kDefaultGritDb` = 6;
+0 dB recovers the old behavior exactly. JSON `tuneGritDb`; missing key →
+default, so existing patches pick up the fix (intended).
+
+**Measured** (`test_drive_grit sweep`; span 30, 5 V, 750 Hz tone at cutoff,
+LP/Hard/Tamed/2×, 48 kHz):
+
+```
+gritDb | r.60 thd@.9 thd@1 lvl@1 | r.70 lvl@.9 lvl@1 | r.30 thd@.5 | r.50 thd@.5
+   0.0 |       17.3   17.3   17.4 |       17.3   17.2 |        16.3 |        16.4
+   4.0 |       25.2   27.0   18.2 |       17.9   17.9 |        18.7 |        18.8
+   6.0 |       28.8   31.1   18.4 |       18.2   18.2 |        20.0 |        20.0
+   8.0 |       31.9   34.4   18.5 |       18.4   18.4 |        21.2 |        21.3
+  10.0 |       34.5   37.1   18.7 |       18.5   18.5 |        22.4 |        22.5
+  12.0 |       36.7   39.2   18.8 |       18.6   18.7 |        23.7 |        23.7
+```
+
+At res 0.60 the top decile goes from dead flat (17.3 → 17.3 %) to rising
+(28.8 → 31.1 %); at the res 0.70 knee the push adds +1.0 dB at full Drive.
+Default 6 dB chosen over 4 (also passes, but with 2 pp / 0.2 dB margins on
+chaos-adjacent measurements); mid-knob cost +3.6 pp, inside the +8 pp budget.
+
+**Metric lesson (recorded in the spec amendment):** harmonic THD is the wrong
+grit instrument at the self-osc knee — there the output is rail-to-rail with
+79–87 % *inharmonic* non-fundamental energy (chaotic sidebands; h2…h6 < 0.5 V),
+so harmonic bins read 3–5 % no matter how hard the VCA is pushed. The knee
+guard is therefore level-based; the THD guards live at res 0.60 (stable choked
+regime). Also: res ≥ 0.60 has authentic brief self-osc pockets at isolated
+Drive points (e.g. +1.3 dB level bump at drive 0.7, span 30) — strict level
+monotony is asserted only at res 0.30/0.50.
+
+**Guards:** `tests/onbetap/test_drive_grit.cpp` (15 checks: law bit-identity /
+escape hatch / monotony, top-decile THD rise + floor, knee level gain, mid-knob
+budget, level monotony, 9 V bound). Red baseline = the `gritDb 0` sweep row.
+Design: `2026-07-18-onbetap-drive-grit-design.md`.
