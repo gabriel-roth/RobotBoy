@@ -94,16 +94,17 @@ elements:
   - {name: GRID_PARAM, widget: RoundSmallBlackSnapKnob, grid: row23, col: 3, row: row2}
   - {ring: ["Ø", "4", "8", "16", "32", "64"], around: GRID_PARAM}
 
-  # Row 3: Dry/Wet knob+CV stack, Clear and Record as button+trig stacks.
+  # Row 3: Dry/Wet knob+CV stack, then Record and Clear as button+trig stacks.
+  # Record sits left of Clear (col 2 vs col 3).
   - {text: Dry/Wet, grid: row23, col: 1, row: row3_label}
-  - {text: Clear,   grid: row23, col: 2, row: row3_label}
-  - {text: Record,  grid: row23, col: 3, row: row3_label}
+  - {text: Record,  grid: row23, col: 2, row: row3_label}
+  - {text: Clear,   grid: row23, col: 3, row: row3_label}
   - {name: DRYWET_PARAM,     grid: row23, col: 1, row: row3_top}
-  - {name: CLEAR_PARAM,      widget: VCVButton, grid: row23, col: 2, row: row3_top}
-  - {name: RECORD_PARAM,     widget: VCVButton, grid: row23, col: 3, row: row3_top}
+  - {name: RECORD_PARAM,     widget: VCVButton, grid: row23, col: 2, row: row3_top}
+  - {name: CLEAR_PARAM,      widget: VCVButton, grid: row23, col: 3, row: row3_top}
   - {name: DRYWET_CV_INPUT,   grid: row23, col: 1, row: row3_bot}
-  - {name: CLEAR_TRIG_INPUT,  grid: row23, col: 2, row: row3_bot}
-  - {name: RECORD_TRIG_INPUT, grid: row23, col: 3, row: row3_bot}
+  - {name: RECORD_TRIG_INPUT, grid: row23, col: 2, row: row3_bot}
+  - {name: CLEAR_TRIG_INPUT,  grid: row23, col: 3, row: row3_bot}
 
   # Audio row: In/Out stereo pairs sharing one centered label each; Overdub
   # mode button on the jack center line between them, label below (matching
@@ -114,7 +115,7 @@ elements:
   - {name: OUT_L_OUTPUT, x: 43.91, y: 116.05}
   - {name: OUT_R_OUTPUT, x: 53.61, y: 116.05}
   - {text: In,      x: 12.2,  y: 124.55}
-  - {text: Overdub, x: 30.48, y: 124.55}
+  - {text: Dub Mode, x: 30.48, y: 124.55}
   # "Out" at its exact shipped position sits 0.2mm inside the bottom-right
   # mounting screw's conservative SCREW_RADIUS_MM=2.0 keep-out circle (the
   # drawn marker itself is only r=1.6 and doesn't visually touch it) --
