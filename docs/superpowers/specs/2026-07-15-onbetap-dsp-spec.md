@@ -127,10 +127,11 @@ processed through its own filter when connected, mirrored from L when not.
   converter [local §2] is a calibration detail, not a musical feature — we
   keep standard 1 V/oct. Vintage mode supplies the drift/inaccuracy instead.)
 - **Resonance:** knob [0,1] + CV/5V × attenuverter, clamped, → k map (§2).
-- **Drive:** knob [0,1] + CV/5V × attenuverter → input gain, exponential map
-  across ≈ −12 dB…+24 dB (36 dB span, default 0 = −12 dB ≈ hardware "advised
-  −10 dB input" [emulations §3.4 Bareille]). Constants behind context-menu
-  tuning sliders (§6).
+- **Drive:** knob [0,1] + CV/5V × attenuverter → input gain, exponential map,
+  default 0 = −12 dB ≈ hardware "advised −10 dB input" [emulations §3.4
+  Bareille]. Span default **30 dB** (max +18 dB) as of 2026-07-18 (was 36 dB /
+  +24 dB — the top over-suppressed resonance at high Q); menu-adjustable
+  24–48 dB. Constants behind context-menu tuning sliders (§6).
   **Superseded (2026-07-18):** the "partial output makeup gain `1/sqrt(driveGain)`
   so sweeps don't just get louder" is removed — the makeup is now a *constant*
   buffer gain. The core's rail clamping already compresses level, so a

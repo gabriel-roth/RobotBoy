@@ -67,7 +67,9 @@ struct Onbetap : Module {
 	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Hard;
 	int oversample = 2;                             // 1 / 2 / 4
 	// Tuning menu (Task 4): defaults = spec values
-	float tuneDriveDb = 36.f;    // drive span in dB (−12 → +24)
+	float tuneDriveDb = 30.f;    // drive span in dB (−12 → +18); keeps the knob's
+	                             // top out of the high-Q resonance-choke zone
+	                             // (was 36 → +24, which over-suppressed at max)
 	float tuneHeadroom = 1.f;    // scales input-drive trim (see onbetap/drive.hpp)
 	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
 	float tuneOutDb = 0.f;       // output trim ±12 dB
@@ -439,7 +441,7 @@ struct OnbetapWidget : ModuleWidget {
 
 		menu->addChild(createSubmenuItem("Tuning", "", [m](Menu* menu) {
 			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneDriveDb, 24.f, 48.f, "Drive span", " dB", 36.f)));
+				&m->tuneDriveDb, 24.f, 48.f, "Drive span", " dB", 30.f)));
 			menu->addChild(new MenuSlider(new TuneQuantity(
 				&m->tuneHeadroom, 0.5f, 2.0f, "Core headroom", "x", 1.f)));
 			menu->addChild(new MenuSlider(new TuneQuantity(

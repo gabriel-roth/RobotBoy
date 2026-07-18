@@ -362,3 +362,16 @@ at low Q; dirt rises with Drive. Design: `2026-07-18-onbetap-drive-hw-path-desig
 clipping into the 9 V VCA — the intended "ferocious" behavior, bounded within
 ±10 V). If ever too hot, use a *constant* trim (`kOutScale` or the Output-trim
 menu slider), never a drive-dependent one. Default level unchanged.
+
+**Follow-up — Drive span 36 → 30 dB:** user then reported Drive adds level/grit
+up to ~90% then smooths and quietens again. Measured: no reversal at moderate Q
+(core tap flat, fund −1.0 dB / THD 1.5% across drive 0.7→1.0 at res 0.50); the
+effect is only near the self-osc knee (res ≈ 0.70), where Drive chokes the
+resonance that supplies the high-Q level/edge — the resonance-suppression
+feature at its extreme. Since grit is sourced from the core (minimal path), max
+Drive suppresses resonance and resonance-grit together. Trimmed default
+`tuneDriveDb` 36 → 30 dB (max +24 → +18 dB): at span 36 the drive=1.0 THD at
+res 0.70 collapses to ~7.5%, at span ≤32 it recovers to ~16–20%; span 30 maps
+the last-productive knob point off the end. Doesn't remove self-osc chaos at the
+knee (physics, bounded). Menu range unchanged (24–48); saved patches keep their
+stored span. See `2026-07-18-onbetap-drive-hw-path-design.md` (Follow-up).

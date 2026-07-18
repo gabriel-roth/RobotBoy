@@ -50,7 +50,7 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs) {
     float fsOs = fs * 2.f, tone = cutoff;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
     float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k (tuneOnset 0)
-    auto gains = onbetap::driveGains(drive, 36.f, 1.f, 0.f); // spec defaults
+    auto gains = onbetap::driveGains(drive, 30.f, 1.f, 0.f); // spec defaults (span 30 dB)
     float kCLag = 0.25f;
     float kEff = std::max(k - kCLag * g * g / (1.f + g * g), -0.31f);
 

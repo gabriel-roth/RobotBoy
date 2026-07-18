@@ -164,6 +164,35 @@ red, then made green by the change.
   not overclaim loudness, so it stays correct. Add one clause to the Drive bullet
   (`:15`) noting driving harder also adds harmonic grit, now that it's true.
 
+## Follow-up (2026-07-18): Drive span trimmed 36 → 30 dB
+
+After the constant-makeup fix shipped, a further symptom surfaced: Drive adds
+level and grit up to ~90%, then gets *smoother and quieter again* at high Q.
+Measured cause — this is **not** a reversal at moderate Q (the raw core tap is
+flat across drive 0.7→1.0 at res 0.50: fundamental −1.0 dB, THD 1.5%,
+unchanging). It appears only near the self-oscillation knee (res ≈ 0.70), where
+the resonant peak supplies much of the perceived level/edge and Drive
+progressively **chokes it** — the "drive suppresses resonance" feature reaching
+its extreme. At max Drive the resonance is so suppressed that its contribution
+is mostly gone → smoother, ~1 dB quieter. The erratic THD near self-osc (spikes
+to ~100 %+, fundamental dropping out) is the filter flirting with oscillation —
+inherent chaos of the regime, bounded (~7 V, stability test passes), not a fault.
+
+Because grit is sourced from the core's own saturation (the minimal path chosen
+here), maxing Drive at high Q suppresses resonance *and* the resonance-derived
+grit together — there's no separate drive-grit stage to keep the top dirty.
+
+**Chosen mitigation:** trim the default **Drive span from 36 dB (max +24 dB) to
+30 dB (max +18 dB)**. At span 36 the drive=1.0 THD at res 0.70 collapses to
+~7.5 %; at span ≤32 it recovers to ~16–20 %. Span 30 maps the last-productive
+point (~knob 0.83 at span 36) to the knob's max, so the reversal region falls
+off the end while keeping generous overdrive and staying closer to the
+hardware's advised ~−10 dB input. It does **not** eliminate the self-osc chaos
+at exactly the knee — that's physics — but it removes the top-of-travel reversal.
+`tuneDriveDb` default and the menu slider's reset-default both move to 30; range
+stays 24–48 dB (raise it for the wilder top). Existing patches keep their stored
+span (persisted in JSON), so only new instances change.
+
 ## Out of scope
 
 - Default output-level voicing (the hotness) — separate voicing decision.
