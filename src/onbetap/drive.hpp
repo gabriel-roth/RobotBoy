@@ -26,7 +26,7 @@ struct DriveGains {
 };
 
 // drive:    knob [0,1] (+ CV, already applied/clamped by the caller)
-// driveDb:  drive span in dB (menu "Drive span", default 36)
+// driveDb:  drive span in dB (menu "Drive span", default 30)
 // headroom: input-scale trim (menu "Core headroom", default 1)
 // outDb:    output trim in dB (menu "Output trim", default 0)
 inline DriveGains driveGains(float drive, float driveDb,
