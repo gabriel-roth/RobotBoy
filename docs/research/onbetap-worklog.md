@@ -616,3 +616,81 @@ chain on every host sample instead of a 4-sample average.
 
 The linear-interp upsampler ahead of the decimators remains untouched and out
 of scope, per the design doc — still the deferred later task.
+
+### Amendment: relative gates and the decimator-sensitive operating point
+
+Success criteria 1–2 were reworded (see the amendment block in
+`2026-07-18-onbetap-4x-decimator-design.md`, commit `1f30f6a`) from absolute
+dB targets to *relative* ones: the max-drive scenario above measures the
+output VCA rail-clamping, not the decimator (all three modes there land
+within 0.3 dB of each other, ≈−14 dB, downstream of decimation entirely), so
+it can't discriminate decimator quality at all; the amended gates ask instead
+whether the cascade beats the other two modes, same-harness, at an operating
+point where the VCA isn't the bottleneck.
+
+**Operating point:** same scenario (5 kHz sine, 5 V, LP, cutoff 20 kHz, res
+0), highest drive from the candidate set at which the output peak stays
+below 8 V. The prescribed candidate set `{0.65, 0.5, 0.4, 0.25}` turned out
+not to satisfy that (all four still peak ≥ 8.4 V — cross-checked against the
+real compiled plugin at drive 0.25: 8.43 V, matching the harness's 8.41 V);
+extended the sweep downward and found **drive 0.20** is the highest of a
+finer sweep that clears 8 V:
+
+```
+drive  peak os2  peak os4box  peak os4cas
+0.65      9.000       9.000       9.000   (rail)
+0.50      9.000       9.000       9.000   (rail)
+0.40      9.000       9.000       9.000   (rail)
+0.25      8.414       8.518       8.409   (rail)
+0.20      7.790       7.942       7.783   (< 8 V — chosen)
+0.15      6.993       7.177       6.985
+0.10      6.113       6.309       6.104
+0.05      5.234       5.426       5.226
+```
+
+At 5 V amplitude, res 0, cutoff 20 kHz, even a fairly modest drive keeps the
+core swinging past its saturation window (the fixed ×20.5 output makeup
+means whatever's left of a saturated core state is still amplified well past
+the 9 V VCA ceiling) — this is the same "VCA-dominated" effect the amendment
+describes, just less totally so below drive ≈ 0.25. Cross-checked drive 0.20
+against the real plugin (steady-state peak, excluding the 1 s warmup
+transient): 7.77 V (2x) / 7.77 V (4x) — matches the harness (7.79 V / 7.78 V)
+within 0.02 V.
+
+**Supplementary spur measurement at drive 0.20:**
+
+```
+mode      worst spur (dB)   spur freq (Hz)
+os2               -41.07            23000
+os4box            -39.73            23000
+os4cas            -41.16            23000
+```
+
+Cross-checked against the real plugin at the same operating point:
+2x −41.06 dB, 4x(cascade) −41.16 dB — matches the harness within 0.01 dB.
+
+**Gate 1 (relative):** `os4cas` (−41.16 dB) strictly better than both
+`os4box` (−39.73 dB, Δ = 1.43 dB) and `os2` (−41.07 dB, Δ = 0.09 dB). **PASS**
+— though the margin over `os2` is thin (0.09 dB, reproducible/deterministic,
+confirmed against the real plugin, not measurement noise) while the margin
+over the old boxcar is comfortable (1.43 dB). The cascade is doing its job;
+it just isn't a large win over the already-decent 2x figure at this
+particular operating point.
+
+**Gate 2 (relative):** `os4cas` droop @18 kHz (−3.75 dB) vs `os4box`
+(−4.67 dB) — `os4cas` droops less (0.92 dB better). **PASS** (from the main
+measurement table above, no re-measurement needed). The residual `os4cas`
+vs `os2` difference (−3.75 dB vs −2.33 dB, `os4cas` droops *more*) is
+attributed to `kCLag`, not the decimator — see below.
+
+**Known, pre-existing 2x↔4x voicing difference (user-facing, follow-up
+candidate):** independent of this decimator upgrade, the `kCLag` phase-lag
+term in `kEff = max(k − kCLag·g²/(1+g²), −0.31)` is evaluated at
+`g = tan(π·fc/fsOs)`, which differs by oversampling ratio for the *same*
+nominal cutoff (`fsOs` = 96 kHz at 2x vs 192 kHz at 4x): at cutoff 20 kHz,
+`kEff` ≈ 0.972 at 2x vs ≈ 1.039 at 4x — 4x runs very slightly more damped
+(lower Q) at high cutoffs. This colors any by-ear 2x-vs-4x comparison (a
+touch less top-octave content and resonance edge at 4x, independent of drive
+or decimator quality) and predates this task entirely; it was only surfaced
+by this measurement work. Flagged to the user as a possible follow-up — out
+of scope here.
