@@ -224,8 +224,10 @@ Append to `tests/onbetap/test_engine.cpp` `main()` (mirrors the module's 4x bran
             xPrev = x1;
             if (n > (int)fs / 2) peak = std::max(peak, std::fabs(lp));
         }
-        CHECK(peak > 0.85f && peak < 1.15f,
-              "4x cascade passes 100 Hz at unity-ish gain");
+        // processG applies kGin (1.2, Erica input ratio) ahead of the core,
+        // so "unity" through the raw filter is kGin, not 1.
+        CHECK(peak > 0.85f * OnbetapFilter::kGin && peak < 1.15f * OnbetapFilter::kGin,
+              "4x cascade passes 100 Hz at unity-ish gain (x kGin)");
     }
 ```
 
