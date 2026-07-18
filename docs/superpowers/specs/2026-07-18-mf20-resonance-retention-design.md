@@ -71,21 +71,16 @@ grit (median PSD 1.5–5 kHz) as retention goes 0 → 100 % at Drive 8:
 
 ## Control
 
-One context-menu control, "Resonance retention", shared by both modes.
+Retention is **baked in at 0.75**, not user-adjustable. It briefly shipped
+as a context-menu slider during prototyping; after auditioning, 75 % was
+chosen as the fixed value and the slider was removed.
 
-- Stored as `float _resRetention` in [0, 1], default **0.75** (we ship a
-  high value; existing-patch compatibility is explicitly not a goal).
-- Persisted in `dataToJson`/`dataFromJson` as `resRetention` (json_real,
-  clamped [0,1]), mirroring the existing `_filterMode` persistence.
-- Read in `modulate()`, branched by mode into `_clipThreshTarget`
-  (OTA) / `_fbThreshTarget` (K35); slewed by `_clipThreshSlew` /
-  `_fbThreshSlew` so slider moves don't zipper.
-- UI follows the established Vespid/Particules pattern:
-  - VCV desktop: `ui::Slider` + `Quantity` (`#ifndef METAMODULE`),
-    displayed 0–100 %, reset (double-click) to 75 %.
-  - MetaModule: `createIndexSubmenuItem` discrete list
-    (0 % / 25 % / 50 % / 75 % / 100 %) under `#ifdef METAMODULE`, snapping
-    to the nearest value — same float/JSON field either way.
+- `static constexpr float kResRetention = 0.75f`, read in `modulate()` and
+  branched by mode into `_clipThreshTarget` (OTA) / `_fbThreshTarget`
+  (K35); slewed by `_clipThreshSlew` / `_fbThreshSlew` so mode/Drive
+  changes don't zipper.
+- No param, no menu entry, no JSON persistence — nothing to save because
+  there is nothing to change. (`_filterMode` persistence is unchanged.)
 
 ## Out of scope
 

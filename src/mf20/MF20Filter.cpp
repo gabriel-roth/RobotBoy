@@ -62,14 +62,15 @@ struct MF20FilterModule : Module {
     float _clipThresh = 1.f;
     float _fbThresh = 1.f;    // current smoothed K35 feedback-loop clip threshold
     // Resonance retention [0,1]: how much Drive is stopped from squashing the
-    // resonant peak. 0 = original behavior; 1 = maximum retention. The path
-    // differs by mode (see modulate()): OTA eases its feedback diode toward the
-    // Drive-1 threshold while keeping full input pre-gain; K35 keeps its forward
-    // clip at full drive (grit) and instead opens the resonance-loop clip.
+    // resonant peak. Baked in — the path differs by mode (see modulate()): OTA
+    // eases its feedback diode toward the Drive-1 threshold while keeping full
+    // input pre-gain; K35 keeps its forward clip at full drive (grit) and
+    // instead opens the resonance-loop clip.
     // See docs/superpowers/specs/2026-07-18-mf20-resonance-retention-design.md.
-    float _resRetention = 0.75f;
-    // Max K35 feedback-loop clip threshold at full retention (default 1.0).
-    // Bounded so the loop stays stable (saturated-region slope is unchanged).
+    static constexpr float kResRetention = 0.75f;
+    // Max K35 feedback-loop clip threshold at full retention (threshold 1.0 =
+    // stock). Bounded so the loop stays stable (saturated-region slope is
+    // unchanged).
     static constexpr float kK35FbRetentionMax = 3.f;
     // Deterministic denormal-prevention dither: alternates sign each sample.
     // Replaces the RNG dither — cheaper, and bit-reproducible between the
@@ -109,7 +110,6 @@ struct MF20FilterModule : Module {
         json_t* root = json_object();
         json_object_set_new(root, "_filterMode",
             json_integer(_filterMode == MF20Filter::Mode::K35 ? 1 : 0));
-        json_object_set_new(root, "resRetention", json_real(_resRetention));
         return root;
     }
 
@@ -119,9 +119,6 @@ struct MF20FilterModule : Module {
             _filterMode = json_integer_value(m) == 1
                        ? MF20Filter::Mode::K35
                        : MF20Filter::Mode::OTA;
-        json_t* rr = json_object_get(root, "resRetention");
-        if (rr)
-            _resRetention = clamp((float)json_real_value(rr), 0.f, 1.f);
     }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
@@ -162,7 +159,7 @@ struct MF20FilterModule : Module {
         //         and instead open the resonance-loop clip threshold from 1.0
         //         toward kK35FbRetentionMax, so the peak rings back up above the
         //         saturation without easing the grit.
-        float r = clamp(_resRetention, 0.f, 1.f);
+        constexpr float r = kResRetention;
         if (_filterMode == MF20Filter::Mode::K35) {
             _clipThreshTarget = 1.f / _driveSqrtTarget;
             _fbThreshTarget   = 1.f + r * (kK35FbRetentionMax - 1.f);
@@ -303,36 +300,6 @@ struct MF20FilterModule : Module {
 
 
 
-// "Resonance retention" menu control (0-100 %). Stores 0..1 in the module;
-// the Quantity presents it as a percentage. VCV desktop gets a ui::Slider;
-// MetaModule (no ui::Slider) gets a discrete submenu — same pattern as
-// Vespid's InputTrim/OutputLevel and Particules' manual-gain menus.
-struct ResRetentionQuantity : Quantity {
-    MF20FilterModule* module;
-    ResRetentionQuantity(MF20FilterModule* m) : module(m) {}
-    void setValue(float value) override {
-        if (module)
-            module->_resRetention = clamp(value, getMinValue(), getMaxValue()) / 100.f;
-    }
-    float getValue() override { return module ? module->_resRetention * 100.f : getDefaultValue(); }
-    float getMinValue() override { return 0.f; }
-    float getMaxValue() override { return 100.f; }
-    float getDefaultValue() override { return 75.f; }
-    std::string getLabel() override { return "Resonance retention"; }
-    std::string getUnit() override { return " %"; }
-    std::string getDisplayValueString() override { return string::f("%.0f", getValue()); }
-};
-
-#ifndef METAMODULE
-struct ResRetentionSlider : ui::Slider {
-    ResRetentionSlider(ResRetentionQuantity* q) {
-        quantity = q;
-        box.size.x = 200.f;
-    }
-    ~ResRetentionSlider() { delete quantity; }
-};
-#endif
-
 struct MF20FilterWidget : ModuleWidget {
     MF20FilterWidget(MF20FilterModule* module) {
 
@@ -374,31 +341,6 @@ struct MF20FilterWidget : ModuleWidget {
         menu->addChild(createMenuItem("Korg35 (original MS-20)",
             m->_filterMode == MF20Filter::Mode::K35 ? "✓" : "",
             [m]() { m->_filterMode = MF20Filter::Mode::K35; }));
-
-        menu->addChild(new MenuSeparator);
-        menu->addChild(createMenuLabel("Drive resonance retention"));
-#ifdef METAMODULE
-        // MetaModule has no ui::Slider; offer a discrete list snapping to the
-        // nearest preset (same precedent as Vespid's #ifdef METAMODULE menus).
-        menu->addChild(createIndexSubmenuItem("Resonance retention",
-            {"0 %", "25 %", "50 %", "75 %", "100 %"},
-            [m]() -> size_t {
-                static const float kValues[5] = {0.f, 0.25f, 0.5f, 0.75f, 1.f};
-                size_t best = 0;
-                float bestDiff = std::fabs(kValues[0] - m->_resRetention);
-                for (size_t i = 0; i < 5; i++) {
-                    float diff = std::fabs(kValues[i] - m->_resRetention);
-                    if (diff < bestDiff) { bestDiff = diff; best = i; }
-                }
-                return best;
-            },
-            [m](size_t i) {
-                static const float kValues[5] = {0.f, 0.25f, 0.5f, 0.75f, 1.f};
-                m->_resRetention = kValues[i];
-            }));
-#else
-        menu->addChild(new ResRetentionSlider(new ResRetentionQuantity(m)));
-#endif
     }
 };
 
