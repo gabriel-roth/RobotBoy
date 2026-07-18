@@ -468,3 +468,22 @@ fc ≥ 80. Constants `kLeakCornerHz`/`kLeakBoostMax` on OnbetapFilter; wrapper
 computes the boost per voice in modulate(). Guards re-run: burst margins
 improved (note@0.85 0.84 → 0.97 V), self-osc untouched, rail-pin output
 3.46 → 2.98 V (still well above the 0.5 V audibility floor). Suite green.
+
+## 2026-07-18 — Voicing baked, Tuning menu removed, Soft default
+
+By-ear final from the user: **Drive span 36 dB** (knob = −12…+24 dB), **grit
+3.5 dB**, headroom 1×, onset trim 0, output trim 0 dB — baked as constants
+(`onbetap::kDriveSpanDb`, `onbetap::kDefaultGritDb`; the rest are literals at
+the driveGains call). The **Tuning submenu is removed**; old patches' stored
+tune* JSON keys are deliberately ignored. **Resonance limiting defaults to
+Soft** (listed first in the menu); Hard remains an option.
+
+Span 36 is viable again — the choke reversal that motivated the 30 dB trim is
+handled by the grit push + deep-overdrive guards. Measured at the shipped
+combo (span 36, grit 3.5, sweep in `test_drive_grit`): res 0.60 top decile
+rises 25.7 → 27.6 % THD (floor 25 % holds), knee level +0.6 dB over grit-0,
+mid-knob +2.2 pp. `test_drive_grit` now measures at `kDriveSpanDb`;
+`test_overdrive_stability` gained Soft-mode variants (results identical to
+Hard in the deep-drive regimes — states sit below the clamp knee there).
+`test_drive_level` keeps its explicit span-30/grit-0 reference config (a law
+guard, not a shipped-config guard).

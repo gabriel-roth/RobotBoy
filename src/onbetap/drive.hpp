@@ -26,8 +26,13 @@ constexpr float kVoltsToCore = 1.f / 2.4f;
 constexpr float kBaseTrim    = 0.4f;   // drive=0 → mild warmth at ±5 V
 constexpr float kOutScale    = 20.5f;  // constant output buffer gain (Task 5)
 
-constexpr float kDefaultGritDb = 6.f;  // Drive-grit VCA push at full Drive (dB);
-                                       // calibrated, see 2026-07-18 grit spec
+// Baked voicing (2026-07-18, by-ear final): the Tuning menu was removed and
+// its sliders fixed at these values. Span 36 dB (knob = −12…+24 dB) is viable
+// again — the resonance-choke reversal that motivated the earlier 30 dB trim
+// is handled by the grit push and the deep-overdrive guards. Headroom 1×,
+// onset trim 0, and output trim 0 dB are baked as literals at the call site.
+constexpr float kDriveSpanDb   = 36.f;
+constexpr float kDefaultGritDb = 3.5f; // Drive-grit VCA push at full Drive (dB)
 
 struct DriveGains {
     float driveScale;  // input gain into the core
@@ -36,10 +41,10 @@ struct DriveGains {
 };
 
 // drive:    knob [0,1] (+ CV, already applied/clamped by the caller)
-// driveDb:  drive span in dB (menu "Drive span", default 30)
-// headroom: input-scale trim (menu "Core headroom", default 1)
-// outDb:    output trim in dB (menu "Output trim", default 0)
-// gritDb:   VCA push at full Drive in dB (menu "Drive grit", default 6)
+// driveDb:  drive span in dB (shipped: kDriveSpanDb)
+// headroom: input-scale trim (shipped: 1)
+// outDb:    output trim in dB (shipped: 0)
+// gritDb:   VCA push at full Drive in dB (shipped: kDefaultGritDb)
 inline DriveGains driveGains(float drive, float driveDb,
                              float headroom, float outDb, float gritDb) {
     float spanOct    = driveDb / 6.0206f;                 // dB → octaves

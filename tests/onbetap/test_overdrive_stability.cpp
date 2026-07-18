@@ -40,7 +40,8 @@ struct Meas { float rms, note, peak; };
 // Full module glue (2x/LP path) as in Onbetap.cpp::processSide, with the
 // wrapper's leak configuration mirrored. amp <= 0 means no input (self-osc).
 static Meas measure(float cutoff, float tone, float amp, float res, float onset,
-                    float span, float grit, float drive, bool saw) {
+                    float span, float grit, float drive, bool saw,
+                    OnbetapFilter::Limit lim = OnbetapFilter::Limit::Hard) {
     const float fs = 48000.f;
     float fsOs = fs * 2.f;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
@@ -48,7 +49,7 @@ static Meas measure(float cutoff, float tone, float amp, float res, float onset,
     auto gn = onbetap::driveGains(drive, span, 1.f, 0.f, grit);
     float kEff = std::max(k - 0.25f * g * g / (1.f + g * g), -0.31f);
 
-    OnbetapFilter f; f.setLimit(OnbetapFilter::Limit::Hard);
+    OnbetapFilter f; f.setLimit(lim);
     f.setMismatch(0, 0); f.setOffset(0);
     // Mirror the wrapper: leak pole boosted below kLeakCornerHz.
     float boost = std::clamp(OnbetapFilter::kLeakCornerHz / cutoff,
@@ -129,6 +130,24 @@ int main() {
     // --- 4. Output bound unchanged ---
     snprintf(nm, sizeof nm, "peak (%.2f V) <= 9 V at burst conditions", b10.peak);
     CHECK(b10.peak <= 9.001f, nm);
+
+    // --- 5. Same guards under Soft limiting (the shipped default) ---
+    const auto S = OnbetapFilter::Limit::Soft;
+    Meas sb85 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 0.85f, true, S);
+    Meas sb10 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 1.0f, true, S);
+    Meas spin = measure(20, 110, 10, 0.4f, 0.0441f, 48, 3.5f, 1.0f, false, S);
+    Meas sso80 = measure(80, 0, 0, 0.9f, 0.f, 30, 6, 0.f, false, S);
+    snprintf(nm, sizeof nm, "Soft burst: note@1.0 (%.2f V) >= 0.6 V", sb10.note);
+    CHECK(sb10.note >= 0.6f, nm);
+    snprintf(nm, sizeof nm, "Soft burst: note@1.0 (%.2f) >= 0.8 x note@0.85 (%.2f)",
+             sb10.note, sb85.note);
+    CHECK(sb10.note >= 0.8f * sb85.note, nm);
+    snprintf(nm, sizeof nm, "Soft burst: rumble RMS@1.0 (%.2f V) <= 2 V", sb10.rms);
+    CHECK(sb10.rms <= 2.f, nm);
+    snprintf(nm, sizeof nm, "Soft rail-pin: output RMS (%.3f V) >= 0.5 V", spin.rms);
+    CHECK(spin.rms >= 0.5f, nm);
+    snprintf(nm, sizeof nm, "Soft self-osc fc 80 (%.2f V) >= 5 V", sso80.rms);
+    CHECK(sso80.rms >= 5.f, nm);
 
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;

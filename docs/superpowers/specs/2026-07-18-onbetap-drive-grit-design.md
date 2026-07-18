@@ -6,6 +6,10 @@
 `docs/research/onbetap-drive-resonance-investigation.md` (Finding 3, option 3)
 **Related:** `docs/research/polivoks-emulations.md` §4 items 3–4
 
+> **Baked (2026-07-18, later):** the Tuning menu was removed; gritDb is fixed
+> at `kDefaultGritDb = 3.5` and the span at `kDriveSpanDb = 36` (user's by-ear
+> final). The measured tables below predate that and used span 30 / grit 6.
+
 ## Problem
 
 At high Q, the top of the Drive knob gets **smoother and softer**: the

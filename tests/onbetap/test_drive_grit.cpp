@@ -53,7 +53,7 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs,
     float fsOs = fs * 2.f, tone = cutoff;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
     float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k (tuneOnset 0)
-    auto gains = onbetap::driveGains(drive, 30.f, 1.f, 0.f, gritDb);
+    auto gains = onbetap::driveGains(drive, onbetap::kDriveSpanDb, 1.f, 0.f, gritDb);
     float kCLag = 0.25f;
     float kEff = std::max(k - kCLag * g * g / (1.f + g * g), -0.31f);
 
@@ -116,7 +116,7 @@ int main(int argc, char**) {
     // --- Calibration sweep mode (no asserts) ---
     if (argc > 1) {
         printf("gritDb | r.60 thd@.9 thd@1 lvl@1 | r.70 lvl@.9 lvl@1 | r.30 thd@.5 | r.50 thd@.5\n");
-        for (float gdb : { 0.f, 4.f, 6.f, 8.f, 10.f, 12.f }) {
+        for (float gdb : { 0.f, 3.5f, 4.f, 6.f, 8.f, 10.f, 12.f }) {
             Meas s9  = measure(cutoff, 0.60f, 0.9f, amp, fs, gdb);
             Meas s10 = measure(cutoff, 0.60f, 1.0f, amp, fs, gdb);
             Meas a = measure(cutoff, 0.70f, 0.9f, amp, fs, gdb);

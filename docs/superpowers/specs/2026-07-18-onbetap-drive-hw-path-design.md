@@ -193,6 +193,10 @@ at exactly the knee — that's physics — but it removes the top-of-travel reve
 stays 24–48 dB (raise it for the wilder top). Existing patches keep their stored
 span (persisted in JSON), so only new instances change.
 
+**Superseded (2026-07-18, later):** the default span returned to 36 dB and was
+baked (Tuning menu removed) once the grit push and the deep-overdrive guards
+resolved the top-of-knob reversal this trim worked around.
+
 **Superseded refinement:** the residual top-of-knob grit collapse this span
 trim could not cure is fixed by the Drive-grit VCA push — see
 `2026-07-18-onbetap-drive-grit-design.md`.

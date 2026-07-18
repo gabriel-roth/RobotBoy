@@ -21,7 +21,8 @@
 // makeup is a CONSTANT buffer gain (Drive-independent): the core's rail clamping
 // already compresses level, so a Drive-dependent makeup double-compensates —
 // dropping level and stripping grit as Drive rises. drive knob [0,1] → input
-// gain 0.25×…16× (−12…+24 dB); output: volts = core × makeup, then VCA sat
+// gain 0.25×…16× (−12…+24 dB, span baked at onbetap::kDriveSpanDb); output:
+// volts = core × makeup, then VCA sat
 // 9·tanhish(v/9). See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
 // A Drive-following push into the output VCA (drive.hpp vcaPush, quadratic in
 // drive, bounded by the 9 V ceiling) keeps the top of the knob gaining grit
@@ -67,16 +68,10 @@ struct Onbetap : Module {
 	onbetap::DriftWalker driftL { 0x0B617A01u };
 	onbetap::DriftWalker driftR { 0x0B617A02u };
 
-	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Hard;
+	// Soft (diode-clamp) limiting is the shipped default; Hard stays a menu
+	// option. Tuning constants are baked — see onbetap/drive.hpp.
+	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Soft;
 	int oversample = 2;                             // 1 / 2 / 4
-	// Tuning menu (Task 4): defaults = spec values
-	float tuneDriveDb = 30.f;    // drive span in dB (−12 → +18); keeps the knob's
-	                             // top out of the high-Q resonance-choke zone
-	                             // (was 36 → +24, which over-suppressed at max)
-	float tuneHeadroom = 1.f;    // scales input-drive trim (see onbetap/drive.hpp)
-	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
-	float tuneOutDb = 0.f;       // output trim ±12 dB
-	float tuneGritDb = onbetap::kDefaultGritDb;  // Drive-grit VCA push at full Drive (dB)
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -179,14 +174,14 @@ struct Onbetap : Module {
 			if (resCv) res += resAtt * inputs[RES_INPUT].getPolyVoltage(c) * 0.2f;
 			res = clamp(res, 0.f, 1.f);
 			// rev-log damping map; onset ~res 0.72; min resonance Q≈1
-			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + tuneOnset;
+			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);
 			v.kTarget = k;   // phase-lag term applied per sample from slewed g
 
 			float drive = driveKnob;
 			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) * 0.2f;
 			drive = clamp(drive, 0.f, 1.f);
-			auto gains = onbetap::driveGains(drive, tuneDriveDb, tuneHeadroom,
-			                                 tuneOutDb, tuneGritDb);
+			auto gains = onbetap::driveGains(drive, onbetap::kDriveSpanDb, 1.f,
+			                                 0.f, onbetap::kDefaultGritDb);
 			v.driveTarget  = gains.driveScale;
 			v.makeupTarget = gains.makeup;
 			v.pushTarget   = gains.vcaPush;
@@ -320,11 +315,6 @@ struct Onbetap : Module {
 		json_object_set_new(root, "vintageDrift", json_boolean(vintageDrift));
 		json_object_set_new(root, "limitMode", json_integer((int)limitMode));
 		json_object_set_new(root, "oversample", json_integer(oversample));
-		json_object_set_new(root, "tuneDriveDb", json_real(tuneDriveDb));
-		json_object_set_new(root, "tuneHeadroom", json_real(tuneHeadroom));
-		json_object_set_new(root, "tuneOnset", json_real(tuneOnset));
-		json_object_set_new(root, "tuneOutDb", json_real(tuneOutDb));
-		json_object_set_new(root, "tuneGritDb", json_real(tuneGritDb));
 		return root;
 	}
 
@@ -341,50 +331,8 @@ struct Onbetap : Module {
 			int v = (int)json_integer_value(os);
 			oversample = (v == 1 || v == 2 || v == 4) ? v : 2;
 		}
-		json_t* dDb = json_object_get(root, "tuneDriveDb");
-		if (dDb)
-			tuneDriveDb = clamp((float)json_real_value(dDb), 24.f, 48.f);
-		json_t* head = json_object_get(root, "tuneHeadroom");
-		if (head)
-			tuneHeadroom = clamp((float)json_real_value(head), 0.5f, 2.0f);
-		json_t* onset = json_object_get(root, "tuneOnset");
-		if (onset)
-			tuneOnset = clamp((float)json_real_value(onset), -0.10f, 0.10f);
-		json_t* outDb = json_object_get(root, "tuneOutDb");
-		if (outDb)
-			tuneOutDb = clamp((float)json_real_value(outDb), -12.f, 12.f);
-		json_t* gritDb = json_object_get(root, "tuneGritDb");
-		if (gritDb)
-			tuneGritDb = clamp((float)json_real_value(gritDb), 0.f, 12.f);
-	}
-};
-
-
-// Menu slider quantity bound to a float* field, for the Tuning submenu.
-struct TuneQuantity : Quantity {
-	float* value;
-	float minV, maxV, defV;
-	std::string label, unit;
-
-	TuneQuantity(float* v, float mn, float mx, std::string lbl, std::string u, float def)
-		: value(v), minV(mn), maxV(mx), defV(def), label(lbl), unit(u) {}
-
-	void setValue(float v) override { *value = clamp(v, minV, maxV); }
-	float getValue() override { return *value; }
-	float getMinValue() override { return minV; }
-	float getMaxValue() override { return maxV; }
-	float getDefaultValue() override { return defV; }
-	std::string getLabel() override { return label; }
-	std::string getUnit() override { return unit; }
-};
-
-struct MenuSlider : ui::Slider {
-	MenuSlider(Quantity* q) {
-		quantity = q;
-		box.size.x = 200.f;
-	}
-	~MenuSlider() {
-		delete quantity;
+		// Older patches may carry tune* keys from the removed Tuning menu;
+		// they are deliberately ignored — the voicing is baked now.
 	}
 };
 
@@ -439,12 +387,12 @@ struct OnbetapWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Resonance limiting"));
-		menu->addChild(createMenuItem("Hard (factory rails)",
-			m->limitMode == OnbetapFilter::Limit::Hard ? "✓" : "",
-			[m]() { m->limitMode = OnbetapFilter::Limit::Hard; }));
 		menu->addChild(createMenuItem("Soft (diode clamp)",
 			m->limitMode == OnbetapFilter::Limit::Soft ? "✓" : "",
 			[m]() { m->limitMode = OnbetapFilter::Limit::Soft; }));
+		menu->addChild(createMenuItem("Hard (factory rails)",
+			m->limitMode == OnbetapFilter::Limit::Hard ? "✓" : "",
+			[m]() { m->limitMode = OnbetapFilter::Limit::Hard; }));
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Oversampling",
@@ -454,19 +402,6 @@ struct OnbetapWidget : ModuleWidget {
 				m->oversample = (i == 0) ? 1 : (i == 1) ? 2 : 4;
 				m->pool.resetAll();
 			}));
-
-		menu->addChild(createSubmenuItem("Tuning", "", [m](Menu* menu) {
-			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneDriveDb, 24.f, 48.f, "Drive span", " dB", 30.f)));
-			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneHeadroom, 0.5f, 2.0f, "Core headroom", "x", 1.f)));
-			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneOnset, -0.10f, 0.10f, "Self-osc onset trim", "", 0.f)));
-			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneOutDb, -12.f, 12.f, "Output trim", " dB", 0.f)));
-			menu->addChild(new MenuSlider(new TuneQuantity(
-				&m->tuneGritDb, 0.f, 12.f, "Drive grit", " dB", onbetap::kDefaultGritDb)));
-		}));
 	}
 };
 
