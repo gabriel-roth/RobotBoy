@@ -626,10 +626,10 @@ struct RetoursWidget : ModuleWidget {
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(44.540f, 102.227f)), module, Retours::DRY_WET_AR_PARAM));
 
 		// --- Audio I/O ---
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.532f, 114.300f)), module, Retours::IN_L_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.644f, 114.300f)), module, Retours::IN_R_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.236f, 114.300f)), module, Retours::OUT_L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(47.348f, 114.300f)), module, Retours::OUT_R_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.238f, 114.300f)), module, Retours::IN_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.938f, 114.300f)), module, Retours::IN_R_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.942f, 114.300f)), module, Retours::OUT_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(46.642f, 114.300f)), module, Retours::OUT_R_OUTPUT));
 	}
 };
 

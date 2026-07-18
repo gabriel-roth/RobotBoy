@@ -195,12 +195,19 @@ elements:
   - {name: DRY_WET_AR_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
 
   # --- Stereo audio I/O, one shared label per pair centered on the pair's
-  # own midpoint (IN at 14.088 = (8.532+19.644)/2, OUT at 41.792 =
-  # (36.236+47.348)/2) -- see header comment on the IN/OUT-vs-per-channel
-  # departure from the original.
-  - {name: IN_L_INPUT,   x: 8.532,  y: 114.3}
-  - {name: IN_R_INPUT,   x: 19.644, y: 114.3}
-  - {name: OUT_L_OUTPUT, x: 36.236, y: 114.3}
-  - {name: OUT_R_OUTPUT, x: 47.348, y: 114.3}
-  - {text: IN,  x: 14.088, y: 121.9, size: 3.175}
-  - {text: OUT, x: 41.792, y: 121.9, size: 3.175}
+  # own midpoint -- see header comment on the IN/OUT-vs-per-channel
+  # departure from the original. Pair geometry copies Particules: 9.7mm
+  # between L/R centers (the stereo-pair rule) and label baseline 8.7mm
+  # below the jack row (114.3 + 8.7 = 123.0), replacing the hand-built
+  # original's wider 11.112mm pairs sized for its per-channel "L IN R"
+  # lettering. Each pair keeps its original midpoint (IN 14.088, OUT
+  # 41.792 -- symmetric about the 27.94 panel centerline), so L/R centers
+  # are midpoint ∓ 4.85. Retours.cpp's mm2px calls were updated in the
+  # same change (these are still cpp-verbatim, just no longer the
+  # hand-built original's values).
+  - {name: IN_L_INPUT,   x: 9.238,  y: 114.3}
+  - {name: IN_R_INPUT,   x: 18.938, y: 114.3}
+  - {name: OUT_L_OUTPUT, x: 36.942, y: 114.3}
+  - {name: OUT_R_OUTPUT, x: 46.642, y: 114.3}
+  - {text: IN,  x: 14.088, y: 123.0, size: 3.175}
+  - {text: OUT, x: 41.792, y: 123.0, size: 3.175}
