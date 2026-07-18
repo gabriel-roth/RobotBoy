@@ -64,6 +64,35 @@ struct DecimFir13 {
     }
 };
 
+// 9-tap stage-A decimation FIR for the 4x oversampling path, run at
+// fsOs = 192 kHz (48 kHz host), decimating 192k -> 96k ahead of the same
+// DecimFir13 stage the 2x path uses (96k -> 48k) — so the 4x passband
+// matches the 2x path by construction, and the 2x/4x comparison isolates
+// the oversampling factor (spec: 2026-07-18-onbetap-4x-decimator-design).
+// Folding-band math: after both decimations the audible 0-24k band is
+// polluted only by content at 72-96 kHz (folds straight in) — 48-72 kHz
+// folds to 24-48 kHz, which stage B's stopband already covers. So stage A
+// needs strong attenuation only above 72 kHz, and with a transition band
+// a quarter of the sample rate wide, 9 taps suffice.
+// scipy.signal.firwin(9, 45500, window=("kaiser", 3.25), fs=192000):
+// passband dev <= 0.096 dB to 20 kHz, stopband <= -41 dB over 72-96 kHz.
+// Group delay 4 samples at 192k = 1 host sample (stage B adds ~3 more).
+struct DecimFir9 {
+    static constexpr float h[9] = {
+        -0.0042816f, -0.0436724f, 0.0182510f, 0.2921273f, 0.4751513f,
+         0.2921273f,  0.0182510f, -0.0436724f, -0.0042816f
+    };
+    float z[9] = {0.f};
+    void reset() { for (auto& v : z) v = 0.f; }
+    float push(float x) {
+        for (int i = 8; i > 0; i--) z[i] = z[i - 1];
+        z[0] = x;
+        float y = 0.f;
+        for (int i = 0; i < 9; i++) y += h[i] * z[i];
+        return y;
+    }
+};
+
 struct OnbetapVoice {
     // Defaults ≈ 750 Hz at 96 kHz (2× OS of 48 kHz); corrected by the first
     // modulate() within 2.5 ms.
@@ -83,6 +112,9 @@ struct OnbetapVoice {
     DCBlock dcL, dcR;
     // Decimation FIR state, one per tap per side (2x oversampling path only).
     DecimFir13 firLpL, firBpL, firHpL, firLpR, firBpR, firHpR;
+    // Stage-A decimation FIRs (4x path only): 192k -> 96k ahead of the
+    // DecimFir13s above, which serve as stage B at 96k on the 4x path.
+    DecimFir9 fir4LpL, fir4BpL, fir4HpL, fir4LpR, fir4BpR, fir4HpR;
 
     void setAlpha(float a) {
         gSlew.setAlpha(a); kSlew.setAlpha(a);
@@ -103,6 +135,8 @@ struct OnbetapVoice {
         dcR.reset();
         firLpL.reset(); firBpL.reset(); firHpL.reset();
         firLpR.reset(); firBpR.reset(); firHpR.reset();
+        fir4LpL.reset(); fir4BpL.reset(); fir4HpL.reset();
+        fir4LpR.reset(); fir4BpR.reset(); fir4HpR.reset();
     }
     // NaN recovery per modulate block: filters only (smoother inputs are
     // clamped params, always finite) — avoids a parameter sweep on recovery.
@@ -117,6 +151,8 @@ struct OnbetapVoice {
             dcL.reset(); dcR.reset();
             firLpL.reset(); firBpL.reset(); firHpL.reset();
             firLpR.reset(); firBpR.reset(); firHpR.reset();
+            fir4LpL.reset(); fir4BpL.reset(); fir4HpL.reset();
+            fir4LpR.reset(); fir4BpR.reset(); fir4HpR.reset();
         }
     }
 };

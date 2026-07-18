@@ -48,6 +48,32 @@ int main() {
         CHECK(maxAbs > 0.02f && maxAbs < 0.9f, "drift wanders but stays bounded");
         CHECK(std::isfinite(a.value), "drift finite");
     }
+    // DecimFir9 (stage-A decimator, 4x path): DC gain, impulse, reset
+    {
+        DecimFir9 f;
+        float y = 0.f;
+        for (int i = 0; i < 32; i++) y = f.push(1.f);
+        CHECK(std::fabs(y - 1.f) < 1e-4f, "DecimFir9 DC gain ~1");
+        f.reset();
+        float imp[9];
+        imp[0] = f.push(1.f);
+        for (int i = 1; i < 9; i++) imp[i] = f.push(0.f);
+        bool match = true;
+        for (int i = 0; i < 9; i++)
+            match = match && std::fabs(imp[i] - DecimFir9::h[i]) < 1e-6f;
+        CHECK(match, "DecimFir9 impulse response = taps");
+        f.reset();
+        CHECK(f.push(0.f) == 0.f, "DecimFir9 reset clears state");
+    }
+    // sanitize() clears stage-A FIR state on NaN recovery
+    {
+        OnbetapVoice v;
+        float g = OnbetapFilter::cutoffToG(1000.f, 192000.f);
+        v.fir4LpL.push(1.f);
+        v.fL.processG(std::nanf(""), g, 0.5f);
+        v.sanitize();
+        CHECK(v.fir4LpL.push(0.f) == 0.f, "sanitize clears stage-A FIRs");
+    }
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
