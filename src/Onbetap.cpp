@@ -218,14 +218,34 @@ struct Onbetap : Module {
 
 	// One stereo side through the oversampled core. Returns output volts.
 	// fir{Lp,Bp,Hp} are only touched (and only meaningful) on the 2x path;
-	// the 1x path bypasses them entirely, and 4x keeps the original crude
-	// boxcar average (out of this task's scope — see worklog).
+	// the 1x path bypasses them entirely; on the 4x path they serve as
+	// stage B behind the fir4* stage-A decimators.
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
 	                  float g, float kEff, float driveScale, float makeup, float push,
-	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp) {
+	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp,
+	                  DecimFir9& fir4Lp, DecimFir9& fir4Bp, DecimFir9& fir4Hp) {
 		float lp = 0, bp = 0, hp = 0;
 		float x1 = inVolts * driveScale;
-		if (oversample == 2) {
+		if (oversample == 4) {
+			// 4x: two-stage decimation — fir4* (DecimFir9, 192k→96k) feeds
+			// the same DecimFir13 stage the 2x path uses (96k→48k), so the
+			// 4x passband matches 2x by construction. See engine.hpp for
+			// the folding-band math and design provenance.
+			for (int i = 1; i <= 4; i++) {
+				float t = (float)i / 4.f;
+				float x = xPrev + (x1 - xPrev) * t;  // linear interp upsample
+				auto o = flt.processG(x, g, kEff);
+				float al = fir4Lp.push(o.lp);
+				float ab = fir4Bp.push(o.bp);
+				float ah = fir4Hp.push(o.hp);
+				if ((i & 1) == 0) {                  // 96k instants: substeps 2, 4
+					float fl = firLp.push(al);
+					float fb = firBp.push(ab);
+					float fh = firHp.push(ah);
+					if (i == 4) { lp = fl; bp = fb; hp = fh; }
+				}
+			}
+		} else if (oversample == 2) {
 			// 2x: 13-tap decimation FIR (see engine.hpp DecimFir13) replaces
 			// the crude 2-tap boxcar average, which under-attenuates the
 			// alias band and both droops the top octave and lets content
@@ -296,14 +316,16 @@ struct Onbetap : Module {
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
 			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
-			                         push, v.firLpL, v.firBpL, v.firHpL);
+			                         push, v.firLpL, v.firBpL, v.firHpL,
+			                         v.fir4LpL, v.fir4BpL, v.fir4HpL);
 			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
 
 			if (rConnected) {
 				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
 				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
 				                         g * v.fRgRatio, kEff, drive, makeup, push,
-				                         v.firLpR, v.firBpR, v.firHpR);
+				                         v.firLpR, v.firBpR, v.firHpR,
+				                         v.fir4LpR, v.fir4BpR, v.fir4HpR);
 				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
 			} else {
 				// R normalled to L → mirror L (skips a full core solve; in

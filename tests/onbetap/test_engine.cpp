@@ -74,6 +74,36 @@ int main() {
         v.sanitize();
         CHECK(v.fir4LpL.push(0.f) == 0.f, "sanitize clears stage-A FIRs");
     }
+    // Composed 4x cascade: low-frequency sine passes at unity-ish gain
+    {
+        float fs = 48000.f, fsOs = fs * 4.f, tone = 100.f;
+        float g = OnbetapFilter::cutoffToG(20000.f, fsOs);
+        OnbetapFilter f; f.reset();
+        DecimFir9 aLp, aBp, aHp; DecimFir13 bLp, bBp, bHp;
+        float xPrev = 0.f, peak = 0.f;
+        const float kTwoPiT = 6.28318530717959f;
+        for (int n = 0; n < (int)fs; n++) {
+            float x1 = std::sin(kTwoPiT * tone * n / fs);
+            float lp = 0.f;
+            for (int i = 1; i <= 4; i++) {
+                float t = (float)i / 4.f;
+                float x = xPrev + (x1 - xPrev) * t;
+                auto o = f.processG(x, g, 1.02f);
+                float al = aLp.push(o.lp);
+                aBp.push(o.bp); aHp.push(o.hp);
+                if ((i & 1) == 0) {
+                    float fl = bLp.push(al);
+                    if (i == 4) lp = fl;
+                }
+            }
+            xPrev = x1;
+            if (n > (int)fs / 2) peak = std::max(peak, std::fabs(lp));
+        }
+        // processG applies kGin (1.2, Erica input ratio) ahead of the core,
+        // so "unity" through the raw filter is kGin, not 1.
+        CHECK(peak > 0.85f * OnbetapFilter::kGin && peak < 1.15f * OnbetapFilter::kGin,
+              "4x cascade passes 100 Hz at unity-ish gain (x kGin)");
+    }
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
