@@ -17,7 +17,7 @@ struct Lop : Module {
     // menu-only "Options" (Crossfade, Trigger, Speed-V/Oct). Keep in lockstep.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, GRID_PARAM,
-                   CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, PARAMS_LEN };
+                   CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, TRIG_WHEN_REC_PARAM, PARAMS_LEN };
     enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
@@ -54,6 +54,8 @@ struct Lop : Module {
             {"On", "Off"})->randomizeEnabled = false;
         configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
             {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
+        configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "Trigger when recording",
+            {"Stops recording", "Starts overdubbing"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -97,7 +99,7 @@ struct Lop : Module {
         bool recBtn  = recordBtn.process(params[RECORD_PARAM].getValue());
         bool recTrig = recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         if (recBtn || recTrig)
-            engine.toggleRecord();
+            engine.toggleRecord(params[TRIG_WHEN_REC_PARAM].getValue() > 0.5f);
         bool clrBtn  = clearBtn.process(params[CLEAR_PARAM].getValue());
         bool clrTrig = clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         if (clrBtn || clrTrig)
@@ -201,6 +203,10 @@ struct LopWidget : ModuleWidget {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
+        menu->addChild(createIndexSubmenuItem("Trigger when recording",
+            {"Stops recording", "Starts overdubbing"},
+            [m] { return (int)std::round(m->params[Lop::TRIG_WHEN_REC_PARAM].getValue()); },
+            [m](int i) { m->paramQuantities[Lop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         // Overdub (incl. write modes) and Grid are panel controls; only the
         // modes with no panel control live in the menu.
         // Same item language and order as Loooop's menu tail; One-shot is a

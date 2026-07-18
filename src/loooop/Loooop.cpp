@@ -38,6 +38,7 @@ struct Loooop : Module {
                    TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
                    SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
                    EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
+                   TRIG_WHEN_REC_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
@@ -107,6 +108,8 @@ struct Loooop : Module {
         configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"})->randomizeEnabled = false;
         configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
             {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
+        configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "Trigger when recording",
+            {"Stops recording", "Starts overdubbing"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -146,7 +149,7 @@ struct Loooop : Module {
         bool recBtn  = recordBtn.process(params[RECORD_PARAM].getValue());
         bool recTrig = recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         if (recBtn || recTrig)
-            engine.toggleRecord();
+            engine.toggleRecord(params[TRIG_WHEN_REC_PARAM].getValue() > 0.5f);
         bool clrBtn  = clearBtn.process(params[CLEAR_PARAM].getValue());
         bool clrTrig = clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         if (clrBtn || clrTrig)
@@ -334,6 +337,10 @@ struct LoooopWidget : ModuleWidget {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
+        menu->addChild(createIndexSubmenuItem("Trigger when recording",
+            {"Stops recording", "Starts overdubbing"},
+            [m] { return (int)std::round(m->params[Loooop::TRIG_WHEN_REC_PARAM].getValue()); },
+            [m](int i) { m->paramQuantities[Loooop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         // Playheads (by color) in the submenus. One-shot is a checkmark per
         // playhead; unchecked (default) a trigger restarts the playhead at
         // its window start — that mode has no name in the interface.
