@@ -36,10 +36,10 @@ side_margin: 3
 title:
   # Sized so the wordmark spans the gap between the top screws' drawn
   # edges (x 10.04..40.76, 30.72mm): measured 20.75mm at size 5.8, and
-  # width scales linearly with size -> 5.8 * 30.72/20.75 = 8.59. Default
-  # baseline (size + 1.0); the old dy: 3.6 ducked the full-width
-  # Yellowjacket wordmark below the screws, no longer needed.
+  # width scales linearly with size -> 5.8 * 30.72/20.75 = 8.59.
   size: 8.59
+  dy: 2.71   # drops the wordmark to baseline 12.3 (8.59 + 1.0 + 2.71),
+             # matching Onbetap's (9 + 1.0 + 2.3) so the logos share a line.
 
 theme:
   background: "#d4ad3f"   # reversed: dulled gold panel

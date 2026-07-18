@@ -19,8 +19,10 @@ theme:
   screws: light
 
 title:
-  size: 9.5   # text/x/y all default correctly: text=name, x=width/2,
-              # baseline = size + 1.0 = 10.5 (matches the shipped panel).
+  size: 9.5   # text/x/y default: text=name, x=width/2,
+              # baseline = size + 1.0 = 10.5.
+  dy: 1.8     # drops the wordmark to baseline 12.3, matching Onbetap's
+              # (size 9 + 1.0 + dy 2.3 = 12.3) so the two logos share a line.
 
 # Warm brown control-zone tint behind the whole control area.
 zones:
