@@ -35,7 +35,7 @@ struct LopInfo : ModuleInfoBase {
     // MetaModule roller headers this block as an "Options:" section (a param
     // group that FOLLOWS the jacks), matching VCV's command-first menu layout
     // instead of interleaving with the panel knobs.
-    static constexpr std::array<Element, 26> Elements{{
+    static constexpr std::array<Element, 27> Elements{{
         // ── Params: Size, Pos, Speed, Jitter ──
         QlpKnob{{9.870f, 46.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{23.610f, 46.050f, Center, "Position", "", 9.f, 9.f}, 0.5f},
@@ -67,6 +67,7 @@ struct LopInfo : ModuleInfoBase {
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger", "", 0.f, 0.f}},
         QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
+        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", "", 0.f, 0.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};
 
@@ -76,7 +77,7 @@ struct LopInfo : ModuleInfoBase {
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         AudioInL, AudioInR, RecTrigIn, ClearTrigIn, DryWetCvIn,
         OutL, OutR,
-        CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
+        CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt, TrigWhenRecAlt,
         Display,
     };
 

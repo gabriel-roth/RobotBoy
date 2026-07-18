@@ -45,7 +45,7 @@ struct LoooopInfo : ModuleInfoBase {
     // block as an "Options:" section (a param group that FOLLOWS the jacks),
     // matching VCV's command-first menu layout instead of interleaving with
     // the panel knobs.
-    static constexpr std::array<Element, 90> Elements{{
+    static constexpr std::array<Element, 91> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
         QlpOverdubSwitch{{69.543f, 116.050f, Center, "Overdub", "", 7.f, 7.f}},
@@ -152,6 +152,7 @@ struct LoooopInfo : ModuleInfoBase {
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 2 exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 3 exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 4 exclude", ""}},
+        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", ""}},
 
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
@@ -179,6 +180,7 @@ struct LoooopInfo : ModuleInfoBase {
         TrigMode1Alt, TrigMode2Alt, TrigMode3Alt, TrigMode4Alt,
         SpeedVoct1Alt, SpeedVoct2Alt, SpeedVoct3Alt, SpeedVoct4Alt,
         ExcludeGrid1Alt, ExcludeGrid2Alt, ExcludeGrid3Alt, ExcludeGrid4Alt,
+        TrigWhenRecAlt,
         Display,
     };
 

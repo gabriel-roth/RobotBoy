@@ -47,7 +47,7 @@ public:
         bool recTrig = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
         bool recEdge = (recPressed || recTrig) && !recPrev_;
         recPrev_ = recPressed || recTrig;
-        if (recEdge) engine_.toggleRecord();
+        if (recEdge) engine_.toggleRecord(getState<TrigWhenRecAlt>() == 1);
 
         bool clrPressed = getState<ClearButton>() == MomentaryButton::State_t::PRESSED;
         if (clrPressed && !clrPrev_) engine_.clear();

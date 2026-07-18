@@ -71,6 +71,13 @@ struct QlpCrossfadeAlt : AltParamChoiceLabeled {
     constexpr QlpCrossfadeAlt(BaseElement b, unsigned defaultValue)
         : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"On", "Off"}} {}
 };
+// Index 0 = "Stops recording" (legacy behavior): the loader zero-inits unset
+// alt-params, so fresh modules/patches keep the record toggle stopping instead
+// of rolling straight into an overdub pass.
+struct QlpTrigWhenRecAlt : AltParamChoiceLabeled {
+    constexpr QlpTrigWhenRecAlt(BaseElement b)
+        : AltParamChoiceLabeled{{{b}, 2, 0}, {"Stops recording", "Starts overdubbing"}} {}
+};
 // Index 0 = Off so patches saved before this param (loader zero-inits unset
 // alt-params) keep every head on the grid.
 struct QlpExcludeGridAlt : AltParamChoiceLabeled {
