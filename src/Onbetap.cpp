@@ -23,6 +23,9 @@
 // dropping level and stripping grit as Drive rises. drive knob [0,1] → input
 // gain 0.25×…16× (−12…+24 dB); output: volts = core × makeup, then VCA sat
 // 9·tanhish(v/9). See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
+// A Drive-following push into the output VCA (drive.hpp vcaPush, quadratic in
+// drive, bounded by the 9 V ceiling) keeps the top of the knob gaining grit
+// while the authentic resonance choke removes the resonance-derived grit.
 static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
 static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
 static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
@@ -73,6 +76,7 @@ struct Onbetap : Module {
 	float tuneHeadroom = 1.f;    // scales input-drive trim (see onbetap/drive.hpp)
 	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
 	float tuneOutDb = 0.f;       // output trim ±12 dB
+	float tuneGritDb = onbetap::kDefaultGritDb;  // Drive-grit VCA push at full Drive (dB)
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -181,9 +185,11 @@ struct Onbetap : Module {
 			float drive = driveKnob;
 			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) * 0.2f;
 			drive = clamp(drive, 0.f, 1.f);
-			auto gains = onbetap::driveGains(drive, tuneDriveDb, tuneHeadroom, tuneOutDb);
+			auto gains = onbetap::driveGains(drive, tuneDriveDb, tuneHeadroom,
+			                                 tuneOutDb, tuneGritDb);
 			v.driveTarget  = gains.driveScale;
 			v.makeupTarget = gains.makeup;
+			v.pushTarget   = gains.vcaPush;
 
 			// Character: mismatch + cutoff-scaled offset (vintage), R drift as
 			// a relative g ratio so poly voices share one target.
@@ -211,7 +217,7 @@ struct Onbetap : Module {
 	// the 1x path bypasses them entirely, and 4x keeps the original crude
 	// boxcar average (out of this task's scope — see worklog).
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
-	                  float g, float kEff, float driveScale, float makeup,
+	                  float g, float kEff, float driveScale, float makeup, float push,
 	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp) {
 		float lp = 0, bp = 0, hp = 0;
 		float x1 = inVolts * driveScale;
@@ -258,7 +264,7 @@ struct Onbetap : Module {
 
 		float v = -y * makeup;
 		v = dc.process(v, dcCoef);                   // AC-couple (rectification DC)
-		return 9.f * OnbetapFilter::tanhish(v / 9.f); // "overdriven VCA" stage
+		return 9.f * OnbetapFilter::tanhish(push * v / 9.f); // "overdriven VCA" stage
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -280,18 +286,19 @@ struct Onbetap : Module {
 			float kBase  = v.kSlew.process(v.kTarget);
 			float drive  = v.driveSlew.process(v.driveTarget);
 			float makeup = v.makeupSlew.process(v.makeupTarget);
+			float push   = v.pushSlew.process(v.pushTarget);
 			float kEff   = kBase - kCLag * g * g / (1.f + g * g);
 			kEff = std::max(kEff, -0.31f);           // denominator guard floor
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
 			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
-			                         v.firLpL, v.firBpL, v.firHpL);
+			                         push, v.firLpL, v.firBpL, v.firHpL);
 			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
 
 			if (rConnected) {
 				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
 				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
-				                         g * v.fRgRatio, kEff, drive, makeup,
+				                         g * v.fRgRatio, kEff, drive, makeup, push,
 				                         v.firLpR, v.firBpR, v.firHpR);
 				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
 			} else {
@@ -312,6 +319,7 @@ struct Onbetap : Module {
 		json_object_set_new(root, "tuneHeadroom", json_real(tuneHeadroom));
 		json_object_set_new(root, "tuneOnset", json_real(tuneOnset));
 		json_object_set_new(root, "tuneOutDb", json_real(tuneOutDb));
+		json_object_set_new(root, "tuneGritDb", json_real(tuneGritDb));
 		return root;
 	}
 
@@ -340,6 +348,9 @@ struct Onbetap : Module {
 		json_t* outDb = json_object_get(root, "tuneOutDb");
 		if (outDb)
 			tuneOutDb = clamp((float)json_real_value(outDb), -12.f, 12.f);
+		json_t* gritDb = json_object_get(root, "tuneGritDb");
+		if (gritDb)
+			tuneGritDb = clamp((float)json_real_value(gritDb), 0.f, 12.f);
 	}
 };
 
@@ -448,6 +459,8 @@ struct OnbetapWidget : ModuleWidget {
 				&m->tuneOnset, -0.10f, 0.10f, "Self-osc onset trim", "", 0.f)));
 			menu->addChild(new MenuSlider(new TuneQuantity(
 				&m->tuneOutDb, -12.f, 12.f, "Output trim", " dB", 0.f)));
+			menu->addChild(new MenuSlider(new TuneQuantity(
+				&m->tuneGritDb, 0.f, 12.f, "Drive grit", " dB", onbetap::kDefaultGritDb)));
 		}));
 	}
 };
