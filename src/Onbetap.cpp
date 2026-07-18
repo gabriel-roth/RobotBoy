@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "onbetap/OnbetapFilter.hpp"
 #include "onbetap/engine.hpp"
+#include "onbetap/drive.hpp"
 #include "mf20/dsp_utils.hpp"
 
 // Onbetap — Polivoks-style multimode filter.
@@ -15,16 +16,13 @@
 // and docs/research/polivoks-*.md for the circuit derivation. Panel
 // positions mirror res/Onbetap.svg (see panel-specs/onbetap.yaml).
 
-// volts → core units: 1 / 2.4 V window, times base trim
-static constexpr float kVoltsToCore = 1.f / 2.4f;
-static constexpr float kBaseTrim    = 0.4f;   // drive=0 → mild warmth at ±5 V
-// drive knob [0,1] → gain exp2(lerp(-2, +4, d)) = 0.25×…16× (−12…+24 dB)
-// makeup = (driveGain/0.25)^-kMakeupExp: unity at drive=0, tapers loudness
-// growth at max drive so the end-to-end RMS bump stays under the Task 5
-// +6 dB level target (raised from a plain inverse-sqrt, which overshot it).
-// output: volts = core × kOutScale × makeup, then VCA sat 9·tanhish(v/9)
-static constexpr float kOutScale   = 20.5f;   // calibrated in Task 5
-static constexpr float kMakeupExp  = 0.75f;   // calibrated in Task 5
+// Drive-knob → gain mapping (input drive + output makeup) lives in
+// onbetap/drive.hpp so the makeup formula is unit-tested directly. The output
+// makeup is a CONSTANT buffer gain (Drive-independent): the core's rail clamping
+// already compresses level, so a Drive-dependent makeup double-compensates —
+// dropping level and stripping grit as Drive rises. drive knob [0,1] → input
+// gain 0.25×…16× (−12…+24 dB); output: volts = core × makeup, then VCA sat
+// 9·tanhish(v/9). See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
 static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
 static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
 static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
@@ -181,11 +179,9 @@ struct Onbetap : Module {
 			float drive = driveKnob;
 			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) * 0.2f;
 			drive = clamp(drive, 0.f, 1.f);
-			float spanOct = tuneDriveDb / 6.0206f;               // dB → octaves
-			float driveGain = std::exp2(-2.f + spanOct * drive); // 0.25 → …
-			v.driveTarget  = driveGain * kBaseTrim * kVoltsToCore * tuneHeadroom;
-			v.makeupTarget = std::pow(0.25f / driveGain, kMakeupExp)
-			               * kOutScale * std::exp2(tuneOutDb / 6.0206f);
+			auto gains = onbetap::driveGains(drive, tuneDriveDb, tuneHeadroom, tuneOutDb);
+			v.driveTarget  = gains.driveScale;
+			v.makeupTarget = gains.makeup;
 
 			// Character: mismatch + cutoff-scaled offset (vintage), R drift as
 			// a relative g ratio so poly voices share one target.
