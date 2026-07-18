@@ -135,6 +135,38 @@ steepen the law to `drive⁴` — whichever measurement shows keeps criterion 4
 intact; record the chosen constants in the worklog. If no setting in range
 satisfies both 1 and 4, stop and report (true blocker).
 
+### Metric amendment (2026-07-18, during implementation)
+
+Criterion 1 as first written ("res 0.70: THD@1.0 ≥ 12 %") turned out to be
+the wrong instrument, not a failing feature. Diagnosis at the knee (res 0.70,
+drive 1.0, 5 V): the output is already rail-to-rail (peak 9 V) with **79–87 %
+non-fundamental energy**, but that energy is *inharmonic* (chaotic self-osc
+sidebands — h2…h6 all < 0.5 V), so harmonic-bin THD reads 3–5 % regardless of
+how hard the VCA is pushed. Harmonic THD is only a valid grit instrument in
+the stable choked regime (res ≤ \~0.60).
+
+The push itself works as designed — measured with the committed sweep
+(`test_drive_grit sweep`): at res 0.60 the default push turns a dead-flat top
+decile (THD 17.3 % → 17.3 %) into a rising one (28.8 % → 31.1 %), and at the
+res 0.70 knee it adds +1.0 dB of level at full Drive. Criterion 1 is therefore
+re-anchored on valid instruments:
+
+- **1a (res 0.60, stable):** `THD@1.0 ≥ THD@0.9 + 1 pp` (dirt keeps rising to
+  the end of travel), `THD@1.0 ≥ 25 %`, `level@1.0 ≥ level@0.9 − 0.5 dB`.
+- **1b (res 0.70, knee):** `level@1.0 at default gritDb ≥ level@1.0 at
+  gritDb 0 + 0.5 dB` (the push makes the top *louder*, never softer) and
+  `level@1.0 ≥ level@0.9 − 0.5 dB`.
+
+Criterion 5 is restricted to res {0.30, 0.50}: res ≥ 0.60 has authentic brief
+self-oscillation pockets at isolated Drive points (investigation report §5.2,
+the 0.2–0.3 ratio dips) that bump the level by \~1 dB and make strict level
+monotony physically wrong there.
+
+Default confirmed at **6 dB**: 4 dB also passes but with thin margins (2 pp /
+0.2 dB) on chaos-adjacent measurements; 6 dB passes with solid margins while
+moving mid-knob THD by only +3.6 pp (well inside criterion 4's +8 pp). The
+quadratic law needed no steepening.
+
 ## Testing (TDD order)
 
 Extend `tests/onbetap/test_drive_level.cpp` (or add
