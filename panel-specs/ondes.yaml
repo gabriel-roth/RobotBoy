@@ -33,6 +33,10 @@ title:
   # default baseline (size + 1.0 = 7.35) instead of the old size-9
   # dy: 2.3 drop below the screw line.
   size: 6.35
+  kern:      # per-pair kerning (em) from the kerning review
+    - {pair: "ON", em: 0.02}  # straight+straight (O has flat sides) — open
+                              # ("ON" quoted: YAML reads bare ON as boolean true)
+    - {pair: ND, em: 0.02}    # straight+straight — open a hair
 
 # Wavetable display: LedDisplay widget drawing the live cyan trace (see
 # WavetableDisplay::drawLayer in Ondes.cpp) — bare rect placeholder here,

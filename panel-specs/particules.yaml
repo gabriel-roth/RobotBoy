@@ -55,6 +55,12 @@ theme:
 title:
   size: 6.35
   tracking: 0.74
+  kern:      # per-pair kerning (em) from the kerning review, on top of tracking
+    - {pair: PA, em: -0.05}   # P's open lower-right meets A's diagonal
+    - {pair: RT, em: -0.04}   # R's leg and T's open underside face each other
+    - {pair: TI, em: -0.03}   # tuck I under T's crossbar
+    - {pair: UL, em: 0.02}    # straight+straight — open a hair
+    - {pair: LE, em: -0.01}   # L's open upper-right reads a touch loose
   # v2's default baseline formula (valign: baseline -> size + 1.0 = 7.35)
   # doesn't match this panel; dy shifts it to the shipped panel's measured
   # baseline (bbox max-y of the "PARTICULES" text path = 8.561).

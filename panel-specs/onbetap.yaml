@@ -28,6 +28,12 @@ side_margin: 5
 title:
   size: 9
   dy: 2.3   # drops the wordmark below the top screws, clear of the title band
+  kern:     # per-pair kerning (em) from the kerning review
+    - {pair: "ON", em: 0.02}  # straight+straight (O has flat sides) — open
+                              # ("ON" quoted: YAML reads bare ON as boolean true)
+    - {pair: NB, em: 0.02}    # straight+straight — open a hair
+    - {pair: TA, em: -0.06}   # diagonal+diagonal — two wedges, tighten hard
+    - {pair: AP, em: -0.02}   # A's apex overhangs; tuck P in
 
 # Soviet-red control zone tint behind the whole control cluster; the I/O row
 # sits below it.

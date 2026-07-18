@@ -23,6 +23,9 @@ title:
               # baseline = size + 1.0 = 10.5.
   dy: 1.8     # drops the wordmark to baseline 12.3, matching Onbetap's
               # (size 9 + 1.0 + dy 2.3 = 12.3) so the two logos share a line.
+  kern:       # per-pair kerning (em) from the kerning review
+    - {pair: MF, em: 0.02}    # straight+straight — open a hair
+              # (hyphen/figures left to the font's own metrics)
 
 # Warm brown control-zone tint behind the whole control area.
 zones:

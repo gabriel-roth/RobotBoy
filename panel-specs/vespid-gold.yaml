@@ -40,6 +40,11 @@ title:
   size: 8.59
   dy: 2.71   # drops the wordmark to baseline 12.3 (8.59 + 1.0 + 2.71),
              # matching Onbetap's (9 + 1.0 + 2.3) so the logos share a line.
+  kern:      # per-pair kerning (em) from the kerning review — keep in sync
+             # with vespid.yaml
+    - {pair: VE, em: -0.03}   # V's diagonal opens a wedge above E's stem
+    - {pair: PI, em: -0.02}   # P's open lower-right leaves a gap before I
+    - {pair: ID, em: 0.02}    # straight+straight — open a hair
 
 theme:
   background: "#d4ad3f"   # reversed: dulled gold panel
