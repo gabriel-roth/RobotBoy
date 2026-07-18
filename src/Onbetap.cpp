@@ -28,6 +28,8 @@
 // drive, bounded by the 9 V ceiling) keeps the top of the knob gaining grit
 // while the authentic resonance choke removes the resonance-derived grit.
 static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
+static constexpr float kOnsetTrim = 0.045f;   // baked self-osc onset trim (by ear,
+                                              // 2026-07-18): onset res ~0.72 → ~0.84
 static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
 static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
 static constexpr float kTwoPi = 6.28318530717959f;
@@ -69,11 +71,10 @@ struct Onbetap : Module {
 	onbetap::DriftWalker driftR { 0x0B617A02u };
 
 	// Soft (diode-clamp) limiting is the shipped default; Hard stays a menu
-	// option. Tuning constants are baked (see onbetap/drive.hpp) except the
-	// self-osc onset trim, which survives as the one remaining menu slider.
+	// option. All tuning constants are baked — see onbetap/drive.hpp and
+	// kOnsetTrim above.
 	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Soft;
 	int oversample = 2;                             // 1 / 2 / 4
-	float tuneOnset = 0.f;       // added to k before phase-lag term (±0.1)
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -175,8 +176,9 @@ struct Onbetap : Module {
 			float res = resKnob;
 			if (resCv) res += resAtt * inputs[RES_INPUT].getPolyVoltage(c) * 0.2f;
 			res = clamp(res, 0.f, 1.f);
-			// rev-log damping map; onset ~res 0.72; min resonance Q≈1
-			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + tuneOnset;
+			// rev-log damping map (+ baked onset trim → onset ~res 0.84);
+			// min resonance Q≈1
+			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + kOnsetTrim;
 			v.kTarget = k;   // phase-lag term applied per sample from slewed g
 
 			float drive = driveKnob;
@@ -317,7 +319,6 @@ struct Onbetap : Module {
 		json_object_set_new(root, "vintageDrift", json_boolean(vintageDrift));
 		json_object_set_new(root, "limitMode", json_integer((int)limitMode));
 		json_object_set_new(root, "oversample", json_integer(oversample));
-		json_object_set_new(root, "tuneOnset", json_real(tuneOnset));
 		return root;
 	}
 
@@ -334,40 +335,8 @@ struct Onbetap : Module {
 			int v = (int)json_integer_value(os);
 			oversample = (v == 1 || v == 2 || v == 4) ? v : 2;
 		}
-		json_t* onset = json_object_get(root, "tuneOnset");
-		if (onset)
-			tuneOnset = clamp((float)json_real_value(onset), -0.10f, 0.10f);
-		// Other tune* keys from the removed Tuning menu are deliberately
-		// ignored — that voicing is baked now.
-	}
-};
-
-
-// Menu slider quantity bound to a float* field (self-osc onset trim).
-struct TuneQuantity : Quantity {
-	float* value;
-	float minV, maxV, defV;
-	std::string label, unit;
-
-	TuneQuantity(float* v, float mn, float mx, std::string lbl, std::string u, float def)
-		: value(v), minV(mn), maxV(mx), defV(def), label(lbl), unit(u) {}
-
-	void setValue(float v) override { *value = clamp(v, minV, maxV); }
-	float getValue() override { return *value; }
-	float getMinValue() override { return minV; }
-	float getMaxValue() override { return maxV; }
-	float getDefaultValue() override { return defV; }
-	std::string getLabel() override { return label; }
-	std::string getUnit() override { return unit; }
-};
-
-struct MenuSlider : ui::Slider {
-	MenuSlider(Quantity* q) {
-		quantity = q;
-		box.size.x = 200.f;
-	}
-	~MenuSlider() {
-		delete quantity;
+		// tune* keys from the removed Tuning menu (including tuneOnset) are
+		// deliberately ignored — the voicing is baked now.
 	}
 };
 
@@ -437,10 +406,6 @@ struct OnbetapWidget : ModuleWidget {
 				m->oversample = (i == 0) ? 1 : (i == 1) ? 2 : 4;
 				m->pool.resetAll();
 			}));
-
-		menu->addChild(new MenuSeparator);
-		menu->addChild(new MenuSlider(new TuneQuantity(
-			&m->tuneOnset, -0.10f, 0.10f, "Self-osc onset trim", "", 0.f)));
 	}
 };
 
