@@ -755,3 +755,92 @@ newer than `src/Onbetap.cpp`, matches commit `57b038d`, no rebuild needed).
 Scratch artifacts (`patch_4x.yml`, `in_mm_4x.wav`, `mm_4x.wav`, `vcv_4x.wav`,
 `spec_4x_parity.json`, `compare_4x_parity.py`) live at
 `<scratchpad>/onbetap-4x/` (not committed).
+
+## 2026-07-18 — kCLag made rate-independent
+
+**Problem:** the phase-lag damping correction (`kEff = kBase − kCLag·g²/(1+g²)`,
+`src/Onbetap.cpp:313`) used the slewed prewarp gain `g = tan(π·fc/fsOs)` as
+its fc proxy, so it accidentally depended on the oversample setting: at
+fc = 20 kHz the correction was 0.093 at 2x (fsOs 96 kHz, g = 0.767) vs 0.026
+at 4x (fsOs 192 kHz, g = 0.340), giving kEff 0.972 vs 1.039. The 4x path ran
+audibly more damped in the top octave and self-oscillated later at high
+cutoff — independent of decimator quality, and it colored any 2x-vs-4x
+listening comparison (see the 4x-decimator entry above).
+
+**Fix:** a new host-free helper, `onbetap::cutoffLagCorr(fcHz)`
+(`src/onbetap/engine.hpp`), evaluates the correction as a pure function of
+cutoff at a fixed reference rate — `kCLagRefFsOs = 96000` (2x OS of a 48 kHz
+host, the rate every Task 5 calibration measurement ran at). `modulate()`
+folds it into the slewed k target: `v.kTarget = k − kCLag ·
+onbetap::cutoffLagCorr(fc)`; `process()` drops the per-sample term entirely
+(`kEff = std::max(kBase, −0.31f)`). `kCLag` itself stays 0.25 — only what it
+multiplies changed. (Plan/commits: `docs/superpowers/plans/2026-07-18-onbetap-kclag-rate-independent.md`,
+`1f461b8` engine.hpp helper, `4f8ecdd` module rewire.)
+
+**Behavior changes (all intentional):**
+- **4x:** correction now matches 2x at every cutoff → kEff identical → same
+  top-octave damping and self-osc onset as 2x. Brighter than before at high
+  fc. Above 23.5 kHz (reachable only at 4x) the correction saturates at its
+  23.5 kHz value via `cutoffToG`'s own fc clamp — conservative, since kCLag
+  was never calibrated beyond 20 kHz.
+- **1x:** correction was previously *larger* (g at fsOs 48 kHz) → 1x becomes
+  slightly less damped at high fc, now also matching 2x.
+- **2x at 48 kHz host:** steady-state kEff numerically unchanged (same
+  `tan(π·fc/96000)` expression) — only the smoothing path differs (the
+  correction now rides `kSlew` instead of being derived per sample from
+  `gSlew`), so transients during cutoff sweeps and the first smoother
+  settle differ but converge (confirmed below).
+- **Other host rates:** voicing is now host-rate-independent too — a 96 kHz
+  host previously got a different correction; it now matches the calibrated
+  48 kHz voicing, consistent with every other baked constant.
+
+**Render-convergence check** (2x defaults, Task 1's input, vs pre-change
+`base_2x.wav`): final-1 s max abs diff **0.0 V** (gate ≤ 1e-4 V — PASS,
+bit-identical steady state). Full-render max abs diff 1.8377e-4 V, recorded
+only (not gated) — confined to the startup smoother-settle transient, the
+expected consequence of the smoothing-path change above. (Task 2 report:
+`.superpowers/sdd/kclag-task-2-report.md`.)
+
+**Droop@18kHz** (Task-4 decimator harness, `<scratchpad>/onbetap-4x/measure.cpp`,
+kEff formula updated in Step 1 of this task to mirror the folded module
+expression — same for every OS mode now, since `cutoffLagCorr` is evaluated
+at the fixed reference rate regardless of the mode's actual `fsOs`):
+
+| mode   | before (per-mode g-derived kEff) | after (folded, reference-rate kEff) | Δ      |
+|--------|-----------------------------------|--------------------------------------|--------|
+| os2    | −2.33 dB                          | −2.33 dB                             | 0.00   |
+| os4box | −4.67 dB                          | −4.15 dB                             | +0.52  |
+| os4cas | −3.75 dB                          | −3.21 dB                             | +0.54  |
+
+os2 moved 0.00 dB (gate: ≤ 0.15 dB from −2.33 — PASS, as expected, since
+os2's `fsOs` = 96 kHz equals `kCLagRefFsOs`). The os2↔os4cas gap shrank from
+1.42 dB to 0.88 dB, a closure of **0.54 dB**, matching the linearised-SVF
+prediction of **0.55 dB** (ΔkEff = 0.067 at fc 20 kHz → |H(18k)| at k 0.972
+vs 1.039, r = 0.9) to 0.01 dB — evidence the fix delivered exactly the
+kEff-attributable share of the gap, and confirmation (via os4box moving by
+the same ~0.5 dB) that the correction now acts identically on both 4x
+reconstruction paths. The remaining ≈0.88 dB residual at this extreme corner
+(fc = 20 kHz, measured at 18 kHz) is not kEff — it's the bilinear-prewarp
+shape difference between fsOs 96 kHz and 192 kHz (the core filter's own
+`g = tan(π·fc/fsOs)` necessarily differs by mode at a fixed nominal cutoff)
+plus the decimator/upsampler chain, both out of scope here; it shrinks
+rapidly at lower cutoffs as (fc/fsOs)² falls. Spec criterion 4 was amended
+in-flight to gate the kEff-attributable closure (0.55 ± 0.15 dB) rather than
+the original, over-attributed "gap ≤ 0.6 dB" guess — see
+`docs/superpowers/specs/2026-07-18-onbetap-kclag-rate-independent-design.md`
+criterion 4, amendment landed in commit `e752af1`.
+
+**VCV↔MM parity at 4x re-verified:** rebuilt `RobotBoy.mmplugin`
+(`metamodule/build`, clean, `All symbols found!`) and the headless
+simulator's RobotBoy built-in (`~/Dev/metamodule/simulator`, `--preset
+headless`, `-Dext_builtin_brand_paths=$HOME/Dev/RobotBoy/metamodule
+-Dext_builtin_brand_libname=RobotBoy`) to pick up the source change, then
+reran the exact Task 5 method (same `patch_4x.yml`/`spec_4x_parity.json`,
+`{"oversample":4}` override on both sides, 5x volts-scale normalization).
+**Result: max |diff| = 1.2517e-5 V, rms diff = 2.552e-6 V**, over all 96000
+samples (identical excluding the first 512 samples — no transient), well
+under the 1e-4 V pass bar and the same order of magnitude as the prior 4x
+parity run (1.31e-5 V) — confirms the fix behaves identically on both hosts.
+VCV peak 7.48062 V vs MM peak 7.48062 V; MM L vs R max diff 0.0.
+
+Spec: `docs/superpowers/specs/2026-07-18-onbetap-kclag-rate-independent-design.md`.
