@@ -84,9 +84,12 @@ struct VoiceEngine {
     OnePoleSmoother gSlew     { 0.049f };
     OnePoleSmoother kC2Slew   { 0.f };
     OnePoleSmoother rhoSlew   { 0.f };
-    // Drive at rest is 2x (fixed pre-gain in the knob mapping, Vespid.cpp
-    // modulate()); seed the smoother there so a fresh voice doesn't sweep in.
-    OnePoleSmoother driveSlew { 2.f };
+    // Drive at rest in the module's default mode (Tame) is 0.5x: the 2x
+    // knob-floor pre-gain times Tame's 0.25 hardware level staging
+    // (kTame.inGain — see Vespid.cpp modulate()). Seed the smoother there
+    // so a fresh voice doesn't sweep in; a voice reset while in Screaming
+    // just re-slews to 2x over ~5 ms.
+    OnePoleSmoother driveSlew { 0.5f };
     // H1 coefficients are division-heavy (computeH1 is only called at
     // modulate rate); these three smoothers slew the *coefficients*
     // per-sample so resonance sweeps stay zipper-free without paying for
@@ -98,7 +101,7 @@ struct VoiceEngine {
     OnePoleSmoother beta1Slew  { 0.f };
     OnePoleSmoother alpha1Slew { 0.f };
 
-    float gTarget = 0.049f, kC2Target = 0.f, rhoTarget = 0.f, driveTarget = 2.f;
+    float gTarget = 0.049f, kC2Target = 0.f, rhoTarget = 0.f, driveTarget = 0.5f;
     float beta0Target = 0.f, beta1Target = 0.f, alpha1Target = 0.f;
 
     // Internal (oversampled) rate the voice currently runs at; mirrors the
@@ -128,7 +131,7 @@ struct VoiceEngine {
         gSlew.reset(gTarget = 0.049f);
         kC2Slew.reset(kC2Target = 0.f);
         rhoSlew.reset(rhoTarget = 0.f);
-        driveSlew.reset(driveTarget = 2.f);
+        driveSlew.reset(driveTarget = 0.5f);
         seedH1();
     }
 

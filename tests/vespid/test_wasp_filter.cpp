@@ -339,6 +339,23 @@ static void test_drive_staging() {
     report(hi.fund < 15.0, "raw LP fundamental rail-bounded at 64x", buf);
 }
 
+static void test_mode_input_staging() {
+    printf("\n11. Per-mode input staging (drive-0 operating points)\n");
+    // Effective drive-0 levels from Vespid.cpp: 5 V host signal x 2x floor
+    // x mode.inGain -> Screaming 10 V (Euro-hot, clean), Tame 2.5 V (EDP
+    // nominal: the original's light rasp, ~12% THD at fc=1500, rho=0.225).
+    // Calibration: 2026-07-19-vespid-input-calibration-design.md.
+    Thd scr  = thdAtGain(wasp::kScreaming, 2.f,  1500.f, 0.225f);
+    Thd tame = thdAtGain(wasp::kTame,      0.5f, 1500.f, 0.225f);
+    char buf[160];
+    snprintf(buf, sizeof(buf), "Screaming@10V: THD=%.3f%%; Tame@2.5V: THD=%.2f%%",
+             100 * scr.thd, 100 * tame.thd);
+    report(scr.finite && tame.finite, "staged operating points finite", buf);
+    report(scr.thd < 0.01, "Screaming drive-0 (10 V eq.) is clean (THD < 1%)", buf);
+    report(tame.thd > 0.05 && tame.thd < 0.20,
+           "Tame drive-0 (2.5 V eq.) has the EDP light rasp (THD 5-20%)", buf);
+}
+
 int main() {
     printf("Wasp filter behavioral test suite\n");
     printf("=================================\n");
@@ -352,6 +369,7 @@ int main() {
     test_dc_block();
     test_highacc_consistency();
     test_drive_staging();
+    test_mode_input_staging();
     printf("\n=================================\n");
     printf("%d passed, %d failed\n", sPassed, sFailed);
     return sFailed > 0 ? 1 : 0;

@@ -37,14 +37,24 @@ struct ModeConfig {
     float vHi, vLo; // rail headroom (V, positive numbers); also rail-clamp bounds
     float invA0;    // inverter open-loop gain magnitude
     float makeup;   // output makeup gain
+    // Caller-applied (like wcComp), NOT used inside the core: hardware level
+    // staging, folded into the module's drive gain. Anchors a full-scale
+    // host signal (5 V peak) at each unit's nominal-hot source level:
+    // Screaming = Doepfer A-124, Euro-native (5 V, 1:1); Tame = EDP Wasp,
+    // fed by its own 0-5 V logic-swing oscillators (+/-2.5 V AC-coupled,
+    // level pot <= unity), so 0.25 x the module's 2x drive floor = 0.5x.
+    // See 2026-07-19-vespid-input-calibration-design.md.
+    float inGain;
 };
 
 constexpr ModeConfig kScreaming = {
     /*c*/0.296f, /*kR2*/3.70f, /*nInv*/6.70f, /*wcComp*/0.60954726f,
-    /*vHi*/3.031f, /*vLo*/8.500f, /*invA0*/17.88f, /*makeup*/2.0f };
+    /*vHi*/3.031f, /*vLo*/8.500f, /*invA0*/17.88f, /*makeup*/2.0f,
+    /*inGain*/1.0f };
 constexpr ModeConfig kTame = {
     /*c*/0.155f, /*kR2*/1.00f, /*nInv*/4.00f, /*wcComp*/1.08196598f,
-    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/1.0f };
+    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/1.0f,
+    /*inGain*/0.25f };
 
 class WaspFilter {
 public:

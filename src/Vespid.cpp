@@ -255,15 +255,17 @@ struct Vespid : Module {
 			eng.rhoTarget = rho;
 
 			// Drive: knob 0..1 -> 2x..64x (2x fixed pre-gain, 30 dB span),
-			// times the fixed input-trim gain. Staged so a 5 V VCV signal
-			// meets the core's saturation onset (~12.5 V equivalent, see
-			// 2026-07-19-vespid-drive-remap-design.md) low on the knob and
-			// the rest of the travel works the clipping range.
+			// times the fixed input-trim gain and the per-mode hardware
+			// level staging (mode.inGain). At drive 0 a 5 V signal lands at
+			// Screaming's Euro-hot staging (10 V eq., clean, onset ~6% up
+			// the knob) and Tame's EDP-nominal 2.5 V (the original's light
+			// rasp, ~12% THD). See 2026-07-19-vespid-drive-remap-design.md
+			// and 2026-07-19-vespid-input-calibration-design.md.
 			float drive01 = driveKnob;
 			if (driveCvConn)
 				drive01 += driveCvAtten * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
 			drive01 = clamp(drive01, 0.f, 1.f);
-			eng.driveTarget = 2.f * std::exp2(5.f * drive01) * trimGain;
+			eng.driveTarget = 2.f * std::exp2(5.f * drive01) * trimGain * mode.inGain;
 
 			// H1 (resonance network) coefficients: computeH1 is division-heavy,
 			// so it's evaluated here (modulate rate) and its outputs are what
