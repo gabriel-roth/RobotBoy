@@ -48,6 +48,11 @@ A stereo RAM looper: capture a loop, then play it back with four independent pla
 
 ## Filters
 
+<img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
+<img src="screenshots/Onbetap.png" alt="Onbetap module" height="300">
+<img src="screenshots/Vespid-c.png" alt="Vespid module (charcoal)" height="300">
+<img src="screenshots/Vespid-y.png" alt="Vespid module (gold)" height="300">
+
 Three characterful stereo filter emulations, each modeled from the behavior of the original circuit. Full details for all three are in the [**Filters manual**](Filters.md).
 
 - **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The Korg MS-20 filter — a high-pass and low-pass in series, switchable between the OTA and Korg35 revisions, with Drive.

@@ -67,6 +67,8 @@ Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode mode
 
 ## Onbetap — the Formanta Polivoks filter
 
+<img src="screenshots/Onbetap.png" alt="Onbetap module" height="420">
+
 ### The original
 
 The **Polivoks** (1982) is the best-known synthesizer to come out of the Soviet Union. It was designed by engineer Vladimir Kuzmin at the Formanta radio factory — its tank-like industrial look styled by his wife, Olimpiada, after Soviet military radios — and built in the tens of thousands for the domestic market, almost unknown in the West until long after the USSR was gone. (Kuzmin died in June 2026.)
@@ -114,6 +116,9 @@ The model was derived from factory Polivoks schematics, the Erica Synths DIY Pol
 ---
 
 ## Vespid — the EDP Wasp filter
+
+<img src="screenshots/Vespid-c.png" alt="Vespid module (charcoal)" height="420">
+<img src="screenshots/Vespid-y.png" alt="Vespid module (gold)" height="420">
 
 ### The original
 
