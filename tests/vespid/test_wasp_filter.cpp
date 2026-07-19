@@ -369,13 +369,13 @@ static Controls makeControlsFp(const wasp::ModeConfig& m, float fc, float rho,
 }
 
 static void test_selfosc_onset() {
-    printf("\n12. Self-osc onset & low-fPole guards (1e-4 noise seed, from silence)\n");
-    // Screaming at the 30 kHz menu floor must start screaming in musical
-    // time from the module's noise seed alone (measured 0.16 s at fc=1000);
-    // Tame at its 60 kHz effective floor must never free-run.
-    // Calibration: 2026-07-19-vespid-selfosc-onset-design.md.
+    printf("\n12. Self-osc onset & baked-fPole guards (1e-4 noise seed, from silence)\n");
+    // Baked per-mode inverter bandwidth (Vespid.cpp kFPoleScreaming/
+    // kFPoleTame): Screaming at 50 kHz must start screaming in musical time
+    // from the module's noise seed alone; Tame at 60 kHz must never
+    // free-run. Calibration: 2026-07-19-vespid-selfosc-onset-design.md.
     {
-        Controls c = makeControlsFp(wasp::kScreaming, 1000.f, 1.f, 30000.f);
+        Controls c = makeControlsFp(wasp::kScreaming, 1000.f, 1.f, 50000.f);
         wasp::WaspFilter w; w.setSampleRate(kFsInt);
         w.setMode(wasp::kScreaming); w.reset();
         const int n = (int)(kFsInt * 3.f);
@@ -390,7 +390,7 @@ static void test_selfosc_onset() {
         char buf[128];
         snprintf(buf, sizeof(buf), "onset=%.3f s (want < 1.0), peak=%.2f V", onset, peak);
         report(onset >= 0 && onset < 1.0,
-               "Screaming @30 kHz self-oscillates within 1 s of silence", buf);
+               "Screaming @50 kHz (baked) self-oscillates within 1 s of silence", buf);
     }
     {
         Controls c = makeControlsFp(wasp::kTame, 1000.f, 1.f, 60000.f);
@@ -407,7 +407,7 @@ static void test_selfosc_onset() {
         double amp = std::sqrt(2.0 * sum2 / cnt);
         char buf[128];
         snprintf(buf, sizeof(buf), "tail amp=%.6g V (want < 0.05)", amp);
-        report(amp < 0.05, "Tame @60 kHz floor does not free-run from noise seed", buf);
+        report(amp < 0.05, "Tame @60 kHz (baked) does not free-run from noise seed", buf);
     }
 }
 

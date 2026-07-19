@@ -78,7 +78,14 @@ struct Vespid : Module {
 	float _outputLevelDb = 0.f;
 
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
-	float _fPole = 80000.f;
+	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
+	// Screaming 50 kHz — eager self-oscillation, onset well under a second
+	// at mid/high cutoffs, reaching down to ~300-400 Hz cutoffs; Tame
+	// 60 kHz — its free-run threshold sits at ~55-60 kHz
+	// (fitted_constants.md), so 60 keeps the no-self-oscillation promise.
+	// See 2026-07-19-vespid-selfosc-onset-design.md (baked addendum).
+	static constexpr float kFPoleScreaming = 50000.f;
+	static constexpr float kFPoleTame      = 60000.f;
 
 	// Self-oscillation pitch tracking: false = hardware-accurate (drifts flat
 	// at high resonance in Screaming), true = corrected to track the knob.
@@ -203,11 +210,7 @@ struct Vespid : Module {
 		const wasp::ModeConfig& mode = screaming ? wasp::kScreaming : wasp::kTame;
 		float fsInt = _sampleRate * (float)_osActual;
 
-		// The menu floor (30 kHz) exists for fast/wide Screaming self-osc;
-		// Tame free-runs below ~55-60 kHz (fitted_constants.md), so it
-		// silently floors its effective inverter bandwidth at 60 kHz to
-		// keep its no-self-oscillation promise.
-		float fPole = screaming ? _fPole : std::max(_fPole, 60000.f);
+		float fPole = screaming ? kFPoleScreaming : kFPoleTame;
 
 		float freqLog     = params[FREQ_PARAM].getValue();
 		float freqCvAtten = params[FREQ_CV_PARAM].getValue();
@@ -376,7 +379,6 @@ struct Vespid : Module {
 		json_object_set_new(root, "osMenu", json_integer(_osMenu));
 		json_object_set_new(root, "inputTrimDb", json_real(_inputTrimDb));
 		json_object_set_new(root, "outputLevelDb", json_real(_outputLevelDb));
-		json_object_set_new(root, "fPole", json_real(_fPole));
 		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
 	}
@@ -405,9 +407,8 @@ struct Vespid : Module {
 		json_t* ol = json_object_get(root, "outputLevelDb");
 		if (ol)
 			_outputLevelDb = clamp((float)json_real_value(ol), -12.f, 12.f);
-		json_t* fp = json_object_get(root, "fPole");
-		if (fp)
-			_fPole = clamp((float)json_real_value(fp), 30000.f, 220000.f);
+		// Older patches carry an "fPole" key (Inverter bandwidth slider,
+		// removed 2026-07-19 — baked per mode above); it is ignored.
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
@@ -458,34 +459,6 @@ struct OutputLevelQuantity : Quantity {
 	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
 };
 
-// Inverter bandwidth: log-scaled 30 kHz - 220 kHz, default 80 kHz. The ceiling
-// is 220 kHz because Screaming's self-oscillation threshold is ~218 kHz
-// (kC2 = wc*(R3*C2 - kR2/(2*pi*fPole)) crosses zero there). The floor is
-// 30 kHz for fast, wide-range Screaming self-oscillation; Tame floors its
-// effective value at 60 kHz internally (see modulate()) since it free-runs
-// below ~55-60 kHz. The Quantity's own value/min/max live in log2(kHz)
-// space so the slider position is linear-in-log; getDisplayValue/
-// getDisplayValueString convert back to kHz.
-struct FPoleQuantity : Quantity {
-	Vespid* module;
-	FPoleQuantity(Vespid* m) : module(m) {}
-	void setValue(float value) override {
-		if (module)
-			module->_fPole = 1000.f * std::pow(2.f, clamp(value, getMinValue(), getMaxValue()));
-	}
-	float getValue() override {
-		return module ? std::log2(module->_fPole / 1000.f) : getDefaultValue();
-	}
-	float getMinValue() override { return std::log2(30.f); }
-	float getMaxValue() override { return std::log2(220.f); }
-	float getDefaultValue() override { return std::log2(80.f); }
-	float getDisplayValue() override { return std::pow(2.f, getValue()); }
-	void setDisplayValue(float displayValue) override { setValue(std::log2(displayValue)); }
-	std::string getLabel() override { return "Inverter bandwidth"; }
-	std::string getUnit() override { return " kHz"; }
-	std::string getDisplayValueString() override { return string::f("%.1f", getDisplayValue()); }
-};
-
 #ifndef METAMODULE
 struct InputTrimSlider : ui::Slider {
 	InputTrimSlider(InputTrimQuantity* q) {
@@ -493,14 +466,6 @@ struct InputTrimSlider : ui::Slider {
 		box.size.x = 200.f;
 	}
 	~InputTrimSlider() { delete quantity; }
-};
-
-struct FPoleSlider : ui::Slider {
-	FPoleSlider(FPoleQuantity* q) {
-		quantity = q;
-		box.size.x = 200.f;
-	}
-	~FPoleSlider() { delete quantity; }
 };
 
 struct OutputLevelSlider : ui::Slider {
@@ -618,12 +583,12 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 #ifdef METAMODULE
 		// MetaModule's context menu has no ui::Slider widget (see the
-		// InputTrimSlider/OutputLevelSlider/FPoleSlider #ifndef METAMODULE guards
-		// above), so MM gets discrete-choice submenus instead of continuous
-		// sliders — same precedent as Particules' manual-gain menu
+		// InputTrimSlider/OutputLevelSlider #ifndef METAMODULE guards above),
+		// so MM gets discrete-choice submenus instead of continuous sliders —
+		// same precedent as Particules' manual-gain menu
 		// (src/particules/Particules.cpp, the `#ifdef METAMODULE` 0-32 dB list
 		// under ManualGainItem). Persistence is unchanged: both paths write/read
-		// the same _inputTrimDb/_outputLevelDb/_fPole floats and JSON fields, so
+		// the same _inputTrimDb/_outputLevelDb floats and JSON fields, so
 		// patches roundtrip identically between hosts.
 		menu->addChild(createIndexSubmenuItem("Input trim",
 			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
@@ -657,26 +622,9 @@ struct VespidWidget : ModuleWidget {
 				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
 				m->_outputLevelDb = kValues[i];
 			}));
-		menu->addChild(createIndexSubmenuItem("Inverter bandwidth",
-			{"30 kHz", "60 kHz", "80 kHz", "120 kHz", "220 kHz"},
-			[m]() -> size_t {
-				static const float kValues[5] = {30000.f, 60000.f, 80000.f, 120000.f, 220000.f};
-				size_t best = 2;
-				float bestDiff = std::fabs(kValues[2] - m->_fPole);
-				for (size_t i = 0; i < 5; i++) {
-					float diff = std::fabs(kValues[i] - m->_fPole);
-					if (diff < bestDiff) { bestDiff = diff; best = i; }
-				}
-				return best;
-			},
-			[m](size_t i) {
-				static const float kValues[5] = {30000.f, 60000.f, 80000.f, 120000.f, 220000.f};
-				m->_fPole = kValues[i];
-			}));
 #else
 		menu->addChild(new InputTrimSlider(new InputTrimQuantity(m)));
 		menu->addChild(new OutputLevelSlider(new OutputLevelQuantity(m)));
-		menu->addChild(new FPoleSlider(new FPoleQuantity(m)));
 #endif
 
 		menu->addChild(new MenuSeparator);

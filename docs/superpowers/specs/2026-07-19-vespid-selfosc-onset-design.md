@@ -4,6 +4,12 @@
 **Status:** implemented (autonomous session — decisions recorded inline)
 **Follows:** `2026-07-19-vespid-input-calibration-design.md`
 
+> **Baked (2026-07-19, later):** the Inverter bandwidth menu was removed;
+> fPole is fixed per mode — **Screaming 50 kHz** (user's final choice:
+> eager onset, wide fc range) and **Tame 60 kHz** (its free-run floor).
+> The slider ranges discussed below are historical. The old "fPole" patch
+> JSON key is ignored on load.
+
 ## Problem
 
 From silence at rho=1, Screaming's self-oscillation grows exponentially out
