@@ -291,6 +291,54 @@ static void test_highacc_consistency() {
     report(std::fabs(hi - st) < 0.5, "highAcc and standard agree within 0.5 dB", buf);
 }
 
+// THD (h2..h12 vs h1) and fundamental of raw LP for a 5 V, 110 Hz sine
+// scaled by `gain` — the drive-staging measurement from
+// docs/superpowers/specs/2026-07-19-vespid-drive-remap-design.md.
+struct Thd { double fund; double thd; bool finite; };
+static Thd thdAtGain(const wasp::ModeConfig& m, float gain, float fc, float rho) {
+    const float f0 = 110.f, amp = 5.f;
+    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(m); w.reset();
+    Controls c = makeControls(m, fc, rho);
+    int per = (int)std::round(kFsInt / f0);
+    int nSettle = per * 20, nMeas = per * 40;
+    std::vector<double> y(nMeas);
+    bool finite = true;
+    for (int i = 0; i < nSettle + nMeas; ++i) {
+        float x = amp * gain * std::sin(2.f * kPi * f0 * (float)i / kFsInt);
+        w.process(x, c.g, c.h1, c.kC2, true);
+        float lp = w.raw().lp;
+        if (!std::isfinite(lp)) finite = false;
+        if (i >= nSettle) y[i - nSettle] = lp;
+    }
+    double hmag[13] = {};
+    for (int h = 1; h <= 12; ++h) {
+        double re = 0, im = 0, wf = 2.0 * M_PI * h * f0 / kFsInt;
+        for (int i = 0; i < nMeas; ++i) {
+            re += y[i] * std::cos(wf * i);
+            im += y[i] * std::sin(wf * i);
+        }
+        hmag[h] = 2.0 * std::sqrt(re * re + im * im) / nMeas;
+    }
+    double hs2 = 0;
+    for (int h = 2; h <= 12; ++h) hs2 += hmag[h] * hmag[h];
+    return { hmag[1], std::sqrt(hs2) / (hmag[1] + 1e-30), finite };
+}
+
+static void test_drive_staging() {
+    printf("\n10. Drive staging (5 V input): 2x clean, 64x clipped, level monotone\n");
+    // Effective gains at the ends of the Vespid drive knob (2*2^(5*d), d=0/1).
+    Thd lo = thdAtGain(wasp::kScreaming, 2.f, 1000.f, 0.3f);
+    Thd hi = thdAtGain(wasp::kScreaming, 64.f, 1000.f, 0.3f);
+    char buf[160];
+    snprintf(buf, sizeof(buf), "2x: fund=%.3f V THD=%.3f%%; 64x: fund=%.3f V THD=%.2f%%",
+             lo.fund, 100 * lo.thd, hi.fund, 100 * hi.thd);
+    report(lo.finite && hi.finite, "drive extremes finite", buf);
+    report(lo.thd < 0.01, "drive floor (2x) is clean (THD < 1%)", buf);
+    report(hi.thd > 0.10, "drive ceiling (64x) is clipped (THD > 10%)", buf);
+    report(hi.fund > lo.fund, "fundamental rises from floor to ceiling", buf);
+    report(hi.fund < 15.0, "raw LP fundamental rail-bounded at 64x", buf);
+}
+
 int main() {
     printf("Wasp filter behavioral test suite\n");
     printf("=================================\n");
@@ -303,6 +351,7 @@ int main() {
     test_hp_bp_sanity();
     test_dc_block();
     test_highacc_consistency();
+    test_drive_staging();
     printf("\n=================================\n");
     printf("%d passed, %d failed\n", sPassed, sFailed);
     return sFailed > 0 ? 1 : 0;

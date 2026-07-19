@@ -136,7 +136,7 @@ The original Wasp sits right at the verge of self-oscillation — enough to whis
 
 - **Freq** — cutoff, 20 Hz – 20 kHz (log), default 750 Hz. Tracks 1 V/octave through its CV input, scaled by its attenuverter.
 - **Res** — resonance, 0–100%, default 0. CV input with attenuverter.
-- **Drive** — 0–100%, mapped to 1× up to 8× gain into the filter. CV input with attenuverter.
+- **Drive** — 0–100%, mapped to 2× up to 64× gain into the filter. The bottom of the knob is clean; the core starts clipping early in the travel, and pushing further shifts the clipping from ragged and asymmetric toward a harder, odd-harmonic squareness. CV input with attenuverter.
 - **Blend** — crossfades the **Mix** output: fully counter-clockwise is low-pass, center (default) is a notch, fully clockwise is high-pass. It affects only the Mix output; the dedicated LP/BP/HP outputs are always available unblended.
 
 Each of Freq, Res, and Drive has its own CV input and attenuverter; Blend has a CV input (no attenuverter).
@@ -159,7 +159,7 @@ Vespid is polyphonic on both hosts.
 - **Self-oscillation pitch (Screaming)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
 - **Input trim** — ±12 dB into the filter.
 - **Output level** — ±12 dB on every output. Useful for matching levels between Tame and Screaming, which differ in loudness.
-- **Inverter bandwidth** — 60–300 kHz, default 80 kHz. This tunes how eagerly the filter tips into self-oscillation — lower is more eager, higher more reluctant.
+- **Inverter bandwidth** — 60–220 kHz, default 80 kHz. This tunes how eagerly the filter tips into self-oscillation — lower is more eager, higher more reluctant. The top of the range sits right at the threshold where Screaming stops sustaining.
 - **Panel** — **Charcoal** (default) or **Gold** faceplate.
 
 ### Under the hood
