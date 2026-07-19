@@ -99,6 +99,7 @@ Checking a playhead under **One-shot on trigger** in the context menu changes th
 
 You can find these options by right-clicking the panel in VCV Rack or scrolling down to Options in MetaModule:
 
+- **Trigger when recording** — sets what a second Record command (button *or* the **Record trigger** input) does while Loooop is still recording its first loop. **Stops recording** (the default) freezes the loop and starts playback — the normal behavior. **Starts overdubbing** instead freezes the loop length at that moment and rolls straight on into an overdub pass, so a single clock or trigger stream can capture a loop and keep layering it without a second press. (In **Lock** overdub mode, overdubbing is off, so it always just stops.)
 - **Exclude from Grid** — lets a given playhead move freely even while **Grid** is on. Good for one drifting, texture-making playhead over an otherwise beat-sliced loop.
 - **One-shot on trigger** — check a playhead to put it in one-shot mode (see above). Unchecked (the default), a trigger just restarts the playhead at the start of its window.
 - **Speed CV = V/Oct** — makes a playhead's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
