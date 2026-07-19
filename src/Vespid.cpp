@@ -390,7 +390,7 @@ struct Vespid : Module {
 			_outputLevelDb = clamp((float)json_real_value(ol), -12.f, 12.f);
 		json_t* fp = json_object_get(root, "fPole");
 		if (fp)
-			_fPole = clamp((float)json_real_value(fp), 60000.f, 300000.f);
+			_fPole = clamp((float)json_real_value(fp), 60000.f, 220000.f);
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
@@ -441,27 +441,30 @@ struct OutputLevelQuantity : Quantity {
 	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
 };
 
-// Inverter bandwidth: log-scaled 60 kHz - 300 kHz, default 80 kHz. The
-// Quantity's own value/min/max live in log2(Hz) space so the slider position
-// is linear-in-log; getDisplayValue/getDisplayValueString convert back to Hz.
+// Inverter bandwidth: log-scaled 60 kHz - 220 kHz, default 80 kHz. The ceiling
+// is 220 kHz because Screaming's self-oscillation threshold is ~218 kHz
+// (kC2 = wc*(R3*C2 - kR2/(2*pi*fPole)) crosses zero there); the floor is
+// 60 kHz because Tame free-runs below ~55-60 kHz. The Quantity's own
+// value/min/max live in log2(kHz) space so the slider position is
+// linear-in-log; getDisplayValue/getDisplayValueString convert back to kHz.
 struct FPoleQuantity : Quantity {
 	Vespid* module;
 	FPoleQuantity(Vespid* m) : module(m) {}
 	void setValue(float value) override {
 		if (module)
-			module->_fPole = std::pow(2.f, clamp(value, getMinValue(), getMaxValue()));
+			module->_fPole = 1000.f * std::pow(2.f, clamp(value, getMinValue(), getMaxValue()));
 	}
 	float getValue() override {
-		return module ? std::log2(module->_fPole) : getDefaultValue();
+		return module ? std::log2(module->_fPole / 1000.f) : getDefaultValue();
 	}
-	float getMinValue() override { return std::log2(60000.f); }
-	float getMaxValue() override { return std::log2(300000.f); }
-	float getDefaultValue() override { return std::log2(80000.f); }
+	float getMinValue() override { return std::log2(60.f); }
+	float getMaxValue() override { return std::log2(220.f); }
+	float getDefaultValue() override { return std::log2(80.f); }
 	float getDisplayValue() override { return std::pow(2.f, getValue()); }
 	void setDisplayValue(float displayValue) override { setValue(std::log2(displayValue)); }
 	std::string getLabel() override { return "Inverter bandwidth"; }
-	std::string getUnit() override { return " Hz"; }
-	std::string getDisplayValueString() override { return string::f("%.0f", getDisplayValue()); }
+	std::string getUnit() override { return " kHz"; }
+	std::string getDisplayValueString() override { return string::f("%.1f", getDisplayValue()); }
 };
 
 #ifndef METAMODULE
@@ -636,9 +639,9 @@ struct VespidWidget : ModuleWidget {
 				m->_outputLevelDb = kValues[i];
 			}));
 		menu->addChild(createIndexSubmenuItem("Inverter bandwidth",
-			{"60 kHz", "80 kHz", "120 kHz", "200 kHz", "300 kHz"},
+			{"60 kHz", "80 kHz", "120 kHz", "160 kHz", "220 kHz"},
 			[m]() -> size_t {
-				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 200000.f, 300000.f};
+				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 160000.f, 220000.f};
 				size_t best = 1;
 				float bestDiff = std::fabs(kValues[1] - m->_fPole);
 				for (size_t i = 0; i < 5; i++) {
@@ -648,7 +651,7 @@ struct VespidWidget : ModuleWidget {
 				return best;
 			},
 			[m](size_t i) {
-				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 200000.f, 300000.f};
+				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 160000.f, 220000.f};
 				m->_fPole = kValues[i];
 			}));
 #else
