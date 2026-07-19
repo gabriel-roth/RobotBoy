@@ -175,6 +175,19 @@ namespace onbetap {
 constexpr float kMismatchL1 = 0.06f,  kMismatchL2 = -0.045f;
 constexpr float kMismatchR1 = -0.05f, kMismatchR2 = 0.055f;
 
+// Phase-lag damping-correction factor, a pure function of cutoff.
+// Evaluated at kCLagRefFsOs — the oversampled rate the module's kCLag
+// constant was calibrated at (Task 5: 2x OS, 48 kHz host) — so the
+// correction, and with it kEff, self-osc onset, and top-octave damping,
+// no longer depend on the oversample setting or the host rate. cutoffToG's
+// own fc clamp (0.245·fsOs = 23.52 kHz here) saturates the correction
+// above the calibrated range, reachable only at 4x.
+inline constexpr float kCLagRefFsOs = 96000.f;
+inline float cutoffLagCorr(float fcHz) {
+    float gr = OnbetapFilter::cutoffToG(fcHz, kCLagRefFsOs);
+    return gr * gr / (1.f + gr * gr);
+}
+
 // Deterministic OU random walk. step() advances one modulate block and
 // returns the current value in octaves (log2 cutoff offset). depthOct sets
 // the stationary standard deviation; tau fixes the wander timescale.

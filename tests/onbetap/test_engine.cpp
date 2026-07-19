@@ -104,6 +104,22 @@ int main() {
         CHECK(peak > 0.85f * OnbetapFilter::kGin && peak < 1.15f * OnbetapFilter::kGin,
               "4x cascade passes 100 Hz at unity-ish gain (x kGin)");
     }
+    // cutoffLagCorr: matches the calibrated 2x/48k per-sample expression
+    // (g²/(1+g²) at fsOs = 96 kHz) and is a pure function of fc — rate
+    // independence is by construction (no fsOs parameter).
+    {
+        const float fcs[] = {20.f, 200.f, 1000.f, 5000.f, 8000.f,
+                             18000.f, 20000.f, 23500.f};
+        bool match = true;
+        for (float fc : fcs) {
+            float g = OnbetapFilter::cutoffToG(fc, onbetap::kCLagRefFsOs);
+            float old2x = g * g / (1.f + g * g);
+            match = match && std::fabs(onbetap::cutoffLagCorr(fc) - old2x) < 1e-6f;
+        }
+        CHECK(match, "cutoffLagCorr matches calibrated 2x/48k correction");
+        CHECK(onbetap::cutoffLagCorr(20000.f) > onbetap::cutoffLagCorr(200.f),
+              "cutoffLagCorr grows with cutoff");
+    }
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }
