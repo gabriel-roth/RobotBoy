@@ -95,9 +95,21 @@ assignment (src/Onbetap.cpp:182).
    1 s max abs diff ≤ 1e-4 V (steady-state convergence; early-transient
    divergence from the smoothing-path change is expected and unbounded by
    this gate).
-4. Measured droop@18k (Task-4 harness, updated kEff formula): the
-   os2↔os4cas gap shrinks from 1.42 dB to ≤ 0.6 dB, with os2 itself moving
-   ≤ 0.15 dB from −2.33 dB.
+4. Measured droop@18k (Task-4 harness, updated kEff formula): os2 itself
+   moves ≤ 0.15 dB from −2.33 dB, and the os2↔os4cas gap shrinks by the
+   kEff-attributable amount — 0.55 ± 0.15 dB, the linearised-SVF
+   prediction for ΔkEff = 0.067 at fc 20 kHz (|H(18k)| with k 0.972 vs
+   1.039 at r = 0.9).
+
+   > **Amended 2026-07-18, during Task 3.** Originally "gap ≤ 0.6 dB" — a
+   > guess that wrongly attributed the whole pre-change 1.42 dB gap to
+   > kEff. Measured closure was 0.54 dB (1.42 → 0.88), matching the 0.55 dB
+   > linearised prediction to 0.01 dB: the fix delivered exactly what kEff
+   > controls. The residual ≈0.88 dB at this extreme corner (fc = 20 kHz,
+   > measured at 18 kHz) is bilinear prewarp shape difference between
+   > fsOs 96k and 192k plus the upsampler/decimator chain — inherent to
+   > the oversampling ratio, out of scope here (see Out of scope), and
+   > shrinking rapidly at lower cutoffs as (fc/fsOs)² falls.
 5. VCV↔MM parity at 4x re-verified ≤ 1e-4 V (Task-5 method).
 
 ## Out of scope
