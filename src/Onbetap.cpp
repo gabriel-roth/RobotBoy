@@ -217,9 +217,8 @@ struct Onbetap : Module {
 	}
 
 	// One stereo side through the oversampled core. Returns output volts.
-	// fir{Lp,Bp,Hp} are only touched (and only meaningful) on the 2x path;
-	// the 1x path bypasses them entirely; on the 4x path they serve as
-	// stage B behind the fir4* stage-A decimators.
+	// fir{Lp,Bp,Hp} run on the 2x and 4x paths (on 4x as stage B behind the
+	// fir4* stage-A decimators); the 1x path bypasses them entirely.
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
 	                  float g, float kEff, float driveScale, float makeup, float push,
 	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp,

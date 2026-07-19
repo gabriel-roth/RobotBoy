@@ -548,6 +548,14 @@ os4box            -14.33           23000            -4.67
 os4cas            -14.38           23000            -3.75
 ```
 
+(Baseline-drift note: `os2` droop here (−2.33 dB) differs from Task 5's
+−1.76 dB. At drive 0 the drive-constant changes are irrelevant; the drift
+matches the baked `kOnsetTrim` (+0.045 on k at every res setting, commit
+025910c, post-Task 5), which adds damping near fc — linearised SVF gain at
+18 kHz with fc 20 kHz moves ≈0.4 dB for that k change, the observed order.
+The plugin cross-check below (−2.38 dB) confirms it is the real current
+behavior, not a harness artifact.)
+
 Gate 1 (spec success criterion 1): `os4cas` worst spur **< −35 dB**
 (expected ≤ −45 dB) → measured **−14.4 dB, FAIL**.
 Gate 2 (criterion 2): `os4cas` droop @18 kHz **≤ 1.76 dB** → measured

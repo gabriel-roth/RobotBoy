@@ -65,8 +65,10 @@ proportionally. Same convention DecimFir13 already uses.
     stage-B output is kept.
   - **2x:** unchanged, byte-identical.
   - **1x:** single substep, no decimation filtering, unchanged.
-- Runtime oversampling switches leave ≤13 samples of stale FIR state, same
-  as today's 1x↔2x switch — harmless, no special handling.
+- Runtime oversampling switches: the menu switch already calls
+  `pool.resetAll()`, so no stale FIR state survives it. Only a
+  `dataFromJson`-time change (preset load onto a running module) leaves
+  ≤13 samples of stale FIR state — harmless, no special handling.
 - No new error handling: NaN recovery already flows through `sanitize()`.
 
 ## Success criteria
