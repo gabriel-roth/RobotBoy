@@ -694,3 +694,56 @@ touch less top-octave content and resonance edge at 4x, independent of drive
 or decimator quality) and predates this task entirely; it was only surfaced
 by this measurement work. Flagged to the user as a possible follow-up — out
 of scope here.
+
+### VCV↔MM parity at 4x
+
+Task 5: built `metamodule/build` fresh (`cmake --fresh -B build -GNinja &&
+cmake --build build`) — succeeded cleanly, zero Onbetap portability fixes;
+`metamodule/metamodule-plugins/RobotBoy.mmplugin` produced (846 KB). Built
+the macOS-hosted headless simulator (`~/Dev/metamodule/simulator`, preset
+`headless`, RobotBoy as a built-in via `-Dext_builtin_brand_paths=
+$HOME/Dev/RobotBoy/metamodule -Dext_builtin_brand_libname=RobotBoy`, no
+`ext-plugins.cmake` edit). This hit the same class of build break Task 6
+found in `Particules.cpp`, this time in a file added since: `src/retours_delay/
+Retours.cpp`'s `dsp_memory_ = memalign(...)` was still gated on
+`#if defined(METAMODULE) && !defined(SIMULATOR)` only, so on the macOS
+simulator (which defines `METAMODULE` without `SIMULATOR` for plugin static
+libraries) it took the `memalign`-undeclared branch. Fixed identically to the
+Task 6 precedent — added `&& !defined(__APPLE__)` to match the file's own
+`<malloc.h>` include guard — no DSP/behavior change, falls through to
+`posix_memalign` on the simulator as intended. Headless simulator build then
+succeeded (415/415).
+
+**Method:** single `Onbetap` fed Task 1's `in.wav` (96000 frames, 48 kHz)
+through both hosts at identical params (cutoff raw 9.550747 = log2(750),
+res 0.3, drive 0.2, mode 0/LP) with `oversample` forced to 4 on both sides —
+`"state": {"oversample": 4}` in the vcv-headless spec (`dataFromJson`
+tolerates the partial-JSON override, as documented in Task 6), and a
+`vcvModuleStates` patch-yml override (`{"oversample":4}` on the Onbetap
+module) for the MM simulator, same mechanism Task 6 verified. Reused Task 6's
+scale-convention fix: MM's headless audio path passes WAV samples straight to
+`Port::setVoltage()` (sample = volts, 1:1), while vcv-headless's `host.cpp`
+uses sample = volts/5; generated the MM input WAV by multiplying Task 1's
+`in.wav` samples by 5 before feeding the simulator, and multiplied the VCV
+output back up by 5 before diffing against MM's output. (vcv-headless writes
+a mono file; MM's simulator always writes stereo — its L and R came out
+bit-identical, 0.0 max diff, as expected for this mode with no
+vintage-decorrelation source, so the mono VCV output was compared against
+MM's left channel.)
+
+**Result: max |diff| = 1.31e-5 V, rms diff = 2.61e-6 V**, over all 96000
+samples compared (no first-buffer transient — the value excluding the first
+512 samples is identical) — comfortably under the 1e-4 V pass bar, and the
+same order of magnitude as Task 6's 2x-path precedent (2.74e-6 relative,
+full-scale 1.0). VCV peak 7.4805 V vs MM peak 7.4805 V. Confirms the two-stage
+FIR cascade behaves identically on both hosts at 4x, same as the already-
+verified 2x/1x paths.
+
+Fresh `.mmplugin` for the user's real-device listening test and CPU check:
+`metamodule/metamodule-plugins/RobotBoy.mmplugin` (846 KB, built from this
+commit's tree). VCV plugin was already installed from Task 3/4 (dylib
+newer than `src/Onbetap.cpp`, matches commit `57b038d`, no rebuild needed).
+
+Scratch artifacts (`patch_4x.yml`, `in_mm_4x.wav`, `mm_4x.wav`, `vcv_4x.wav`,
+`spec_4x_parity.json`, `compare_4x_parity.py`) live at
+`<scratchpad>/onbetap-4x/` (not committed).
