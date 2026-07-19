@@ -27,7 +27,8 @@
 // A Drive-following push into the output VCA (drive.hpp vcaPush, quadratic in
 // drive, bounded by the 9 V ceiling) keeps the top of the knob gaining grit
 // while the authentic resonance choke removes the resonance-derived grit.
-static constexpr float kCLag     = 0.25f;     // phase-lag: kEff -= cLag·g²/(1+g²)
+static constexpr float kCLag     = 0.25f;     // phase-lag: kTarget -= cLag·cutoffLagCorr(fc)
+                                              // (engine.hpp; reference-rate, OS-independent)
 static constexpr float kOnsetTrim = 0.045f;   // baked self-osc onset trim (by ear,
                                               // 2026-07-18): onset res ~0.72 → ~0.84
 static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
@@ -179,7 +180,10 @@ struct Onbetap : Module {
 			// rev-log damping map (+ baked onset trim → onset ~res 0.84);
 			// min resonance Q≈1
 			float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + kOnsetTrim;
-			v.kTarget = k;   // phase-lag term applied per sample from slewed g
+			// Phase-lag correction folded into the slewed target, evaluated
+			// at the calibration reference rate (engine.hpp cutoffLagCorr) —
+			// kEff no longer depends on oversample or host rate.
+			v.kTarget = k - kCLag * onbetap::cutoffLagCorr(fc);
 
 			float drive = driveKnob;
 			if (drvCv) drive += drvAtt * inputs[DRIVE_INPUT].getPolyVoltage(c) * 0.2f;
@@ -310,8 +314,7 @@ struct Onbetap : Module {
 			float drive  = v.driveSlew.process(v.driveTarget);
 			float makeup = v.makeupSlew.process(v.makeupTarget);
 			float push   = v.pushSlew.process(v.pushTarget);
-			float kEff   = kBase - kCLag * g * g / (1.f + g * g);
-			kEff = std::max(kEff, -0.31f);           // denominator guard floor
+			float kEff   = std::max(kBase, -0.31f);  // denominator guard floor
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
 			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
