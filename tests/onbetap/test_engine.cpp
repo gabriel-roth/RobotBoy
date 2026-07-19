@@ -112,11 +112,14 @@ int main() {
                              18000.f, 20000.f, 23500.f};
         bool match = true;
         for (float fc : fcs) {
-            float g = OnbetapFilter::cutoffToG(fc, onbetap::kCLagRefFsOs);
+            // Literal 96000, NOT kCLagRefFsOs: this pins the reference rate
+            // itself, so silently changing the constant fails the test.
+            float g = OnbetapFilter::cutoffToG(fc, 96000.f);
             float old2x = g * g / (1.f + g * g);
             match = match && std::fabs(onbetap::cutoffLagCorr(fc) - old2x) < 1e-6f;
         }
         CHECK(match, "cutoffLagCorr matches calibrated 2x/48k correction");
+        CHECK(onbetap::kCLagRefFsOs == 96000.f, "reference rate pinned at 96 kHz");
         CHECK(onbetap::cutoffLagCorr(20000.f) > onbetap::cutoffLagCorr(200.f),
               "cutoffLagCorr grows with cutoff");
     }

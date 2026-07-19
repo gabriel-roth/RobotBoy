@@ -53,6 +53,9 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs) {
     // gritDb 0: this test guards the constant-makeup baseline (Findings 1-2)
     auto gains = onbetap::driveGains(drive, 30.f, 1.f, 0.f, 0.f); // span 30 dB
 
+    // NOTE: replicates the module kEff law; numerically equivalent to
+    // onbetap::cutoffLagCorr here only because this harness runs at
+    // fsOs = kCLagRefFsOs (96 kHz). Revisit if the module kEff law changes.
     float kCLag = 0.25f;
     float kEff = std::max(k - kCLag * g * g / (1.f + g * g), -0.31f);
 

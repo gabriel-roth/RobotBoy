@@ -701,7 +701,8 @@ nominal cutoff (`fsOs` = 96 kHz at 2x vs 192 kHz at 4x): at cutoff 20 kHz,
 touch less top-octave content and resonance edge at 4x, independent of drive
 or decimator quality) and predates this task entirely; it was only surfaced
 by this measurement work. Flagged to the user as a possible follow-up — out
-of scope here.
+of scope here. *(Since fixed: see "kCLag made rate-independent" below —
+kEff no longer depends on the oversample setting.)*
 
 ### VCV↔MM parity at 4x
 
@@ -820,10 +821,10 @@ vs 1.039, r = 0.9) to 0.01 dB — evidence the fix delivered exactly the
 kEff-attributable share of the gap, and confirmation (via os4box moving by
 the same ~0.5 dB) that the correction now acts identically on both 4x
 reconstruction paths. The remaining ≈0.88 dB residual at this extreme corner
-(fc = 20 kHz, measured at 18 kHz) is not kEff — it's the bilinear-prewarp
-shape difference between fsOs 96 kHz and 192 kHz (the core filter's own
-`g = tan(π·fc/fsOs)` necessarily differs by mode at a fixed nominal cutoff)
-plus the decimator/upsampler chain, both out of scope here; it shrinks
+(fc = 20 kHz, measured at 18 kHz) is not kEff — it's the decimator/upsampler
+chain plus the bilinear-prewarp shape difference between fsOs 96 kHz and
+192 kHz (the core filter's own `g = tan(π·fc/fsOs)` necessarily differs by
+mode at a fixed nominal cutoff), both out of scope here; it shrinks
 rapidly at lower cutoffs as (fc/fsOs)² falls. Spec criterion 4 was amended
 in-flight to gate the kEff-attributable closure (0.55 ± 0.15 dB) rather than
 the original, over-attributed "gap ≤ 0.6 dB" guess — see

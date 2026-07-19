@@ -15,7 +15,7 @@
 - `kCLag` stays `0.25f` in `src/Onbetap.cpp`; the helper takes no fsOs parameter (rate independence by construction).
 - Reference rate constant: `kCLagRefFsOs = 96000.f` (2x OS of 48 kHz host — where Task 5 calibrated kCLag).
 - Pre-existing modified README.md stays unstaged.
-- Success-criteria gates (spec): (1) helper matches old 2x/48k expression to 1e-6; (3) 2x render final-1 s max abs diff vs `base_2x.wav` ≤ 1e-4 V; (4) droop@18k os2↔os4cas gap ≤ 0.6 dB with os2 within 0.15 dB of −2.33 dB; (5) MM↔VCV 4x parity ≤ 1e-4 V.
+- Success-criteria gates (spec): (1) helper matches old 2x/48k expression to 1e-6; (3) 2x render final-1 s max abs diff vs `base_2x.wav` ≤ 1e-4 V; (4) droop@18k: os2 within 0.15 dB of −2.33 dB, gap closure 0.55 ± 0.15 dB — as amended in the spec during Task 3 (originally "gap ≤ 0.6 dB", see the spec's amendment block); (5) MM↔VCV 4x parity ≤ 1e-4 V.
 
 ---
 

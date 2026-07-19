@@ -181,7 +181,8 @@ constexpr float kMismatchR1 = -0.05f, kMismatchR2 = 0.055f;
 // correction, and with it kEff, self-osc onset, and top-octave damping,
 // no longer depend on the oversample setting or the host rate. cutoffToG's
 // own fc clamp (0.245·fsOs = 23.52 kHz here) saturates the correction
-// above the calibrated range, reachable only at 4x.
+// above the calibrated range, reachable only above the 2x/48k core clamp
+// (4x, or high host rates).
 inline constexpr float kCLagRefFsOs = 96000.f;
 inline float cutoffLagCorr(float fcHz) {
     float gr = OnbetapFilter::cutoffToG(fcHz, kCLagRefFsOs);
