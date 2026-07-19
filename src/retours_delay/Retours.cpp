@@ -159,7 +159,7 @@ struct Retours : Module {
 		// DSP init — also called on sample rate change via onSampleRateChange()
 		float sampleRate = APP->engine->getSampleRate();
 		auto req = retours_delay_dsp::RetoursProcessor::GetMemoryRequirements(sampleRate);
-#if defined(METAMODULE) && !defined(SIMULATOR)
+#if defined(METAMODULE) && !defined(SIMULATOR) && !defined(__APPLE__)
 		dsp_memory_ = memalign(req.alignment, req.total_bytes);
 #elif defined(_WIN32)
 		dsp_memory_ = _aligned_malloc(req.total_bytes, req.alignment);
