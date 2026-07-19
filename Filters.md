@@ -56,7 +56,12 @@ MF-20 is polyphonic on both hosts.
 
 ### Under the hood
 
-Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts the nonlinearity in the forward (input) path with slightly asymmetric clipping, which produces the even-order harmonics that give the original its character. The model follows Timothy Stinchcombe's [*A Study of the Korg MS10 & MS20 Filters*](https://www.timstinchcombe.co.uk/synth/MS20_study.pdf).
+Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts the nonlinearity in the forward (input) path with slightly asymmetric clipping, which produces the even-order harmonics that give the original its character.
+
+### Sources
+
+- Stinchcombe, T. (2006). [*A Study of the Korg MS10 & MS20 Filters*](https://www.timstinchcombe.co.uk/synth/MS20_study.pdf) — circuit analysis of both filter revisions.
+- Huovilainen, A. (2010). [*Design of a Scalable Polyphony-MIDI Synthesizer for a Low Cost DSP*](https://aaltodoc.aalto.fi/server/api/core/bitstreams/38b49bc4-2587-4e26-9851-8e05e06894da/content) — the zero-delay-feedback filter discretization.
 
 ---
 
@@ -99,6 +104,12 @@ Onbetap is polyphonic on both hosts (voice count follows the wider of the two in
 ### Under the hood
 
 The model was derived from factory Polivoks schematics, the Erica Synths DIY Polivoks VCF, and the physics of the К140УД12 programmable op-amp (there are no RC time constants in the core — cutoff is set by the op-amps' own bias current), rather than from a generic filter-plus-saturator. It's a nonlinear core, not a linear filter with distortion added.
+
+### Sources
+
+- Marc Bareille, [*Polivoks VCF*](http://m.bareille.free.fr/modular1/vcf_polivoks/vcf_polivoks.htm) — build-verified circuit analysis, with a [redrawn schematic (PDF)](http://m.bareille.free.fr/modular1/vcf_polivoks/polivoks_schem.pdf) and a scan of the [original factory schematic](http://m.bareille.free.fr/modular1/vcf_polivoks/vcf_polivoks_sh0.gif).
+- Erica Synths, [DIY Polivoks VCF schematic](https://github.com/erica-synths/diy-eurorack) — a legible component-for-component redraw of the factory circuit.
+- [К140УД12 / КР140УД12 datasheet](https://rudatasheet.ru/microchips/k140ud12_kr140ud12/) and Texas Instruments, [*Application Note 71: Micropower Circuits Using the LM4250 Programmable Op Amp*](https://www.ti.com/lit/an/snoa652b/snoa652b.pdf) — the programmable-op-amp physics behind bias-current-set cutoff (the К140УД12 is a Soviet µA776 copy; the LM4250 is its Western analogue).
 
 ---
 
@@ -148,7 +159,11 @@ Vespid is polyphonic on both hosts.
 
 ### Under the hood
 
-Vespid models the Wasp's CMOS-inverter state-variable filter — the logic chips run as amplifiers, plus the diode resonance limiter and supply-rail clipping that shape its sound — following the DAFx-2022 model by Köper, Holters, Esqueda, and Parker. **Tame** runs the circuit at ±5 V rails (as the original Wasp did); **Screaming** raises them to ±12 V, which is what tips it into self-oscillation, bounded by those rails.
+Vespid models the Wasp's CMOS-inverter state-variable filter — the logic chips run as amplifiers, plus the diode resonance limiter and supply-rail clipping that shape its sound — following the DAFx-2022 model by Köper, Holters, Esqueda, and Parker. **Tame** runs the circuit on a +5 V supply (as the original Wasp did); **Screaming** raises it to +12 V, which is what tips it into self-oscillation, bounded by the rails.
+
+### Sources
+
+- Köper, L., Holters, M., Esqueda, F., & Parker, J. D. (2022). [*A Virtual Analog Model of the EDP Wasp VCF*](https://www.dafx.de/paper-archive/2022/papers/DAFx20in22_paper_34.pdf) — Proc. 25th Int. Conf. on Digital Audio Effects (DAFx20in22), Vienna. The model Vespid is built on, including the CD4069 inverter transfer curves and the resonance network at both supply voltages.
 
 ---
 
