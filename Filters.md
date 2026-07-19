@@ -2,7 +2,7 @@
 
 Robot Boy includes three filters, each modeling a famous analog filter with a strong personality: the Korg MS-20, the Soviet Polivoks, and the EDP Wasp. This is the combined manual for all three. Each is modeled from the behavior of the original circuit — the way it distorts and rings — rather than a clean filter with a distortion stage added, so the character is built in rather than dialed on.
 
-All three are stereo (the right input is normalled to the left, so a mono patch fills both sides) and polyphonic, and run on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule).
+All three are stereo (the right input is normalled to the left, so a mono patch fills both sides) and polyphonic, and run on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Each also has a **Drive** control that pushes the signal into the circuit's own nonlinearities — where much of each filter's character lives, and where they differ most.
 
 What mainly separates them is how they resonate. The MS-20 has two filters in series and screams when pushed. The Polivoks has an inverse relationship between drive and resonance — the harder you push the input, the *less* it rings. The Wasp sits right at the edge of self-oscillation and can be nudged over it. The sections below cover each in full.
 
