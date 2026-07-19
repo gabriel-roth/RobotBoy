@@ -159,7 +159,7 @@ Vespid is polyphonic on both hosts.
 - **Self-oscillation pitch (Screaming)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
 - **Input trim** — ±12 dB into the filter, applied on top of the per-mode level staging (see Drive above). Use it to nudge either mode cleaner or dirtier without touching the Drive sweep.
 - **Output level** — ±12 dB on every output. Useful for matching levels between Tame and Screaming, which differ in loudness.
-- **Inverter bandwidth** — 60–220 kHz, default 80 kHz. This tunes how eagerly the filter tips into self-oscillation — lower is more eager, higher more reluctant. The top of the range sits right at the threshold where Screaming stops sustaining.
+- **Inverter bandwidth** — 30–220 kHz, default 80 kHz. This tunes how eagerly the filter tips into self-oscillation — lower is more eager (faster onset, and oscillation reaching further down the frequency range), higher more reluctant. The top of the range sits right at the threshold where Screaming stops sustaining. Tame quietly ignores settings below 60 kHz, where it would break its no-self-oscillation promise.
 - **Panel** — **Charcoal** (default) or **Gold** faceplate.
 
 ### Under the hood

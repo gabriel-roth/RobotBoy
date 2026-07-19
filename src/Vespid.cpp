@@ -95,9 +95,14 @@ struct Vespid : Module {
 	OnePoleSmoother _outputLevelSlew { 1.f };
 	float _outputLevelTarget = 1.f;
 
-	// Deterministic denormal-prevention dither: alternates sign each sample
-	// (cheaper than an RNG and bit-reproducible VCV vs MetaModule).
-	float _dither = 1e-9f;
+	// Deterministic noise-floor seed: alternates sign each sample (cheaper
+	// than an RNG and bit-reproducible VCV vs MetaModule). Does double duty:
+	// denormal prevention, and seeding self-oscillation growth. 1e-4 V
+	// (~0.1 mV, -94 dBV — inaudible, and it sits at Nyquist) approximates a
+	// real circuit's noise floor; the old 1e-9 seed made Screaming's
+	// exponential onset pay for ~5 extra decades of growth (measured ~40%
+	// slower — see 2026-07-19-vespid-selfosc-onset-design.md).
+	float _dither = 1e-4f;
 
 	Vespid() {
 		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
@@ -198,6 +203,12 @@ struct Vespid : Module {
 		const wasp::ModeConfig& mode = screaming ? wasp::kScreaming : wasp::kTame;
 		float fsInt = _sampleRate * (float)_osActual;
 
+		// The menu floor (30 kHz) exists for fast/wide Screaming self-osc;
+		// Tame free-runs below ~55-60 kHz (fitted_constants.md), so it
+		// silently floors its effective inverter bandwidth at 60 kHz to
+		// keep its no-self-oscillation promise.
+		float fPole = screaming ? _fPole : std::max(_fPole, 60000.f);
+
 		float freqLog     = params[FREQ_PARAM].getValue();
 		float freqCvAtten = params[FREQ_CV_PARAM].getValue();
 		float res         = clamp(params[RES_PARAM].getValue(), 0.f, 1.f);
@@ -245,7 +256,7 @@ struct Vespid : Module {
 			// mechanism) — never clamp it.
 			float wcInt = 2.f * float(M_PI) * fcInt;
 			eng.kC2Target = 27e3f * 100e-12f * wcInt
-			               - mode.kR2 * wcInt / (2.f * float(M_PI) * _fPole);
+			               - mode.kR2 * wcInt / (2.f * float(M_PI) * fPole);
 
 			// Resonance.
 			float rho = res;
@@ -396,7 +407,7 @@ struct Vespid : Module {
 			_outputLevelDb = clamp((float)json_real_value(ol), -12.f, 12.f);
 		json_t* fp = json_object_get(root, "fPole");
 		if (fp)
-			_fPole = clamp((float)json_real_value(fp), 60000.f, 220000.f);
+			_fPole = clamp((float)json_real_value(fp), 30000.f, 220000.f);
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
@@ -447,12 +458,14 @@ struct OutputLevelQuantity : Quantity {
 	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
 };
 
-// Inverter bandwidth: log-scaled 60 kHz - 220 kHz, default 80 kHz. The ceiling
+// Inverter bandwidth: log-scaled 30 kHz - 220 kHz, default 80 kHz. The ceiling
 // is 220 kHz because Screaming's self-oscillation threshold is ~218 kHz
-// (kC2 = wc*(R3*C2 - kR2/(2*pi*fPole)) crosses zero there); the floor is
-// 60 kHz because Tame free-runs below ~55-60 kHz. The Quantity's own
-// value/min/max live in log2(kHz) space so the slider position is
-// linear-in-log; getDisplayValue/getDisplayValueString convert back to kHz.
+// (kC2 = wc*(R3*C2 - kR2/(2*pi*fPole)) crosses zero there). The floor is
+// 30 kHz for fast, wide-range Screaming self-oscillation; Tame floors its
+// effective value at 60 kHz internally (see modulate()) since it free-runs
+// below ~55-60 kHz. The Quantity's own value/min/max live in log2(kHz)
+// space so the slider position is linear-in-log; getDisplayValue/
+// getDisplayValueString convert back to kHz.
 struct FPoleQuantity : Quantity {
 	Vespid* module;
 	FPoleQuantity(Vespid* m) : module(m) {}
@@ -463,7 +476,7 @@ struct FPoleQuantity : Quantity {
 	float getValue() override {
 		return module ? std::log2(module->_fPole / 1000.f) : getDefaultValue();
 	}
-	float getMinValue() override { return std::log2(60.f); }
+	float getMinValue() override { return std::log2(30.f); }
 	float getMaxValue() override { return std::log2(220.f); }
 	float getDefaultValue() override { return std::log2(80.f); }
 	float getDisplayValue() override { return std::pow(2.f, getValue()); }
@@ -645,11 +658,11 @@ struct VespidWidget : ModuleWidget {
 				m->_outputLevelDb = kValues[i];
 			}));
 		menu->addChild(createIndexSubmenuItem("Inverter bandwidth",
-			{"60 kHz", "80 kHz", "120 kHz", "160 kHz", "220 kHz"},
+			{"30 kHz", "60 kHz", "80 kHz", "120 kHz", "220 kHz"},
 			[m]() -> size_t {
-				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 160000.f, 220000.f};
-				size_t best = 1;
-				float bestDiff = std::fabs(kValues[1] - m->_fPole);
+				static const float kValues[5] = {30000.f, 60000.f, 80000.f, 120000.f, 220000.f};
+				size_t best = 2;
+				float bestDiff = std::fabs(kValues[2] - m->_fPole);
 				for (size_t i = 0; i < 5; i++) {
 					float diff = std::fabs(kValues[i] - m->_fPole);
 					if (diff < bestDiff) { bestDiff = diff; best = i; }
@@ -657,7 +670,7 @@ struct VespidWidget : ModuleWidget {
 				return best;
 			},
 			[m](size_t i) {
-				static const float kValues[5] = {60000.f, 80000.f, 120000.f, 160000.f, 220000.f};
+				static const float kValues[5] = {30000.f, 60000.f, 80000.f, 120000.f, 220000.f};
 				m->_fPole = kValues[i];
 			}));
 #else
