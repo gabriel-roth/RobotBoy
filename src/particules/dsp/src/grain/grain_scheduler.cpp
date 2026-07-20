@@ -133,12 +133,12 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
         if (rising_edge) {
             float eff_density = Clamp(params.density + params.density_cv, 0.0f, 1.0f);
             if (eff_density < 0.5f) {
-                // CCW from noon: clock division.
-                // Map 0.0 → /16, 0.5 → /1
-                float div_amount = (0.5f - eff_density) * 2.0f;  // 0..1
-                // Exponential mapping to division ratios: 1, 2, 4, 8, 16
-                int division = 1 << static_cast<int>(div_amount * 4.0f);
-                division = std::min(division, 16);
+                // CCW from noon: clock division, sparsest next to noon.
+                // Map just-below-0.5 → /16, 0.0 → /1 (manual: "from 1/16 up
+                // to 1/1"). Each division ratio occupies ~20% of CCW travel.
+                float distance = (0.5f - eff_density) * 2.0f;         // (0, 1]
+                int level = std::min(static_cast<int>(distance * 5.0f), 4);  // 0..4
+                int division = 1 << (4 - level);                      // 16,8,4,2,1
 
                 // Use a simple counter to divide.
                 // We repurpose gate_phase_ as a clock-division counter.
@@ -166,12 +166,9 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                         trigger_samples[trigger_count++] = 0;
                     }
                 }
-            } else {
-                // Exactly 0.5: trigger on every clock.
-                if (trigger_count < max_triggers) {
-                    trigger_samples[trigger_count++] = 0;
-                }
             }
+            // Exactly 0.5 (noon, the default): silence — no grain fires,
+            // matching Particules.md and the free-running knob's noon rule.
         }
 
         prev_clock_ = clock;

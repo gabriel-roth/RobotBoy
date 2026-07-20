@@ -23,14 +23,80 @@ static int FeedClockEdge(GrainScheduler& sched, ParticulesParameters& params,
 
 // ── Basic kClocked behavior: grains land on clock edges ────────────────────
 
-TEST_CASE("GrainScheduler: kClocked at eff_density=0.5 triggers on every clock edge",
+TEST_CASE("GrainScheduler: kClocked at noon (eff_density=0.5) is silent",
           "[scheduler][clocked]") {
+    // Noon = silence, matching Particules.md and the free-running knob's
+    // "12 o'clock = silence" identity. The default patch (density 0.5, no CV)
+    // must not spawn a grain on every clock.
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
     ParticulesParameters params;
     params.trigger_mode = TriggerMode::kClocked;
-    params.density = 0.5f;  // exactly noon: trigger on every clock
+    params.density = 0.5f;  // exactly noon: silence
+
+    int triggers[32];
+    int total = 0;
+    for (int edge = 0; edge < 10; ++edge) {
+        total += FeedClockEdge(sched, params, triggers, 32);
+    }
+
+    REQUIRE(total == 0);
+}
+
+TEST_CASE("GrainScheduler: kClocked just CCW of noon divides by 16",
+          "[scheduler][clocked]") {
+    // eff_density = 0.49 -> distance = (0.5-0.49)*2 = 0.02 -> level 0 -> /16.
+    // The sparsest division sits immediately CCW of noon (manual: "from 1/16
+    // up to 1/1").
+    GrainScheduler sched;
+    sched.Init(kSampleRate);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kClocked;
+    params.density = 0.49f;
+
+    int triggers[32];
+    int total = 0;
+    int fired_on = 0;
+    for (int edge = 1; edge <= 16; ++edge) {
+        int fired = FeedClockEdge(sched, params, triggers, 32);
+        total += fired;
+        if (fired > 0) fired_on = edge;
+    }
+
+    REQUIRE(total == 1);       // one grain per 16 clocks
+    REQUIRE(fired_on == 16);   // landing on the 16th edge
+}
+
+TEST_CASE("GrainScheduler: kClocked fully CCW (eff_density=0.0) fires every clock",
+          "[scheduler][clocked]") {
+    // distance = 1.0 -> level 4 -> /1: the densest division sits at full CCW.
+    GrainScheduler sched;
+    sched.Init(kSampleRate);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kClocked;
+    params.density = 0.0f;
+
+    int triggers[32];
+    int total = 0;
+    for (int edge = 0; edge < 10; ++edge) {
+        total += FeedClockEdge(sched, params, triggers, 32);
+    }
+
+    REQUIRE(total == 10);
+}
+
+TEST_CASE("GrainScheduler: kClocked fully CW (eff_density=1.0) fires every clock",
+          "[scheduler][clocked]") {
+    // Probability branch: (1.0-0.5)*2 = 100% -> every clock spawns a grain.
+    GrainScheduler sched;
+    sched.Init(kSampleRate);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kClocked;
+    params.density = 1.0f;
 
     int triggers[32];
     int total = 0;
@@ -48,7 +114,8 @@ TEST_CASE("GrainScheduler: kClocked division-by-4 fires every 4th clock edge",
 
     ParticulesParameters params;
     params.trigger_mode = TriggerMode::kClocked;
-    // eff_density = 0.25 -> div_amount = (0.5-0.25)*2 = 0.5 -> division = 1<<2 = 4.
+    // eff_density = 0.25 -> distance = (0.5-0.25)*2 = 0.5 -> level = int(2.5) = 2
+    // -> division = 1 << (4-2) = 4.
     params.density = 0.25f;
 
     int triggers[32];
