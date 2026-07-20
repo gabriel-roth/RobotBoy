@@ -24,8 +24,13 @@ static int RunScheduler(GrainScheduler& sched, const ParticulesParameters& param
 
 // ── DensityToRate contract ──────────────────────────────────────────────────
 
-TEST_CASE("DensityToRate: full CCW density (0.0) triggers at the 80 Hz cap in latched mode", "[density_rate]") {
-    // Extreme CCW density → maximum grain trigger rate, now capped at 80 Hz.
+// Beads manual: at the extreme, DENSITY reaches "the period of a C3 note".
+// C3 = 130.81 Hz. This is the maximum knob-driven grain rate; it is still
+// well below audio rate (CV-driven audio-rate FM is a separate, clamped path).
+static constexpr float kC3Hz = 130.81f;
+
+TEST_CASE("DensityToRate: full CCW density (0.0) triggers at the C3 cap in latched mode", "[density_rate]") {
+    // Extreme CCW density → maximum grain trigger rate, capped at C3 (~131 Hz).
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
@@ -34,16 +39,16 @@ TEST_CASE("DensityToRate: full CCW density (0.0) triggers at the 80 Hz cap in la
     params.density_cv = 0.0f;
     params.trigger_mode = TriggerMode::kLatched;
 
-    // 2 seconds of audio at 48kHz.  Expected triggers ≈ 80 * 2 = 160.
+    // 2 seconds of audio at 48kHz.  Expected triggers ≈ 130.81 * 2 ≈ 262.
     int triggers = RunScheduler(sched, params, 96000);
     float measured_rate = static_cast<float>(triggers) / 2.0f;  // Hz
 
-    REQUIRE(measured_rate == Approx(80.0f).margin(4.0f));
+    REQUIRE(measured_rate == Approx(kC3Hz).margin(4.0f));
 }
 
-TEST_CASE("DensityToRate: full CW density (1.0) triggers near the 80 Hz cap average", "[density_rate]") {
+TEST_CASE("DensityToRate: full CW density (1.0) triggers near the C3 cap average", "[density_rate]") {
     // CW side uses random inter-grain intervals but the average rate should
-    // still be ~80 Hz.
+    // still be ~C3 (~131 Hz).
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
@@ -55,7 +60,7 @@ TEST_CASE("DensityToRate: full CW density (1.0) triggers near the 80 Hz cap aver
     int triggers = RunScheduler(sched, params, 96000);
     float measured_rate = static_cast<float>(triggers) / 2.0f;
 
-    REQUIRE(measured_rate == Approx(80.0f).margin(15.0f));
+    REQUIRE(measured_rate == Approx(kC3Hz).margin(25.0f));
 }
 
 TEST_CASE("DensityToRate: noon density (0.5) produces silence in latched mode", "[density_rate]") {
@@ -71,10 +76,10 @@ TEST_CASE("DensityToRate: noon density (0.5) produces silence in latched mode", 
     REQUIRE(triggers == 0);
 }
 
-TEST_CASE("DensityToRate: density CV cannot drive the rate above the 80 Hz cap", "[density_rate]") {
+TEST_CASE("DensityToRate: density CV cannot drive the rate above the C3 cap", "[density_rate]") {
     // eff_density is clamped to [0,1] before the rate mapping, so even a large
     // connected density CV cannot exceed the cap.  This is the regression that
-    // retires the old audio-rate/high-rate path.
+    // retires the old audio-rate/high-rate path: knob+CV top out at C3.
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
@@ -87,7 +92,7 @@ TEST_CASE("DensityToRate: density CV cannot drive the rate above the 80 Hz cap",
     int triggers = RunScheduler(sched, params, 96000);
     float measured_rate = static_cast<float>(triggers) / 2.0f;
 
-    REQUIRE(measured_rate == Approx(80.0f).margin(15.0f));
+    REQUIRE(measured_rate == Approx(kC3Hz).margin(25.0f));
 }
 
 TEST_CASE("DensityToRate: block-size changes preserve long-run trigger count", "[density_rate]") {
