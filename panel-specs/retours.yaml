@@ -223,3 +223,43 @@ elements:
   - {name: OUT_R_OUTPUT, x: 46.642, y: 114.3}
   - {text: IN,  x: 14.088, y: 123.0, size: 3.175}
   - {text: OUT, x: 41.792, y: 123.0, size: 3.175}
+
+# Knob-surround marks, ported from Particules (panel-specs/glyphs/particules/)
+# and verified against Retours' own DSP -- shared white-stroke assets copied
+# into panel-specs/glyphs/retours/.
+#
+# --- Attenurandomizer marks (the squiggle-into-arrow above a trimpot) ---
+# Retours' TIME/PITCH/SHAPE trimpots are true attenurandomizers, identical in
+# kind to Particules' TIME/SIZE/SHAPE/PITCH: each drives a slow-random LFO
+# (retours_processor.cpp ar_time/ar_pitch/ar_shape, lines 88-90/182-218), so
+# each gets the mark. FEEDBACK/DRY_WET are PLAIN attenuverters (no LFO -- see
+# Retours.cpp:292/294) and stay bare, exactly as Particules leaves its
+# FEEDBACK/REVERB/DRY-WET trimpots bare. Placement copies Particules' own
+# glyph-to-trimpot offset verbatim: (+0.025, -3.297) for the row-1 pair and
+# (+0.025, -3.310) for the SHAPE trimpot. The trimpot-to-CV-jack gap is 9.00mm
+# on both modules, so no knob repositioning was needed.
+#
+# --- Shape-legend icons around the SHAPE knob ---
+# Retours' SHAPE morph (repeat_envelope.h Gain(): off -> gate -> Hann bell ->
+# reversed ramp) shares only THREE of Particules' four grain-envelope shapes
+# (grain.cpp: rectangle -> snappy-decay -> bell -> reversed). The gate reads as
+# the pulse icon, the Hann bell as the wave icon, the reversed ramp as the
+# caret icon; Particules' "snappy-decay" curve icon has NO Retours counterpart
+# and is dropped. The min (lower-left) slot instead gets a purpose-drawn FLAT
+# line: Retours' SHAPE minimum is "off / no envelope" (repeat_envelope.h
+# returns a constant 1.0 gain at shape<=0.001 -- echoes pass through unshaped,
+# a plain delay), and a flat line is the honest icon for that, so all four
+# corners now read. The icons sit at Particules' own corner offsets from the
+# knob center (±~4.76mm diagonal), so they read the same distance off the knob
+# edge, following the CW sweep from the min: flat lower-left (off) -> pulse
+# upper-left (gate) -> wave upper-right (bell) -> caret lower-right (reversed).
+glyphs:
+  # Attenurandomizer marks (Time / Pitch / Shape trimpots).
+  - {src: glyphs/retours/atten-random.svg, at: [11.365, 58.922]}
+  - {src: glyphs/retours/atten-random.svg, at: [44.565, 58.922]}
+  - {src: glyphs/retours/atten-random.svg, at: [11.365, 98.917]}
+  # Shape-legend icons around the SHAPE knob (11.340, 82.096), CW from the min.
+  - {src: glyphs/retours/shape-flat.svg,  at: [6.540,  86.858]}
+  - {src: glyphs/retours/shape-pulse.svg, at: [6.584,  77.333]}
+  - {src: glyphs/retours/shape-wave.svg,  at: [16.109, 77.333]}
+  - {src: glyphs/retours/shape-caret.svg, at: [16.065, 86.858]}
