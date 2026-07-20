@@ -53,15 +53,14 @@ Resulting zones (each ~20% of the CCW travel):
 - `eff_density = 0.25` (the value pinned by two existing tests) → distance 0.5 → level 2 → **÷4**, identical to today, so the division-by-4 tests keep passing unchanged.
 - Divider counter logic (`gate_phase_` as an integer clock counter) is unchanged; only the `division` value and its direction change.
 
-### Noon = silence
+### Noon = silence (with a small dead-zone band)
 
-- `eff_density == 0.5` exactly → no trigger (replaces the old "trigger on every clock" branch).
-- The default param (`density = 0.5`, `density_cv = 0.0`) yields exactly `0.5f`, so the out-of-the-box patch is silent under a clock.
-- Silence at noon is a knife-edge, matching the manual: the CW side fades to ~0% probability approaching noon, and the CCW side starts at ÷16 (one grain per 16 clocks) immediately CCW of noon. This is intended — a divider always does *something* once engaged, and ÷16 is the closest-to-silent division.
+- A symmetric **silence band** spans `eff_density ∈ [0.5 − dz, 0.5 + dz]` with `dz = 0.02` (±2% of knob travel, ~4% total, ≈12° on the knob). Anywhere in the band → no trigger. This replaces the old "trigger on every clock" branch and makes noon reliably findable rather than a knife-edge.
+- The default param (`density = 0.5`, `density_cv = 0.0`) sits in the center of the band, so the out-of-the-box patch is silent under a clock.
+- The band is small enough that the division/probability mappings still begin at their sparsest just outside it: at `eff = 0.5 − dz` the CCW side starts at **÷16**, and at `eff = 0.5 + dz` the CW side starts at **~0% probability**. The division range ÷16→÷1 is preserved across `[0, 0.5 − dz)` (slightly compressed vs. the full half), and `eff = 0.25 → ÷4` is unchanged.
 
 ## Non-goals
 
-- No dead-zone band around noon (knife-edge silence is intended and matches the manual).
 - No change to kLatched, kGated, or kMidi modes.
 - No change to `Particules.md` (already correct), the panel, params, tooltips, or the VCV/MetaModule layers.
 - No change to the divider *counter* semantics (first-output alignment, mode-switch reset).
@@ -70,10 +69,10 @@ Resulting zones (each ~20% of the CCW travel):
 
 1. `tests/particules_dsp` Catch2 lane is green.
 2. New/updated tests assert:
-   - eff_density = 0.5 → **0 triggers** over N clocks.
-   - eff_density just below 0.5 → **÷16** (one trigger per 16 clocks).
+   - eff_density inside the band (0.49 and 0.51, plus 0.5) → **0 triggers** over N clocks.
+   - eff_density just past the band (0.47) → **÷16** (one trigger per 16 clocks).
    - eff_density = 0.0 (fully CCW) → **÷1** (every clock).
    - eff_density = 0.25 → **÷4** (unchanged; existing tests still pass).
-   - eff_density > 0.5 → probability branch unchanged (spot-check 1.0 → every clock).
+   - eff_density > 0.5 + dz → probability branch unchanged (spot-check 1.0 → every clock).
 3. `vcv/` compiles clean (`make -C vcv -j8`) — no interface change, sanity only.
 4. Manual (`Particules.md:116`) now matches the code with no edits.

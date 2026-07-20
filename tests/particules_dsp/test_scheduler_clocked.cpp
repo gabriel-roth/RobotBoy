@@ -44,17 +44,38 @@ TEST_CASE("GrainScheduler: kClocked at noon (eff_density=0.5) is silent",
     REQUIRE(total == 0);
 }
 
-TEST_CASE("GrainScheduler: kClocked just CCW of noon divides by 16",
+TEST_CASE("GrainScheduler: kClocked inside the noon dead zone is silent",
           "[scheduler][clocked]") {
-    // eff_density = 0.49 -> distance = (0.5-0.49)*2 = 0.02 -> level 0 -> /16.
-    // The sparsest division sits immediately CCW of noon (manual: "from 1/16
-    // up to 1/1").
+    // A small silence band spans eff_density in [0.48, 0.52]. Both just-CCW
+    // (0.49) and just-CW (0.51) of noon produce no grains.
     GrainScheduler sched;
     sched.Init(kSampleRate);
 
     ParticulesParameters params;
     params.trigger_mode = TriggerMode::kClocked;
-    params.density = 0.49f;
+
+    int triggers[32];
+    for (float density : {0.49f, 0.51f}) {
+        params.density = density;
+        int total = 0;
+        for (int edge = 0; edge < 20; ++edge) {
+            total += FeedClockEdge(sched, params, triggers, 32);
+        }
+        REQUIRE(total == 0);
+    }
+}
+
+TEST_CASE("GrainScheduler: kClocked just past the dead zone divides by 16",
+          "[scheduler][clocked]") {
+    // eff_density = 0.47 is just outside the band -> distance = (0.5-0.47)*2
+    // = 0.06 -> level 0 -> /16. The sparsest division sits immediately past
+    // the dead zone (manual: "from 1/16 up to 1/1").
+    GrainScheduler sched;
+    sched.Init(kSampleRate);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kClocked;
+    params.density = 0.47f;
 
     int triggers[32];
     int total = 0;

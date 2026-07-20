@@ -42,6 +42,11 @@
 - [ ] Run `tests/particules_dsp/run.sh` — expect `100% tests passed`.
 
 ### 3. Sanity + finish
-- [ ] `make -C vcv -j8` compiles clean (no interface change; sanity only).
-- [ ] Confirm `Particules.md:116` matches the new behavior (no edit expected).
-- [ ] Commit: tests+impl together (or tests then impl), short message.
+- [x] `make -C vcv -j8` compiles clean (no interface change; sanity only).
+- [x] Confirm `Particules.md:116` matches the new behavior (no edit expected).
+- [x] Commit: tests+impl together (or tests then impl), short message. (6e744b7)
+
+### 4. Follow-up: small dead-zone band (2026-07-20)
+- [x] Add symmetric silence band `eff_density ∈ [0.5 ± 0.02]` in the kClocked branch (`kNoonDeadZone` constant); mappings unchanged outside it.
+- [x] Update tests: move the ÷16 case off 0.49 → 0.47; add a dead-zone case asserting 0.49 and 0.51 are silent.
+- [x] Re-run `tests/particules_dsp/run.sh` (100% pass) and commit.
