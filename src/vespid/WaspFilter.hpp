@@ -51,9 +51,15 @@ constexpr ModeConfig kGerman = {
     /*c*/0.296f, /*kR2*/3.70f, /*nInv*/6.70f, /*wcComp*/0.60954726f,
     /*vHi*/3.031f, /*vLo*/8.500f, /*invA0*/17.88f, /*makeup*/2.0f,
     /*inGain*/1.0f };
+// British makeup 2.5x (was 1.0 through 2026-07-19): level-matches the two
+// modes at drive 0 — measured makeup'd LP RMS 3.89 V (British) vs 3.76 V
+// (German) at the drive-0 operating points, +0.3 dB. At full drive
+// British stays ~4.6 dB quieter: its rails (+/-1.7/3.1 V) simply hold
+// less signal than German's (+/-3.0/8.5 V). That residual is the
+// hardware speaking; Output level covers it when it matters.
 constexpr ModeConfig kBritish = {
     /*c*/0.155f, /*kR2*/1.00f, /*nInv*/4.00f, /*wcComp*/1.08196598f,
-    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/1.0f,
+    /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/2.5f,
     /*inGain*/0.25f };
 
 class WaspFilter {

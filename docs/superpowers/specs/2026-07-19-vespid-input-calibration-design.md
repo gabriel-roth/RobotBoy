@@ -66,6 +66,11 @@ Drive-0 operating points (5 V host signal):
 
 Engine drive smoother seeds/reset: 2.0 → 0.5 (module default mode is Tame).
 
+> **Addendum (2026-07-20):** British makeup raised 1.0 → 2.5 to close the
+> loudness gap the staging created (British sat ~7.7 dB under German at
+> drive 0). Measured after: +0.3 dB at drive 0; ~4.6 dB residual at full
+> drive from British's smaller rails (physical, left in place).
+
 ## Consequences
 
 - Same knob positions in Tame are 12 dB quieter into the core and far
