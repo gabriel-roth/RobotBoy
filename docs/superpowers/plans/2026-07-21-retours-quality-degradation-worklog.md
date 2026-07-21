@@ -115,11 +115,12 @@ run of the new integration test measured 33.4% for Sunny under its own
 render parameters. Both are true and not contradictory: Task 3's RED ran
 *after* Task 1's shared `LimitFeedback` curve change had already landed —
 Sunny lost its hidden 0.9x trim before the tone-cutoff/write-saturation
-fixes arrived, so for that one RED snapshot the loop ran \~1 dB hotter into
-the codec's hard clamp than the original 12.4%-narrative baseline did. The
-assertion (`< 0.005`) fails identically either way, so this doesn't affect
-any pass/fail call — it's flagged here purely so the two numbers aren't
-read as contradictory.
+fixes arrived, so for that one RED snapshot the loop runs materially hotter
+into the codec's hard clamp than the original 12.4%-narrative baseline did —
+the removed 0.9x per-pass trim compounds over many feedback passes, raising
+steady-state level well beyond 1 dB. The assertion (`< 0.005`) fails
+identically either way, so this doesn't affect any pass/fail call — it's
+flagged here purely so the two numbers aren't read as contradictory.
 
 ### Task 4 validation probes — GREEN, final worktree state
 
@@ -158,11 +159,13 @@ last 2 s of a 10 s render):
    1→4.** Bright's HF-LF column is flat (-25.5 → -25.5, 0.0 dB change), as
    expected. Scorched's own fixed 7920 Hz column only moves -43.6 → -48.4
    (4.8 dB extra) — literally short of the 10 dB bar. Investigated why:
-   `quality_probe.cpp`'s HF column is hardcoded at 7920 Hz, nearly 3
-   octaves above the tuned 2.8 kHz Scorched cutoff, so that band is already
-   at the noise floor (-61.4 dB, \~52 dB below the fundamental) by repeat 1
-   — there's no headroom left for it to "drop" further; the darkening
-   already happened before repeat 1. Cross-checked with a scratch-only
+   `quality_probe.cpp`'s HF column is hardcoded at 7920 Hz, nearly 1.5
+   octaves above the tuned 2.8 kHz Scorched cutoff. The absolute 7920 Hz
+   level does keep falling, but after the first pass through the 2.8 kHz LP
+   the HF−LF *differential* metric stalls, because the 440 Hz reference and
+   the residual 7920 Hz band then decay nearly in parallel — so the fixed
+   7920 Hz probe column understates further darkening rather than measuring
+   it. Cross-checked with a scratch-only
    variant of the same probe using 3300 Hz (the frequency the actual
    `test_quality_degradation.cpp` A1 test measures, chosen precisely
    because it sits nearer the cutoff and still has room to move): Scorched
@@ -214,12 +217,12 @@ installed.
 
 ## User listening checklist (VCV Rack, e.g. test patch ~/Desktop/test-patches/13.vcv)
 
-Set Feedback to ~75%, delay time ~250-500 ms, and compare Quality modes:
+Set Feedback to \~75%, delay time \~250-500 ms, and compare Quality modes:
 
 - [ ] **Bright digital:** repeats stack clean; at high feedback the wall
       brickwalls but stays bright (no darkening).
 - [ ] **Sunny tape:** each repeat audibly mellower; decay length now matches
-      Bright at the same knob (it used to die ~35% faster); high feedback
+      Bright at the same knob (it used to die \~35% faster); high feedback
       compresses warmly, no digital buzz.
 - [ ] **Scorched cassette:** repeats fall into dark murk within 3-4 passes;
       wow/flutter warble in the tail; high feedback is a warm, dense wall,
