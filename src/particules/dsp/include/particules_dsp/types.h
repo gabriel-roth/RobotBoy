@@ -34,6 +34,15 @@ enum class QualityMode : uint8_t {
     kScorchedCassette = 3
 };
 
+// Recording-buffer storage formats. Packing samples at reduced width lets the
+// same byte pool hold more frames, decoupling recording rate from buffer
+// length (see docs/superpowers/plans/2026-07-20-quality-buffer-decoupling.md).
+enum class StorageFormat : uint8_t {
+    kFloat32 = 0,   // 4 bytes/sample
+    kInt12 = 1,     // 12-bit signed in an int16 container, 2 bytes/sample
+    kMuLaw8 = 2     // 8-bit segment mu-law, 1 byte/sample
+};
+
 inline int DecimationFactorForQuality(QualityMode mode) {
     switch (mode) {
         case QualityMode::kBrightDigital:    return 1;
