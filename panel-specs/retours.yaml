@@ -263,3 +263,10 @@ glyphs:
   - {src: glyphs/retours/shape-pulse.svg, at: [6.584,  77.333]}
   - {src: glyphs/retours/shape-wave.svg,  at: [16.109, 77.333]}
   - {src: glyphs/retours/shape-caret.svg, at: [16.065, 86.858]}
+  # 90%-point marker on the FEEDBACK knob (27.94, 82.096): a small triangle
+  # pointing inward at where the pointer sits at 90% of travel. RoundBlackKnob
+  # sweeps +/-149.4deg, so 90% = 119.52deg CW from 12 o'clock -> outward unit
+  # vector (0.8702, 0.4927). The asset is authored pre-rotated (glyphs have no
+  # rotation param); its viewBox center is the arrow's axis midpoint, placed
+  # at knob r 4.8 + 0.8 gap + 0.9 half-length = 6.5mm out along the radial.
+  - {src: glyphs/retours/feedback-90-arrow.svg, at: [33.596, 85.299]}

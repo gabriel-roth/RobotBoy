@@ -28,6 +28,7 @@
     <path fill="none" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round" stroke-linejoin="round" d="M 15.1715 77.6455 C 15.609 77.6455 15.609 77.0205 16.109 77.0205 C 16.609 77.0205 16.609 77.6455 17.0465 77.6455"/>
     <line x1="15.1275" y1="87.1705" x2="17.0025" y2="86.5455" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
     <line x1="17.0025" y1="86.5455" x2="17.0025" y2="87.1705" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
+    <polygon points="32.813,84.856 34.626,85.307 34.133,86.178" fill="#ffffff"/>
   </g>
   <g inkscape:label="components" inkscape:groupmode="layer" id="components" style="display:none">
     <circle id="SLICE_INPUT#PJ301MPort" cx="6.94" cy="15.875" r="2" fill="#00ff00"/>
