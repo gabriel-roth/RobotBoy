@@ -2,8 +2,7 @@
 
 - **Date:** 2026-07-20
 - **Module:** Particules (shared `particules_dsp` quality engine; Retours aliases the same enum)
-- **Status:** Research only — no code changed. Documents the current behavior, why it
-  diverges from both the Particules manual and hardware Beads, and the decision to be made.
+- **Status:** Decoupling implemented (all modes). See Resolution section below.
 
 ## The complaint
 
@@ -147,3 +146,20 @@ dull/dark "low-pitched" character. That character is driven by the ÷8 rate and 
    move to ÷2 / 24 kHz / 8 s (matches hardware *rate and tone*, fixes the dullness).
 3. **Update whichever manual is wrong** to match the outcome. The honest doc must note which
    axis was *not* matched, since the engine cannot match both.
+
+## Resolution (2026-07-20)
+
+The buffer decoupling has been implemented for all four modes via **packed storage formats** (Bright: float32, Cold/Sunny: 12-bit integer, Scorched: 8-bit µ-law) and **input-adaptive channel count** (mono input doubles all buffer lengths). This matches the hardware manual's behavior shown in the earlier Finding 4 table, accounting for the mono/stereo variant which the fidelity-fix design doc's single-figure budget had elided:
+
+| Mode              | Rate | Bits      | Buffer (stereo) | Buffer (mono) |
+|-------------------|------|-----------|-----------------|---------------|
+| Bright digital    | 48 kHz | 16-bit  | 4 s             | 8 s           |
+| Cold digital      | 24 kHz | 12-bit  | 8 s             | 16 s          |
+| Sunny tape        | 24 kHz | 12-bit  | 16 s            | 32 s          |
+| Scorched cassette | 24 kHz | 8-bit µ-law | 32 s        | 64 s          |
+
+**Findings resolved:**
+- **Finding 1** (manual/code mismatch): Manuals updated to reflect the true packed-storage behavior.
+- **Finding 3** (missing 8-bit quantization): Real µ-law quantization now implemented on Scorched.
+
+Reference: `docs/superpowers/specs/2026-07-16-quality-mode-fidelity-fix-design.md`.

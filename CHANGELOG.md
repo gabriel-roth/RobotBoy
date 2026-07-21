@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Particules/Retours** — recording buffer now packs samples at true bit width and channel count — Sunny/Scorched run at 24 kHz with real 12-bit/8-bit µ-law storage; mono input doubles buffer length (up to 64 s).
 - **Onbetap** — Polivoks-style stereo multimode filter, new module.
 - **Vespid** — new module: EDP Wasp-style CMOS state-variable filter, with
   British (original '78 Wasp, verge-of-oscillation) and German (Doepfer A-124
