@@ -156,8 +156,6 @@ struct LopWidget : ModuleWidget {
         auto* display = new LoopDisplayWidget();
         display->engine = module ? &module->engine : nullptr;
         display->demoHeads = 1;
-        display->laneDiv = LoopWaveformRenderer::LOP_LANE_DIV;
-        display->laneColors = LoopWaveformRenderer::LOP_LANE_COLOR;
         // Screen rect (mm) from the SVG's screen rect element. Kept in sync
         // with vcv/res/Lop.svg and metamodule/Lop_info.hh by
         // metamodule/loooop/sync_info_positions.py — run it after any panel change.

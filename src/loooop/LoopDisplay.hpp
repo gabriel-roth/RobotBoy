@@ -14,10 +14,6 @@ inline uint32_t loopDisplayPackRGBA(uint8_t r, uint8_t g, uint8_t b, uint8_t a) 
 struct LoopDisplayWidget : Widget {
     const LoopEngine* engine = nullptr;          // module engine; nullptr in browser
     int demoHeads = LoopEngine::NUM_HEADS;       // browser-preview head count
-    // Per-module display style: Löp overrides with LOP_LANE_DIV /
-    // LOP_LANE_COLOR (double-height purple lane); Loooop keeps the defaults.
-    int laneDiv = LoopWaveformRenderer::LANE_DIV;
-    const uint8_t (*laneColors)[3] = LoopWaveformRenderer::HEAD_COLORS;
     static constexpr int kOversample = 2;
     std::vector<uint32_t> wavePix, lanePix;
     int waveImg = -1, laneImg = -1;
@@ -48,7 +44,7 @@ struct LoopDisplayWidget : Widget {
                 std::max(1, (int)std::round(box.size.x)) * kOversample);
             const int h = std::max(1, (int)std::round(box.size.y)) * kOversample;
             const LoopEngine& eng = engine ? *engine : demoEngine(demoHeads);
-            const auto geometry = LoopWaveformRenderer::geometry(h, eng.numHeads(), laneDiv);
+            const auto geometry = LoopWaveformRenderer::geometry(h, eng.numHeads());
             const int laneH = geometry.laneHeight;
             const int lanesH = geometry.lanesHeight;
             const int waveH = geometry.waveHeight;
@@ -76,8 +72,7 @@ struct LoopDisplayWidget : Widget {
                 cachedWaveGrid = grid;
             }
             LoopWaveformRenderer::renderLanes(
-                lanePix.data(), w, lanesH, laneH, eng, loopDisplayPackRGBA,
-                laneColors);
+                lanePix.data(), w, lanesH, laneH, eng, loopDisplayPackRGBA);
             if (laneImg < 0)
                 laneImg = nvgCreateImageRGBA(args.vg, w, lanesH, 0,
                     (const unsigned char*)lanePix.data());
