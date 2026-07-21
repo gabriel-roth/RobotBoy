@@ -75,6 +75,25 @@ double ZeroCrossingIntervalStddev(const std::vector<StereoFrame>& v, size_t from
     return std::sqrt(var);
 }
 
+// Single-frequency (Goertzel-style) magnitude of freq_hz's content in
+// v[from,to)'s left channel: projects onto a sin/cos pair at that
+// frequency and returns the resulting amplitude estimate. Used to detect
+// kScorchedCassette's output LP (5 kHz) attenuating a high-frequency
+// component that survives kBrightDigital's pass-through untouched.
+double GoertzelMagnitude(const std::vector<StereoFrame>& v, size_t from, size_t to,
+                          double freq_hz, double sample_rate) {
+    double omega = static_cast<double>(particules_dsp::kTwoPi) * freq_hz / sample_rate;
+    double sum_cos = 0.0, sum_sin = 0.0;
+    for (size_t i = from; i < to; ++i) {
+        double angle = omega * static_cast<double>(i);
+        sum_cos += static_cast<double>(v[i].l) * std::cos(angle);
+        sum_sin += static_cast<double>(v[i].l) * std::sin(angle);
+    }
+    size_t n = to - from;
+    if (n == 0) return 0.0;
+    return 2.0 * std::sqrt(sum_cos * sum_cos + sum_sin * sum_sin) / static_cast<double>(n);
+}
+
 } // namespace
 
 // -----------------------------------------------------------------------
@@ -205,11 +224,26 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     // kScorchedCassette no longer mono-sums its input (channel count is an
     // input property, not a mode property) — L and R should stay distinct
     // through the switch, not converge.
+    //
+    // Also carries a well-above-5kHz component (hf_freq) so the switch's
+    // *actual* audible effect can be checked directly: kScorchedCassette
+    // adds an output LP at 5 kHz (on top of kBrightDigital's plain
+    // pass-through), so once the switch has settled this content must be
+    // measurably attenuated relative to the pre-switch (kBrightDigital)
+    // level. That's a real discriminator for "the switch did something" —
+    // unlike the stereo-preservation check below, it fails if quality
+    // switching is silently a no-op (e.g. everything forced to
+    // kBrightDigital), because in that broken case the 8 kHz content
+    // would sail through unattenuated in both phases.
     const float freq = 440.f;
+    const float hf_freq = 8000.f;
     auto gen_stereo = [&](std::vector<StereoFrame>& buf, size_t n0) {
         for (size_t i = 0; i < buf.size(); ++i) {
             float phase = particules_dsp::kTwoPi * freq * static_cast<float>(n0 + i) / 48000.f;
-            buf[i] = {0.5f * std::sin(phase), 0.5f * std::sin(phase + particules_dsp::kPi * 0.5f)};
+            float hf_phase = particules_dsp::kTwoPi * hf_freq * static_cast<float>(n0 + i) / 48000.f;
+            float hf = 0.2f * std::sin(hf_phase);
+            buf[i] = {0.5f * std::sin(phase) + hf,
+                      0.5f * std::sin(phase + particules_dsp::kPi * 0.5f) + hf};
         }
     };
 
@@ -257,6 +291,22 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
         lr_diff_tape += std::fabs(out2[i].l - out2[i].r);
     lr_diff_tape /= static_cast<double>(last_half_sec);
     REQUIRE(lr_diff_tape > lr_diff_hifi * 0.5);
+
+    // The actual no-op discriminator: kScorchedCassette's 5 kHz output LP
+    // must measurably attenuate the 8 kHz component once the switch has
+    // settled, relative to kBrightDigital's pass-through before the
+    // switch. The measurement window (last_half_sec of phase 2, i.e.
+    // starting 1.5 s / 72000 samples after the switch) is far past both
+    // the 8192-sample V-duck and QualityProcessor's internal 64-sample
+    // mode crossfade, well clear of the required >=30000-sample settle.
+    double hf_hifi = GoertzelMagnitude(out1, phase1_n / 2, phase1_n, hf_freq, 48000.0);
+    double hf_tape = GoertzelMagnitude(out2, phase2_n - last_half_sec, phase2_n, hf_freq, 48000.0);
+
+    // Sanity on the fixture itself: kBrightDigital is a pass-through, so
+    // the 8 kHz content must actually survive there, otherwise the ratio
+    // check below would be vacuous.
+    REQUIRE(hf_hifi > 0.05);
+    REQUIRE(hf_tape < hf_hifi * 0.5);
 }
 
 // Normalized autocorrelation of v[from,to) at the given lag (same
