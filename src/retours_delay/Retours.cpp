@@ -93,6 +93,7 @@ struct Retours : Module {
 	retours_delay_dsp::TimeChangeMode time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
 	bool envelope_pre_feedback_ = false;
 	float input_trim_db_ = 0.f;
+	float slew_seconds_ = retours_delay_dsp::kSlewSecondsDefault;
 	bool metamodule_fpu_configured_ = false;
 	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
 	// call to the audio thread (process()) so it's not racing the DSP.
@@ -204,6 +205,7 @@ struct Retours : Module {
 		time_change_mode_       = retours_delay_dsp::TimeChangeMode::kTape;
 		envelope_pre_feedback_  = false;
 		input_trim_db_          = 0.f;
+		slew_seconds_           = retours_delay_dsp::kSlewSecondsDefault;
 		block_runtime_          = RetoursBlockRuntime<kWrapperBlockSize>{};
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		clock_light_phase_       = 0.f;
@@ -217,6 +219,7 @@ struct Retours : Module {
 		json_object_set_new(root, "timeChangeMode", json_integer(static_cast<int>(time_change_mode_)));
 		json_object_set_new(root, "envelopePreFeedback", json_boolean(envelope_pre_feedback_));
 		json_object_set_new(root, "inputTrimDb", json_real(input_trim_db_));
+		json_object_set_new(root, "slewSeconds", json_real(slew_seconds_));
 		return root;
 	}
 
@@ -237,6 +240,10 @@ struct Retours : Module {
 			input_trim_db_ = clamp((float)json_real_value(j), -12.f, 12.f);
 		else
 			input_trim_db_ = 0.f;
+		if ((j = json_object_get(root, "slewSeconds")))
+			slew_seconds_ = clamp((float)json_real_value(j), 0.01f, 1.f);
+		else
+			slew_seconds_ = retours_delay_dsp::kSlewSecondsDefault;
 	}
 
 	void updateSlowParams(bool frozen) {
@@ -291,6 +298,7 @@ struct Retours : Module {
 		params_.time_change_mode      = time_change_mode_;
 		params_.envelope_pre_feedback = envelope_pre_feedback_;
 		params_.input_trim_db         = input_trim_db_;
+		params_.slew_seconds          = slew_seconds_;
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -428,6 +436,32 @@ struct InputTrimQuantity : Quantity {
 	}
 };
 
+// Logarithmic menu slider: the underlying Quantity stores/reads log10(seconds)
+// so ui::Slider's linear drag (which operates on getValue()/getMin/
+// MaxValue()) produces a logarithmic sweep of the real unit. Display strings
+// still show the real value.
+struct SlewQuantity : Quantity {
+	Retours* module;
+	SlewQuantity(Retours* m) : module(m) {}
+
+	void setValue(float value) override {
+		if (!module) return;
+		float log_v = clamp(value, getMinValue(), getMaxValue());
+		module->slew_seconds_ = std::pow(10.f, log_v);
+	}
+	float getValue() override {
+		return module ? std::log10(module->slew_seconds_) : getDefaultValue();
+	}
+	float getMinValue() override { return -2.f; }   // log10(0.01)
+	float getMaxValue() override { return 0.f; }    // log10(1)
+	float getDefaultValue() override { return std::log10(retours_delay_dsp::kSlewSecondsDefault); }
+	std::string getLabel() override { return "Doppler slew"; }
+	std::string getUnit() override { return " s"; }
+	std::string getDisplayValueString() override {
+		return string::f("%.3f", module ? module->slew_seconds_ : std::pow(10.f, getDefaultValue()));
+	}
+};
+
 #ifndef METAMODULE
 struct RetoursMenuSlider : ui::Slider {
 	RetoursMenuSlider(Quantity* q) {
@@ -500,9 +534,10 @@ struct RetoursWidget : ModuleWidget {
 		));
 
 #ifndef METAMODULE
-		// --- Slider: desktop only (MM menus can't host slider widgets) ---
+		// --- Sliders: desktop only (MM menus can't host slider widgets) ---
 		menu->addChild(new MenuSeparator);
 		menu->addChild(new RetoursMenuSlider(new InputTrimQuantity(module)));
+		menu->addChild(new RetoursMenuSlider(new SlewQuantity(module)));
 #endif
 
 		// --- Clear Buffer ---
