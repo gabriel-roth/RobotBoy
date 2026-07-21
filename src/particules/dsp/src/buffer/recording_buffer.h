@@ -31,9 +31,11 @@ public:
     // Reconfigure decimation, storage format, and channel count (1 = mono,
     // 2 = stereo). Frame count is derived from the byte pool fixed at Init,
     // optionally capped by max_bytes (0 = full pool). Resets the write head
-    // and decimation counter. If the layout changed, the pool's existing
-    // bytes are garbage under the new interpretation: the caller MUST follow
-    // with Clear() and keep wet output muted until the clear completes.
+    // and decimation counter when the layout actually changes; a no-op
+    // reconfigure (same format, channels, and frame count) leaves state
+    // untouched. If the layout changed, the pool's existing bytes are
+    // garbage under the new interpretation: the caller MUST follow with
+    // Clear() and keep wet output muted until the clear completes.
     void Configure(int decimation_factor, StorageFormat format, int channels,
                    size_t max_bytes = 0);
 
@@ -158,6 +160,8 @@ public:
     // Zero the buffer and reset the write head.
     // The memset is deferred — call TickClear() each Process() block to
     // spread the cost. Init() still clears synchronously at startup.
+    // The clear extent is computed from the configuration at call time —
+    // call Configure() BEFORE Clear() when changing layouts.
     void Clear();
 
     // Zero the buffer immediately (synchronous memset) without resetting

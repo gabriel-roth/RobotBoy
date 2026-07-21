@@ -29,7 +29,7 @@ inline float Int12Decode(int16_t v) {
 // per sign. Byte layout: bit 7 = sign (1 = negative), bits 4-6 = segment,
 // bits 0-3 = mantissa. NOT G.711's inverted wire format: codes 0x00 and 0x80
 // decode to exactly 0.0f, so a zeroed buffer reads as silence.
-// Full scale maps to the 14-bit magnitude 8158 (bias makes 8158+33 < 2^13).
+// Full scale maps to the 13-bit magnitude 8158 (bias makes 8158+33 < 2^13).
 inline uint8_t MuLaw8Encode(float x) {
     if (!(std::fabs(x) > 0.0f)) return 0;  // catches +0, -0, NaN
     uint8_t sign = 0;

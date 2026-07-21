@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- **Memory budget unchanged:** `GetMemoryRequirements(...).total_bytes` must be byte-identical before/after for both processors (pool = `(192000 + kInterpolationTail) × 2 × sizeof(float)` = 1,536,032 bytes each).
+- **Memory budget unchanged:** `GetMemoryRequirements(...).total_bytes` must be byte-identical before/after for both processors (pool = `(192000 + kInterpolationTail) × 2 × sizeof(float)` = 1,536,032 bytes each). (As-built note, 2026-07-21: the recording POOL is byte-identical (1,536,032 B) but `total_bytes` grew slightly — Particules +400 B, Retours +32 B, measured — because sizeof(Impl) grew with Q32.32 grain positions and transition state. All callers allocate dynamically from GetMemoryRequirements, so this is behaviorally immaterial; the constraint as literally written was unsatisfiable alongside the Q32.32 mandate.)
 - **No transcendentals (`logf`/`expf`/`powf`) on any per-sample audio path.** The new codec must be integer/LUT based. (This *removes* the \~144k transcendentals/s today's Scorched spends on µ-law companding.)
 - **No `double` arithmetic in per-sample hot loops** (Cortex-A7 doubles are scalar VFP, not NEON). Doubles are allowed in per-grain-start / per-block setup code.
 - **No allocation or lazy static init on the audio thread.** The µ-law decode table is primed inside `RecordingBuffer::Init()` (host thread).
