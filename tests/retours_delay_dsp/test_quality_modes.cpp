@@ -310,11 +310,17 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     // should still be distinct — kScorchedCassette no longer mono-sums
     // (Task 5), so stereo content is preserved through the switch rather
     // than collapsing to mono.
+    // Threshold lowered from 0.5x to 0.3x (Task 3, 2026-07): Scorched's new
+    // write-path saturation (SaturateWrite) independently compresses L and R
+    // every feedback pass, which narrows -- but must not erase -- the
+    // stereo image. Measured ratio with SaturateWrite wired in is ~0.41x;
+    // a true mono-collapse (the regression this test guards against) reads
+    // near 0x, so 0.3x keeps a clear margin on both sides.
     double lr_diff_tape = 0.0;
     for (size_t i = phase2_n - last_half_sec; i < phase2_n; ++i)
         lr_diff_tape += std::fabs(out2[i].l - out2[i].r);
     lr_diff_tape /= static_cast<double>(last_half_sec);
-    REQUIRE(lr_diff_tape > lr_diff_hifi * 0.5);
+    REQUIRE(lr_diff_tape > lr_diff_hifi * 0.3);
 
     // The actual no-op discriminator: kScorchedCassette's 5 kHz output LP
     // must measurably attenuate the 8 kHz component once the switch has
@@ -745,8 +751,14 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
         REQUIRE(std::fabs(f.l) <= 2.f);
         REQUIRE(std::fabs(f.r) <= 2.f);
     }
+    // Threshold lowered from 0.05 to 0.02 (Task 3, 2026-07): Scorched's
+    // write-path saturation now compresses this 0.9-amplitude noise (well
+    // into its ~0.45 ceiling) before it's ever written, so the round-tripped
+    // level is legitimately lower than pre-wiring. Measured RMS here is
+    // ~0.039 -- comfortably non-zero (true silence reads near 0), which is
+    // all this sanity check needs to confirm.
     double rms_mono = Rms(mono_out, mono_out.size() - 4000, mono_out.size());
-    REQUIRE(rms_mono > 0.05);
+    REQUIRE(rms_mono > 0.02);
 
     // Capacity doubling: mono packs the same byte pool at half the
     // per-frame footprint (1 channel instead of 2), so BaseTimeControl's

@@ -14,6 +14,14 @@ static constexpr size_t kImplAlignment = 16;
 // actual sample rate (it clamps the resulting sample count to kBufferFrames).
 static constexpr float kBufferSeconds = static_cast<float>(kBufferFrames) / 48000.f;
 
+// Retours tape-tone voicing: a feedback delay re-applies the tape output
+// LP every round trip, so the shared defaults that suit Particules'
+// one-pass grain path (10 kHz Sunny / 5 kHz Scorched) barely darken
+// repeats below ~4 kHz. Voice them lower here: Sunny mellows gradually,
+// Scorched murks within a few repeats.
+static constexpr float kSunnyToneCutoffHz = 6500.0f;
+static constexpr float kScorchedToneCutoffHz = 2800.0f;
+
 static size_t AlignUp(size_t size, size_t alignment = kImplAlignment) {
     return (size + alignment - 1) & ~(alignment - 1);
 }
@@ -66,6 +74,8 @@ void RetoursProcessor::Init(void* memory, size_t memory_size, float sample_rate)
 
     impl_->saturation.Init();
     impl_->quality_processor.Init(sample_rate);
+    impl_->quality_processor.SetTapeToneCutoffs(kSunnyToneCutoffHz,
+                                                kScorchedToneCutoffHz);
 
     // Feedback HP filter at 10 Hz to remove DC buildup in the feedback path.
     // Q must be 0.707 (Butterworth): the SVF's default Q=1 peaks at ~1.155x
@@ -364,6 +374,13 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         // passes through input processing too (authentic per spec diagram).
         StereoFrame to_write = s.quality_processor.ProcessInput(
             StereoFrame{trimmed_l + fb.l, trimmed_r + fb.r}, s.active_quality);
+
+        // Tape write saturation: compress the input+feedback sum onto a
+        // soft ceiling below the storage codec's hard +/-1 clamp, so
+        // accumulated feedback lands on warm tanh compression instead of
+        // digital clipping. Re-recording through this each pass is what
+        // makes tape echoes progressively more saturated.
+        to_write = s.saturation.SaturateWrite(to_write, s.active_quality);
 
         // FREEZE: stop writes so the buffer content underneath the frozen
         // slice(s) stays put. The feedback chain above still runs into the
