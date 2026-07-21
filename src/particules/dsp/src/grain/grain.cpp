@@ -13,8 +13,8 @@ void Grain::Init() {
     fallback_fade_ = false;
     fallback_counter_ = 0;
     prev_mono_ = 0.0f;
-    read_position_ = 0.0f;
-    phase_increment_ = 0.0f;
+    position_q_ = 0;
+    increment_q_ = 0;
     envelope_phase_ = 0.0f;
     envelope_increment_ = 0.0f;
     smoothness_ = 1.0f;
@@ -45,8 +45,8 @@ void Grain::Start(const GrainParameters& params) {
     fallback_counter_ = 0;
     prev_mono_ = 0.0f;
 
-    read_position_ = params.position;
-    phase_increment_ = params.pitch_ratio;
+    position_q_ = static_cast<int64_t>(static_cast<double>(params.position) * kQ32One);
+    increment_q_ = static_cast<int64_t>(static_cast<double>(params.pitch_ratio) * kQ32One);
 
     // Envelope increments once per sample over the grain's duration.
     // Phase goes from 0 to 1 over params.size samples.

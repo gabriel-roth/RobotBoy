@@ -6,6 +6,7 @@
 #include "../util/dsp_utils.h"
 
 #include <cmath>
+#include <cstdint>
 
 namespace particules_dsp {
 
@@ -33,7 +34,7 @@ public:
     // Returns true if grain is still active.
     // INLINED for the grain-major hot loop — must stay in the header.
     inline bool Process(const RecordingBuffer& buffer,
-                        float buf_size, float* out_l, float* out_r) {
+                        int64_t buf_size_q, float* out_l, float* out_r) {
         if (!active_) {
             *out_l = 0.0f;
             *out_r = 0.0f;
@@ -65,14 +66,18 @@ public:
         envelope_phase_ += envelope_increment_;
 
         // Read from recording buffer with Hermite interpolation.
+        size_t i0 = static_cast<size_t>(position_q_ >> 32);
+        float frac = static_cast<float>(static_cast<uint32_t>(position_q_))
+                     * (1.0f / 4294967296.0f);
         float sample_l, sample_r;
-        buffer.ReadHermiteStereoFast(read_position_, &sample_l, &sample_r);
+        buffer.ReadHermiteStereoFrac(i0, frac, &sample_l, &sample_r);
 
-        // Advance read position, wrapping around buffer size.
-        read_position_ += phase_increment_;
-        if (buf_size > 0.0f) {
-            while (read_position_ >= buf_size) read_position_ -= buf_size;
-            while (read_position_ < 0.0f) read_position_ += buf_size;
+        // Advance and wrap (integer compare/subtract; position stays in
+        // [0, size) so the >>32 above is always non-negative).
+        position_q_ += increment_q_;
+        if (buf_size_q > 0) {
+            if (position_q_ >= buf_size_q) position_q_ -= buf_size_q;
+            if (position_q_ < 0) position_q_ += buf_size_q;
         }
 
         // Apply envelope, gain, and panning.
@@ -98,12 +103,12 @@ public:
 
     // Process a full block. Checks each grain's own contribution for NaN
     // before accumulating, so a NaN from another grain can't kill this one.
-    // buf_size_f should be static_cast<float>(buffer.size()).
-    inline void ProcessBlock(const RecordingBuffer& buffer, float buf_size_f,
+    // buf_size_q should be static_cast<int64_t>(buffer.size()) << 32.
+    inline void ProcessBlock(const RecordingBuffer& buffer, int64_t buf_size_q,
                              StereoFrame* output, size_t num_frames) {
         for (size_t i = 0; i < num_frames; ++i) {
             float gl = 0.0f, gr = 0.0f;
-            Process(buffer, buf_size_f, &gl, &gr);
+            Process(buffer, buf_size_q, &gl, &gr);
             if (!std::isfinite(gl) || !std::isfinite(gr)) {
                 active_ = false;
                 return;
@@ -115,8 +120,12 @@ public:
 
     bool active() const { return active_; }
     bool pending_kill() const { return pending_kill_; }
-    float read_position() const { return read_position_; }
-    float phase_increment() const { return phase_increment_; }
+    float read_position() const {
+        return static_cast<float>(static_cast<double>(position_q_) / kQ32One);
+    }
+    float phase_increment() const {
+        return static_cast<float>(static_cast<double>(increment_q_) / kQ32One);
+    }
     int pre_delay_remaining() const { return pre_delay_; }
 
     // Spawn order, stamped by GrainEngine at activation. Used by the
@@ -139,9 +148,13 @@ private:
     int fallback_counter_ = 0;
     float prev_mono_ = 0.0f;  // mono sum for zero-crossing detection
 
-    // Read position (fractional for sub-sample accuracy)
-    float read_position_ = 0.0f;
-    float phase_increment_ = 0.0f;
+    // Q32.32 fixed-point playback position/step (frames). Constant
+    // interpolation precision at any buffer size, and integer wrap math —
+    // unlike a float32 position, which quantizes to 1/16 sample at ~1M
+    // frames, or doubles, which are scalar-only on Cortex-A7 VFP.
+    int64_t position_q_ = 0;
+    int64_t increment_q_ = 0;
+    static constexpr double kQ32One = 4294967296.0;   // 2^32
 
     // Envelope
     float envelope_phase_ = 0.0f;
