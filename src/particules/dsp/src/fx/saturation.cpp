@@ -69,12 +69,8 @@ float Saturation::LimitFeedback(float input, QualityMode mode) {
             return AsymmetricSoftClip(input * 0.9f);
 
         case QualityMode::kScorchedCassette:
-            // The signal is already mu-law compressed (mu=64) from
-            // ProcessInput.  A second MuLawCompress here with a
-            // different mu creates a compress/expand mismatch that
-            // adds ~62% gain per feedback cycle.  Hard clip instead:
-            // the compressed signal is already in [-1,1], so clipping
-            // only activates when feedback injection pushes it over.
+            // Hard clip at +/-1: the storage codec clamps on write anyway,
+            // so clipping here just bounds the feedback sum pre-encoder.
             return HardClip(input, 1.0f);
     }
     return input;

@@ -201,11 +201,10 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
-    // Stereo-distinct (L/R 90 degrees out of phase) so kScorchedCassette's mono-sum
-    // input coloring is independently observable: once tape-processed
-    // content fills the delay buffer, L and R should converge (the
-    // ProcessInput mono-sum step writes the same value to both channels),
-    // which would NOT happen if the quality switch were a no-op.
+    // Stereo-distinct (L/R 90 degrees out of phase). Per Task 5,
+    // kScorchedCassette no longer mono-sums its input (channel count is an
+    // input property, not a mode property) — L and R should stay distinct
+    // through the switch, not converge.
     const float freq = 440.f;
     auto gen_stereo = [&](std::vector<StereoFrame>& buf, size_t n0) {
         for (size_t i = 0; i < buf.size(); ++i) {
@@ -250,13 +249,14 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
 
     // Once the tape switch has settled (duck window is 8192 samples; give
     // it the last 0.5 s of phase 2 to be well clear of that), L and R
-    // should have converged — evidence the mono-sum quality processing is
-    // actually active, not a no-op.
+    // should still be distinct — kScorchedCassette no longer mono-sums
+    // (Task 5), so stereo content is preserved through the switch rather
+    // than collapsing to mono.
     double lr_diff_tape = 0.0;
     for (size_t i = phase2_n - last_half_sec; i < phase2_n; ++i)
         lr_diff_tape += std::fabs(out2[i].l - out2[i].r);
     lr_diff_tape /= static_cast<double>(last_half_sec);
-    REQUIRE(lr_diff_tape < lr_diff_hifi * 0.25);
+    REQUIRE(lr_diff_tape > lr_diff_hifi * 0.5);
 }
 
 // Normalized autocorrelation of v[from,to) at the given lag (same
