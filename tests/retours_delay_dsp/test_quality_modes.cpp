@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "retours_delay_dsp/retours_dsp.h"
 #include "util/dsp_utils.h"   // particules_dsp::kTwoPi
+#include "buffer/recording_buffer.h"
 using namespace retours_delay_dsp;
 
 namespace {
@@ -24,6 +25,26 @@ struct Proc {
 float KnobForSeconds(float seconds, float buffer_seconds = 4.f) {
     float d = -std::log2(seconds / buffer_seconds) / 11.0f; // kManualOctaves
     return 0.5f - 0.5f * d;   // CCW side
+}
+
+// Mirrors BaseTimeControl::Update()'s unclocked/manual-mode formula against
+// the LIVE per-quality buffer capacity (not the fixed float32 frame count),
+// same construction as test_hardening.cpp's ExpectedBaseSeconds -- see that
+// file's comment for why BaseTimeSeconds() (not DelayTimeSeconds()) is the
+// right observable here.
+float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
+    auto cfg = particules_dsp::QualityConfigFor(quality);
+    size_t capacity_bytes =
+        (kBufferFrames + particules_dsp::kInterpolationTail) * 2 * sizeof(float);
+    size_t frames = particules_dsp::RecordingBuffer::FramesForConfig(
+        capacity_bytes, /*channels=*/2, cfg.format, cfg.max_bytes);
+    float buffer_seconds = static_cast<float>(frames) *
+                           static_cast<float>(cfg.decimation) / sr;
+    float buffer_samples = sr * buffer_seconds;
+    float d = std::clamp(std::fabs(density - 0.5f) * 2.f, 0.f, 1.f);
+    float base = buffer_samples * std::exp2(-kManualOctaves * d);
+    float min_samples = kMinDelaySeconds * sr;
+    return std::clamp(base, min_samples, buffer_samples) / sr;
 }
 
 int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
@@ -499,4 +520,38 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
         REQUIRE(std::fabs(f.l) <= 2.f);
         REQUIRE(std::fabs(f.r) <= 2.f);
     }
+}
+
+// -----------------------------------------------------------------------
+// (g) Live buffer capacity: kScorchedCassette packs mu-law8 stereo into the
+// same fixed byte pool as kBrightDigital's float32, so its actual frame
+// count (and therefore DENSITY's manual-mode buffer duration) is much
+// larger than the old fixed-float32-frame-count assumption -- see
+// ExpectedBaseSeconds() above, which now derives the expected duration from
+// RecordingBuffer::FramesForConfig() instead of a hardcoded frame count.
+// This proves the transition's apply point (Configure() before Clear(),
+// then SetBufferSeconds() from the LIVE recording_buffer.size()) actually
+// wires that larger capacity through to BaseTimeControl, not just to the
+// buffer object itself.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: Scorched delay capacity is ~32 s after transition") {
+    const float sr = 48000.f;
+    Proc proc(sr);
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = 0.5f;   // noon: BaseTimeControl's manual-mode base == full
+                        // buffer duration (no octave falloff at density=0.5)
+    p.quality = QualityMode::kScorchedCassette;
+    proc.p.SetParameters(p);
+
+    // >= 30k samples: comfortably past the full fade(2048)+clear(~8192)+
+    // fade(2048) transition (~12288 samples) so the apply point has fired
+    // and BaseTimeControl reflects the new capacity.
+    size_t total = 40000;
+    std::vector<StereoFrame> in(total, StereoFrame{0.f, 0.f}), out(total);
+    proc.p.Process(in.data(), out.data(), total);
+
+    float expected = ExpectedBaseSeconds(0.5f, QualityMode::kScorchedCassette, sr);
+    REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected).epsilon(0.01));
 }

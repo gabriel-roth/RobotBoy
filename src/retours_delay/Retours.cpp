@@ -356,6 +356,10 @@ struct Retours : Module {
 		float r = in_r_connected ? inputs[IN_R_INPUT].getVoltage() * 0.2f : l;
 		if (!std::isfinite(r)) r = 0.f;
 		block_runtime_.PushInputSample({l, r});
+		// Mono detection: no IN_R cable means a mono source, so the recording
+		// buffer can drop to 1 channel and double its effective duration for
+		// the same byte pool (see RetoursParameters::mono_input).
+		params_.mono_input = !in_r_connected;
 
 		// Process when block is full
 		if (block_runtime_.BlockReady()) {

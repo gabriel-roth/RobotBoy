@@ -47,6 +47,9 @@ struct RetoursParameters {
     bool  freeze = false;
 
     QualityMode quality = QualityMode::kBrightDigital;
+    // True when the input is effectively mono (R jack unpatched). Drives the
+    // recording buffer's channel count: mono doubles buffer duration.
+    bool mono_input = false;
     TimeChangeMode time_change_mode = TimeChangeMode::kTape;
     bool  envelope_pre_feedback = false;  // false = feedback taps post-envelope
     float input_trim_db = 0.0f;           // -12..+12

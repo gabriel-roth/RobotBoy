@@ -6,6 +6,7 @@
 #include "retours_delay_dsp/retours_dsp.h"
 #include "random/random.h"
 #include "util/dsp_utils.h"
+#include "buffer/recording_buffer.h"
 
 using namespace retours_delay_dsp;
 
@@ -50,9 +51,13 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
 // buffer_samples_ every block (no slew), unlike DelayTimeSeconds() which
 // one-pole slews toward its target over ~0.08 s.
 float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
-    int decimation = particules_dsp::DecimationFactorForQuality(quality);
-    float buffer_seconds = static_cast<float>(kBufferFrames) *
-                            static_cast<float>(decimation) / sr;
+    auto cfg = particules_dsp::QualityConfigFor(quality);
+    size_t capacity_bytes =
+        (kBufferFrames + particules_dsp::kInterpolationTail) * 2 * sizeof(float);
+    size_t frames = particules_dsp::RecordingBuffer::FramesForConfig(
+        capacity_bytes, /*channels=*/2, cfg.format, cfg.max_bytes);
+    float buffer_seconds = static_cast<float>(frames) *
+                           static_cast<float>(cfg.decimation) / sr;
     float buffer_samples = sr * buffer_seconds;
     float d = std::clamp(std::fabs(density - 0.5f) * 2.f, 0.f, 1.f);
     float base = buffer_samples * std::exp2(-kManualOctaves * d);
@@ -156,6 +161,15 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
     const size_t kFreezeGroup = 4;
     auto freeze_at = [&](size_t s) { return ((s / kFreezeGroup) % 2) == 1; };
 
+    // The transition state machine (Task 8) takes fade(2048) + clear(~8192)
+    // + fade(2048) = ~12288 samples (192 steps at this chunk size) to reach
+    // the new quality's applied config -- unlike the old immediate-Clear()
+    // code, BaseTimeSeconds() does NOT reflect the new buffer duration on
+    // the very step the change is requested. Defer the correctness check by
+    // a settle margin comfortably past that (well under quality_period_steps
+    // so it always resolves before the next scheduled transition can fire).
+    const size_t kTransitionSettleSteps = 300;
+
     for (float density : densities) {
         for (float time : times) {
             Proc proc(sr);
@@ -176,6 +190,8 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
             size_t quality_idx = 0;
             size_t next_boundary = quality_period_steps;
             size_t transitions_checked = 0;
+            size_t pending_check_step = SIZE_MAX;
+            size_t pending_check_quality_idx = 0;
 
             std::vector<StereoFrame> in(chunk), out(chunk);
             for (size_t step = 0; step < steps; ++step) {
@@ -214,18 +230,26 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
 
                 // Instrumentation: prove the transition actually applied by
                 // checking BaseTimeSeconds() against the value analytically
-                // expected for the new quality's buffer duration. If the
-                // apply guard never fired (e.g. reverted to never-fire),
-                // BaseTimeSeconds() would still reflect the OLD quality's
-                // buffer and this would mismatch immediately.
+                // expected for the new quality's buffer duration, once the
+                // fade(2048)+clear(~8192)+fade(2048) transition has had time
+                // to reach its apply point (see kTransitionSettleSteps
+                // above). If the apply guard never fired (e.g. reverted to
+                // never-fire), BaseTimeSeconds() would still reflect the OLD
+                // quality's buffer and this would mismatch.
                 if (expect_transition) {
-                    float expected = ExpectedBaseSeconds(density, qualities[quality_idx], sr);
+                    pending_check_step = step + kTransitionSettleSteps;
+                    pending_check_quality_idx = quality_idx;
+                }
+                if (pending_check_step != SIZE_MAX && step == pending_check_step) {
+                    float expected = ExpectedBaseSeconds(
+                        density, qualities[pending_check_quality_idx], sr);
                     float actual = proc.p.BaseTimeSeconds();
                     INFO("density=" << density << " time=" << time
                                      << " step=" << step
-                                     << " new quality index=" << quality_idx);
+                                     << " new quality index=" << pending_check_quality_idx);
                     REQUIRE(actual == Catch::Approx(expected).margin(1e-5));
                     transitions_checked++;
+                    pending_check_step = SIZE_MAX;
                 }
             }
 
