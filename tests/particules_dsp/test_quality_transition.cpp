@@ -57,6 +57,49 @@ ParticulesParameters WetParams() {
     return params;
 }
 
+// Same block-processing harness as Run(), but with a configurable input
+// frequency (the other tests only care about "is wet audio present", so
+// 220 Hz is fine there; the spectral test below needs a specific tone) and
+// an optional capture buffer for spectral measurement of the output.
+RunResult RunAtFreq(ParticulesProcessor& p, ParticulesParameters& params,
+                     int blocks, double& phase, double freq_hz,
+                     std::vector<float>* capture = nullptr) {
+    RunResult r{0.0f, true};
+    StereoFrame in[64], out[64];
+    for (int b = 0; b < blocks; ++b) {
+        for (int i = 0; i < 64; ++i) {
+            float v = 0.5f * static_cast<float>(std::sin(phase));
+            phase += 2.0 * M_PI * freq_hz / kSr;
+            in[i] = {v, v};
+        }
+        p.SetParameters(params);
+        p.Process(in, out, 64);
+        for (int i = 0; i < 64; ++i) {
+            if (!std::isfinite(out[i].l) || !std::isfinite(out[i].r)) r.finite = false;
+            r.peak = std::max(r.peak, std::max(std::fabs(out[i].l), std::fabs(out[i].r)));
+            if (capture) capture->push_back(0.5f * (out[i].l + out[i].r));
+        }
+    }
+    return r;
+}
+
+// Single-bin Goertzel magnitude of `freq_hz` within `samples` -- an O(N)
+// stand-in for a full FFT when only one frequency's amplitude is of
+// interest. Normalized so a full-scale sine of `freq_hz` reads back ~1.0.
+float GoertzelMagnitude(const std::vector<float>& samples, float freq_hz, float sample_rate) {
+    const float omega = 2.0f * static_cast<float>(M_PI) * freq_hz / sample_rate;
+    const float coeff = 2.0f * std::cos(omega);
+    float s_prev = 0.0f, s_prev2 = 0.0f;
+    for (float x : samples) {
+        float s = x + coeff * s_prev - s_prev2;
+        s_prev2 = s_prev;
+        s_prev = s;
+    }
+    const float real = s_prev - s_prev2 * std::cos(omega);
+    const float imag = s_prev2 * std::sin(omega);
+    return std::sqrt(real * real + imag * imag) / (static_cast<float>(samples.size()) * 0.5f);
+}
+
 }  // namespace
 
 TEST_CASE("QualityTransition: Bright->Scorched stays finite and recovers", "[transition]") {
@@ -181,4 +224,78 @@ TEST_CASE("QualityTransition: freeze re-engaged mid-fade-out aborts the apply", 
     auto after = Run(proc.p, params, 2000, phase);
     REQUIRE(after.finite);
     REQUIRE(after.peak > 0.01f);
+}
+
+TEST_CASE("QualityTransition: Scorched passes mid-high frequencies (brightness acceptance)",
+          "[transition][spectral]") {
+    // The point of the quality-buffer-decoupling branch: Scorched used to
+    // run at /8 with a 2.5 kHz input LP (nothing above ~2.5 kHz survived --
+    // the "dull/dark" complaint). It now runs at /2 (24 kHz) with a 10 kHz
+    // input LP and a 5 kHz output LP, so a 4 kHz tone (comfortably inside
+    // the new pass band, well outside the old one) must come through the
+    // full grain engine materially brighter than the old config would have
+    // produced.
+    //
+    // Grains resynthesize buffer content with envelopes/overlap, so a clean
+    // tone never comes out the other end -- only a Bright-vs-Scorched
+    // *ratio* is meaningful. Discriminator used: single-bin Goertzel
+    // magnitude at 4 kHz, measured over the trailing 0.5 s (24000 samples)
+    // of a long-settled run in each mode.
+    Proc proc;
+    auto params = WetParams();
+    params.size = -0.2f;      // "small" grains: kSizeBoundary, 30 ms minimum
+    params.density = 0.8f;    // "high" density
+    double phase = 0.0;
+    constexpr double kToneHz = 4000.0;
+    constexpr int kCaptureBlocks = 375;   // 375*64 = 24000 samples = 0.5 s @ 48 kHz
+
+    // 1. Bright: settle past the grain startup ramp, then capture.
+    auto settled = RunAtFreq(proc.p, params, 800, phase, kToneHz);
+    REQUIRE(settled.finite);
+    REQUIRE(settled.peak > 0.01f);
+
+    std::vector<float> bright_capture;
+    bright_capture.reserve(kCaptureBlocks * 64);
+    auto bright_run = RunAtFreq(proc.p, params, kCaptureBlocks, phase, kToneHz, &bright_capture);
+    REQUIRE(bright_run.finite);
+    const float mag_bright = GoertzelMagnitude(bright_capture, static_cast<float>(kToneHz), kSr);
+
+    // 2. Switch to Scorched. Run well past the full transition (fadeout
+    // 2048 + clear ~8192 + fadein 2048 ~= 12288 samples) plus enough for
+    // grains to re-establish on the freshly-cleared buffer's new content
+    // (>= 30000 samples total, per the plan), then capture the trailing
+    // 0.5 s.
+    params.quality_mode = QualityMode::kScorchedCassette;
+    auto transition = RunAtFreq(proc.p, params, 500, phase, kToneHz);        // 32000 samples
+    REQUIRE(transition.finite);
+    auto scorched_settle = RunAtFreq(proc.p, params, 500, phase, kToneHz);   // grains on fresh content
+    REQUIRE(scorched_settle.finite);
+
+    std::vector<float> scorched_capture;
+    scorched_capture.reserve(kCaptureBlocks * 64);
+    auto scorched_run = RunAtFreq(proc.p, params, kCaptureBlocks, phase, kToneHz, &scorched_capture);
+    REQUIRE(scorched_run.finite);
+    REQUIRE(scorched_run.peak > 0.01f);
+    const float mag_scorched = GoertzelMagnitude(scorched_capture, static_cast<float>(kToneHz), kSr);
+
+    INFO("mag_bright=" << mag_bright << " mag_scorched=" << mag_scorched);
+
+    // Calibration (measured 2026-07-21 on this branch; scratch-build
+    // measurement of the OLD Scorched config used kScorchedInputLpHz and
+    // kScorchedOutputLpHz temporarily set to 2500 Hz and QualityConfigFor
+    // Scorched temporarily set to {8, kFloat32, 0} to emulate the
+    // pre-branch /8 + 2.5 kHz behavior, then restored exactly (verified
+    // with `git diff` -- see task-10-report.md for the full readout):
+    //   Bright:            mag_bright       ~= 0.01372
+    //   New Scorched (/2): mag_scorched     ~= 0.01875   (~1.37x Bright)
+    //   Old Scorched (/8): mag_old_scorched ~= 0.00045   (~0.033x Bright)
+    // The new config doesn't just clear the old one -- it clears Bright's
+    // own 4 kHz level (grain envelope/overlap-add spectral spreading adds
+    // energy the old, heavily low-passed Scorched had none of to spread).
+    // Old Scorched sits at ~3% of Bright, i.e. correctly near the noise
+    // floor. K=0.3 sits with enormous margin above the old ratio (~0.033x)
+    // and below the new ratio (~1.37x), tolerating run-to-run
+    // grain-synthesis variance many times over.
+    constexpr float K = 0.3f;
+    REQUIRE(mag_scorched > mag_bright * K);
 }
