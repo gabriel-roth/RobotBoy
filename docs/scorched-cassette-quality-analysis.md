@@ -149,7 +149,7 @@ dull/dark "low-pitched" character. That character is driven by the ÷8 rate and 
 
 ## Resolution (2026-07-20)
 
-The buffer decoupling has been implemented for all four modes via **packed storage formats** (Bright: float32, Cold/Sunny: 12-bit integer, Scorched: 8-bit µ-law) and **input-adaptive channel count** (mono input doubles all buffer lengths). This matches the hardware manual's behavior shown in the earlier Finding 4 table, accounting for the mono/stereo variant which the fidelity-fix design doc's single-figure budget had elided:
+The buffer decoupling has been implemented for all four modes via **packed storage formats** (Bright: float32, Cold/Sunny: 12-bit integer, Scorched: 8-bit µ-law) and **input-adaptive channel count** (mono input doubles all buffer lengths). This follows the hardware manual's packing principle from the Finding 4 table — each mode stores samples at its true bit width, and mono recording doubles duration — with two deliberate deviations: Cold runs at 24 kHz rather than hardware's 32 kHz (decimation must divide the host rate integrally), and Sunny's buffer is 16 s rather than hardware's \~11 s (our pool is larger and 12-bit samples are stored in 16-bit containers):
 
 | Mode              | Rate | Bits      | Buffer (stereo) | Buffer (mono) |
 |-------------------|------|-----------|-----------------|---------------|
