@@ -21,7 +21,10 @@ public:
     bool GrainTriggeredThisBlock() const { return grain_triggered_; }
 
 private:
-    static constexpr float kMaxRateHz = 80.0f;
+    // Max knob-driven grain rate. Beads manual: DENSITY at the extreme reaches
+    // "the period of a C3 note" (130.81 Hz). Still sub-audio-rate; CV is clamped
+    // to [0,1] so it cannot push the rate past this (see test_density_rate).
+    static constexpr float kMaxRateHz = 130.81f;
     // Exponent for the density→rate mapping in DensityToRate(); std::log2 is
     // not constexpr, so this is defined out-of-line in the .cpp file.
     static const float kRateExponent;
