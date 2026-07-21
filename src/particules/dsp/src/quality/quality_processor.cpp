@@ -6,6 +6,9 @@ namespace particules_dsp {
 void QualityProcessor::Init(float sample_rate) {
     sample_rate_ = sample_rate;
 
+    sunny_output_hz_ = kSunnyTapeOutputLpHz;
+    scorched_output_hz_ = kScorchedOutputLpHz;
+
     input_lp_l_.Init();
     input_lp_r_.Init();
     output_lp_l_.Init();
@@ -15,8 +18,8 @@ void QualityProcessor::Init(float sample_rate) {
     // Process*, but a sane default avoids uninitialized filter state.
     input_lp_l_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
     input_lp_r_.SetFrequencyHz(kColdDigitalInputLpHz, sample_rate_);
-    output_lp_l_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
-    output_lp_r_.SetFrequencyHz(kSunnyTapeOutputLpHz, sample_rate_);
+    output_lp_l_.SetFrequencyHz(sunny_output_hz_, sample_rate_);
+    output_lp_r_.SetFrequencyHz(sunny_output_hz_, sample_rate_);
 
     // Gentle resonance (Butterworth-ish)
     input_lp_l_.SetQ(0.707f);
@@ -36,7 +39,7 @@ void QualityProcessor::Init(float sample_rate) {
     prev_input_mode_ = QualityMode::kBrightDigital;
     prev_output_mode_ = QualityMode::kBrightDigital;
     current_input_cutoff_hz_ = kColdDigitalInputLpHz;
-    current_output_cutoff_hz_ = kSunnyTapeOutputLpHz;
+    current_output_cutoff_hz_ = sunny_output_hz_;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,12 +54,17 @@ static float InputCutoffForMode(QualityMode mode) {
     }
 }
 
-static float OutputCutoffForMode(QualityMode mode) {
+float QualityProcessor::OutputCutoffForMode(QualityMode mode) const {
     switch (mode) {
-        case QualityMode::kSunnyTape:        return QualityProcessor::kSunnyTapeOutputLpHz;
-        case QualityMode::kScorchedCassette: return QualityProcessor::kScorchedOutputLpHz;
-        default:                             return QualityProcessor::kSunnyTapeOutputLpHz;
+        case QualityMode::kSunnyTape:        return sunny_output_hz_;
+        case QualityMode::kScorchedCassette: return scorched_output_hz_;
+        default:                             return sunny_output_hz_;
     }
+}
+
+void QualityProcessor::SetTapeToneCutoffs(float sunny_output_hz, float scorched_output_hz) {
+    sunny_output_hz_ = sunny_output_hz;
+    scorched_output_hz_ = scorched_output_hz;
 }
 
 // ---------------------------------------------------------------------------

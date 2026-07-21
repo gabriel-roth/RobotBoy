@@ -38,6 +38,15 @@ public:
     // num_samples: number of samples to advance the LFO by (typically block size).
     float GetPitchModulation(QualityMode mode, size_t num_samples = 1);
 
+    // Override the tape modes' OUTPUT tone-LP cutoffs (Hz). Defaults (set
+    // in Init) are kSunnyTapeOutputLpHz / kScorchedOutputLpHz, which suit
+    // Particules' one-pass grain path. A feedback delay re-applies the
+    // output LP every round trip, so Retours voices these lower. Call
+    // after Init() and before processing: values take effect at the next
+    // output-mode change (fresh instances always see one, since
+    // prev_output_mode_ starts at kBrightDigital which has no output LP).
+    void SetTapeToneCutoffs(float sunny_output_hz, float scorched_output_hz);
+
 private:
     float sample_rate_ = 48000.0f;
 
@@ -61,6 +70,13 @@ private:
     // Cached cutoff Hz to avoid recomputing tan() every sample
     float current_input_cutoff_hz_ = 0.0f;
     float current_output_cutoff_hz_ = 0.0f;
+
+    // Per-instance tape output-LP voicing (see SetTapeToneCutoffs).
+    float sunny_output_hz_ = kSunnyTapeOutputLpHz;
+    float scorched_output_hz_ = kScorchedOutputLpHz;
+
+    // Output LP cutoff for a mode, honoring the per-instance voicing.
+    float OutputCutoffForMode(QualityMode mode) const;
 
 public:
     // -- Constants (public for helper access) --
