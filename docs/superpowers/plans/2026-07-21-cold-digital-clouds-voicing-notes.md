@@ -1,5 +1,8 @@
 # Cold Digital as a Clouds Emulation — Research Notes
 
+**Implemented 2026-07-21 — see worklog Round 2; AA change applied shared per
+user decision.**
+
 Research synthesis, 2026-07-21. Sources: Clouds firmware (`~/Dev/eurorack/clouds/`, with
 stmlib at pinned commit e3bd7c9), Beads manual (pichenettes.github.io mirror of the
 3/14/2021 PDF), MI documentation site hardware pages. Community readings are from

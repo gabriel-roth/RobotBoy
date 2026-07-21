@@ -227,16 +227,140 @@ Set Feedback to \~75%, delay time \~250-500 ms, and compare Quality modes:
 - [ ] **Scorched cassette:** repeats fall into dark murk within 3-4 passes;
       wow/flutter warble in the tail; high feedback is a warm, dense wall,
       noticeably quieter and rounder than Bright's clipped wall.
-- [ ] **Cold digital:** unchanged character (12-bit, 10 kHz), still crunches
-      digitally at high feedback (intended).
+- [ ] **Cold digital:** now a Clouds emulation — repeats keep most of their
+      brightness with a faint aliased sheen on bright sources; high feedback
+      overloads into a warm, congested "smudgy" wall (cubic soft-limit),
+      clearly different from Bright's hard brickwall. Compare against
+      Particules' Cold, which shares the same character.
 - [ ] Quality switching mid-feedback still fades/clears cleanly (no pops).
 - [ ] Freeze + quality interactions unchanged (freeze, switch quality,
       unfreeze — no corruption).
+
+## Round 2: Cold digital Clouds voicing (2026-07-21)
+
+### What changed and why
+
+Cold digital used to fall back on the storage codec's hard ±1 clamp at high
+feedback — the same brickwall character as Bright, just duller and quieter,
+with no per-mode overload identity. Research
+(`2026-07-21-cold-digital-clouds-voicing-notes.md`) traced Beads' Cold to a
+Mutable Instruments Clouds emulation, and identified the two most audible
+Clouds traits missing from ours: the cubic write-side soft-limiter that
+Clouds boosts feedback *into* (so overload lands on a warm "smudgy" cubic
+wall, not a buzz), and a bandwidth ceiling close enough to Nyquist to leak a
+faint aliased sheen on bright material. Two constants and one case, all in
+shared `particules_dsp` code, closed that gap:
+
+1. **`Saturation::SaturateWrite`'s `kColdDigital` case** (previously a
+   pass-through, matching Bright) now applies
+   `NormalizedSoftClip(input, kColdWriteDrive)` — the Clouds cubic write
+   limiter (`stmlib::SoftLimit`, `granular_processor.cc:197-203`), unity
+   small-signal slope, ceiling `1/kColdWriteDrive`.
+2. **`kColdWriteDrive = 1.4f`** (new constant in `saturation.h`) — Clouds'
+   own drive constant, giving a ceiling of \~0.714.
+3. **`kColdDigitalInputLpHz`: 10000 → 11500 Hz** (`quality_processor.h`) —
+   raises Cold's anti-alias input LP closer to the 24 kHz storage rate's
+   12 kHz Nyquist, deliberately leaky enough to admit fold-back on bright
+   sources (the "cold digital sheen"), while keeping Cold brighter than the
+   tape modes per Beads' ordering (Cold 32 kHz > Sunny/Scorched 24 kHz).
+
+Because `kColdDigitalInputLpHz` lives in shared `QualityProcessor` (not a
+Retours-only override, unlike the tape tone cutoffs from Round 1), this AA
+change applies to Particules' Cold too — a deliberate, user-decided
+exception to the "shared curves / per-instance voicing" split from Round 1.
+Particules' Cold input filtering brightens slightly (10 kHz → 11.5 kHz,
+2-pole) and gains the same fold-back sheen on bright sources; Particules'
+own tests (`test_tape_voicing.cpp`) cover this directly.
+
+### RED/GREEN values (Task 1)
+
+| Assertion | RED (old) | GREEN (new) | Bound |
+|---|---|---|---|
+| `SaturateWrite(2.0, kColdDigital)` | 2.0 (pass-through) | in [0.70, 0.72] | `<= 0.72` |
+| 13 kHz input-LP probe, `out_amp/in_amp` | 0.41451 | 0.56084 | `> 0.482` (recalibrated, see below) |
+| Retours Cold steady-state clip_frac | 0.37 | 0.0 | `< 0.005` |
+| Retours Cold steady-state peak | — | 0.694767 | (informational; matches 1/1.4 \~0.7143 ceiling) |
+
+The 13 kHz-probe threshold was recalibrated from the plan's idealized 0.563
+to **0.482** — the RED/GREEN gap measured against the actual
+`StateVariableFilter` (not the idealized 2-pole Butterworth math the plan
+assumed) is only 2.626 dB, too narrow for the full 1.5 dB margin rule on
+both sides; the midpoint gives the best achievable split (\~1.31 dB margin
+each side). Full derivation in `.superpowers/sdd/task-1-report.md`. This was
+a test-threshold-only recalibration — no DSP constant was touched to
+satisfy a test; `kColdWriteDrive = 1.4f` and `kColdDigitalInputLpHz =
+11500.0f` both match the plan's proposed values exactly, so no tuning
+latitude was exercised in Task 1 either.
+
+### Probe tables: Cold before/after
+
+Rebuilt `quality_probe.cpp` / `steady_probe.cpp` (same scratchpad sources
+and build line as Round 1) against the Round 2 static library.
+
+**Steady-state** (continuous 220 Hz saw, amplitude 0.5, feedback knob 0.75,
+last 2 s of a 10 s render) — before (Round 1, main branch) vs. after (Round
+2, this branch):
+
+| | peak | RMS dB | clip% | 1.1k dB | 2.2k dB | 4.8k dB | 7.9k dB |
+|---|---|---|---|---|---|---|---|
+| Cold — before | 1.07 | -1.9 | 37.0 | -18.0 | -24.5 | -33.0 | -41.3 |
+| Cold — after | 0.69 | -6.0 | 0.0 | -17.0 | -24.3 | -31.8 | -38.8 |
+| Bright (unchanged, sanity) | 1.63 | 1.1 | 65.8 | -17.2 | -23.6 | -30.4 | -34.7 |
+
+Cold's steady-state clip fraction goes from 37.0% to 0.0%, peak from 1.07
+(codec-clamped) to 0.69 (matches the write-limiter ceiling, with a small
+margin below the 1/1.4 \~0.714 static value from filter/interpolation
+interaction), and it now sits between Bright and the tape modes on the
+7.9 kHz column (-38.8 dB, vs. Bright's -34.7 and Sunny's -45.4) — brighter
+than tape, per the Beads ordering, but no longer identical to Bright.
+
+**Burst decay** (220 Hz sawtooth burst, feedback knob 0.75, 250 ms delay) —
+Round 1's committed burst table didn't include Cold rows (Cold wasn't yet a
+focus), so only the Round 2 (after) values are available for the burst
+table; Bright/Sunny/Scorched rows below are reproduced unchanged from Round
+1 as the "tape modes unchanged" cross-check:
+
+| Mode | rep | peak | RMS dB | 440 Hz dB | 7920 Hz dB | HF−LF dB | clip% |
+|---|---|---|---|---|---|---|---|
+| Bright | 1 | 1.00 | -4.8 | -10.1 | -35.6 | -25.5 | 1.4 |
+| Bright | 4 | 0.69 | -9.6 | -14.9 | -40.4 | -25.5 | 0.0 |
+| Cold | 1 | 0.73 | -7.2 | -13.8 | -41.6 | -27.8 | 0.0 |
+| Cold | 8 | 0.17 | -21.4 | -30.6 | -74.5 | -43.9 | 0.0 |
+| Cold | 12 | 0.09 | -28.0 | -37.1 | -83.1 | -45.9 | 0.0 |
+| Sunny | 1 | 0.73 | -7.4 | -14.1 | -47.4 | -33.3 | 0.0 |
+| Sunny | 8 | 0.17 | -21.7 | -31.0 | -82.5 | -51.5 | 0.0 |
+| Sunny | 12 | 0.09 | -28.3 | -37.5 | -88.4 | -50.9 | 0.0 |
+| Scorched | 1 | 0.49 | -9.4 | -17.8 | -61.4 | -43.6 | 0.0 |
+| Scorched | 4 | 0.23 | -16.8 | -28.0 | -76.4 | -48.4 | 0.0 |
+
+Bright, Sunny, and Scorched rows are byte-for-byte identical to Round 1's
+table (peak/RMS/harmonics/clip% match to the printed decimal), confirming
+the Cold-only change didn't perturb the other modes' burst behavior.
+
+### Goal-by-goal assessment (brief's Step 1)
+
+1. **Cold steady-state: clip% < 0.5 (was 37.0), peak ≤ 0.75.** Measured
+   clip% 0.0, peak 0.69. **Pass**, comfortably inside both bounds.
+2. **Bright steady-state unchanged (clip% > 30).** Measured 65.8%, identical
+   to Round 1's 65.8%. **Pass** — proves the change is Cold-scoped.
+3. **Cold burst decay slope (RMS dB/repeat, repeats 8-12) within 0.5 dB of
+   Bright's.** Bright: (-22.3 − -15.9)/4 = -1.60 dB/repeat. Cold: (-28.0 −
+   -21.4)/4 = -1.65 dB/repeat. Difference 0.05 dB. **Pass**, well inside the
+   0.5 dB bar — unity small-signal slope preserved.
+4. **Tape modes' rows unchanged from Round 1's tables.** Sunny and Scorched
+   burst rows (above) and steady-state rows (peak 0.71/0.48, clip 0.0%/0.0%,
+   harmonics) are identical to Round 1, in both tables. **Pass** —
+   Sunny/Scorched untouched by this change.
+
+**No tuning latitude was exercised.** All four probe goals passed with
+Task 1's committed constants (`kColdWriteDrive = 1.4f`,
+`kColdDigitalInputLpHz = 11500.0f`); neither constant needed to move within
+its `[1.2, 1.6]` / `[11000, 11800]` latitude range.
 
 ## Final verification
 
 ```
 ./tests/particules_dsp/run.sh      -> 100% tests passed
-./tests/retours_delay_dsp/run.sh   -> 100% tests passed, 61 test cases
+./tests/retours_delay_dsp/run.sh   -> 100% tests passed, 62 test cases
 make -C vcv -j4                    -> clean build
 ```
