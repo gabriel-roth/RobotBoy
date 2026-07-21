@@ -305,7 +305,7 @@ TEST_CASE("freeze: unfreeze from a wrapped high-slice-index position slews, does
     float delay_s1 = proc.p.DelayTimeSeconds();
 
     // Two more blocks (3 total post-unfreeze) -- still deep in the slew,
-    // nowhere near the final 0.5 s target given the default ~0.08 s slew
+    // nowhere near the final 0.5 s target given the default ~0.3 s slew
     // time constant (3 blocks == 192 samples == 4 ms, a small fraction of
     // one time constant).
     std::vector<StereoFrame> in2(2 * kMaxBlockSize, StereoFrame{0.f, 0.f}),

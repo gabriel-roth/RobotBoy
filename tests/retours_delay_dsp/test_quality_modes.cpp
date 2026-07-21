@@ -278,7 +278,7 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     p.quality = QualityMode::kScorchedCassette;  // switch mid-stream
     proc.p.SetParameters(p);
 
-    size_t phase2_n = static_cast<size_t>(2.f * 48000.f);  // 2 s more, post-switch
+    size_t phase2_n = static_cast<size_t>(4.f * 48000.f);  // 4 s more, post-switch
     std::vector<StereoFrame> in2(phase2_n), out2(phase2_n);
     gen_stereo(in2, phase1_n);
     proc.p.Process(in2.data(), out2.data(), phase2_n);
@@ -305,8 +305,10 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     REQUIRE(lr_diff_hifi > 0.05);
 
     // Once the tape switch has settled (the transition is fade(2048) +
-    // clear(~8250) + fade(2048); give it the last 0.5 s of phase 2 to be
-    // well clear of that), L and R
+    // clear(~8250) + fade(2048), plus the delay tap's ~0.3 s one-pole slew
+    // to its post-switch target; give it the last 0.5 s of phase 2 — i.e.
+    // 3.5 s after the switch, >11 slew time constants — to be well clear
+    // of all of that), L and R
     // should still be distinct — kScorchedCassette no longer mono-sums
     // (Task 5), so stereo content is preserved through the switch rather
     // than collapsing to mono.
@@ -320,7 +322,7 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     // must measurably attenuate the 8 kHz component once the switch has
     // settled, relative to kBrightDigital's pass-through before the
     // switch. The measurement window (last_half_sec of phase 2, i.e.
-    // starting 1.5 s / 72000 samples after the switch) is far past both
+    // starting 3.5 s / 168000 samples after the switch) is far past both
     // the fade(2048) + clear(~8250) + fade(2048) transition and
     // QualityProcessor's internal 64-sample mode crossfade, well clear of
     // the required >=30000-sample settle.
@@ -720,10 +722,13 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
     REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected_stereo).epsilon(0.01));
 
     // R jack unpatched mid-session: mono_input flips true, starting the
-    // fade(2048)+clear(~8250)+fade(2048) transition. Run >= 400 blocks of
-    // 64 (25600 samples), comfortably past the ~12288-sample cycle, feeding
-    // continuous noise throughout (not silence) so there's audible content
-    // once the reconfigured mono buffer resumes recording.
+    // fade(2048)+clear(~8250)+fade(2048) transition. Run 2000 blocks of 64
+    // (128000 samples, ~2.7 s) — comfortably past the ~12288-sample cycle
+    // AND past the delay tap's ~0.3 s one-pole slew from the old
+    // full-buffer position down to the ~50 ms target (a ~64 s journey
+    // needs ~2 s at that time constant) — feeding continuous noise
+    // throughout (not silence) so there's audible content once the
+    // reconfigured mono buffer resumes recording.
     //
     // Density flip: at density=0.5 the delay tap sits a full buffer (64 s
     // mono) behind the write head — deep in the freshly-cleared region — so
@@ -734,7 +739,7 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
     p.mono_input = true;
     p.density = KnobForSeconds(0.05f, 64.f);
     proc.p.SetParameters(p);
-    size_t mono_n = 400 * kMaxBlockSize;
+    size_t mono_n = 2000 * kMaxBlockSize;
     std::vector<StereoFrame> mono_in(mono_n), mono_out(mono_n);
     feed_noise(mono_in);
     proc.p.Process(mono_in.data(), mono_out.data(), mono_n);
@@ -767,7 +772,7 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
     p.mono_input = false;
     p.density = KnobForSeconds(0.05f, 32.f);
     proc.p.SetParameters(p);
-    size_t back_n = 400 * kMaxBlockSize;
+    size_t back_n = 2000 * kMaxBlockSize;
     std::vector<StereoFrame> back_in(back_n), back_out(back_n);
     feed_noise(back_in);
     proc.p.Process(back_in.data(), back_out.data(), back_n);

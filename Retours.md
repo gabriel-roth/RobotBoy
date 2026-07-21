@@ -71,7 +71,7 @@ All buffer lengths double when the input is mono (nothing patched into IN R): 8,
 Below **Time, Pitch,** and **Shape** sits a small trimpot that does one of two things, exactly as on Particules:
 
 - **With a CV cable patched** into that parameter's input: it's an attenuverter for the CV. From center, turn **clockwise for more external modulation**; turn **counter-clockwise to instead spread the value randomly** around the knob position, scaled by the CV.
-- **With nothing patched:** it sets how much that parameter drifts on its own from an internal slow-random source. Center is no movement. Counter-clockwise gives a *peaky* wander (mostly near the knob setting, extremes rare); clockwise gives a wide, *uniform* wander. The **Random LFO rate** menu option sets how fast this drift moves.
+- **With nothing patched:** it sets how much that parameter drifts on its own from an internal slow-random source. Center is no movement. Counter-clockwise gives a *peaky* wander (mostly near the knob setting, extremes rare); clockwise gives a wide, *uniform* wander.
 
 The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV inputs, not randomizers.
 
@@ -117,11 +117,9 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves — the classic delay-sweep sound. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend.
 - **Envelope feedback tap** — whether the Shape envelope is applied **before** or **after** the signal is fed back. Post-envelope (default) shapes only what you hear; Pre-envelope feeds the shaped signal back too, so the chopping compounds with each repeat.
 - **Input trim** (desktop only) — ±12 dB of input gain trim.
-- **Doppler slew** (desktop only) — how quickly the tape head glides to a new delay time in Tape mode. Shorter is snappier; longer is a slower, more dramatic pitch sweep.
-- **Random LFO rate** (desktop only) — how fast the trimpots' internal random drift moves when no CV is patched.
 - **Clear buffer** — empties the recording buffer immediately.
 
-On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the sliders and Clear buffer are not undoable).
+On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the slider and Clear buffer are not undoable).
 
 ---
 
