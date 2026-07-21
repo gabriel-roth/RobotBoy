@@ -43,12 +43,18 @@ struct ParticulesProcessor::Impl {
     // Previous freeze state for crossfade detection
     bool prev_freeze = false;
 
-    // Quality mode transition
-    QualityMode prev_quality_mode = QualityMode::kBrightDigital;
-    // Duck duration must cover the buffer clear time. At 64 samples/block
-    // (MetaModule), clearing 128 chunks takes 8192 samples (~170ms at 48kHz).
-    static constexpr int kQualityXfadeSamples = 8192;
-    int quality_xfade_counter = 0;
+    // Config transition (quality mode and/or input channel count): fade the
+    // wet path out, reconfigure + clear the buffer (a layout change makes old
+    // pool bytes garbage), hold muted until the deferred clear drains, then
+    // fade back in. See docs/superpowers/plans/2026-07-20-quality-buffer-decoupling.md.
+    enum class QualityTransition : uint8_t { kIdle, kFadeOut, kClearing, kFadeIn };
+    QualityTransition qt_state = QualityTransition::kIdle;
+    QualityMode active_quality = QualityMode::kBrightDigital;
+    QualityMode pending_quality = QualityMode::kBrightDigital;
+    bool active_mono = false;
+    bool pending_mono = false;
+    int qt_fade_counter = 0;
+    static constexpr int kQualityFadeSamples = 2048;   // ~43 ms at 48 kHz
 
     // Smoothed mix parameters (zipper noise prevention)
     float smoothed_dry_wet = 0.5f;

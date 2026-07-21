@@ -56,15 +56,15 @@ Feedback, Dry/Wet, Time, Pitch, and Shape each have their own **CV input** and a
 
 The **Quality** button (top center, with the multicolor LED) cycles through four recording characters — the same four as Particules. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. Because the feedback loop re-records through this stage on every pass, the lower-quality modes get dirtier the longer the echoes last. The recording rate is a fixed division of your engine's sample rate; the figures below are what that works out to at 48 kHz:
 
-*Bright digital* (white LED): full rate, 16-bit — cleanest and brightest, and the longest clean delay time.
+*Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit or better — cleanest and brightest. 4-second buffer.
 
-*Cold digital* (cyan LED): half rate, 12-bit — the classic Mutable grain.
+*Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain. 8-second buffer.
 
-*Sunny tape* (amber LED): rate ÷ 8, 12-bit — warm.
+*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle wow — warm tape. 16-second buffer.
 
-*Scorched cassette* (magenta LED): rate ÷ 4, 8-bit — lo-fi, with wow and flutter.
+*Scorched cassette* (magenta LED): rate ÷ 2 (24 kHz at 48 kHz), true 8-bit µ-law, tape hiss, wow and flutter — crunchy lo-fi. 32-second buffer.
 
-Lower-quality settings trade brightness for a **longer buffer**, so the longest available delay time actually grows as the sound gets grungier. Quality can't be changed while Slice is engaged.
+All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. Lower-quality settings trade brightness for a **longer buffer**, so the longest available delay time actually grows as the sound gets grungier. Quality can't be changed while Slice is engaged.
 
 ### The trimpots (Time · Pitch · Shape)
 

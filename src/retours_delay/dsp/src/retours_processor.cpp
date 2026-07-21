@@ -56,11 +56,13 @@ void RetoursProcessor::Init(void* memory, size_t memory_size, float sample_rate)
     impl_->recording_buffer.Init(reinterpret_cast<float*>(ptr), kBufferFrames, 2);
     ptr += AlignUp(recording_bytes);
 
-    // Initial decimation factor (HiFi = 1x); RecordingBuffer::Init already
-    // defaults to 1, but set it explicitly to document the tie to
-    // prev_quality's kBrightDigital default (mirrors Particules::Init).
-    impl_->recording_buffer.SetDecimationFactor(
-        particules_dsp::DecimationFactorForQuality(QualityMode::kBrightDigital));
+    // Configure the recording buffer for the initial (Bright) quality mode,
+    // 2 channels (mirrors Particules::Init; ties to Impl::active_quality's
+    // kBrightDigital default).
+    {
+        auto cfg = particules_dsp::QualityConfigFor(QualityMode::kBrightDigital);
+        impl_->recording_buffer.Configure(cfg.decimation, cfg.format, 2, cfg.max_bytes);
+    }
 
     impl_->saturation.Init();
     impl_->quality_processor.Init(sample_rate);
@@ -148,34 +150,31 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
     Impl& s = *impl_;
 
     // Drain any deferred buffer clear (post-quality-change) incrementally.
-    // Chunk size chosen so draining the whole buffer takes 128 blocks —
-    // same derivation Particules uses for its identical constant, aligned
-    // with kQualityXfadeSamples (128 × kMaxBlockSize == 8192).
-    static constexpr size_t kClearChunkFloats = (kBufferFrames / 128) * 2;
-    s.recording_buffer.TickClear(kClearChunkFloats);
+    // Byte-based chunk: capacity/128 keeps the drain at ~128 blocks (~170 ms
+    // at 48 kHz / 64-sample blocks) in every storage config.
+    s.recording_buffer.TickClear(s.recording_buffer.capacity_bytes() / 128);
 
-    // Quality mode change: new decimation factor, deferred buffer clear +
-    // output duck, and notify BaseTimeControl of the new effective buffer
-    // duration (DENSITY's manual-mode delay scales with it). Ignored while
-    // frozen: clearing/decimating the buffer out from under a frozen slice
-    // would corrupt the frozen loop content. Also ignored on the exact block
-    // where freeze falls (freeze_falling_edge): EchoEngine::NotifyFreeze's
-    // unfreeze continuity math (below, via SetTargets/NotifyFreeze) still
-    // needs this block's pre-clear write head/frozen_read_pos to compute
-    // delay_frames_ correctly — Clear() resets write_head_ synchronously, so
-    // applying the change here would corrupt that math. The deferred change
-    // is instead picked up on the first block where both this block and the
-    // previous one are unfrozen (one block after the falling edge).
+    // Config transition (quality and/or channel count): fade wet out,
+    // reconfigure + clear the buffer, hold muted until the clear drains,
+    // fade back in. Starting a transition is ignored while frozen
+    // (clearing/reformatting under a frozen slice would corrupt it) and on
+    // the freeze falling edge (EchoEngine's unfreeze continuity math needs
+    // this block's pre-clear write head); the kIdle re-check picks the
+    // change up one block later.
     bool freeze_falling_edge = s.prev_freeze && !s.params.freeze;
-    if (s.params.quality != s.prev_quality && !s.params.freeze && !freeze_falling_edge) {
-        s.prev_quality = s.params.quality;
-        int decimation = particules_dsp::DecimationFactorForQuality(s.params.quality);
-        s.recording_buffer.SetDecimationFactor(decimation);
-        s.recording_buffer.Clear();
-        s.quality_xfade_counter = Impl::kQualityXfadeSamples;
-        float effective_seconds = static_cast<float>(kBufferFrames) *
-                                   static_cast<float>(decimation) / s.sample_rate;
-        s.base_time.SetBufferSeconds(effective_seconds);
+    if (s.qt_state == Impl::QualityTransition::kIdle &&
+        (s.params.quality != s.active_quality ||
+         s.params.mono_input != s.active_mono) &&
+        !s.params.freeze && !freeze_falling_edge) {
+        s.pending_quality = s.params.quality;
+        s.pending_mono = s.params.mono_input;
+        s.qt_state = Impl::QualityTransition::kFadeOut;
+        s.qt_fade_counter = Impl::kQualityFadeSamples;
+    }
+    if (s.qt_state == Impl::QualityTransition::kClearing &&
+        !s.recording_buffer.ClearPending()) {
+        s.qt_state = Impl::QualityTransition::kFadeIn;
+        s.qt_fade_counter = Impl::kQualityFadeSamples;
     }
 
     // Block-rate: slow-random LFO rate is cheap to set every block.
@@ -252,7 +251,7 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
     // Block-rate: tape mode wow/flutter — a slow pitch-ratio wobble applied
     // to the engine's per-sample read advance for this block. All other
     // modes return exactly 1.0 (no modulation).
-    float read_rate_scale = s.quality_processor.GetPitchModulation(s.params.quality, n);
+    float read_rate_scale = s.quality_processor.GetPitchModulation(s.active_quality, n);
     s.engine.SetReadRateScale(read_rate_scale);
 
     bool feedback_state_bad = false;
@@ -268,23 +267,74 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
 
         // Pitch shift sits inside the feedback loop (shimmer): the shifted
         // signal is what gets tapped back for feedback and mixed as wet.
-        StereoFrame wet = s.shifter.Process(s.engine.ReadWet());
+        // During kClearing the pool bytes are garbage under the new layout
+        // (float32 garbage can be NaN, and NaN survives a x0 duck), so skip
+        // the read entirely and feed the shifter silence.
+        StereoFrame raw_wet =
+            (s.qt_state == Impl::QualityTransition::kClearing)
+                ? StereoFrame{0.f, 0.f}
+                : s.engine.ReadWet();
+        StereoFrame wet = s.shifter.Process(raw_wet);
 
-        // Quality mode transition: V-shaped duck on the wet signal while
-        // the deferred buffer clear (started above) drains, so the abrupt
-        // content change doesn't click. Mirrors Particules' identical duck.
-        if (s.quality_xfade_counter > 0) {
-            float phase = 1.f - static_cast<float>(s.quality_xfade_counter) /
-                                     static_cast<float>(Impl::kQualityXfadeSamples);
-            float duck = (phase < 0.5f) ? (1.f - phase * 2.f) : (phase - 0.5f) * 2.f;
-            wet.l *= duck;
-            wet.r *= duck;
-            s.quality_xfade_counter--;
+        // Config transition: wet gain per state.
+        float qt_gain = 1.0f;
+        switch (s.qt_state) {
+            case Impl::QualityTransition::kIdle:
+                break;
+            case Impl::QualityTransition::kFadeOut:
+                qt_gain = static_cast<float>(s.qt_fade_counter)
+                        / static_cast<float>(Impl::kQualityFadeSamples);
+                if (--s.qt_fade_counter <= 0) {
+                    if (s.params.freeze || freeze_falling_edge) {
+                        // Freeze was re-engaged (or its falling edge lands)
+                        // mid-fade-out: applying now would Configure/Clear
+                        // the buffer out from under frozen content, or beat
+                        // EchoEngine's unfreeze-continuity write-head math.
+                        // Abort back to kFadeIn (restores wet audibility)
+                        // without touching active_quality/active_mono/
+                        // buffer; the kIdle re-check re-arms the transition
+                        // once freeze is stable-released (params.quality !=
+                        // active_quality is still true).
+                        s.qt_state = Impl::QualityTransition::kFadeIn;
+                        s.qt_fade_counter = Impl::kQualityFadeSamples;
+                        break;
+                    }
+                    // Apply point: wet is fully muted here. Configure BEFORE
+                    // Clear (Clear's extent uses call-time config).
+                    s.active_quality = s.pending_quality;
+                    s.active_mono = s.pending_mono;
+                    auto cfg = particules_dsp::QualityConfigFor(s.active_quality);
+                    s.recording_buffer.Configure(cfg.decimation, cfg.format,
+                                                 s.active_mono ? 1 : 2,
+                                                 cfg.max_bytes);
+                    s.recording_buffer.Clear();
+                    // DENSITY's manual-mode delay scales with the effective
+                    // buffer duration — from the LIVE frame count, not the
+                    // float32 constant (packed formats hold more).
+                    float effective_seconds =
+                        static_cast<float>(s.recording_buffer.size()) *
+                        static_cast<float>(cfg.decimation) / s.sample_rate;
+                    s.base_time.SetBufferSeconds(effective_seconds);
+                    s.qt_state = Impl::QualityTransition::kClearing;
+                }
+                break;
+            case Impl::QualityTransition::kClearing:
+                qt_gain = 0.0f;
+                break;
+            case Impl::QualityTransition::kFadeIn:
+                qt_gain = 1.0f - static_cast<float>(s.qt_fade_counter)
+                                / static_cast<float>(Impl::kQualityFadeSamples);
+                if (--s.qt_fade_counter <= 0) {
+                    s.qt_state = Impl::QualityTransition::kIdle;
+                }
+                break;
         }
+        wet.l *= qt_gain;
+        wet.r *= qt_gain;
 
         // Quality output coloring (LP / 12-bit quantize / tape mu-law
         // expand), applied after the shifter, before the repeat envelope.
-        wet = s.quality_processor.ProcessOutput(wet, s.params.quality);
+        wet = s.quality_processor.ProcessOutput(wet, s.active_quality);
 
         // SHAPE repeat envelope: amplitude-shapes the wet signal per delay
         // period. Feedback normally taps the post-envelope signal (a closed
@@ -297,7 +347,7 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         StereoFrame fb_src = s.params.envelope_pre_feedback ? fb_src_pre : wet;
 
         StereoFrame fb_in{fb_src.l * s.smoothed_feedback, fb_src.r * s.smoothed_feedback};
-        StereoFrame fb = s.saturation.LimitFeedback(fb_in, s.params.quality);
+        StereoFrame fb = s.saturation.LimitFeedback(fb_in, s.active_quality);
         fb.l = s.feedback_hp_l.ProcessHP(fb.l);
         fb.r = s.feedback_hp_r.ProcessHP(fb.r);
         if (!std::isfinite(fb.l) || !std::isfinite(fb.r)) {
@@ -313,7 +363,7 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         // applied to the input+feedback sum before it's written — feedback
         // passes through input processing too (authentic per spec diagram).
         StereoFrame to_write = s.quality_processor.ProcessInput(
-            StereoFrame{trimmed_l + fb.l, trimmed_r + fb.r}, s.params.quality);
+            StereoFrame{trimmed_l + fb.l, trimmed_r + fb.r}, s.active_quality);
 
         // FREEZE: stop writes so the buffer content underneath the frozen
         // slice(s) stays put. The feedback chain above still runs into the

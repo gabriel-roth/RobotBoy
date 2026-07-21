@@ -89,7 +89,7 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
             break;
 
         case QualityMode::kSunnyTape:
-            // Anti-aliasing LP for 4x decimation (effective Nyquist = 6 kHz)
+            // Anti-alias for 2x decimation
             result = { filtered_l, filtered_r };
             break;
 
@@ -98,21 +98,19 @@ StereoFrame QualityProcessor::ProcessInput(StereoFrame input, QualityMode mode) 
             break;
 
         case QualityMode::kScorchedCassette: {
-            // Mono sum
-            float mono = (filtered_l + filtered_r) * 0.5f;
-            // Add subtle tape hiss
-            float hiss = noise_gen_.NextBipolar() * kTapeHissLevel;
-            mono += hiss;
-            // Mu-law compression
-            mono = MuLawCompress(mono, 64.0f);
-            result = { mono, mono };
+            // Dark cassette: filtered stereo + independent per-channel hiss.
+            // No mono sum (channel count follows the input jacks) and no
+            // companding (the recording buffer stores real 8-bit mu-law).
+            float hiss_l = noise_gen_.NextBipolar() * kTapeHissLevel;
+            float hiss_r = noise_gen_.NextBipolar() * kTapeHissLevel;
+            result = { filtered_l + hiss_l, filtered_r + hiss_r };
             break;
         }
     }
 
     // Crossfade from the unprocessed input to the new mode's output
     // when a mode switch just happened.  This avoids the abrupt timbral
-    // jump (especially into/out of tape mode's mono sum + mu-law).
+    // jump (especially into/out of tape mode's filtering + hiss).
     ApplyModeXfade(input_xfade_counter_, input, result);
 
     return result;
@@ -146,32 +144,19 @@ StereoFrame QualityProcessor::ProcessOutput(StereoFrame input, QualityMode mode)
             result = input;
             break;
 
-        case QualityMode::kColdDigital: {
-            // 12-bit quantization
-            float l = std::round(input.l * kQuantScale) / kQuantScale;
-            float r = std::round(input.r * kQuantScale) / kQuantScale;
-            result = { l, r };
+        case QualityMode::kColdDigital:
+            // Quantization lives in the storage codec (int12), not here.
+            result = input;
             break;
-        }
 
         case QualityMode::kSunnyTape:
             result = { lp_l, lp_r };
             break;
 
-        case QualityMode::kScorchedCassette: {
-            // Mu-law expansion.  The output LP was already ticked above
-            // with the raw (compressed) input, which keeps the filter
-            // state tracking the signal.  The LP result (lp_l/lp_r)
-            // applied to the compressed signal is a reasonable
-            // approximation; applying MuLawExpand *before* LP and
-            // re-filtering would double-tick the SVF.  Instead, expand
-            // the already-filtered result.
-            result = {
-                MuLawExpand(lp_l, 64.0f),
-                MuLawExpand(lp_r, 64.0f)
-            };
+        case QualityMode::kScorchedCassette:
+            // Mu-law decode already happened in the buffer's read path.
+            result = { lp_l, lp_r };
             break;
-        }
     }
 
     // Crossfade from unprocessed input to new mode output on mode change

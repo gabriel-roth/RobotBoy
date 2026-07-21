@@ -61,9 +61,9 @@ void ParticulesProcessor::Init(void* memory, size_t memory_size, float sample_ra
     ptr += AlignUp(kReverbBufferSize * sizeof(float));
     impl_->reverb.Init(reverb_buffer, kReverbBufferSize, sample_rate);
 
-    // Set initial decimation factor (HiFi = 1x, no change from current behavior)
-    impl_->recording_buffer.SetDecimationFactor(
-        DecimationFactorForQuality(QualityMode::kBrightDigital));
+    // Configure the recording buffer for the initial (Bright) quality mode.
+    auto cfg = QualityConfigFor(QualityMode::kBrightDigital);
+    impl_->recording_buffer.Configure(cfg.decimation, cfg.format, 2, cfg.max_bytes);
 
     // Initialize sub-processors
     impl_->grain_engine.Init(sample_rate, &impl_->recording_buffer);
@@ -106,15 +106,6 @@ void ParticulesProcessor::SetParameters(const ParticulesParameters& params) {
     if (!std::isfinite(impl_->params.density))     impl_->params.density     = 0.5f;
     if (!std::isfinite(impl_->params.density_cv))  impl_->params.density_cv  = 0.0f;
 
-    // Detect quality mode change → update decimation factor + start wet duck
-    if (params.quality_mode != impl_->prev_quality_mode) {
-        impl_->prev_quality_mode = params.quality_mode;
-        impl_->recording_buffer.SetDecimationFactor(
-            DecimationFactorForQuality(params.quality_mode));
-        impl_->recording_buffer.Clear();
-        impl_->quality_xfade_counter = Impl::kQualityXfadeSamples;
-    }
-
     // Configure reverb from parameters (use the sanitized copy so a NaN
     // params.reverb from the caller can't reach Reverb::SetAmount/SetDecay).
     impl_->reverb.SetAmount(impl_->params.reverb);
@@ -127,7 +118,7 @@ void ParticulesProcessor::SetParameters(const ParticulesParameters& params) {
 
     // Quality mode affects reverb LP: Tape=warmest, HiFi=brightest
     float reverb_lp;
-    switch (params.quality_mode) {
+    switch (impl_->active_quality) {
         case QualityMode::kScorchedCassette:      reverb_lp = 0.3f; break;
         case QualityMode::kSunnyTape: reverb_lp = 0.5f; break;
         case QualityMode::kColdDigital:    reverb_lp = 0.6f; break;
@@ -160,15 +151,30 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
     auto& s = *impl_;  // shorthand
 
     // Drain any deferred buffer clear (post-quality-change) incrementally.
-    // Runs once per <=64-frame block on every host, so the clear rate and the
-    // quality-transition duck stay aligned at any caller block size.
-    static constexpr size_t kClearChunkFloats = (kDefaultBufferFrames / 128) * 2;
-    s.recording_buffer.TickClear(kClearChunkFloats);
+    // Byte-based chunk: capacity/128 keeps the drain at ~128 blocks (~170 ms
+    // at 48 kHz / 64-sample blocks) in every storage config.
+    s.recording_buffer.TickClear(s.recording_buffer.capacity_bytes() / 128);
 
     // Freeze transitions: declick the seam / arm the unfreeze write ramp.
     if (s.params.freeze != s.prev_freeze) {
         s.recording_buffer.NotifyFreeze(s.params.freeze);
         s.prev_freeze = s.params.freeze;
+    }
+
+    // --- Config transition state machine (quality and/or channel count) ---
+    if (s.qt_state == Impl::QualityTransition::kIdle &&
+        (s.params.quality_mode != s.active_quality ||
+         s.params.mono_input != s.active_mono) &&
+        !s.params.freeze) {
+        s.pending_quality = s.params.quality_mode;
+        s.pending_mono = s.params.mono_input;
+        s.qt_state = Impl::QualityTransition::kFadeOut;
+        s.qt_fade_counter = Impl::kQualityFadeSamples;
+    }
+    if (s.qt_state == Impl::QualityTransition::kClearing &&
+        !s.recording_buffer.ClearPending()) {
+        s.qt_state = Impl::QualityTransition::kFadeIn;
+        s.qt_fade_counter = Impl::kQualityFadeSamples;
     }
 
     // --- Per-sample input processing (steps 1-4) ---
@@ -187,7 +193,7 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
         if (s.params.dry_post_gain) s.dry_input_buf[i] = in;
 
         // 2. Quality input processing
-        in = s.quality_processor.ProcessInput(in, s.params.quality_mode);
+        in = s.quality_processor.ProcessInput(in, s.active_quality);
 
         // 3. Feedback mix (smoothed to prevent zipper noise)
         OnePole(s.smoothed_feedback, s.params.feedback, 0.002f);
@@ -206,7 +212,7 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
         in.l *= source_scale;
         in.r *= source_scale;
         StereoFrame mixed = in + fb * (s.smoothed_feedback * s.smoothed_feedback);
-        in = s.saturation.LimitFeedback(mixed, s.params.quality_mode);
+        in = s.saturation.LimitFeedback(mixed, s.active_quality);
 
         // 4. Record to buffer (unless frozen)
         if (!s.params.freeze) {
@@ -220,7 +226,7 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
 
     // Tape mode wow/flutter: compute pitch modulation for this block.
     // The modulation is very slow (0.5Hz wow) so one value per block is fine.
-    float pitch_mod = s.quality_processor.GetPitchModulation(s.params.quality_mode, num_frames);
+    float pitch_mod = s.quality_processor.GetPitchModulation(s.active_quality, num_frames);
     s.grain_engine.SetPitchModulation(pitch_mod);
     s.grain_engine.Process(s.params, wet, num_frames);
 
@@ -247,23 +253,55 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
     for (size_t i = 0; i < num_frames; ++i) {
         StereoFrame wet_frame = wet[i];
 
-        // Quality mode transition: V-shaped duck on wet signal
-        if (s.quality_xfade_counter > 0) {
-            float phase = 1.0f - static_cast<float>(s.quality_xfade_counter)
-                        / static_cast<float>(Impl::kQualityXfadeSamples);
-            // phase: 0 at start → 1 at end
-            float duck;
-            if (phase < 0.5f) {
-                duck = 1.0f - phase * 2.0f;   // 1 → 0
-            } else {
-                duck = (phase - 0.5f) * 2.0f;  // 0 → 1
-            }
-            wet_frame *= duck;
-            s.quality_xfade_counter--;
+        // Config transition: wet gain per state.
+        float qt_gain = 1.0f;
+        switch (s.qt_state) {
+            case Impl::QualityTransition::kIdle:
+                break;
+            case Impl::QualityTransition::kFadeOut:
+                qt_gain = static_cast<float>(s.qt_fade_counter)
+                        / static_cast<float>(Impl::kQualityFadeSamples);
+                if (--s.qt_fade_counter <= 0) {
+                    if (s.params.freeze) {
+                        // Freeze was re-engaged mid-fade-out: applying now
+                        // would KillAllGrains/Configure/Clear the buffer out
+                        // from under the now-frozen content. Abort back to
+                        // kFadeIn (restores wet audibility) without touching
+                        // active_quality/active_mono/buffer; the kIdle
+                        // re-check re-arms the transition once freeze
+                        // releases (params.quality_mode != active_quality
+                        // is still true).
+                        s.qt_state = Impl::QualityTransition::kFadeIn;
+                        s.qt_fade_counter = Impl::kQualityFadeSamples;
+                        break;
+                    }
+                    // Apply point: wet is fully muted here.
+                    s.active_quality = s.pending_quality;
+                    s.active_mono = s.pending_mono;
+                    s.grain_engine.KillAllGrains();
+                    auto cfg = QualityConfigFor(s.active_quality);
+                    s.recording_buffer.Configure(cfg.decimation, cfg.format,
+                                                 s.active_mono ? 1 : 2,
+                                                 cfg.max_bytes);
+                    s.recording_buffer.Clear();
+                    s.qt_state = Impl::QualityTransition::kClearing;
+                }
+                break;
+            case Impl::QualityTransition::kClearing:
+                qt_gain = 0.0f;
+                break;
+            case Impl::QualityTransition::kFadeIn:
+                qt_gain = 1.0f - static_cast<float>(s.qt_fade_counter)
+                                / static_cast<float>(Impl::kQualityFadeSamples);
+                if (--s.qt_fade_counter <= 0) {
+                    s.qt_state = Impl::QualityTransition::kIdle;
+                }
+                break;
         }
+        wet_frame *= qt_gain;
 
         // 6. Quality output processing
-        wet_frame = s.quality_processor.ProcessOutput(wet_frame, s.params.quality_mode);
+        wet_frame = s.quality_processor.ProcessOutput(wet_frame, s.active_quality);
 
         // 7. Capture this block's wet frame for the next block's feedback
         // (before reverb). Guard against NaN/inf poisoning the loop.

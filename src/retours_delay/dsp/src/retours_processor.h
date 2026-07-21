@@ -32,10 +32,6 @@ struct RetoursProcessor::Impl {
     RetoursParameters params;
     float sample_rate = 48000.f;
 
-    // Quality-mode change tracking (block-rate edge detect). Change is
-    // ignored while frozen (see self-review in task-8 report) — deferred
-    // change is picked up on the first block after unfreeze.
-    QualityMode prev_quality = QualityMode::kBrightDigital;
     // Previous block's freeze state, so the quality-change branch can tell
     // "steady-state unfrozen" apart from "this is the unfreeze block" (the
     // falling edge). Applying a pending quality change on the falling-edge
@@ -45,11 +41,19 @@ struct RetoursProcessor::Impl {
     // pending change is deferred one more block, to the first block where
     // both this block and the previous one are unfrozen.
     bool prev_freeze = false;
-    // Duck duration must cover the buffer clear time: with the chunk size
-    // below, draining the full buffer takes 128 blocks × 64 frames = 8192
-    // samples — same derivation as Particules' identical constant.
-    static constexpr int kQualityXfadeSamples = 8192;
-    int quality_xfade_counter = 0;
+
+    // Config transition (quality mode and/or input channel count): fade the
+    // wet path out, reconfigure + clear the buffer (a layout change makes old
+    // pool bytes garbage), hold muted until the deferred clear drains, then
+    // fade back in. Mirrors Particules' identical state machine (Task 7).
+    enum class QualityTransition : uint8_t { kIdle, kFadeOut, kClearing, kFadeIn };
+    QualityTransition qt_state = QualityTransition::kIdle;
+    QualityMode active_quality = QualityMode::kBrightDigital;
+    QualityMode pending_quality = QualityMode::kBrightDigital;
+    bool active_mono = false;
+    bool pending_mono = false;
+    int qt_fade_counter = 0;
+    static constexpr int kQualityFadeSamples = 2048;   // ~43 ms at 48 kHz
 
     // Smoothed mix params (zipper prevention)
     float smoothed_dry_wet = 0.5f;

@@ -476,8 +476,8 @@ TEST_CASE("RecordingBuffer: TickClear zeroes data incrementally", "[buffer][clea
     ClearTestBuf tb;
     tb.buf.Clear();
 
-    // 2 floats = 1 stereo frame (L0, R0)
-    tb.buf.TickClear(2);
+    // 2 floats = 1 stereo frame (L0, R0) = 8 bytes in float32 storage
+    tb.buf.TickClear(2 * sizeof(float));
 
     // Frame 0 is now zero
     REQUIRE(tb.buf.ReadLinear(0, 0.0f) == Approx(0.0f).margin(1e-6f));
@@ -486,8 +486,8 @@ TEST_CASE("RecordingBuffer: TickClear zeroes data incrementally", "[buffer][clea
     // Frame 1 is still non-zero
     REQUIRE(std::fabs(tb.buf.ReadLinear(0, 1.0f)) > 0.5f);
 
-    // Clear the rest: pass a large count; TickClear clamps to remaining
-    tb.buf.TickClear((kClearTestFrames + kInterpolationTail) * 2 + 1000);
+    // Clear the rest: pass a large byte count; TickClear clamps to remaining
+    tb.buf.TickClear((kClearTestFrames + kInterpolationTail) * 2 * sizeof(float) + 1000);
 
     for (int i = 0; i < (int)kClearTestFrames; ++i) {
         INFO("frame " << i);
@@ -521,4 +521,228 @@ TEST_CASE("RecordingBuffer: ImmediateClear cancels pending deferred clear", "[bu
     // If TickClear re-ran from cursor 0, it would zero the just-written value.
     // The value surviving proves TickClear is a true no-op.
     REQUIRE(std::fabs(tb.buf.ReadLinear(0, 0.0f)) > 0.5f);
+}
+
+TEST_CASE("RecordingBuffer: deferred clear drains in bytes and reports pending", "[buffer][clear]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+    REQUIRE_FALSE(buf.ClearPending());
+
+    buf.Clear();
+    REQUIRE(buf.ClearPending());
+    // Total: (1000 + 4) frames * 2ch * 4B = 8032 bytes -> 9 ticks of 1000.
+    int ticks = 0;
+    while (buf.ClearPending()) { buf.TickClear(1000); ++ticks; REQUIRE(ticks < 100); }
+    REQUIRE(ticks == 9);
+    REQUIRE(buf.ReadLinear(0, 500.0f) == 0.0f);
+}
+
+TEST_CASE("RecordingBuffer: clear extent follows the active config", "[buffer][clear][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(2, StorageFormat::kMuLaw8, 1);   // mono mu-law: full pool
+    buf.Clear();
+    size_t expected = (buf.size() + kInterpolationTail) * 1 * 1;   // == pool bytes
+    size_t drained = 0;
+    while (buf.ClearPending()) { buf.TickClear(512); drained += 512; }
+    REQUIRE(drained >= expected);
+    REQUIRE(buf.ReadLinear(0, 2000.0f) == 0.0f);
+}
+
+TEST_CASE("RecordingBuffer: ImmediateClear cancels a pending deferred clear", "[buffer][clear]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+
+    buf.Clear();
+    REQUIRE(buf.ClearPending());
+    buf.ImmediateClear();
+    REQUIRE_FALSE(buf.ClearPending());
+    REQUIRE(buf.ReadLinear(0, 999.0f) == 0.0f);
+}
+
+// ============================================================================
+// Storage format + channel-count tests
+// ============================================================================
+
+#include "buffer/sample_codec.h"
+
+TEST_CASE("RecordingBuffer: FramesForConfig arithmetic", "[buffer][format]") {
+    // Production pool: (192000 + tail) * 2ch * 4B = 1,536,032 bytes.
+    size_t cap = (192000 + kInterpolationTail) * 2 * sizeof(float);
+    using SF = StorageFormat;
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 2, SF::kFloat32, 0) == 192000);
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 2, SF::kInt12, 0) == 384004);
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 2, SF::kMuLaw8, 0) == 768012);
+    // Mono doubles frames for the same bytes.
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 1, SF::kFloat32, 0) == 384004);
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 1, SF::kInt12, 0) == 768012);
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 1, SF::kMuLaw8, 0) == 1536028);
+    // max_bytes caps the pool (Cold digital: half pool -> hardware 8s/16s).
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 2, SF::kInt12, cap / 2) == 192000);
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 1, SF::kInt12, cap / 2) == 384004);
+    // A cap larger than capacity is ignored.
+    REQUIRE(RecordingBuffer::FramesForConfig(cap, 2, SF::kFloat32, cap * 4) == 192000);
+}
+
+TEST_CASE("RecordingBuffer: Configure changes size/format/channels, resets head", "[buffer][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+
+    for (int i = 0; i < 10; ++i) buf.Write(0.5f, 0.5f);
+    REQUIRE(buf.write_head() == 10);
+
+    buf.Configure(2, StorageFormat::kMuLaw8, 2);
+    REQUIRE(buf.format() == StorageFormat::kMuLaw8);
+    REQUIRE(buf.channels() == 2);
+    REQUIRE(buf.size() == (num_frames + kInterpolationTail) * 4 - kInterpolationTail);
+    REQUIRE(buf.write_head() == 0);
+    REQUIRE(buf.decimation_factor() == 2);
+
+    buf.Configure(2, StorageFormat::kMuLaw8, 1);   // mono: frames double again
+    REQUIRE(buf.size() == (num_frames + kInterpolationTail) * 8 - kInterpolationTail);
+
+    buf.Configure(1, StorageFormat::kFloat32, 2);
+    REQUIRE(buf.size() == num_frames);
+}
+
+TEST_CASE("RecordingBuffer: mu-law stereo write/read roundtrip", "[buffer][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kMuLaw8, 2);
+    buf.ImmediateClear();
+
+    REQUIRE(buf.ReadLinear(0, 100.0f) == 0.0f);   // cleared = exact silence
+
+    size_t n = buf.size();
+    for (size_t i = 0; i < n; ++i) {
+        float v = 0.6f * std::sin(2.0 * M_PI * static_cast<double>(i) / 64.0);
+        buf.Write(v, -v);
+    }
+    for (size_t i = 10; i < 200; ++i) {
+        float expected = 0.6f * std::sin(2.0 * M_PI * static_cast<double>(i) / 64.0);
+        REQUIRE(buf.ReadHermite(0, static_cast<float>(i)) == Approx(expected).margin(0.06f));
+        REQUIRE(buf.ReadHermite(1, static_cast<float>(i)) == Approx(-expected).margin(0.06f));
+    }
+    // Fast path, frac path, and reference reader agree.
+    float fl, fr, sl, sr, ql, qr;
+    buf.ReadHermiteStereoFast(123.5f, &fl, &fr);
+    buf.ReadHermiteStereo(123.5f, &sl, &sr);
+    buf.ReadHermiteStereoFrac(123, 0.5f, &ql, &qr);
+    REQUIRE(fl == Approx(sl).margin(1e-6f));
+    REQUIRE(ql == Approx(sl).margin(1e-6f));
+    REQUIRE(qr == Approx(sr).margin(1e-6f));
+}
+
+TEST_CASE("RecordingBuffer: int12 write/read roundtrip", "[buffer][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kInt12, 2);
+    buf.ImmediateClear();
+
+    size_t check = 500;
+    for (size_t i = 0; i < check; ++i) {
+        float v = static_cast<float>(i) / static_cast<float>(check) - 0.5f;
+        buf.Write(v, v);
+    }
+    for (size_t i = 10; i < check; ++i) {
+        float expected = static_cast<float>(i) / static_cast<float>(check) - 0.5f;
+        REQUIRE(buf.ReadLinear(0, static_cast<float>(i)) ==
+                Approx(expected).margin(1.0f / 2047.0f));
+    }
+}
+
+TEST_CASE("RecordingBuffer: mono stores the average, reads duplicate", "[buffer][format][mono]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kFloat32, 1);
+    buf.ImmediateClear();
+
+    buf.Write(0.2f, 0.6f);   // stores (0.2+0.6)/2 = 0.4
+    float l, r;
+    buf.ReadHermiteStereoFrac(0, 0.0f, &l, &r);
+    REQUIRE(l == Approx(0.4f).margin(1e-6f));
+    REQUIRE(r == Approx(0.4f).margin(1e-6f));
+    REQUIRE(buf.ReadLinear(0, 0.0f) == Approx(0.4f).margin(1e-6f));
+    REQUIRE(buf.ReadLinear(1, 0.0f) == Approx(0.4f).margin(1e-6f));
+}
+
+TEST_CASE("RecordingBuffer: tail mirror works in mu-law format", "[buffer][format][tail]") {
+    size_t num_frames = 64;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kMuLaw8, 2);
+    buf.ImmediateClear();
+
+    const size_t N = buf.size();
+    for (size_t i = 0; i < N; ++i) buf.Write(0.1f, 0.1f);
+    buf.Write(0.9f, 0.9f);   // frame 0 (post-wrap) + its tail mirror
+    buf.Write(0.8f, 0.8f);   // frame 1 + mirror
+
+    float l = 0.f, r = 0.f, l2 = 0.f, r2 = 0.f;
+    buf.ReadHermiteStereoFast(static_cast<float>(N) - 0.5f, &l, &r);
+    buf.ReadHermiteStereo(static_cast<float>(N) - 0.5f, &l2, &r2);
+    REQUIRE(l == Approx(l2).margin(1e-6f));
+    REQUIRE(r == Approx(r2).margin(1e-6f));
+    REQUIRE(l > 0.3f);   // taps at N/N+1 see the post-wrap writes
+}
+
+TEST_CASE("RecordingBuffer: decimation still applies in packed formats", "[buffer][format][decimation]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(2, StorageFormat::kMuLaw8, 2);
+    buf.ImmediateClear();
+    for (int i = 0; i < 100; ++i) buf.Write(0.5f, 0.5f);
+    REQUIRE(buf.write_head() == 50);
+}
+
+TEST_CASE("RecordingBuffer: freeze seam fade works in mu-law format", "[buffer][freeze][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kMuLaw8, 2);
+    buf.ImmediateClear();
+
+    for (int i = 0; i < 500; ++i) buf.Write(0.8f, 0.8f);
+    REQUIRE(buf.write_head() == 500);
+
+    buf.NotifyFreeze(true);
+
+    REQUIRE(std::fabs(buf.ReadLinear(0, 499.0f)) < 0.05f);            // seam ~0
+    REQUIRE(buf.ReadLinear(0, 490.0f) > buf.ReadLinear(0, 498.0f));   // ramps up
+    REQUIRE(buf.ReadLinear(0, 460.0f) == Approx(0.8f).margin(0.06f)); // untouched
+
+    buf.NotifyFreeze(false);
+    buf.Write(0.5f, 0.5f);   // write ramp starts from faded (~0) content
+    REQUIRE(std::fabs(buf.ReadLinear(0, 500.0f)) < 0.1f);
 }

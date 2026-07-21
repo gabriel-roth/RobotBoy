@@ -69,6 +69,16 @@ int GrainEngine::ActiveGrainCount() const {
     return count;
 }
 
+void GrainEngine::KillAllGrains() {
+    for (int i = 0; i < kMaxGrains; ++i) {
+        grains_[i].Init();
+    }
+    overlap_count_lp_ = 0.0f;
+    // Buffer size may change at the same decimation (Cold/Sunny/Scorched are
+    // all /2): force the max-active/duration cache to recompute.
+    cached_decimation_ = -1;
+}
+
 Grain* GrainEngine::AllocateGrain() {
     for (int i = 0; i < kMaxGrains; ++i) {
         if (!grains_[i].active()) {
@@ -307,12 +317,12 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // much faster than sample-major order where each sample touches
     // all active grain positions and thrashes L1 cache.
     int active_count = 0;
-    float buf_size_f = static_cast<float>(buffer_->size());
+    int64_t buf_size_q = static_cast<int64_t>(buffer_->size()) << 32;
     for (int g = 0; g < kMaxGrains; ++g) {
         if (!grains_[g].active()) continue;
         ++active_count;
 
-        grains_[g].ProcessBlock(*buffer_, buf_size_f, output, num_frames);
+        grains_[g].ProcessBlock(*buffer_, buf_size_q, output, num_frames);
     }
 
     // --- Overlap normalization (matches Clouds approach) ---

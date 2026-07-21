@@ -27,6 +27,12 @@ public:
     int ActiveGrainCount() const;
     bool GrainTriggeredThisBlock() const { return scheduler_.GrainTriggeredThisBlock(); }
 
+    // Deactivate every grain immediately (no fade) and invalidate the
+    // grain-duration cache. Call at a config-change apply point, where the
+    // wet output is muted (the hard cut is inaudible) and stale grain read
+    // positions would be invalid after the buffer resize.
+    void KillAllGrains();
+
     // Test-only accessors: expose per-slot spawn order and kill state to
     // verify the steal path picks the true oldest-by-spawn-order grain
     // (see FindOldestActiveGrain), not just the first non-pending array slot.

@@ -27,6 +27,15 @@ struct StereoFrame {
     }
 };
 
+// Recording buffer size in frames (fixed memory budget).
+// Packed storage + decimation set effective duration — stereo 4/8/16/32 s,
+// mono 8/16/32/64 s at 48 kHz.
+static constexpr size_t kDefaultBufferFrames = 48000 * 4;  // 192000 frames
+
+// Hermite interpolation requires 4 samples (declared here, ahead of
+// kRecordingPoolBytes below, which needs it).
+static constexpr int kInterpolationTail = 4;
+
 enum class QualityMode : uint8_t {
     kBrightDigital = 0,
     kColdDigital = 1,
@@ -34,14 +43,46 @@ enum class QualityMode : uint8_t {
     kScorchedCassette = 3
 };
 
-inline int DecimationFactorForQuality(QualityMode mode) {
+// Recording-buffer storage formats. Packing samples at reduced width lets the
+// same byte pool hold more frames, decoupling recording rate from buffer
+// length (see docs/superpowers/plans/2026-07-20-quality-buffer-decoupling.md).
+enum class StorageFormat : uint8_t {
+    kFloat32 = 0,   // 4 bytes/sample
+    kInt12 = 1,     // 12-bit signed in an int16 container, 2 bytes/sample
+    kMuLaw8 = 2     // 8-bit segment mu-law, 1 byte/sample
+};
+
+static constexpr size_t kRecordingPoolBytes =
+    (kDefaultBufferFrames + kInterpolationTail) * 2 * sizeof(float);
+
+// Per-mode recording configuration. decimation divides the host rate; format
+// is the storage packing; max_bytes caps the pool (0 = all of it). Channel
+// count is NOT part of the mode — it follows the input jacks (mono input
+// doubles duration for the same bytes).
+struct QualityConfig {
+    int decimation;
+    StorageFormat format;
+    size_t max_bytes;
+};
+
+inline QualityConfig QualityConfigFor(QualityMode mode) {
     switch (mode) {
-        case QualityMode::kBrightDigital:    return 1;
-        case QualityMode::kColdDigital:      return 2;
-        case QualityMode::kSunnyTape:        return 4;   // was 8 (fidelity ladder was inverted)
-        case QualityMode::kScorchedCassette: return 8;   // was 4
+        case QualityMode::kBrightDigital:
+            return {1, StorageFormat::kFloat32, 0};
+        case QualityMode::kColdDigital:
+            // Half pool: Cold stays 8 s stereo / 16 s mono like hardware
+            // (uncapped int12 would give 16/32 s).
+            return {2, StorageFormat::kInt12, kRecordingPoolBytes / 2};
+        case QualityMode::kSunnyTape:
+            return {2, StorageFormat::kInt12, 0};
+        case QualityMode::kScorchedCassette:
+            return {2, StorageFormat::kMuLaw8, 0};
     }
-    return 1;
+    return {1, StorageFormat::kFloat32, 0};
+}
+
+inline int DecimationFactorForQuality(QualityMode mode) {
+    return QualityConfigFor(mode).decimation;
 }
 
 enum class TriggerMode : uint8_t {
@@ -54,20 +95,12 @@ enum class TriggerMode : uint8_t {
 // Maximum number of simultaneous grains — matches hardware Beads (30 replay heads)
 static constexpr int kMaxGrains = 30;
 
-// Recording buffer size in frames (fixed memory budget).
-// 4 seconds at 48kHz; at 96kHz the same frame count gives 2 seconds.
-// Decimation extends effective duration: Bright 4s, Cold 8s, Sunny 16s, Scorched 32s.
-static constexpr size_t kDefaultBufferFrames = 48000 * 4;  // 192000 frames
-
 // Reverb delay memory size (12 partitioned delay lines, ~12K samples needed)
 static constexpr size_t kReverbBufferSize = 16384;
 
 // Processing block size (kept small to limit stack usage; the Process() loop
 // handles arbitrary num_frames by iterating in chunks of this size)
 static constexpr size_t kMaxBlockSize = 64;
-
-// Hermite interpolation requires 4 samples
-static constexpr int kInterpolationTail = 4;
 
 // Wavetable size (Ondes oscillator)
 static constexpr int kWavetableSize = 256;

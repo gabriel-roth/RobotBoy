@@ -7,15 +7,22 @@
 
 namespace particules_dsp {
 
-// Simulates the 4 quality mode characters via DSP.
+// Simulates the 4 quality mode characters via DSP. Bit-depth character
+// (12-bit / mu-law) is NOT modeled here — it lives in the recording buffer's
+// storage codec (see StorageFormat / QualityConfigFor in types.h). This
+// class only applies the analog-domain coloring: anti-alias/tone filtering,
+// tape hiss, and wow/flutter.
 //
 // Quality mode processing:
-//   HiFi:      No degradation, pass-through.
-//   Clouds:    LP at ~10kHz input.  12-bit quantization on output.
-//   CleanLoFi: LP at ~2.5kHz input + ~10kHz output.  No quantization.
-//   Tape:      LP at ~5kHz.  Mono sum.  Gentle mu-law transfer curve (mu=64).
-//              Wow LFO (~0.5 Hz, +/-0.02 semitones) +
-//              flutter LFO (~6 Hz, +/-0.003 semitones).
+//   BrightDigital:    No degradation, pass-through.
+//   ColdDigital:      Input LP at 10kHz (anti-alias for 2x decimation).
+//                     Output pass-through (quantization is the storage codec's job).
+//   SunnyTape:        Input LP at 10kHz (anti-alias) + output LP at 10kHz (tone).
+//                     Half-depth wow/flutter.
+//   ScorchedCassette: Input LP at 10kHz (anti-alias) + independent per-channel
+//                     hiss (stereo is preserved — no mono sum; mono-vs-stereo
+//                     is an input property) + output LP at 5kHz (dark tone).
+//                     Full-depth wow/flutter.
 class QualityProcessor {
 public:
     void Init(float sample_rate);
@@ -62,19 +69,17 @@ public:
     static constexpr float kWowSemitones = 0.02f;
     static constexpr float kFlutterSemitones = 0.003f;
 
-    // Anti-alias input LPs must sit below each mode's decimated Nyquist; output
-    // LPs are tonal shaping at host rate. See DecimationFactorForQuality:
-    // Bright 1x, Cold 2x, Sunny 4x (Nyquist 6k), Scorched 8x (Nyquist 3k).
-    static constexpr float kColdDigitalInputLpHz = 10000.0f;  // 2x -> Nyquist 12k
-    static constexpr float kSunnyTapeInputLpHz   = 5000.0f;   // 4x anti-alias (was 2500 @ 8x)
-    static constexpr float kSunnyTapeOutputLpHz  = 10000.0f;  // tone (bright)
-    static constexpr float kScorchedInputLpHz    = 2500.0f;   // 8x anti-alias (was 5000 @ 4x)
+    // Anti-alias input LPs must sit below each mode's decimated Nyquist
+    // (all lo-fi modes are 2x -> Nyquist 12 kHz); output LPs are tonal
+    // shaping at host rate. Bit-depth character lives in the recording
+    // buffer's storage codec, not here.
+    static constexpr float kColdDigitalInputLpHz = 10000.0f;
+    static constexpr float kSunnyTapeInputLpHz   = 10000.0f;
+    static constexpr float kSunnyTapeOutputLpHz  = 10000.0f;  // tone (bright tape)
+    static constexpr float kScorchedInputLpHz    = 10000.0f;
     static constexpr float kScorchedOutputLpHz   = 5000.0f;   // cassette tone (dark)
 
 private:
-
-    // Quantization scale: 12-bit for Clouds mode
-    static constexpr float kQuantScale     = 2048.0f;  // 2^11
 
     // Tape hiss level (subtle)
     static constexpr float kTapeHissLevel = 0.00025f;
@@ -88,7 +93,7 @@ private:
 
     // Crossfade from the unprocessed input to the new mode's output for
     // kModeXfadeSamples after a mode switch, avoiding the abrupt timbral
-    // jump (especially into/out of tape mode's mono sum + mu-law).
+    // jump (especially into/out of tape mode's filtering + hiss).
     static void ApplyModeXfade(int& counter, const StereoFrame& input, StereoFrame& result) {
         if (counter > 0) {
             float mix = static_cast<float>(counter) / static_cast<float>(kModeXfadeSamples);

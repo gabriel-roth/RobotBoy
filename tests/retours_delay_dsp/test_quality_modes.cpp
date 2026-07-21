@@ -6,6 +6,7 @@
 #include <algorithm>
 #include "retours_delay_dsp/retours_dsp.h"
 #include "util/dsp_utils.h"   // particules_dsp::kTwoPi
+#include "buffer/recording_buffer.h"
 using namespace retours_delay_dsp;
 
 namespace {
@@ -24,6 +25,28 @@ struct Proc {
 float KnobForSeconds(float seconds, float buffer_seconds = 4.f) {
     float d = -std::log2(seconds / buffer_seconds) / 11.0f; // kManualOctaves
     return 0.5f - 0.5f * d;   // CCW side
+}
+
+// Mirrors BaseTimeControl::Update()'s unclocked/manual-mode formula against
+// the LIVE per-quality buffer capacity (not the fixed float32 frame count),
+// same construction as test_hardening.cpp's ExpectedBaseSeconds -- see that
+// file's comment for why BaseTimeSeconds() (not DelayTimeSeconds()) is the
+// right observable here. |channels| defaults to 2 (stereo); pass 1 to get
+// the mono-input figure -- the pool is byte-identical, so mono packs twice
+// the frames for the same-width formats.
+float ExpectedBaseSeconds(float density, QualityMode quality, float sr, int channels = 2) {
+    auto cfg = particules_dsp::QualityConfigFor(quality);
+    size_t capacity_bytes =
+        (kBufferFrames + particules_dsp::kInterpolationTail) * 2 * sizeof(float);
+    size_t frames = particules_dsp::RecordingBuffer::FramesForConfig(
+        capacity_bytes, channels, cfg.format, cfg.max_bytes);
+    float buffer_seconds = static_cast<float>(frames) *
+                           static_cast<float>(cfg.decimation) / sr;
+    float buffer_samples = sr * buffer_seconds;
+    float d = std::clamp(std::fabs(density - 0.5f) * 2.f, 0.f, 1.f);
+    float base = buffer_samples * std::exp2(-kManualOctaves * d);
+    float min_samples = kMinDelaySeconds * sr;
+    return std::clamp(base, min_samples, buffer_samples) / sr;
 }
 
 int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
@@ -73,6 +96,25 @@ double ZeroCrossingIntervalStddev(const std::vector<StereoFrame>& v, size_t from
     for (double v2 : intervals) var += (v2 - mean) * (v2 - mean);
     var /= static_cast<double>(intervals.size());
     return std::sqrt(var);
+}
+
+// Single-frequency (Goertzel-style) magnitude of freq_hz's content in
+// v[from,to)'s left channel: projects onto a sin/cos pair at that
+// frequency and returns the resulting amplitude estimate. Used to detect
+// kScorchedCassette's output LP (5 kHz) attenuating a high-frequency
+// component that survives kBrightDigital's pass-through untouched.
+double GoertzelMagnitude(const std::vector<StereoFrame>& v, size_t from, size_t to,
+                          double freq_hz, double sample_rate) {
+    double omega = static_cast<double>(particules_dsp::kTwoPi) * freq_hz / sample_rate;
+    double sum_cos = 0.0, sum_sin = 0.0;
+    for (size_t i = from; i < to; ++i) {
+        double angle = omega * static_cast<double>(i);
+        sum_cos += static_cast<double>(v[i].l) * std::cos(angle);
+        sum_sin += static_cast<double>(v[i].l) * std::sin(angle);
+    }
+    size_t n = to - from;
+    if (n == 0) return 0.0;
+    return 2.0 * std::sqrt(sum_cos * sum_cos + sum_sin * sum_sin) / static_cast<double>(n);
 }
 
 } // namespace
@@ -201,16 +243,30 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
-    // Stereo-distinct (L/R 90 degrees out of phase) so kScorchedCassette's mono-sum
-    // input coloring is independently observable: once tape-processed
-    // content fills the delay buffer, L and R should converge (the
-    // ProcessInput mono-sum step writes the same value to both channels),
-    // which would NOT happen if the quality switch were a no-op.
+    // Stereo-distinct (L/R 90 degrees out of phase). Per Task 5,
+    // kScorchedCassette no longer mono-sums its input (channel count is an
+    // input property, not a mode property) — L and R should stay distinct
+    // through the switch, not converge.
+    //
+    // Also carries a well-above-5kHz component (hf_freq) so the switch's
+    // *actual* audible effect can be checked directly: kScorchedCassette
+    // adds an output LP at 5 kHz (on top of kBrightDigital's plain
+    // pass-through), so once the switch has settled this content must be
+    // measurably attenuated relative to the pre-switch (kBrightDigital)
+    // level. That's a real discriminator for "the switch did something" —
+    // unlike the stereo-preservation check below, it fails if quality
+    // switching is silently a no-op (e.g. everything forced to
+    // kBrightDigital), because in that broken case the 8 kHz content
+    // would sail through unattenuated in both phases.
     const float freq = 440.f;
+    const float hf_freq = 8000.f;
     auto gen_stereo = [&](std::vector<StereoFrame>& buf, size_t n0) {
         for (size_t i = 0; i < buf.size(); ++i) {
             float phase = particules_dsp::kTwoPi * freq * static_cast<float>(n0 + i) / 48000.f;
-            buf[i] = {0.5f * std::sin(phase), 0.5f * std::sin(phase + particules_dsp::kPi * 0.5f)};
+            float hf_phase = particules_dsp::kTwoPi * hf_freq * static_cast<float>(n0 + i) / 48000.f;
+            float hf = 0.2f * std::sin(hf_phase);
+            buf[i] = {0.5f * std::sin(phase) + hf,
+                      0.5f * std::sin(phase + particules_dsp::kPi * 0.5f) + hf};
         }
     };
 
@@ -248,15 +304,34 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     lr_diff_hifi /= static_cast<double>(phase1_n / 2);
     REQUIRE(lr_diff_hifi > 0.05);
 
-    // Once the tape switch has settled (duck window is 8192 samples; give
-    // it the last 0.5 s of phase 2 to be well clear of that), L and R
-    // should have converged — evidence the mono-sum quality processing is
-    // actually active, not a no-op.
+    // Once the tape switch has settled (the transition is fade(2048) +
+    // clear(~8250) + fade(2048); give it the last 0.5 s of phase 2 to be
+    // well clear of that), L and R
+    // should still be distinct — kScorchedCassette no longer mono-sums
+    // (Task 5), so stereo content is preserved through the switch rather
+    // than collapsing to mono.
     double lr_diff_tape = 0.0;
     for (size_t i = phase2_n - last_half_sec; i < phase2_n; ++i)
         lr_diff_tape += std::fabs(out2[i].l - out2[i].r);
     lr_diff_tape /= static_cast<double>(last_half_sec);
-    REQUIRE(lr_diff_tape < lr_diff_hifi * 0.25);
+    REQUIRE(lr_diff_tape > lr_diff_hifi * 0.5);
+
+    // The actual no-op discriminator: kScorchedCassette's 5 kHz output LP
+    // must measurably attenuate the 8 kHz component once the switch has
+    // settled, relative to kBrightDigital's pass-through before the
+    // switch. The measurement window (last_half_sec of phase 2, i.e.
+    // starting 1.5 s / 72000 samples after the switch) is far past both
+    // the fade(2048) + clear(~8250) + fade(2048) transition and
+    // QualityProcessor's internal 64-sample mode crossfade, well clear of
+    // the required >=30000-sample settle.
+    double hf_hifi = GoertzelMagnitude(out1, phase1_n / 2, phase1_n, hf_freq, 48000.0);
+    double hf_tape = GoertzelMagnitude(out2, phase2_n - last_half_sec, phase2_n, hf_freq, 48000.0);
+
+    // Sanity on the fixture itself: kBrightDigital is a pass-through, so
+    // the 8 kHz content must actually survive there, otherwise the ratio
+    // check below would be vacuous.
+    REQUIRE(hf_hifi > 0.05);
+    REQUIRE(hf_tape < hf_hifi * 0.5);
 }
 
 // Normalized autocorrelation of v[from,to) at the given lag (same
@@ -449,4 +524,267 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
         REQUIRE(std::fabs(f.l) <= 2.f);
         REQUIRE(std::fabs(f.r) <= 2.f);
     }
+}
+
+// -----------------------------------------------------------------------
+// (g) Live buffer capacity: kScorchedCassette packs mu-law8 stereo into the
+// same fixed byte pool as kBrightDigital's float32, so its actual frame
+// count (and therefore DENSITY's manual-mode buffer duration) is much
+// larger than the old fixed-float32-frame-count assumption -- see
+// ExpectedBaseSeconds() above, which now derives the expected duration from
+// RecordingBuffer::FramesForConfig() instead of a hardcoded frame count.
+// This proves the transition's apply point (Configure() before Clear(),
+// then SetBufferSeconds() from the LIVE recording_buffer.size()) actually
+// wires that larger capacity through to BaseTimeControl, not just to the
+// buffer object itself.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: Scorched delay capacity is ~32 s after transition") {
+    const float sr = 48000.f;
+    Proc proc(sr);
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = 0.5f;   // noon: BaseTimeControl's manual-mode base == full
+                        // buffer duration (no octave falloff at density=0.5)
+    p.quality = QualityMode::kScorchedCassette;
+    proc.p.SetParameters(p);
+
+    // >= 30k samples: comfortably past the full fade(2048)+clear(~8192)+
+    // fade(2048) transition (~12288 samples) so the apply point has fired
+    // and BaseTimeControl reflects the new capacity.
+    size_t total = 40000;
+    std::vector<StereoFrame> in(total, StereoFrame{0.f, 0.f}), out(total);
+    proc.p.Process(in.data(), out.data(), total);
+
+    float expected = ExpectedBaseSeconds(0.5f, QualityMode::kScorchedCassette, sr);
+    REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected).epsilon(0.01));
+}
+
+// -----------------------------------------------------------------------
+// (h) Fix round: freeze re-engaged mid-fade-out must abort the pending
+// quality-transition apply rather than let it fire while frozen. Sequence:
+// record content in kBrightDigital, request kBrightDigital -> kScorchedCassette
+// while unfrozen (starts kFadeOut), run a few 64-sample blocks well inside
+// the 2048-sample fade-out window (10 * 64 = 640 samples), then engage
+// freeze and run well past where the apply (Configure+Clear) would have
+// fired had it not been aborted (300 * 64 = 19200 samples, vs. the ~1408
+// samples still remaining in the fade-out).
+//
+// density targets a short (~10 ms) delay via KnobForSeconds, staying on
+// the manual-mode CCW side (< 0.55, so BaseTimeControl's multi_tap branch
+// never engages -- see base_time.cpp's `density_knob > 0.55f` check).
+// Even accounting for kScorchedCassette's larger live buffer capacity
+// scaling the *absolute* delay up from this knob position (see test (g)
+// above), the result stays a small fraction of a second -- comfortably
+// inside the audibility windows checked below, unlike density values near
+// BaseTimeControl's full-buffer-duration end which can balloon to
+// multiple seconds once the larger capacity applies.
+//
+// Without the freeze_falling_edge/params.freeze abort guard added at the
+// apply point (retours_processor.cpp, the QualityTransition::kFadeOut
+// case), the fade-out counter would still hit zero on schedule while
+// frozen, and Configure()+Clear() would wipe the recording buffer out
+// from under the now-frozen slice -- the frozen loop would go silent
+// (muted by kClearing's qt_gain=0) instead of continuing to play the
+// pre-transition content. That's the discriminator the first REQUIRE
+// block below is checking.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: freeze re-engaged mid-fade-out aborts the apply, frozen content survives") {
+    Proc proc;
+    const float sr = 48000.f;
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = KnobForSeconds(0.01f);  // ~10 ms target, manual-mode CCW side
+    p.time = 0.f;
+    p.quality = QualityMode::kBrightDigital;
+    proc.p.SetParameters(p);
+
+    // Record 2 s of white noise under kBrightDigital so the frozen slice
+    // has real, checkable content (same fixture pattern as tests (e)/(f)).
+    size_t rec_n = static_cast<size_t>(2.0f * sr);
+    std::vector<StereoFrame> record(rec_n);
+    Lcg rng(0x51ce5eedu);
+    for (auto& f : record) {
+        float s = rng.NextBipolar() * 0.9f;
+        f = {s, s};
+    }
+    std::vector<StereoFrame> discard(rec_n);
+    proc.p.Process(record.data(), discard.data(), rec_n);
+
+    // Request the quality switch while unfrozen -- starts kFadeOut.
+    p.quality = QualityMode::kScorchedCassette;
+    proc.p.SetParameters(p);
+
+    // Run a few 64-sample blocks, well inside the 2048-sample fade-out
+    // window. Keep feeding noise (not silence) here -- the frozen slice
+    // grabbed below is only ~10 ms (480 samples) wide, and 640 samples of
+    // silence immediately before the freeze would otherwise be exactly
+    // what gets captured, silencing the "frozen content survives" check
+    // for reasons unrelated to the abort fix.
+    {
+        std::vector<StereoFrame> in(10 * kMaxBlockSize), out(10 * kMaxBlockSize);
+        for (auto& f : in) {
+            float s = rng.NextBipolar() * 0.9f;
+            f = {s, s};
+        }
+        proc.p.Process(in.data(), out.data(), in.size());
+    }
+
+    // Engage freeze mid-fade-out, then run well past where the apply
+    // would have fired had the abort not intervened.
+    p.freeze = true;
+    proc.p.SetParameters(p);
+    std::vector<StereoFrame> in_frozen(300 * kMaxBlockSize, StereoFrame{0.f, 0.f}),
+        out_frozen(300 * kMaxBlockSize);
+    proc.p.Process(in_frozen.data(), out_frozen.data(), in_frozen.size());
+
+    for (auto& f : out_frozen) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    // The real discriminator: the frozen loop must still be audibly
+    // playing the pre-transition recorded content, not silence from a
+    // Configure()+Clear() that ran out from under it while frozen.
+    double rms_frozen = Rms(out_frozen, out_frozen.size() / 2, out_frozen.size());
+    REQUIRE(rms_frozen > 0.05);
+
+    // Release freeze: the deferred transition re-arms via the kIdle
+    // re-check (one block later, per the freeze_falling_edge guard) and
+    // completes. Feed continuous noise (not silence) so that once the
+    // buffer is legitimately reconfigured/cleared and normal recording
+    // resumes, there is fresh content for the (short, density-pinned)
+    // delay to play back. Run well past the full fade-out(2048) +
+    // clear-drain(~8192) + fade-in(2048) cycle (>= 400 blocks).
+    p.freeze = false;
+    proc.p.SetParameters(p);
+    std::vector<StereoFrame> in_after(400 * kMaxBlockSize), out_after(400 * kMaxBlockSize);
+    for (auto& f : in_after) {
+        float s = rng.NextBipolar() * 0.9f;
+        f = {s, s};
+    }
+    proc.p.Process(in_after.data(), out_after.data(), in_after.size());
+
+    for (auto& f : out_after) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    // Trailing window: well clear of the transition cycle and the
+    // (short, density-pinned) delay, so the reconfigured buffer should be
+    // audibly echoing the fresh input again, not stuck silent.
+    double rms_after = Rms(out_after, out_after.size() - 4000, out_after.size());
+    REQUIRE(rms_after > 0.05);
+}
+
+// -----------------------------------------------------------------------
+// (i) mono_input (R jack unpatched) drives the same fade(2048)/Configure+
+// Clear/fade(2048) transition machinery as a quality change (see the
+// `s.params.mono_input != s.active_mono` check alongside the quality check
+// at the top of ProcessBlock). This proves that path end-to-end for
+// kScorchedCassette: stereo -> mono -> stereo, checking both survival
+// (finite/bounded, and audible again once each transition clears) and the
+// capacity doubling mono packing gives for the same byte pool -- mirroring
+// test (g) above but for channels=1, generalizing ExpectedBaseSeconds()
+// rather than duplicating its derivation.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
+    const float sr = 48000.f;
+    Proc proc(sr);
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = 0.5f;   // noon: manual-mode base == full buffer duration
+    p.quality = QualityMode::kScorchedCassette;
+    proc.p.SetParameters(p);
+
+    Lcg rng(0xca55e77eu);
+    auto feed_noise = [&](std::vector<StereoFrame>& in) {
+        for (auto& f : in) {
+            float s = rng.NextBipolar() * 0.9f;
+            f = {s, s};
+        }
+    };
+
+    // Drive stereo Scorched Cassette well past its own (default ->
+    // kScorchedCassette) transition, same >=30k-sample margin as test (g).
+    size_t warm_n = 400 * kMaxBlockSize;
+    std::vector<StereoFrame> warm_in(warm_n), warm_out(warm_n);
+    feed_noise(warm_in);
+    proc.p.Process(warm_in.data(), warm_out.data(), warm_n);
+
+    float expected_stereo = ExpectedBaseSeconds(0.5f, QualityMode::kScorchedCassette, sr);
+    REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected_stereo).epsilon(0.01));
+
+    // R jack unpatched mid-session: mono_input flips true, starting the
+    // fade(2048)+clear(~8250)+fade(2048) transition. Run >= 400 blocks of
+    // 64 (25600 samples), comfortably past the ~12288-sample cycle, feeding
+    // continuous noise throughout (not silence) so there's audible content
+    // once the reconfigured mono buffer resumes recording.
+    //
+    // Density flip: at density=0.5 the delay tap sits a full buffer (64 s
+    // mono) behind the write head — deep in the freshly-cleared region — so
+    // the wet output would be legitimate silence for the first ~64 s. Use a
+    // short (~50 ms) delay for the audibility check, then flip density back
+    // to 0.5 for the capacity observable (density changes don't trigger a
+    // transition; BaseTimeControl::Update recomputes per block, no slew).
+    p.mono_input = true;
+    p.density = KnobForSeconds(0.05f, 64.f);
+    proc.p.SetParameters(p);
+    size_t mono_n = 400 * kMaxBlockSize;
+    std::vector<StereoFrame> mono_in(mono_n), mono_out(mono_n);
+    feed_noise(mono_in);
+    proc.p.Process(mono_in.data(), mono_out.data(), mono_n);
+
+    for (auto& f : mono_out) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    double rms_mono = Rms(mono_out, mono_out.size() - 4000, mono_out.size());
+    REQUIRE(rms_mono > 0.05);
+
+    // Capacity doubling: mono packs the same byte pool at half the
+    // per-frame footprint (1 channel instead of 2), so BaseTimeControl's
+    // full-buffer-duration figure (density == 0.5) should read ~64 s
+    // instead of Scorched's ~32 s stereo figure. One block at density=0.5
+    // lets Update() recompute the base from the live mono capacity.
+    p.density = 0.5f;
+    proc.p.SetParameters(p);
+    std::vector<StereoFrame> tick_in(kMaxBlockSize), tick_out(kMaxBlockSize);
+    feed_noise(tick_in);
+    proc.p.Process(tick_in.data(), tick_out.data(), kMaxBlockSize);
+    float expected_mono = ExpectedBaseSeconds(0.5f, QualityMode::kScorchedCassette, sr,
+                                               /*channels=*/1);
+    REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected_mono).epsilon(0.01));
+
+    // R jack replugged: mono_input flips back false, running the same
+    // transition in reverse (short delay again for the audibility check).
+    p.mono_input = false;
+    p.density = KnobForSeconds(0.05f, 32.f);
+    proc.p.SetParameters(p);
+    size_t back_n = 400 * kMaxBlockSize;
+    std::vector<StereoFrame> back_in(back_n), back_out(back_n);
+    feed_noise(back_in);
+    proc.p.Process(back_in.data(), back_out.data(), back_n);
+
+    for (auto& f : back_out) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    double rms_back = Rms(back_out, back_out.size() - 4000, back_out.size());
+    REQUIRE(rms_back > 0.05);
+
+    // Density back to noon for the stereo capacity observable.
+    p.density = 0.5f;
+    proc.p.SetParameters(p);
+    feed_noise(tick_in);
+    proc.p.Process(tick_in.data(), tick_out.data(), kMaxBlockSize);
+    REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected_stereo).epsilon(0.01));
 }

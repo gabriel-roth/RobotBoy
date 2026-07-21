@@ -75,7 +75,7 @@ TEST_CASE("Grain: Processes for correct duration", "[grain]") {
 
     int sample_count = 0;
     float out_l, out_r;
-    while (g.Process(tb.buffer, static_cast<float>(tb.buffer.size()), &out_l, &out_r)) {
+    while (g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
         sample_count++;
         if (sample_count > 1000) break;  // Safety
     }
@@ -101,7 +101,7 @@ TEST_CASE("Grain: Output is non-zero with sine input", "[grain]") {
 
     float max_level = 0.0f;
     float out_l, out_r;
-    while (g.Process(tb.buffer, static_cast<float>(tb.buffer.size()), &out_l, &out_r)) {
+    while (g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
         max_level = std::max(max_level, std::max(std::abs(out_l), std::abs(out_r)));
     }
 
@@ -125,7 +125,7 @@ TEST_CASE("Grain: Bell envelope has zero at start and end", "[grain]") {
 
     float out_l, out_r;
     // First sample should be near zero (Hann window starts at 0)
-    g.Process(tb.buffer, static_cast<float>(tb.buffer.size()), &out_l, &out_r);
+    g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r);
     REQUIRE(std::abs(out_l) < 0.05f);
 }
 
@@ -147,7 +147,7 @@ TEST_CASE("Grain: Pre-delay delays output", "[grain]") {
     float out_l, out_r;
     // First 10 samples should be silent (pre-delay)
     for (int i = 0; i < 10; ++i) {
-        REQUIRE(g.Process(tb.buffer, static_cast<float>(tb.buffer.size()), &out_l, &out_r) == true);
+        REQUIRE(g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r) == true);
         REQUIRE(out_l == 0.0f);
         REQUIRE(out_r == 0.0f);
     }
@@ -282,7 +282,7 @@ TEST_CASE("Grain: Reverse playback reads buffer backwards", "[grain]") {
 
     std::vector<float> fwd_samples;
     float out_l, out_r;
-    while (fwd.Process(buffer, static_cast<float>(buffer.size()), &out_l, &out_r)) {
+    while (fwd.Process(buffer, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
         fwd_samples.push_back(out_l);
     }
 
@@ -300,7 +300,7 @@ TEST_CASE("Grain: Reverse playback reads buffer backwards", "[grain]") {
     rev.Start(rev_params);
 
     std::vector<float> rev_samples;
-    while (rev.Process(buffer, static_cast<float>(buffer.size()), &out_l, &out_r)) {
+    while (rev.Process(buffer, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
         rev_samples.push_back(out_l);
     }
 
@@ -798,4 +798,66 @@ TEST_CASE("GrainEngine: dense cloud density sweep has bounded per-block RMS step
     // the overlap-normalization gain would show up as a jump comparable to
     // max_rms itself.
     REQUIRE(max_step < 0.5f * max_rms);
+}
+
+// ── Q32.32 playback position precision ──────────────────────────────────
+//
+// A float32 grain position quantizes to ~1/16 sample once the frame index
+// reaches ~700k (24-bit mantissa: position and its fractional LSB share the
+// same exponent range). The Q32.32 fixed-point accumulator must not: it
+// carries 32 fractional bits at any buffer offset, so interpolated reads
+// stay exact regardless of where in a large (e.g. Scorched-cassette,
+// 768012-frame) buffer the grain happens to be reading.
+
+TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][precision]") {
+    // A float32 position at frame ~700k quantizes to 1/16 sample; the Q32.32
+    // accumulator must not. Buffer sized like Scorched-stereo (768k frames):
+    // use mu-law to keep the test's memory footprint at the production pool.
+    size_t pool_frames = 192000;
+    size_t bytes = (pool_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), pool_frames, 2);
+    buf.Configure(1, StorageFormat::kMuLaw8, 2);   // 768012 frames
+    buf.ImmediateClear();
+
+    // Write a slow ramp near the far end so interpolated reads are smooth
+    // and any position quantization shows as repeated/stepped values.
+    // (Fill via the write head: seek by writing zeros.)
+    size_t target = 700000;
+    for (size_t i = 0; i < target; ++i) buf.Write(0.0f, 0.0f);
+    for (size_t i = 0; i < 2000; ++i) {
+        float v = 0.9f * std::sin(2.0 * M_PI * static_cast<double>(i) / 400.0);
+        buf.Write(v, v);
+    }
+
+    Grain g;
+    g.Init();
+    Grain::GrainParameters gp{};
+    gp.position = static_cast<float>(target);
+    gp.pitch_ratio = 0.03f;   // sub-half-ULP at frame 700k: float32 accumulation rounds every add to zero advance and freezes; Q32.32 advances exactly
+    gp.size = 1500.0f;
+    gp.shape = 0.5f;
+    gp.pan = 0.0f;
+    gp.gain = 1.0f;
+    gp.pre_delay = 0;
+    g.Start(gp);
+
+    // Advance ~1200 samples (×0.03 ≈ 36 frames across 2000-frame ramp region);
+    // consecutive read positions must differ by the exact ratio: with float32
+    // positions at 700k, steps below half-ULP (1/32 sample) collapse to zero
+    // and repeated samples appear. Detect via successive output values: on a
+    // smooth ramp region, output must be strictly advancing (no more than 2
+    // consecutive identical samples).
+    int64_t buf_size_q = static_cast<int64_t>(buf.size()) << 32;
+    int max_repeats = 0, repeats = 0;
+    float prev = -2.0f;
+    for (int i = 0; i < 1200; ++i) {
+        float l, r;
+        g.Process(buf, buf_size_q, &l, &r);
+        if (l == prev) { repeats++; max_repeats = std::max(max_repeats, repeats); }
+        else repeats = 0;
+        prev = l;
+    }
+    REQUIRE(max_repeats <= 2);
 }

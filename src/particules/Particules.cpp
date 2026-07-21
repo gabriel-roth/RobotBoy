@@ -436,6 +436,9 @@ struct Particules : Module {
 		// Accumulate input
 		bool in_l_connected = inputs[IN_L_INPUT].isConnected();
 		bool in_r_connected = inputs[IN_R_INPUT].isConnected();
+		// R jack unpatched (R←L normalization above) is effectively mono input;
+		// the buffer transition machine uses this to size the recording buffer.
+		params_.mono_input = !in_r_connected;
 		if (auto_gain_ && (needs_calibration_ ||
 		                   (in_l_connected != prev_in_l_connected_) ||
 		                   (in_r_connected != prev_in_r_connected_))) {

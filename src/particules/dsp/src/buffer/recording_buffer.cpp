@@ -8,18 +8,50 @@
 namespace particules_dsp {
 
 void RecordingBuffer::Init(float* buffer, size_t num_frames, int num_channels) {
-    buffer_ = buffer;
+    f32_ = buffer;
+    i16_ = reinterpret_cast<int16_t*>(buffer);
+    u8_  = reinterpret_cast<uint8_t*>(buffer);
+    capacity_bytes_ = (num_frames + kInterpolationTail)
+                      * static_cast<size_t>(num_channels) * sizeof(float);
     size_ = num_frames;
     channels_ = num_channels;
+    format_ = StorageFormat::kFloat32;
+    mulaw_lut_ = MuLaw8DecodeTable();   // prime the table off the audio thread
     write_head_ = 0;
     decimation_factor_ = 1;
     decimation_counter_ = 0;
     write_ramp_remaining_ = 0;
 
-    // Zero the entire allocation (main buffer + tail).
-    size_t total_samples =
-        (size_ + kInterpolationTail) * static_cast<size_t>(channels_);
-    std::memset(buffer_, 0, total_samples * sizeof(float));
+    std::memset(u8_, 0, capacity_bytes_);
+}
+
+size_t RecordingBuffer::FramesForConfig(size_t capacity_bytes, int channels,
+                                        StorageFormat format, size_t max_bytes) {
+    size_t bps = 4;
+    if (format == StorageFormat::kInt12) bps = 2;
+    if (format == StorageFormat::kMuLaw8) bps = 1;
+    size_t pool = capacity_bytes;
+    if (max_bytes > 0 && max_bytes < pool) pool = max_bytes;
+    size_t frames = pool / (bps * static_cast<size_t>(channels));
+    return (frames > static_cast<size_t>(kInterpolationTail))
+               ? frames - kInterpolationTail : 0;
+}
+
+void RecordingBuffer::Configure(int decimation_factor, StorageFormat format,
+                                int channels, size_t max_bytes) {
+    if (!u8_ || capacity_bytes_ == 0) return;
+    if (channels < 1) channels = 1;
+    if (channels > 2) channels = 2;
+    SetDecimationFactor(decimation_factor);
+    size_t frames = FramesForConfig(capacity_bytes_, channels, format, max_bytes);
+    if (format == format_ && channels == channels_ && frames == size_) return;
+    format_ = format;
+    channels_ = channels;
+    size_ = frames;
+    write_head_ = 0;
+    write_ramp_remaining_ = 0;
+    // Pool bytes are now garbage under the new interpretation; caller must
+    // Clear() and mute until ClearPending() (see header contract).
 }
 
 // ---------------------------------------------------------------------------
@@ -27,7 +59,7 @@ void RecordingBuffer::Init(float* buffer, size_t num_frames, int num_channels) {
 // ---------------------------------------------------------------------------
 
 void RecordingBuffer::Write(float left, float right) {
-    if (size_ == 0 || !buffer_ || channels_ < 2) return;
+    if (size_ == 0 || !u8_ || channels_ < 1) return;
 
     // Sample-and-hold decimation: keep every Nth sample.
     // The SVF pre-filter in QualityProcessor handles anti-aliasing;
@@ -36,26 +68,35 @@ void RecordingBuffer::Write(float left, float right) {
     if (decimation_counter_ < decimation_factor_) return;
     decimation_counter_ = 0;
 
-    size_t idx = write_head_ * channels_;
-
-    // Unfreeze crossfade: blend from the frozen content into live input.
-    if (write_ramp_remaining_ > 0) {
-        float g = 1.0f - static_cast<float>(write_ramp_remaining_)
-                       / static_cast<float>(kCrossfadeSamples);   // 0 → 1
-        left  = buffer_[idx]     + (left  - buffer_[idx])     * g;
-        right = buffer_[idx + 1] + (right - buffer_[idx + 1]) * g;
-        --write_ramp_remaining_;
+    if (channels_ == 1) {
+        float mono = (left + right) * 0.5f;
+        if (write_ramp_remaining_ > 0) {
+            float g = 1.0f - static_cast<float>(write_ramp_remaining_)
+                           / static_cast<float>(kCrossfadeSamples);   // 0 → 1
+            float old_m = SampleAt(write_head_, 0);
+            mono = old_m + (mono - old_m) * g;
+            --write_ramp_remaining_;
+        }
+        StoreSample(write_head_, 0, mono);
+    } else {
+        // Unfreeze crossfade: blend from the frozen content into live input.
+        if (write_ramp_remaining_ > 0) {
+            float g = 1.0f - static_cast<float>(write_ramp_remaining_)
+                           / static_cast<float>(kCrossfadeSamples);   // 0 → 1
+            float old_l = SampleAt(write_head_, 0);
+            float old_r = SampleAt(write_head_, 1);
+            left  = old_l + (left  - old_l) * g;
+            right = old_r + (right - old_r) * g;
+            --write_ramp_remaining_;
+        }
+        StoreSample(write_head_, 0, left);
+        StoreSample(write_head_, 1, right);
     }
-
-    buffer_[idx] = left;
-    buffer_[idx + 1] = right;
 
     // Keep the tail in sync when writing into the first kInterpolationTail
     // frames. Only the frame just written changed, so copy only that one.
     if (write_head_ < static_cast<size_t>(kInterpolationTail)) {
-        size_t tail_dst = (size_ + write_head_) * channels_;
-        buffer_[tail_dst]     = buffer_[idx];
-        buffer_[tail_dst + 1] = buffer_[idx + 1];
+        CopyFrameToTail(write_head_);
     }
 
     write_head_++;
@@ -69,26 +110,25 @@ void RecordingBuffer::Write(const StereoFrame& frame) {
 }
 
 void RecordingBuffer::Clear() {
-    if (!buffer_ || size_ == 0) return;
+    if (!u8_ || size_ == 0) return;
     write_head_ = 0;
     decimation_counter_ = 0;
     clear_cursor_ = 0;
-    clear_total_  = (size_ + kInterpolationTail) * static_cast<size_t>(channels_);
+    clear_total_ = (size_ + kInterpolationTail)
+                   * static_cast<size_t>(channels_) * bytes_per_sample();
 }
 
 void RecordingBuffer::ImmediateClear() {
-    if (!buffer_ || size_ == 0) return;
-    size_t total_samples = (size_ + kInterpolationTail) * static_cast<size_t>(channels_);
-    std::memset(buffer_, 0, total_samples * sizeof(float));
-    // Cancel any pending deferred clear
+    if (!u8_ || size_ == 0) return;
+    std::memset(u8_, 0, (size_ + kInterpolationTail)
+                        * static_cast<size_t>(channels_) * bytes_per_sample());
     clear_cursor_ = clear_total_;
 }
 
-void RecordingBuffer::TickClear(size_t max_floats) {
+void RecordingBuffer::TickClear(size_t max_bytes) {
     if (clear_cursor_ >= clear_total_) return;
-    size_t remaining = clear_total_ - clear_cursor_;
-    size_t chunk = std::min(max_floats, remaining);
-    std::memset(buffer_ + clear_cursor_, 0, chunk * sizeof(float));
+    size_t chunk = std::min(max_bytes, clear_total_ - clear_cursor_);
+    std::memset(u8_ + clear_cursor_, 0, chunk);
     clear_cursor_ += chunk;
 }
 
@@ -124,10 +164,11 @@ float RecordingBuffer::ReadHermite(int channel, float position) const {
     if (i1 >= size_ + kInterpolationTail) i1 -= size_;
     if (i2 >= size_ + kInterpolationTail) i2 -= size_;
 
-    float y_1 = buffer_[i_1 * channels_ + channel];
-    float y0  = buffer_[i0  * channels_ + channel];
-    float y1  = buffer_[i1  * channels_ + channel];
-    float y2  = buffer_[i2  * channels_ + channel];
+    int ch = (channels_ < 2) ? 0 : channel;
+    float y_1 = SampleAt(i_1, ch);
+    float y0  = SampleAt(i0,  ch);
+    float y1  = SampleAt(i1,  ch);
+    float y2  = SampleAt(i2,  ch);
 
     return InterpolateHermite(y_1, y0, y1, y2, frac);
 }
@@ -138,12 +179,6 @@ float RecordingBuffer::ReadHermite(int channel, float position) const {
 // ---------------------------------------------------------------------------
 
 void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out_r) const {
-    if (channels_ < 2) {
-        *out_l = 0.0f;
-        *out_r = 0.0f;
-        return;
-    }
-
     size_t i0;
     float frac;
     if (!ResolveReadPosition(position, &i0, &frac)) {
@@ -159,14 +194,23 @@ void RecordingBuffer::ReadHermiteStereo(float position, float* out_l, float* out
     if (i1 >= size_ + kInterpolationTail) i1 -= size_;
     if (i2 >= size_ + kInterpolationTail) i2 -= size_;
 
-    // Read both channels from interleaved buffer, sharing index computation.
-    const float* p_1 = &buffer_[i_1 * channels_];
-    const float* p0  = &buffer_[i0  * channels_];
-    const float* p1  = &buffer_[i1  * channels_];
-    const float* p2  = &buffer_[i2  * channels_];
+    if (channels_ < 2) {
+        // Mono: one interpolation, duplicated to both outputs.
+        float y_1 = SampleAt(i_1, 0);
+        float y0  = SampleAt(i0,  0);
+        float y1  = SampleAt(i1,  0);
+        float y2  = SampleAt(i2,  0);
+        float m = InterpolateHermite(y_1, y0, y1, y2, frac);
+        *out_l = m;
+        *out_r = m;
+        return;
+    }
 
-    *out_l = InterpolateHermite(p_1[0], p0[0], p1[0], p2[0], frac);
-    *out_r = InterpolateHermite(p_1[1], p0[1], p1[1], p2[1], frac);
+    float l_1 = SampleAt(i_1, 0), l0 = SampleAt(i0, 0), l1 = SampleAt(i1, 0), l2 = SampleAt(i2, 0);
+    float r_1 = SampleAt(i_1, 1), r0 = SampleAt(i0, 1), r1 = SampleAt(i1, 1), r2 = SampleAt(i2, 1);
+
+    *out_l = InterpolateHermite(l_1, l0, l1, l2, frac);
+    *out_r = InterpolateHermite(r_1, r0, r1, r2, frac);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,8 +228,9 @@ float RecordingBuffer::ReadLinear(int channel, float position) const {
     size_t i1 = i0 + 1;
     if (i1 >= size_ + kInterpolationTail) i1 -= size_;
 
-    float y0 = buffer_[i0 * channels_ + channel];
-    float y1 = buffer_[i1 * channels_ + channel];
+    int ch = (channels_ < 2) ? 0 : channel;
+    float y0 = SampleAt(i0, ch);
+    float y1 = SampleAt(i1, ch);
 
     return InterpolateLinear(y0, y1, frac);
 }
@@ -195,7 +240,7 @@ float RecordingBuffer::ReadLinear(int channel, float position) const {
 // ---------------------------------------------------------------------------
 
 void RecordingBuffer::NotifyFreeze(bool frozen) {
-    if (!buffer_ || size_ == 0 || channels_ < 2) return;
+    if (!u8_ || size_ == 0 || channels_ < 1) return;
 
     if (!frozen) {
         // Leaving freeze: blend the next writes from frozen content into
@@ -220,16 +265,12 @@ void RecordingBuffer::NotifyFreeze(bool frozen) {
         int oldest = (static_cast<int>(write_head_) + j) % size_int;
         const int frames[2] = {newest, oldest};
         for (int f = 0; f < 2; ++f) {
-            size_t idx = static_cast<size_t>(frames[f]) * channels_;
+            size_t frame = static_cast<size_t>(frames[f]);
             for (int c = 0; c < channels_; ++c) {
-                buffer_[idx + c] *= gain;
+                StoreSample(frame, c, SampleAt(frame, c) * gain);
             }
-            // Keep the interpolation-tail mirror in sync.
             if (frames[f] < static_cast<int>(kInterpolationTail)) {
-                size_t tail = (size_ + static_cast<size_t>(frames[f])) * channels_;
-                for (int c = 0; c < channels_; ++c) {
-                    buffer_[tail + c] = buffer_[idx + c];
-                }
+                CopyFrameToTail(frame);
             }
         }
     }

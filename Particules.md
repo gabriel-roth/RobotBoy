@@ -68,17 +68,17 @@ Each of these has its own **CV input** and a small **CV-amount trimpot** beside 
 
 ### Quality
 
-The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. The recording rate is a fixed decimation factor of your engine's sample rate, not an absolute number — the figures below are what that factor works out to at a 48 kHz sample rate:
+The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. Lower-fidelity modes store samples at reduced bit width, which is what buys the longer buffer (rate and length are independent, as on hardware Beads). The recording rate is a fixed decimation factor of your engine's sample rate, not an absolute number — the figures below are what that factor works out to at a 48 kHz sample rate:
 
-*Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit — cleanest and brightest.
+*Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit or better — cleanest and brightest. 4-second buffer.
 
-*Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain.
+*Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain. 8-second buffer.
 
-*Sunny tape* (amber LED): rate ÷ 8 (6 kHz at 48 kHz), 12-bit — warm.
+*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle wow — warm tape. 16-second buffer.
 
-*Scorched cassette* (magenta LED): rate ÷ 4 (12 kHz at 48 kHz), 8-bit — lo-fi, with wow and flutter.
+*Scorched cassette* (magenta LED): rate ÷ 2 (24 kHz at 48 kHz), true 8-bit µ-law, tape hiss, wow and flutter — crunchy lo-fi. 32-second buffer.
 
-Lower-quality settings also give you a **longer recording buffer** to gather grains from. Quality can't be changed while Freeze is engaged.
+All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the wet signal and clearing recorded audio. Quality can't be changed while Freeze is engaged.
 
 ### Lights
 
