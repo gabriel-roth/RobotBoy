@@ -40,7 +40,7 @@ Feedback sends the delayed signal back to be recorded again, so it repeats and d
 
 *Shape:* A tempo-synced envelope drawn over each repeat. Fully counter-clockwise (off) leaves the echoes untouched — a normal delay. Turning it up morphs the envelope through three stages: first a **gate** that chops each repeat shorter and shorter (rhythmic, gated echoes), then a smooth **Hann swell** (each repeat fades in and out), and finally a **slow ramp** that swells across the whole repeat and resets sharply — a reversed-sounding bloom. The envelope's period follows the delay time and re-syncs to incoming clock ticks, so the chopping stays locked to tempo.
 
-*Feedback:* How much of the delayed signal is fed back to be recorded again — from a single echo up to long, piling repeats and runaway self-oscillation. Each Quality setting limits feedback differently, from a clean brickwall to grungy tape saturation.
+*Feedback:* How much of the delayed signal is fed back to be recorded again — from a single echo up to long, piling repeats and runaway self-oscillation. The knob reaches **unity gain at the 90% position**: below it, repeats always decay (the closer to 90%, the longer the tail); park it right at 90% and repeats hold roughly steady while the Quality character keeps compounding; the last 10% of travel pushes past unity (up to about 1.1×), where the loop grows on its own into self-oscillation. Each Quality setting limits feedback differently, from a clean brickwall to grungy tape saturation, so what the runaway zone sounds like depends on the Quality mode.
 
 ### Slice
 
