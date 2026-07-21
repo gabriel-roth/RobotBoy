@@ -22,7 +22,8 @@ public:
     static constexpr uint8_t GRID[3] = {0x2E, 0x3A, 0x46};   // segment bars: above BG, below WAVE
     // Per-head lane/cluster colors — the single source is loooop::kHeadColors
     // (src/loooop/HeadColors.hpp): H1 red, H2 yellow, H3 blue, H4 purple. The
-    // panel group tints (panel-specs/loooop.yaml) mirror these hues.
+    // panel group tints (panel-specs/loooop.yaml) mirror these hues. Löp's
+    // single lane is head 1, so it draws the same red at the same height.
     static_assert(std::size(loooop::kHeadColors) == LoopEngine::NUM_HEADS,
                   "kHeadColors must have one entry per head");
     static constexpr uint8_t HEAD_COLORS[LoopEngine::NUM_HEADS][3] = {
@@ -31,34 +32,27 @@ public:
         {loooop::kHeadColors[2].r, loooop::kHeadColors[2].g, loooop::kHeadColors[2].b},
         {loooop::kHeadColors[3].r, loooop::kHeadColors[3].g, loooop::kHeadColors[3].b},
     };
-    // Löp's single lane draws purple — a color no Loooop head uses, so the
-    // two modules' displays can't be mistaken for each other — and at twice
-    // Loooop's lane height (height/4 vs height/8), the waveform giving up
-    // the difference. Both platforms (VCV widget, MM core) pass these.
-    static constexpr uint8_t LOP_LANE_COLOR[1][3] = {{0xBF, 0x5A, 0xF2}};
     static constexpr int LANE_DIV = 8;
-    static constexpr int LOP_LANE_DIV = 4;
     // Window-extent bars use the head color dimmed by DIM_NUM/DIM_DEN.
     static constexpr int DIM_NUM = 2, DIM_DEN = 5;
     // A non-playing head (one-shot armed or finished, awaiting a trigger)
     // draws asleep: window bar dimmed to ARMED_NUM/ARMED_DEN, playhead
     // marker at the window-dim level instead of bright.
     static constexpr int ARMED_NUM = 1, ARMED_DEN = 5;
-    // Preferred lane band height (height/laneDiv). Use geometry() to cap the
+    // Preferred lane band height (height/LANE_DIV). Use geometry() to cap the
     // complete lane region to the actual destination height.
-    static constexpr int laneHeight(int height, int laneDiv = LANE_DIV) {
-        return height / laneDiv < 3 ? 3 : height / laneDiv;
+    static constexpr int laneHeight(int height) {
+        return height / LANE_DIV < 3 ? 3 : height / LANE_DIV;
     }
     struct Geometry {
         int laneHeight;
         int lanesHeight;
         int waveHeight;
     };
-    static constexpr Geometry geometry(int height, int numHeads,
-                                       int laneDiv = LANE_DIV) {
+    static constexpr Geometry geometry(int height, int numHeads) {
         if (height <= 0 || numHeads <= 0) return {0, 0, 0};
-        const int laneH = laneHeight(height, laneDiv) < height / numHeads
-            ? laneHeight(height, laneDiv) : height / numHeads;
+        const int laneH = laneHeight(height) < height / numHeads
+            ? laneHeight(height) : height / numHeads;
         const int lanesH = numHeads * laneH;
         return {laneH, lanesH, height - lanesH};
     }
@@ -96,6 +90,5 @@ public:
     static void renderWaveform(uint32_t* buf, int width, int height,
                                const LoopEngine& engine, PackFn pack);
     static void renderLanes(uint32_t* buf, int width, int height, int laneHeight,
-                            const LoopEngine& engine, PackFn pack,
-                            const uint8_t (*headColors)[3] = HEAD_COLORS);
+                            const LoopEngine& engine, PackFn pack);
 };

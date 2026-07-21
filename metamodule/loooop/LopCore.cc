@@ -127,10 +127,7 @@ public:
         dispDirty_ = active;    // one final repaint after going idle (e.g. clear)
         const int width = int(dispWidth_);
         const int height = int(dispBuf_.size() / dispWidth_);
-        // Löp display style: double-height purple lane (see LOP_LANE_* in
-        // LoopWaveformRenderer.hpp) — must match the VCV widget.
-        const auto geometry = LoopWaveformRenderer::geometry(
-            height, engine_.numHeads(), LoopWaveformRenderer::LOP_LANE_DIV);
+        const auto geometry = LoopWaveformRenderer::geometry(height, engine_.numHeads());
         const int laneH = geometry.laneHeight;
         const int lanesH = geometry.lanesHeight;
         const int waveH = geometry.waveHeight;
@@ -151,8 +148,7 @@ public:
         }
         LoopWaveformRenderer::renderLanes(
             dispBuf_.data() + size_t(waveH) * width,
-            width, lanesH, laneH, engine_, packARGB,
-            LoopWaveformRenderer::LOP_LANE_COLOR);
+            width, lanesH, laneH, engine_, packARGB);
         return true;
     }
 
