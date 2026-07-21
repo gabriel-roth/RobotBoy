@@ -59,6 +59,10 @@ struct ParticulesParameters {
     // mixes stay level-matched against the gained wet path. false: dry is
     // the raw input, so DRY/WET=0 is a bit-exact bypass.
     bool dry_post_gain = true;
+
+    // True when the input is effectively mono (R jack unpatched). Drives the
+    // recording buffer's channel count: mono doubles buffer duration.
+    bool mono_input = false;
 };
 
 // Quantize semitones to the nearest allowed value for pitch_lock mode.
