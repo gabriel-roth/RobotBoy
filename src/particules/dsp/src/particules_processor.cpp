@@ -262,6 +262,19 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
                 qt_gain = static_cast<float>(s.qt_fade_counter)
                         / static_cast<float>(Impl::kQualityFadeSamples);
                 if (--s.qt_fade_counter <= 0) {
+                    if (s.params.freeze) {
+                        // Freeze was re-engaged mid-fade-out: applying now
+                        // would KillAllGrains/Configure/Clear the buffer out
+                        // from under the now-frozen content. Abort back to
+                        // kFadeIn (restores wet audibility) without touching
+                        // active_quality/active_mono/buffer; the kIdle
+                        // re-check re-arms the transition once freeze
+                        // releases (params.quality_mode != active_quality
+                        // is still true).
+                        s.qt_state = Impl::QualityTransition::kFadeIn;
+                        s.qt_fade_counter = Impl::kQualityFadeSamples;
+                        break;
+                    }
                     // Apply point: wet is fully muted here.
                     s.active_quality = s.pending_quality;
                     s.active_mono = s.pending_mono;

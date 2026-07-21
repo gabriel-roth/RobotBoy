@@ -285,6 +285,20 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
                 qt_gain = static_cast<float>(s.qt_fade_counter)
                         / static_cast<float>(Impl::kQualityFadeSamples);
                 if (--s.qt_fade_counter <= 0) {
+                    if (s.params.freeze || freeze_falling_edge) {
+                        // Freeze was re-engaged (or its falling edge lands)
+                        // mid-fade-out: applying now would Configure/Clear
+                        // the buffer out from under frozen content, or beat
+                        // EchoEngine's unfreeze-continuity write-head math.
+                        // Abort back to kFadeIn (restores wet audibility)
+                        // without touching active_quality/active_mono/
+                        // buffer; the kIdle re-check re-arms the transition
+                        // once freeze is stable-released (params.quality !=
+                        // active_quality is still true).
+                        s.qt_state = Impl::QualityTransition::kFadeIn;
+                        s.qt_fade_counter = Impl::kQualityFadeSamples;
+                        break;
+                    }
                     // Apply point: wet is fully muted here. Configure BEFORE
                     // Clear (Clear's extent uses call-time config).
                     s.active_quality = s.pending_quality;

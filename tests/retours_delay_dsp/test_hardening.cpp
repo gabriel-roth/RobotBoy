@@ -126,8 +126,9 @@ TEST_CASE("block-size invariance: 1/7/64/512-frame chunking gives identical outp
 // (b) Corner stress: extreme parameter corners, with freeze toggling every
 // 4th SetParameters step (leaving 4-step unfrozen stretches -- see below),
 // pitch alternating +/-24 every step, quality cycling roughly every 0.5 s,
-// over 5 s of noise input. No non-finite samples, no crash, and every
-// scheduled quality transition is proven to have actually applied.
+// over 5 s of noise input. No non-finite samples, no crash, and the
+// quality-cycling dimension is proven to be alive (transitions do apply,
+// checked in a dedicated settle phase after the churn -- see below).
 //
 // Freeze toggling on *every* step (the original pattern) meant the
 // quality-apply guard in ProcessBlock (retours_processor.cpp ~130:
@@ -139,7 +140,28 @@ TEST_CASE("block-size invariance: 1/7/64/512-frame chunking gives identical outp
 // both this block and the previous block unfrozen, satisfying the guard;
 // `guard_open` below mirrors that exact condition so a scheduled quality
 // change is only committed at a step where the production code will
-// actually apply it.
+// actually start a transition.
+//
+// Fix round (mid-fade freeze abort): a later fix made the apply point
+// (retours_processor.cpp, the kFadeOut case) itself abort back to kFadeIn
+// if freeze is engaged (or its falling edge lands) on the very block the
+// fade-out counter reaches zero, deferring the apply rather than
+// Configure()+Clear()-ing the buffer out from under frozen content. Under
+// this test's period-4 freeze churn, that abort/retry cycle (32 blocks
+// kFadeOut + 32 blocks kFadeIn, both exact multiples of the 4-step freeze
+// period) can stay phase-locked with the freeze toggle for a long,
+// unpredictable number of retries before a variable guard-reopen delay
+// finally desyncs it -- observed, in one run, taking ~1500 steps for a
+// single commit to actually land, ~5x this test's old fixed 300-step
+// settle margin and past the *next* scheduled commit's own window. That
+// isn't a bug: correctly protecting frozen content is worth an unbounded
+// apply delay under adversarial, exact-multiple freeze churn (not a
+// realistic playing pattern) -- but it means checking each transition's
+// apply against a small fixed per-commit deadline mid-churn is no longer a
+// sound test. Instead: churn proves nothing crashes; a dedicated,
+// churn-free settle phase afterward (freeze forced off for good, so the
+// abort guard can never re-trigger) proves the last scheduled transition
+// really does apply.
 // ---------------------------------------------------------------------------
 TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite") {
     const float sr = 48000.f;
@@ -155,20 +177,11 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
     float times[2] = {0.f, 1.f};
 
     // Freeze value changes only once every 4 steps (steps 0-3 one value,
-    // 4-7 the other, ...), not every step. quality_period_steps (~375) is
-    // assumed >> kFreezeGroup so at most one pending quality boundary is
-    // ever "owed" at a time (checked by the exact-count assertion below).
+    // 4-7 the other, ...), not every step -- see the fix-round comment
+    // above for why transitions are no longer checked mid-churn against a
+    // fixed deadline keyed off this period.
     const size_t kFreezeGroup = 4;
     auto freeze_at = [&](size_t s) { return ((s / kFreezeGroup) % 2) == 1; };
-
-    // The transition state machine (Task 8) takes fade(2048) + clear(~8192)
-    // + fade(2048) = ~12288 samples (192 steps at this chunk size) to reach
-    // the new quality's applied config -- unlike the old immediate-Clear()
-    // code, BaseTimeSeconds() does NOT reflect the new buffer duration on
-    // the very step the change is requested. Defer the correctness check by
-    // a settle margin comfortably past that (well under quality_period_steps
-    // so it always resolves before the next scheduled transition can fire).
-    const size_t kTransitionSettleSteps = 300;
 
     for (float density : densities) {
         for (float time : times) {
@@ -189,9 +202,7 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
 
             size_t quality_idx = 0;
             size_t next_boundary = quality_period_steps;
-            size_t transitions_checked = 0;
-            size_t pending_check_step = SIZE_MAX;
-            size_t pending_check_quality_idx = 0;
+            size_t commits = 0;
 
             std::vector<StereoFrame> in(chunk), out(chunk);
             for (size_t step = 0; step < steps; ++step) {
@@ -204,13 +215,12 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
                 params.freeze = cur_frozen;
 
                 // Only commit the next quality once the guard is actually
-                // open, so the transition we're about to check for is one
-                // the production code will genuinely apply this step.
-                bool expect_transition = false;
+                // open, so the transition being scheduled is one the
+                // production code will genuinely start this step.
                 if (step >= next_boundary && guard_open) {
                     quality_idx = (quality_idx + 1) % 4;
                     next_boundary += quality_period_steps;
-                    expect_transition = true;
+                    ++commits;
                 }
                 params.quality = qualities[quality_idx];
                 proc.p.SetParameters(params);
@@ -227,41 +237,47 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
                         if (first_bad_step == SIZE_MAX) first_bad_step = step;
                     }
                 }
-
-                // Instrumentation: prove the transition actually applied by
-                // checking BaseTimeSeconds() against the value analytically
-                // expected for the new quality's buffer duration, once the
-                // fade(2048)+clear(~8192)+fade(2048) transition has had time
-                // to reach its apply point (see kTransitionSettleSteps
-                // above). If the apply guard never fired (e.g. reverted to
-                // never-fire), BaseTimeSeconds() would still reflect the OLD
-                // quality's buffer and this would mismatch.
-                if (expect_transition) {
-                    pending_check_step = step + kTransitionSettleSteps;
-                    pending_check_quality_idx = quality_idx;
-                }
-                if (pending_check_step != SIZE_MAX && step == pending_check_step) {
-                    float expected = ExpectedBaseSeconds(
-                        density, qualities[pending_check_quality_idx], sr);
-                    float actual = proc.p.BaseTimeSeconds();
-                    INFO("density=" << density << " time=" << time
-                                     << " step=" << step
-                                     << " new quality index=" << pending_check_quality_idx);
-                    REQUIRE(actual == Catch::Approx(expected).margin(1e-5));
-                    transitions_checked++;
-                    pending_check_step = SIZE_MAX;
-                }
             }
 
             INFO("density=" << density << " time=" << time
                              << " first_bad_step=" << first_bad_step);
             REQUIRE(all_finite);
 
-            // Sanity net on the scheduling itself: every nominal ~0.5 s
-            // quality boundary within the run must have been found and
-            // checked exactly once (see kFreezeGroup assumption above).
-            size_t expected_transitions = (steps - 1) / quality_period_steps;
-            REQUIRE(transitions_checked == expected_transitions);
+            // Sanity net on the scheduling itself: the quality-cycling
+            // dimension must actually be alive (matches the original
+            // fixed expected-transitions count -- every nominal ~0.5 s
+            // boundary got a chance to commit).
+            size_t expected_commits = (steps - 1) / quality_period_steps;
+            REQUIRE(commits == expected_commits);
+
+            // Dedicated settle phase: freeze forced off for good (the
+            // churn is over), so the mid-fade abort guard can never
+            // re-trigger and the last committed transition is guaranteed
+            // to run its full fade(2048)+clear(~8192)+fade(2048) cycle
+            // (~192 blocks) to completion. 400 blocks is comfortable
+            // headroom over that, plus the up-to-one-block
+            // freeze-falling-edge deferral before it even starts.
+            params.freeze = false;
+            const size_t kSettleBlocks = 400;
+            std::vector<StereoFrame> settle_in(kSettleBlocks * chunk),
+                settle_out(kSettleBlocks * chunk);
+            for (auto& f : settle_in) {
+                float n = rng.NextBipolar();
+                f = {n, n};
+            }
+            proc.p.SetParameters(params);
+            proc.p.Process(settle_in.data(), settle_out.data(), settle_in.size());
+
+            for (auto& f : settle_out) {
+                REQUIRE(std::isfinite(f.l));
+                REQUIRE(std::isfinite(f.r));
+            }
+
+            float expected = ExpectedBaseSeconds(density, qualities[quality_idx], sr);
+            float actual = proc.p.BaseTimeSeconds();
+            INFO("density=" << density << " time=" << time
+                             << " final quality index=" << quality_idx);
+            REQUIRE(actual == Catch::Approx(expected).margin(1e-5));
         }
     }
 }

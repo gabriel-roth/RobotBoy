@@ -154,3 +154,31 @@ TEST_CASE("QualityTransition: change while frozen is deferred", "[transition][fr
     REQUIRE(after.finite);
     REQUIRE(after.peak > 0.01f);
 }
+
+TEST_CASE("QualityTransition: freeze re-engaged mid-fade-out aborts the apply", "[transition][freeze]") {
+    Proc proc;
+    auto params = WetParams();
+    double phase = 0.0;
+    Run(proc.p, params, 800, phase);          // record content in Bright, unfrozen
+
+    // Start a transition while unfrozen, then run well inside the
+    // 2048-sample kFadeOut window (10 * 64 = 640 samples).
+    params.quality_mode = QualityMode::kScorchedCassette;
+    Run(proc.p, params, 10, phase);
+
+    // Re-engage freeze mid-fade-out, then run past where the apply
+    // (KillAllGrains/Configure/Clear) would have fired had it not been
+    // aborted. Without the fix, the frozen slice gets cleared out from
+    // under it and playback goes silent.
+    params.freeze = true;
+    auto frozen = Run(proc.p, params, 300, phase);
+    REQUIRE(frozen.finite);
+    REQUIRE(frozen.peak > 0.01f);   // frozen content is still playing, not cleared
+
+    // Unfreeze: the deferred transition re-arms via the kIdle re-check and
+    // completes; wet should recover and remain finite/audible.
+    params.freeze = false;
+    auto after = Run(proc.p, params, 2000, phase);
+    REQUIRE(after.finite);
+    REQUIRE(after.peak > 0.01f);
+}

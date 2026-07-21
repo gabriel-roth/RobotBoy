@@ -555,3 +555,123 @@ TEST_CASE("quality: Scorched delay capacity is ~32 s after transition") {
     float expected = ExpectedBaseSeconds(0.5f, QualityMode::kScorchedCassette, sr);
     REQUIRE(proc.p.BaseTimeSeconds() == Catch::Approx(expected).epsilon(0.01));
 }
+
+// -----------------------------------------------------------------------
+// (h) Fix round: freeze re-engaged mid-fade-out must abort the pending
+// quality-transition apply rather than let it fire while frozen. Sequence:
+// record content in kBrightDigital, request kBrightDigital -> kScorchedCassette
+// while unfrozen (starts kFadeOut), run a few 64-sample blocks well inside
+// the 2048-sample fade-out window (10 * 64 = 640 samples), then engage
+// freeze and run well past where the apply (Configure+Clear) would have
+// fired had it not been aborted (300 * 64 = 19200 samples, vs. the ~1408
+// samples still remaining in the fade-out).
+//
+// density targets a short (~10 ms) delay via KnobForSeconds, staying on
+// the manual-mode CCW side (< 0.55, so BaseTimeControl's multi_tap branch
+// never engages -- see base_time.cpp's `density_knob > 0.55f` check).
+// Even accounting for kScorchedCassette's larger live buffer capacity
+// scaling the *absolute* delay up from this knob position (see test (g)
+// above), the result stays a small fraction of a second -- comfortably
+// inside the audibility windows checked below, unlike density values near
+// BaseTimeControl's full-buffer-duration end which can balloon to
+// multiple seconds once the larger capacity applies.
+//
+// Without the freeze_falling_edge/params.freeze abort guard added at the
+// apply point (retours_processor.cpp, the QualityTransition::kFadeOut
+// case), the fade-out counter would still hit zero on schedule while
+// frozen, and Configure()+Clear() would wipe the recording buffer out
+// from under the now-frozen slice -- the frozen loop would go silent
+// (muted by kClearing's qt_gain=0) instead of continuing to play the
+// pre-transition content. That's the discriminator the first REQUIRE
+// block below is checking.
+// -----------------------------------------------------------------------
+TEST_CASE("quality: freeze re-engaged mid-fade-out aborts the apply, frozen content survives") {
+    Proc proc;
+    const float sr = 48000.f;
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.density = KnobForSeconds(0.01f);  // ~10 ms target, manual-mode CCW side
+    p.time = 0.f;
+    p.quality = QualityMode::kBrightDigital;
+    proc.p.SetParameters(p);
+
+    // Record 2 s of white noise under kBrightDigital so the frozen slice
+    // has real, checkable content (same fixture pattern as tests (e)/(f)).
+    size_t rec_n = static_cast<size_t>(2.0f * sr);
+    std::vector<StereoFrame> record(rec_n);
+    Lcg rng(0x51ce5eedu);
+    for (auto& f : record) {
+        float s = rng.NextBipolar() * 0.9f;
+        f = {s, s};
+    }
+    std::vector<StereoFrame> discard(rec_n);
+    proc.p.Process(record.data(), discard.data(), rec_n);
+
+    // Request the quality switch while unfrozen -- starts kFadeOut.
+    p.quality = QualityMode::kScorchedCassette;
+    proc.p.SetParameters(p);
+
+    // Run a few 64-sample blocks, well inside the 2048-sample fade-out
+    // window. Keep feeding noise (not silence) here -- the frozen slice
+    // grabbed below is only ~10 ms (480 samples) wide, and 640 samples of
+    // silence immediately before the freeze would otherwise be exactly
+    // what gets captured, silencing the "frozen content survives" check
+    // for reasons unrelated to the abort fix.
+    {
+        std::vector<StereoFrame> in(10 * kMaxBlockSize), out(10 * kMaxBlockSize);
+        for (auto& f : in) {
+            float s = rng.NextBipolar() * 0.9f;
+            f = {s, s};
+        }
+        proc.p.Process(in.data(), out.data(), in.size());
+    }
+
+    // Engage freeze mid-fade-out, then run well past where the apply
+    // would have fired had the abort not intervened.
+    p.freeze = true;
+    proc.p.SetParameters(p);
+    std::vector<StereoFrame> in_frozen(300 * kMaxBlockSize, StereoFrame{0.f, 0.f}),
+        out_frozen(300 * kMaxBlockSize);
+    proc.p.Process(in_frozen.data(), out_frozen.data(), in_frozen.size());
+
+    for (auto& f : out_frozen) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    // The real discriminator: the frozen loop must still be audibly
+    // playing the pre-transition recorded content, not silence from a
+    // Configure()+Clear() that ran out from under it while frozen.
+    double rms_frozen = Rms(out_frozen, out_frozen.size() / 2, out_frozen.size());
+    REQUIRE(rms_frozen > 0.05);
+
+    // Release freeze: the deferred transition re-arms via the kIdle
+    // re-check (one block later, per the freeze_falling_edge guard) and
+    // completes. Feed continuous noise (not silence) so that once the
+    // buffer is legitimately reconfigured/cleared and normal recording
+    // resumes, there is fresh content for the (short, density-pinned)
+    // delay to play back. Run well past the full fade-out(2048) +
+    // clear-drain(~8192) + fade-in(2048) cycle (>= 400 blocks).
+    p.freeze = false;
+    proc.p.SetParameters(p);
+    std::vector<StereoFrame> in_after(400 * kMaxBlockSize), out_after(400 * kMaxBlockSize);
+    for (auto& f : in_after) {
+        float s = rng.NextBipolar() * 0.9f;
+        f = {s, s};
+    }
+    proc.p.Process(in_after.data(), out_after.data(), in_after.size());
+
+    for (auto& f : out_after) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::isfinite(f.r));
+        REQUIRE(std::fabs(f.l) <= 2.f);
+        REQUIRE(std::fabs(f.r) <= 2.f);
+    }
+    // Trailing window: well clear of the transition cycle and the
+    // (short, density-pinned) delay, so the reconfigured buffer should be
+    // audibly echoing the fresh input again, not stuck silent.
+    double rms_after = Rms(out_after, out_after.size() - 4000, out_after.size());
+    REQUIRE(rms_after > 0.05);
+}
