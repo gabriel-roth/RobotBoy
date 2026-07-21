@@ -42,9 +42,20 @@ TEST_CASE("Saturation: Scorched feedback limiter is soft, not a hard clip") {
 TEST_CASE("Saturation: SaturateWrite ceilings sit below the codec clamp") {
     Saturation sat;
     sat.Init();
-    // Digital modes pass through untouched.
+    // Bright passes through untouched.
     REQUIRE(sat.SaturateWrite(1.7f, QualityMode::kBrightDigital) == 1.7f);
-    REQUIRE(sat.SaturateWrite(1.7f, QualityMode::kColdDigital) == 1.7f);
+    // Cold is a Clouds emulation: the same cubic soft-limit curve (and 1.4x
+    // drive) Clouds ran its feedback sum through — symmetric, unity
+    // small-signal slope, ceiling 1/1.4. Overload smudges, never hard-clips.
+    REQUIRE(sat.SaturateWrite(0.01f, QualityMode::kColdDigital) / 0.01f
+            == Approx(1.0f).margin(0.05f));
+    REQUIRE(sat.SaturateWrite(-0.01f, QualityMode::kColdDigital) / -0.01f
+            == Approx(1.0f).margin(0.05f));
+    REQUIRE(sat.SaturateWrite(2.0f, QualityMode::kColdDigital) <= 0.72f);
+    REQUIRE(sat.SaturateWrite(2.0f, QualityMode::kColdDigital) >= 0.70f);
+    // Symmetric (no tape bias in a digital mode).
+    REQUIRE(sat.SaturateWrite(2.0f, QualityMode::kColdDigital)
+            == Approx(-sat.SaturateWrite(-2.0f, QualityMode::kColdDigital)).margin(1e-6f));
     // Tape modes: unity small-signal slope (quiet repeats decay honestly)...
     for (auto mode : {QualityMode::kSunnyTape, QualityMode::kScorchedCassette}) {
         REQUIRE(sat.SaturateWrite(0.01f, mode) / 0.01f == Approx(1.0f).margin(0.05f));

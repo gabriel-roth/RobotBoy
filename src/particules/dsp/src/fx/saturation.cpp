@@ -96,15 +96,19 @@ StereoFrame Saturation::LimitFeedback(StereoFrame input, QualityMode mode) {
 }
 
 // ---------------------------------------------------------------------------
-// SaturateWrite: write-path tape drive (see header). Digital modes pass
-// through; tape ceilings (1/1.54 and 1/1.4 for Sunny +/-, 1/2.2 Scorched)
-// stay below the storage codec's +/-1 clamp on purpose.
+// SaturateWrite: write-path tape drive (see header). Bright passes through;
+// Cold applies the Clouds cubic write limiter (ceiling 1/1.4); tape ceilings
+// (1/1.54 and 1/1.4 for Sunny +/-, 1/2.2 Scorched) stay below the storage
+// codec's +/-1 clamp on purpose.
 // ---------------------------------------------------------------------------
 float Saturation::SaturateWrite(float input, QualityMode mode) {
     switch (mode) {
         case QualityMode::kBrightDigital:
-        case QualityMode::kColdDigital:
             return input;
+        case QualityMode::kColdDigital:
+            // Clouds emulation: symmetric cubic soft-limit, Clouds' own
+            // curve and drive (see kColdWriteDrive in the header).
+            return NormalizedSoftClip(input, kColdWriteDrive);
         case QualityMode::kSunnyTape:
             return input >= 0.0f
                        ? NormalizedSoftClip(input, kSunnyWriteDrive * kTapeBiasAsymmetry)

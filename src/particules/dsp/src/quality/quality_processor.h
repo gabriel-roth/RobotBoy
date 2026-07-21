@@ -89,7 +89,14 @@ public:
     // (all lo-fi modes are 2x -> Nyquist 12 kHz); output LPs are tonal
     // shaping at host rate. Bit-depth character lives in the recording
     // buffer's storage codec, not here.
-    static constexpr float kColdDigitalInputLpHz = 10000.0f;
+    //
+    // Tape modes protect the band conventionally at 10 kHz. Cold digital
+    // is deliberately leakier — 11.5 kHz, 2-pole, right under Nyquist —
+    // so bright material folds back audibly: the un-anti-aliased "cold
+    // digital sheen" that was part of the Clouds character (Clouds had no
+    // anti-aliasing on transposed reads at all). Shared by Particules and
+    // Retours per 2026-07-21 decision.
+    static constexpr float kColdDigitalInputLpHz = 11500.0f;
     static constexpr float kSunnyTapeInputLpHz   = 10000.0f;
     static constexpr float kSunnyTapeOutputLpHz  = 10000.0f;  // tone (bright tape)
     static constexpr float kScorchedInputLpHz    = 10000.0f;

@@ -214,3 +214,16 @@ TEST_CASE("degradation: Sunny decay rate matches Bright at the same knob") {
     };
     REQUIRE(std::fabs(slope(sunny) - slope(bright)) < 0.5);
 }
+
+// -----------------------------------------------------------------------
+// (D) Cold digital is a Clouds emulation: accumulated feedback lands on
+// the cubic write-limiter ceiling (1/1.4 ~= 0.71), never the int12 codec
+// clamp. Pre-fix Cold measured 37% of steady-state samples pinned above
+// 0.985 (identical overload character to Bright); post-fix it must be
+// clamp-free while Bright still brickwalls (asserted in test B above).
+// -----------------------------------------------------------------------
+TEST_CASE("degradation: Cold settles on the Clouds soft-limit, not the codec clamp") {
+    auto cold = RenderSteady(QualityMode::kColdDigital, 8.f);
+    REQUIRE(cold.clip_frac < 0.005);
+    REQUIRE(cold.peak < 0.9);
+}

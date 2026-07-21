@@ -31,7 +31,8 @@ public:
     StereoFrame LimitFeedback(StereoFrame input, QualityMode mode);
 
     // Write-path tape saturation, applied to the input+feedback sum just
-    // before it is recorded. Digital modes pass through. Tape modes use
+    // before it is recorded. Bright passes through. Cold applies the
+    // Clouds cubic write limiter (see kColdWriteDrive). Tape modes use
     // SoftClip(drive*x)/drive: unity small-signal slope, ceiling 1/drive —
     // deliberately below the storage codec's +/-1 clamp so accumulated
     // feedback compresses onto a warm tanh ceiling instead of hard-clipping
@@ -44,6 +45,15 @@ public:
     // further 1.1x for bias asymmetry).
     static constexpr float kSunnyWriteDrive = 1.4f;
     static constexpr float kScorchedWriteDrive = 2.2f;
+
+    // Cold digital write drive — a Clouds emulation: Clouds ran its
+    // feedback sum through stmlib SoftLimit (the same polynomial as our
+    // FastTanh) with a 1.4x drive (granular_processor.cc:197-203), so its
+    // overload was a warm cubic smudge, never a hard clip. Normalized here
+    // (unity small-signal slope, ceiling 1/1.4) to keep the uniform
+    // loop-gain law. See docs/superpowers/plans/
+    // 2026-07-21-cold-digital-clouds-voicing-notes.md.
+    static constexpr float kColdWriteDrive = 1.4f;
 
 private:
     // Asymmetric soft clip for tape character: positive peaks saturate
