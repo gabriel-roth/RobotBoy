@@ -8,12 +8,15 @@ namespace particules_dsp {
 // Soft-clip / tape saturation curves per quality mode.
 //
 // Quality mode saturation behavior:
-//   HiFi:      Hard clip at +/-1.0 (brickwall feedback limiter)
-//   Clouds:    Soft clip using tanh-like curve, medium drive
-//   CleanLoFi: Medium tape saturation (asymmetric soft clip)
-//   Tape:      Soft tanh limiting; deep write-path drive via SaturateWrite
+//   BrightDigital:    Hard clip at +/-1.0 (brickwall feedback limiter)
+//   ColdDigital:      Soft clip using tanh-like curve, medium drive
+//   SunnyTape:        Medium tape saturation (asymmetric soft clip)
+//   ScorchedCassette: Soft tanh limiting; deep write-path drive via SaturateWrite
 class Saturation {
 public:
+    // Positive-branch extra drive shared by AsymmetricSoftClip and Sunny's
+    // SaturateWrite: positive peaks saturate 1.1x earlier (magnetic bias).
+    static constexpr float kTapeBiasAsymmetry = 1.1f;
     void Init();
 
     // Apply saturation curve based on quality mode

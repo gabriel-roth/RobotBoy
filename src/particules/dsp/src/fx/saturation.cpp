@@ -23,7 +23,7 @@ float Saturation::NormalizedSoftClip(float x, float drive) {
 // acted as a hidden level trim on everything passing through.
 // ---------------------------------------------------------------------------
 float Saturation::AsymmetricSoftClip(float x) {
-    return x >= 0.0f ? NormalizedSoftClip(x, 1.1f) : SoftClip(x);
+    return x >= 0.0f ? NormalizedSoftClip(x, kTapeBiasAsymmetry) : SoftClip(x);
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,7 @@ float Saturation::SaturateWrite(float input, QualityMode mode) {
             return input;
         case QualityMode::kSunnyTape:
             return input >= 0.0f
-                       ? NormalizedSoftClip(input, kSunnyWriteDrive * 1.1f)
+                       ? NormalizedSoftClip(input, kSunnyWriteDrive * kTapeBiasAsymmetry)
                        : NormalizedSoftClip(input, kSunnyWriteDrive);
         case QualityMode::kScorchedCassette:
             return NormalizedSoftClip(input, kScorchedWriteDrive);

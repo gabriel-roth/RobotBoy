@@ -223,7 +223,7 @@ Set Feedback to \~75%, delay time \~250-500 ms, and compare Quality modes:
       brickwalls but stays bright (no darkening).
 - [ ] **Sunny tape:** each repeat audibly mellower; decay length now matches
       Bright at the same knob (it used to die \~35% faster); high feedback
-      compresses warmly, no digital buzz.
+      compresses warmly, no digital buzz. While driven hard, also glance at a scope/meter for any audible DC lean on the wet output (the asymmetric write saturation can add a small offset by design).
 - [ ] **Scorched cassette:** repeats fall into dark murk within 3-4 passes;
       wow/flutter warble in the tail; high feedback is a warm, dense wall,
       noticeably quieter and rounder than Bright's clipped wall.
