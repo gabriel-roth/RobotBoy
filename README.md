@@ -57,4 +57,4 @@ Three characterful stereo filter emulations, each modeled from the behavior of t
 
 - **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The Korg MS-20 filter — a high-pass and low-pass in series, switchable between the OTA and Korg35 revisions, with Drive.
 - **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The Soviet Polivoks filter — five modes, with the quirk that driving it harder suppresses the resonance; calibrated **Tamed** and drifting **Vintage** characters.
-- **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The EDP Wasp filter — a multimode filter with simultaneous LP/BP/HP outputs, riding the edge of self-oscillation (**Tame**) or crossing over it (**Screaming**).
+- **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The EDP Wasp filter — a multimode filter with simultaneous LP/BP/HP outputs, riding the edge of self-oscillation (**British**) or crossing over it (**German**).

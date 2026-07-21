@@ -4,7 +4,7 @@
 
 - **Onbetap** — Polivoks-style stereo multimode filter, new module.
 - **Vespid** — new module: EDP Wasp-style CMOS state-variable filter, with
-  Tame (original '78 Wasp, verge-of-oscillation) and Screaming (Doepfer A-124
+  British (original '78 Wasp, verge-of-oscillation) and German (Doepfer A-124
   self-oscillation mod, true self-oscillation) character modes.
 - **Retours** — new module: a delay based on the hidden delay mode of Mutable
   Instruments Beads. Manual, clocked, or tap-tempo base time with

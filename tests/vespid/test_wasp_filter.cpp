@@ -157,7 +157,7 @@ static void test_small_signal() {
         { 5000.f, 1250.f, golden::lp_db_fc5000_f1250, "fc5000 f1250"},
     };
     for (auto& c : cs) {
-        double db = smallSignalLpDb(wasp::kScreaming, c.fc, 0.3f, c.fp, 0.05f);
+        double db = smallSignalLpDb(wasp::kGerman, c.fc, 0.3f, c.fp, 0.05f);
         char buf[128];
         snprintf(buf, sizeof(buf), "%s got=%.3f dB golden=%.3f dB", c.tag, db, c.gold);
         report(withinDb(db, c.gold, 1.5), "LP small-signal within 1.5 dB of golden", buf);
@@ -166,8 +166,8 @@ static void test_small_signal() {
 
 static void test_rolloff() {
     printf("\n2. LP rolloff: gain at 3*fc >= 9 dB below passband\n");
-    double pass = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.3f, 250.f, 0.05f);
-    double roll = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.3f, 3000.f, 0.05f);
+    double pass = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 250.f, 0.05f);
+    double roll = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 3000.f, 0.05f);
     char buf[128];
     snprintf(buf, sizeof(buf), "passband(250)=%.2f dB, 3fc(3000)=%.2f dB, drop=%.2f dB",
              pass, roll, pass - roll);
@@ -176,9 +176,9 @@ static void test_rolloff() {
 
 static void test_resonance_monotone() {
     printf("\n3. Resonance peak grows with rho (fc=1000, 20 mV probe)\n");
-    double p0 = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.0f, 1000.f, 0.02f);
-    double p5 = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.5f, 1000.f, 0.02f);
-    double p9 = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.9f, 1000.f, 0.02f);
+    double p0 = smallSignalLpDb(wasp::kGerman, 1000.f, 0.0f, 1000.f, 0.02f);
+    double p5 = smallSignalLpDb(wasp::kGerman, 1000.f, 0.5f, 1000.f, 0.02f);
+    double p9 = smallSignalLpDb(wasp::kGerman, 1000.f, 0.9f, 1000.f, 0.02f);
     char buf[160];
     snprintf(buf, sizeof(buf), "rho0=%.2f rho0.5=%.2f rho0.9=%.2f (golden %.2f/%.2f/%.2f)",
              p0, p5, p9, golden::peak_rho0, golden::peak_rho05, golden::peak_rho09);
@@ -188,9 +188,9 @@ static void test_resonance_monotone() {
     report(withinDb(p9, golden::peak_rho09, 2.0), "peak rho=0.9 within 2 dB of golden", buf);
 }
 
-static void test_selfosc_screaming() {
-    printf("\n4. Screaming self-oscillation (fc=1000, rho=1)\n");
-    SelfOsc s = selfOsc(wasp::kScreaming, 1000.f, 1.0f, 2.0f);
+static void test_selfosc_german() {
+    printf("\n4. German-mode self-oscillation (fc=1000, rho=1)\n");
+    SelfOsc s = selfOsc(wasp::kGerman, 1000.f, 1.0f, 2.0f);
     double lo = std::max(0.5 * golden::selfosc_scr_amp, 0.5);
     double hiA = 1.5 * golden::selfosc_scr_amp;
     char buf[160];
@@ -203,12 +203,12 @@ static void test_selfosc_screaming() {
            "self-osc frequency within 15% of golden", buf);
 }
 
-static void test_tame_ringout() {
-    printf("\n5. Tame rings out (fc=1000, rho=1) tail < 0.05 V\n");
-    SelfOsc s = selfOsc(wasp::kTame, 1000.f, 1.0f, 2.0f);
+static void test_british_ringout() {
+    printf("\n5. British mode rings out (fc=1000, rho=1) tail < 0.05 V\n");
+    SelfOsc s = selfOsc(wasp::kBritish, 1000.f, 1.0f, 2.0f);
     char buf[128];
-    snprintf(buf, sizeof(buf), "tame tail amp=%.6g V (want < 0.05)", s.amp);
-    report(s.finite && s.amp < 0.05, "Tame does not free-run (tail < 0.05 V)", buf);
+    snprintf(buf, sizeof(buf), "British tail amp=%.6g V (want < 0.05)", s.amp);
+    report(s.finite && s.amp < 0.05, "British mode does not free-run (tail < 0.05 V)", buf);
 }
 
 static void test_boundedness() {
@@ -217,12 +217,12 @@ static void test_boundedness() {
     // are the physical quantity the "< 15 V" bound describes: they are clamped
     // to the inverter/rail range and must stay finite and bounded. The MAKEUP'D
     // outputs can transiently reach ~20 V here (the asymmetric inverter rail
-    // -vLo = -8.5 V plus an integrator increment, times the x2.0 Screaming
+    // -vLo = -8.5 V plus an integrator increment, times the x2.0 German-mode
     // makeup), under this deliberately extreme 80 V overdrive — that is
     // expected, not a divergence. We therefore assert: makeup'd outputs FINITE
     // (the stability guarantee) and raw states bounded < 15 V (rail-bounded).
-    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kScreaming); w.reset();
-    Controls c = makeControls(wasp::kScreaming, 20000.f, 1.0f);
+    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kGerman); w.reset();
+    Controls c = makeControls(wasp::kGerman, 20000.f, 1.0f);
     const int n = (int)(kFsInt * 2.f);
     bool finite = true; float rawPeak = 0.f, outPeak = 0.f;
     for (int i = 0; i < n; ++i) {
@@ -245,9 +245,9 @@ static void test_boundedness() {
 static void test_hp_bp_sanity() {
     printf("\n7. HP/BP sanity\n");
     // BP peaks near fc
-    double bpLo  = smallSignalDb(wasp::kScreaming, 1000.f, 0.5f, 250.f, 0.02f, 1);
-    double bpMid = smallSignalDb(wasp::kScreaming, 1000.f, 0.5f, 1000.f, 0.02f, 1);
-    double bpHi  = smallSignalDb(wasp::kScreaming, 1000.f, 0.5f, 4000.f, 0.02f, 1);
+    double bpLo  = smallSignalDb(wasp::kGerman, 1000.f, 0.5f, 250.f, 0.02f, 1);
+    double bpMid = smallSignalDb(wasp::kGerman, 1000.f, 0.5f, 1000.f, 0.02f, 1);
+    double bpHi  = smallSignalDb(wasp::kGerman, 1000.f, 0.5f, 4000.f, 0.02f, 1);
     char buf[160];
     snprintf(buf, sizeof(buf), "BP: 250=%.2f  1000=%.2f  4000=%.2f dB", bpLo, bpMid, bpHi);
     report(bpMid > bpLo && bpMid > bpHi, "BP peaks near fc", buf);
@@ -258,9 +258,9 @@ static void test_hp_bp_sanity() {
     // HP passband gain is lambda*makeup, not unity*makeup. Verified: HP asymptotes
     // to 3.26 dB = 20log10(lambda*makeup) as probe freq rises (3.29 dB @16fc,
     // 3.26 dB @60fc). We assert against the physically-correct lambda*makeup.
-    double lambda = wasp::kScreaming.invA0 / (wasp::kScreaming.nInv + wasp::kScreaming.invA0);
-    double hp = smallSignalDb(wasp::kScreaming, 1000.f, 0.3f, 8000.f, 0.05f, 2);
-    double wantHp = 20.0 * std::log10(lambda * wasp::kScreaming.makeup);
+    double lambda = wasp::kGerman.invA0 / (wasp::kGerman.nInv + wasp::kGerman.invA0);
+    double hp = smallSignalDb(wasp::kGerman, 1000.f, 0.3f, 8000.f, 0.05f, 2);
+    double wantHp = 20.0 * std::log10(lambda * wasp::kGerman.makeup);
     char buf2[160];
     snprintf(buf2, sizeof(buf2), "HP@8fc=%.2f dB, want %.2f (lambda*makeup) +/-2.5", hp, wantHp);
     report(withinDb(hp, wantHp, 2.5), "HP passband within 2.5 dB of lambda*makeup", buf2);
@@ -268,8 +268,8 @@ static void test_hp_bp_sanity() {
 
 static void test_dc_block() {
     printf("\n8. DC block: 2 V DC in, LP output mean over last 0.5 s < 0.05 V\n");
-    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kScreaming); w.reset();
-    Controls c = makeControls(wasp::kScreaming, 1000.f, 0.3f);
+    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kGerman); w.reset();
+    Controls c = makeControls(wasp::kGerman, 1000.f, 0.3f);
     const int n = (int)(kFsInt * 2.f);
     double sum = 0; int cnt = 0;
     for (int i = 0; i < n; ++i) {
@@ -284,8 +284,8 @@ static void test_dc_block() {
 
 static void test_highacc_consistency() {
     printf("\n9. highAcc vs standard: small-signal differs by < 0.5 dB\n");
-    double hi = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.3f, 250.f, 0.05f, true);
-    double st = smallSignalLpDb(wasp::kScreaming, 1000.f, 0.3f, 250.f, 0.05f, false);
+    double hi = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 250.f, 0.05f, true);
+    double st = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 250.f, 0.05f, false);
     char buf[128];
     snprintf(buf, sizeof(buf), "highAcc=%.3f standard=%.3f dB diff=%.3f", hi, st, hi - st);
     report(std::fabs(hi - st) < 0.5, "highAcc and standard agree within 0.5 dB", buf);
@@ -327,8 +327,8 @@ static Thd thdAtGain(const wasp::ModeConfig& m, float gain, float fc, float rho)
 static void test_drive_staging() {
     printf("\n10. Drive staging (5 V input): 2x clean, 64x clipped, level monotone\n");
     // Effective gains at the ends of the Vespid drive knob (2*2^(5*d), d=0/1).
-    Thd lo = thdAtGain(wasp::kScreaming, 2.f, 1000.f, 0.3f);
-    Thd hi = thdAtGain(wasp::kScreaming, 64.f, 1000.f, 0.3f);
+    Thd lo = thdAtGain(wasp::kGerman, 2.f, 1000.f, 0.3f);
+    Thd hi = thdAtGain(wasp::kGerman, 64.f, 1000.f, 0.3f);
     char buf[160];
     snprintf(buf, sizeof(buf), "2x: fund=%.3f V THD=%.3f%%; 64x: fund=%.3f V THD=%.2f%%",
              lo.fund, 100 * lo.thd, hi.fund, 100 * hi.thd);
@@ -342,18 +342,18 @@ static void test_drive_staging() {
 static void test_mode_input_staging() {
     printf("\n11. Per-mode input staging (drive-0 operating points)\n");
     // Effective drive-0 levels from Vespid.cpp: 5 V host signal x 2x floor
-    // x mode.inGain -> Screaming 10 V (Euro-hot, clean), Tame 2.5 V (EDP
+    // x mode.inGain -> German 10 V (Euro-hot, clean), British 2.5 V (EDP
     // nominal: the original's light rasp, ~12% THD at fc=1500, rho=0.225).
     // Calibration: 2026-07-19-vespid-input-calibration-design.md.
-    Thd scr  = thdAtGain(wasp::kScreaming, 2.f,  1500.f, 0.225f);
-    Thd tame = thdAtGain(wasp::kTame,      0.5f, 1500.f, 0.225f);
+    Thd scr  = thdAtGain(wasp::kGerman, 2.f,  1500.f, 0.225f);
+    Thd british = thdAtGain(wasp::kBritish,      0.5f, 1500.f, 0.225f);
     char buf[160];
-    snprintf(buf, sizeof(buf), "Screaming@10V: THD=%.3f%%; Tame@2.5V: THD=%.2f%%",
-             100 * scr.thd, 100 * tame.thd);
-    report(scr.finite && tame.finite, "staged operating points finite", buf);
-    report(scr.thd < 0.01, "Screaming drive-0 (10 V eq.) is clean (THD < 1%)", buf);
-    report(tame.thd > 0.05 && tame.thd < 0.20,
-           "Tame drive-0 (2.5 V eq.) has the EDP light rasp (THD 5-20%)", buf);
+    snprintf(buf, sizeof(buf), "German@10V: THD=%.3f%%; British@2.5V: THD=%.2f%%",
+             100 * scr.thd, 100 * british.thd);
+    report(scr.finite && british.finite, "staged operating points finite", buf);
+    report(scr.thd < 0.01, "German drive-0 (10 V eq.) is clean (THD < 1%)", buf);
+    report(british.thd > 0.05 && british.thd < 0.20,
+           "British drive-0 (2.5 V eq.) has the EDP light rasp (THD 5-20%)", buf);
 }
 
 // Controls at an explicit fPole (makeControls is fixed at kFPole=80k).
@@ -370,14 +370,14 @@ static Controls makeControlsFp(const wasp::ModeConfig& m, float fc, float rho,
 
 static void test_selfosc_onset() {
     printf("\n12. Self-osc onset & baked-fPole guards (1e-4 noise seed, from silence)\n");
-    // Baked per-mode inverter bandwidth (Vespid.cpp kFPoleScreaming/
-    // kFPoleTame): Screaming at 50 kHz must start screaming in musical time
-    // from the module's noise seed alone; Tame at 60 kHz must never
+    // Baked per-mode inverter bandwidth (Vespid.cpp kFPoleGerman/
+    // kFPoleBritish): German mode at 50 kHz must start screaming in musical time
+    // from the module's noise seed alone; British at 60 kHz must never
     // free-run. Calibration: 2026-07-19-vespid-selfosc-onset-design.md.
     {
-        Controls c = makeControlsFp(wasp::kScreaming, 1000.f, 1.f, 50000.f);
+        Controls c = makeControlsFp(wasp::kGerman, 1000.f, 1.f, 50000.f);
         wasp::WaspFilter w; w.setSampleRate(kFsInt);
-        w.setMode(wasp::kScreaming); w.reset();
+        w.setMode(wasp::kGerman); w.reset();
         const int n = (int)(kFsInt * 3.f);
         float d = 1e-4f; double onset = -1; float peak = 0.f;
         for (int i = 0; i < n; ++i) {
@@ -390,12 +390,12 @@ static void test_selfosc_onset() {
         char buf[128];
         snprintf(buf, sizeof(buf), "onset=%.3f s (want < 1.0), peak=%.2f V", onset, peak);
         report(onset >= 0 && onset < 1.0,
-               "Screaming @50 kHz (baked) self-oscillates within 1 s of silence", buf);
+               "German @50 kHz (baked) self-oscillates within 1 s of silence", buf);
     }
     {
-        Controls c = makeControlsFp(wasp::kTame, 1000.f, 1.f, 60000.f);
+        Controls c = makeControlsFp(wasp::kBritish, 1000.f, 1.f, 60000.f);
         wasp::WaspFilter w; w.setSampleRate(kFsInt);
-        w.setMode(wasp::kTame); w.reset();
+        w.setMode(wasp::kBritish); w.reset();
         const int n = (int)(kFsInt * 4.f);
         int t0 = n - (int)(kFsInt * 0.5f);   // tail amplitude over the last 0.5 s
         double sum2 = 0; int cnt = 0; float d = 1e-4f;
@@ -407,7 +407,7 @@ static void test_selfosc_onset() {
         double amp = std::sqrt(2.0 * sum2 / cnt);
         char buf[128];
         snprintf(buf, sizeof(buf), "tail amp=%.6g V (want < 0.05)", amp);
-        report(amp < 0.05, "Tame @60 kHz (baked) does not free-run from noise seed", buf);
+        report(amp < 0.05, "British @60 kHz (baked) does not free-run from noise seed", buf);
     }
 }
 
@@ -417,8 +417,8 @@ int main() {
     test_small_signal();
     test_rolloff();
     test_resonance_monotone();
-    test_selfosc_screaming();
-    test_tame_ringout();
+    test_selfosc_german();
+    test_british_ringout();
     test_boundedness();
     test_hp_bp_sanity();
     test_dc_block();

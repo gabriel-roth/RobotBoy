@@ -41,10 +41,11 @@ struct Vespid : Module {
 		NUM_LIGHTS
 	};
 
-	// Character: false = tamed (overload limiter on, no self-oscillation, like
-	// the original EDP Wasp); true = screaming (limiter off, self-oscillates).
-	// Persisted now; acted on once the DSP lands.
-	bool screaming = false;
+	// Character: false = British (the original EDP Wasp — overload limiter on, no
+	// self-oscillation); true = German (the Doepfer A-124 mod — limiter off,
+	// self-oscillates). Named Tame/Screaming, then EDP/Doepfer, before 2026-07-19;
+	// the legacy "screaming"/"doepfer" patch keys are still read (see dataFromJson).
+	bool german = false;
 
 	// Panel theme: 0 = charcoal (default), 1 = gold. Persisted; the widget reads
 	// it to pick which faceplate SVG to draw.
@@ -70,7 +71,7 @@ struct Vespid : Module {
 	float _inputTrimDb = 0.f;
 
 	// Output level (dB), applied as a post-gain to every output (both
-	// modes) — the rebalancing tool for the Tame/Screaming loudness gap
+	// modes) — the rebalancing tool for the British/German loudness gap
 	// left by the per-mode makeup constants (see WaspFilter.hpp). Computed
 	// at modulate rate as a linear gain target, slewed like the other
 	// module-level shared control (Blend, below), applied after the filter
@@ -79,16 +80,16 @@ struct Vespid : Module {
 
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
-	// Screaming 50 kHz — eager self-oscillation, onset well under a second
-	// at mid/high cutoffs, reaching down to ~300-400 Hz cutoffs; Tame
+	// German 50 kHz — eager self-oscillation, onset well under a second
+	// at mid/high cutoffs, reaching down to ~300-400 Hz cutoffs; British
 	// 60 kHz — its free-run threshold sits at ~55-60 kHz
 	// (fitted_constants.md), so 60 keeps the no-self-oscillation promise.
 	// See 2026-07-19-vespid-selfosc-onset-design.md (baked addendum).
-	static constexpr float kFPoleScreaming = 50000.f;
-	static constexpr float kFPoleTame      = 60000.f;
+	static constexpr float kFPoleGerman = 50000.f;
+	static constexpr float kFPoleBritish      = 60000.f;
 
 	// Self-oscillation pitch tracking: false = hardware-accurate (drifts flat
-	// at high resonance in Screaming), true = corrected to track the knob.
+	// at high resonance in German mode), true = corrected to track the knob.
 	bool _oscPitchCorrected = false;
 
 	// Blend (LP<->HP crossfade) is shared across voices (no per-voice CV path
@@ -106,7 +107,7 @@ struct Vespid : Module {
 	// than an RNG and bit-reproducible VCV vs MetaModule). Does double duty:
 	// denormal prevention, and seeding self-oscillation growth. 1e-4 V
 	// (~0.1 mV, -94 dBV — inaudible, and it sits at Nyquist) approximates a
-	// real circuit's noise floor; the old 1e-9 seed made Screaming's
+	// real circuit's noise floor; the old 1e-9 seed made German mode's
 	// exponential onset pay for ~5 extra decades of growth (measured ~40%
 	// slower — see 2026-07-19-vespid-selfosc-onset-design.md).
 	float _dither = 1e-4f;
@@ -207,10 +208,10 @@ struct Vespid : Module {
 	// smoother targets. Division-heavy math (tan, computeH1) lives here, not
 	// in the audio path.
 	void modulate() {
-		const wasp::ModeConfig& mode = screaming ? wasp::kScreaming : wasp::kTame;
+		const wasp::ModeConfig& mode = german ? wasp::kGerman : wasp::kBritish;
 		float fsInt = _sampleRate * (float)_osActual;
 
-		float fPole = screaming ? kFPoleScreaming : kFPoleTame;
+		float fPole = german ? kFPoleGerman : kFPoleBritish;
 
 		float freqLog     = params[FREQ_PARAM].getValue();
 		float freqCvAtten = params[FREQ_CV_PARAM].getValue();
@@ -242,11 +243,11 @@ struct Vespid : Module {
 
 			float fcInt = fc * mode.wcComp;
 
-			// Self-oscillation pitch correction (Screaming only): the
+			// Self-oscillation pitch correction (German mode only): the
 			// rail-bounded limit cycle runs ~0.72x the knob's small-signal
 			// placement at rho=1; blend toward a corrected scale as rho
 			// approaches 1 so the perceived pitch tracks the knob there.
-			if (_oscPitchCorrected && screaming) {
+			if (_oscPitchCorrected && german) {
 				float rhoNow = eng.rhoSlew.value;
 				float s = clamp((rhoNow - 0.85f) / 0.15f, 0.f, 1.f);
 				fcInt *= 1.f + (1.f / 0.72f - 1.f) * s;
@@ -271,8 +272,8 @@ struct Vespid : Module {
 			// Drive: knob 0..1 -> 2x..64x (2x fixed pre-gain, 30 dB span),
 			// times the fixed input-trim gain and the per-mode hardware
 			// level staging (mode.inGain). At drive 0 a 5 V signal lands at
-			// Screaming's Euro-hot staging (10 V eq., clean, onset ~6% up
-			// the knob) and Tame's EDP-nominal 2.5 V (the original's light
+			// German mode's Euro-hot staging (10 V eq., clean, onset ~6% up
+			// the knob) and British mode's EDP-nominal 2.5 V (the original's light
 			// rasp, ~12% THD). See 2026-07-19-vespid-drive-remap-design.md
 			// and 2026-07-19-vespid-input-calibration-design.md.
 			float drive01 = driveKnob;
@@ -373,7 +374,7 @@ struct Vespid : Module {
 
 	json_t* dataToJson() override {
 		json_t* root = json_object();
-		json_object_set_new(root, "screaming", json_boolean(screaming));
+		json_object_set_new(root, "german", json_boolean(german));
 		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
 		json_object_set_new(root, "highAcc", json_boolean(_highAcc));
 		json_object_set_new(root, "osMenu", json_integer(_osMenu));
@@ -384,9 +385,13 @@ struct Vespid : Module {
 	}
 
 	void dataFromJson(json_t* root) override {
-		json_t* s = json_object_get(root, "screaming");
+		json_t* s = json_object_get(root, "german");
+		if (!s)
+			s = json_object_get(root, "doepfer");     // pre-rename patches...
+		if (!s)
+			s = json_object_get(root, "screaming");   // ...and pre-pre-rename
 		if (s)
-			screaming = json_boolean_value(s);
+			german = json_boolean_value(s);
 		json_t* p = json_object_get(root, "panelTheme");
 		if (p)
 			panelTheme = json_integer_value(p);
@@ -538,12 +543,12 @@ struct VespidWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Character"));
-		menu->addChild(createMenuItem("Tame (limited)",
-			!m->screaming ? "✓" : "",
-			[m]() { m->screaming = false; }));
-		menu->addChild(createMenuItem("Screaming (self-oscillates)",
-			m->screaming ? "✓" : "",
-			[m]() { m->screaming = true; }));
+		menu->addChild(createMenuItem("British (limited)",
+			!m->german ? "✓" : "",
+			[m]() { m->german = false; }));
+		menu->addChild(createMenuItem("German (self-oscillates)",
+			m->german ? "✓" : "",
+			[m]() { m->german = true; }));
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Accuracy"));
@@ -572,7 +577,7 @@ struct VespidWidget : ModuleWidget {
 			}));
 
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Self-oscillation pitch (Screaming)"));
+		menu->addChild(createMenuLabel("Self-oscillation pitch (German)"));
 		menu->addChild(createMenuItem("Hardware (drifts flat)",
 			!m->_oscPitchCorrected ? "✓" : "",
 			[m]() { m->_oscPitchCorrected = false; }));

@@ -136,7 +136,7 @@ The original Wasp sits right at the verge of self-oscillation — enough to whis
 
 - **Freq** — cutoff, 20 Hz – 20 kHz (log), default 750 Hz. Tracks 1 V/octave through its CV input, scaled by its attenuverter.
 - **Res** — resonance, 0–100%, default 0. CV input with attenuverter.
-- **Drive** — 0–100%, a 30 dB gain sweep into the filter, level-staged per Character mode to match the hardware each mode models. In **Screaming**, drive 0 is a hot Eurorack signal into the Doepfer circuit — clean, with clipping arriving just up the knob. In **Tame**, drive 0 is the original Wasp's own oscillator level into its +5 V circuit — already lightly overdriven, the classic "dirty Wasp" rasp, thickening from there. Pushing either mode further shifts the clipping from ragged and asymmetric toward a harder, odd-harmonic squareness. CV input with attenuverter.
+- **Drive** — 0–100%, a 30 dB gain sweep into the filter, level-staged per Character mode to match the hardware each mode models. In **German mode**, drive 0 is a hot Eurorack signal into the Doepfer circuit — clean, with clipping arriving just up the knob. In **British mode**, drive 0 is the original Wasp's own oscillator level into its +5 V circuit — already lightly overdriven, the classic "dirty Wasp" rasp, thickening from there. Pushing either mode further shifts the clipping from ragged and asymmetric toward a harder, odd-harmonic squareness. CV input with attenuverter.
 - **Blend** — crossfades the **Mix** output: fully counter-clockwise is low-pass, center (default) is a notch, fully clockwise is high-pass. It affects only the Mix output; the dedicated LP/BP/HP outputs are always available unblended.
 
 Each of Freq, Res, and Drive has its own CV input and attenuverter; Blend has a CV input (no attenuverter).
@@ -153,17 +153,17 @@ Vespid is polyphonic on both hosts.
 
 ### Right-click menu
 
-- **Character** — **Tame** (default): the original 1978 Wasp, riding the edge of oscillation for whistles and chirps but staying under control. **Screaming**: the Doepfer A-124's self-oscillation mod, which crosses into full self-oscillation.
+- **Character** — **British** (default): the original 1978 Wasp, riding the edge of oscillation for whistles and chirps but staying under control. **German**: the Doepfer A-124's self-oscillation mod, which crosses into full self-oscillation.
 - **Accuracy** — **Standard** or **High** (default). High runs a more accurate solver; Standard is lighter on CPU.
 - **Oversampling** — **Auto** (default), 1×, 2×, or 4×. Higher settings reduce aliasing at the cost of CPU. Auto picks a sensible factor for your sample rate (and stays more conservative on MetaModule's weaker processor).
-- **Self-oscillation pitch (Screaming)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
+- **Self-oscillation pitch (German)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
 - **Input trim** — ±12 dB into the filter, applied on top of the per-mode level staging (see Drive above). Use it to nudge either mode cleaner or dirtier without touching the Drive sweep.
-- **Output level** — ±12 dB on every output. Useful for matching levels between Tame and Screaming, which differ in loudness.
+- **Output level** — ±12 dB on every output. Useful for matching levels between the British and German modes, which differ in loudness.
 - **Panel** — **Charcoal** (default) or **Gold** faceplate.
 
 ### Under the hood
 
-Vespid models the Wasp's CMOS-inverter state-variable filter — the logic chips run as amplifiers, plus the diode resonance limiter and supply-rail clipping that shape its sound — following the DAFx-2022 model by Köper, Holters, Esqueda, and Parker. **Tame** runs the circuit on a +5 V supply (as the original Wasp did); **Screaming** raises it to +12 V, which is what tips it into self-oscillation, bounded by the rails.
+Vespid models the Wasp's CMOS-inverter state-variable filter — the logic chips run as amplifiers, plus the diode resonance limiter and supply-rail clipping that shape its sound — following the DAFx-2022 model by Köper, Holters, Esqueda, and Parker. **British** runs the circuit on a +5 V supply (as the original Wasp did); **German** raises it to +12 V, which is what tips it into self-oscillation, bounded by the rails.
 
 ### Sources
 
@@ -177,4 +177,4 @@ Vespid models the Wasp's CMOS-inverter state-variable filter — the logic chips
 |---|---|---|---|
 | **MF-20** | Korg MS-20 (1978) | Two filters in series (HP→LP); screams at high resonance; switch Korg35 vs OTA for raw vs smooth | Low-pass |
 | **Onbetap** | Formanta Polivoks (1982) | Drive suppresses resonance; self-oscillation point moves with cutoff | LP / BP / HP / Notch / Peak (one at a time) |
-| **Vespid** | EDP Wasp (1978) | Sits at the edge of self-oscillation; Screaming mode crosses over | LP + BP + HP + Mix (all at once) |
+| **Vespid** | EDP Wasp (1978) | Sits at the edge of self-oscillation; German mode crosses over | LP + BP + HP + Mix (all at once) |

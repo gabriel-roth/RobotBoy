@@ -27,8 +27,8 @@ namespace wasp {
 // fitted_constants.md (matching wasp_ref.py MODES exactly, so this core
 // reproduces golden.json). wcComp = 1/sqrt(lambda*kR2),
 // lambda = invA0/(nInv+invA0), precomputed:
-//   Screaming: lambda = 17.88/24.58 = 0.7274207, wcComp = 0.60954726
-//   Tame:      lambda = 23.44/27.44 = 0.8542274, wcComp = 1.08196598
+//   German:  lambda = 17.88/24.58 = 0.7274207, wcComp = 0.60954726
+//   British: lambda = 23.44/27.44 = 0.8542274, wcComp = 1.08196598
 struct ModeConfig {
     float c;        // OTA tanh scale (1/V)
     float kR2;      // R3/R2eff LP-feedback ratio
@@ -39,19 +39,19 @@ struct ModeConfig {
     float makeup;   // output makeup gain
     // Caller-applied (like wcComp), NOT used inside the core: hardware level
     // staging, folded into the module's drive gain. Anchors a full-scale
-    // host signal (5 V peak) at each unit's nominal-hot source level:
-    // Screaming = Doepfer A-124, Euro-native (5 V, 1:1); Tame = EDP Wasp,
-    // fed by its own 0-5 V logic-swing oscillators (+/-2.5 V AC-coupled,
-    // level pot <= unity), so 0.25 x the module's 2x drive floor = 0.5x.
+    // host signal (5 V peak) at each unit's nominal-hot source level: the
+    // Doepfer A-124 is Euro-native (5 V, 1:1); the EDP Wasp was fed by its
+    // own 0-5 V logic-swing oscillators (+/-2.5 V AC-coupled, level pot
+    // <= unity), so 0.25 x the module's 2x drive floor = 0.5x.
     // See 2026-07-19-vespid-input-calibration-design.md.
     float inGain;
 };
 
-constexpr ModeConfig kScreaming = {
+constexpr ModeConfig kGerman = {
     /*c*/0.296f, /*kR2*/3.70f, /*nInv*/6.70f, /*wcComp*/0.60954726f,
     /*vHi*/3.031f, /*vLo*/8.500f, /*invA0*/17.88f, /*makeup*/2.0f,
     /*inGain*/1.0f };
-constexpr ModeConfig kTame = {
+constexpr ModeConfig kBritish = {
     /*c*/0.155f, /*kR2*/1.00f, /*nInv*/4.00f, /*wcComp*/1.08196598f,
     /*vHi*/1.708f, /*vLo*/3.105f, /*invA0*/23.44f, /*makeup*/1.0f,
     /*inGain*/0.25f };
@@ -201,7 +201,7 @@ private:
         return -m.invA0 * (1.f - t * t);
     }
 
-    const ModeConfig* mode = &kScreaming;
+    const ModeConfig* mode = &kGerman;
     float fsInt = 192000.f, hinA = 2.f * float(M_PI) * 22.f / 192000.f;
     float sBP = 0.f, sLP = 0.f, z1 = 0.f, hinState = 0.f;
     float hpPrev = 0.f, bpPrev = 0.f, ydPrev = 0.f, vgPrev = 0.f;

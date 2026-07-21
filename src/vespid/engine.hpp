@@ -84,10 +84,10 @@ struct VoiceEngine {
     OnePoleSmoother gSlew     { 0.049f };
     OnePoleSmoother kC2Slew   { 0.f };
     OnePoleSmoother rhoSlew   { 0.f };
-    // Drive at rest in the module's default mode (Tame) is 0.5x: the 2x
-    // knob-floor pre-gain times Tame's 0.25 hardware level staging
-    // (kTame.inGain — see Vespid.cpp modulate()). Seed the smoother there
-    // so a fresh voice doesn't sweep in; a voice reset while in Screaming
+    // Drive at rest in the module's default mode (British) is 0.5x: the 2x
+    // knob-floor pre-gain times British mode's 0.25 hardware level staging
+    // (kBritish.inGain — see Vespid.cpp modulate()). Seed the smoother there
+    // so a fresh voice doesn't sweep in; a voice reset while in German mode
     // just re-slews to 2x over ~5 ms.
     OnePoleSmoother driveSlew { 0.5f };
     // H1 coefficients are division-heavy (computeH1 is only called at
