@@ -8,13 +8,22 @@ void Saturation::Init() {
 }
 
 // ---------------------------------------------------------------------------
+// NormalizedSoftClip: SoftClip(drive*x)/drive. Unity small-signal slope,
+// output ceiling 1/drive.
+// ---------------------------------------------------------------------------
+float Saturation::NormalizedSoftClip(float x, float drive) {
+    return SoftClip(x * drive) / drive;
+}
+
+// ---------------------------------------------------------------------------
 // Asymmetric soft clip for tape character.
-// Positive peaks are clipped a little harder (drive * 1.1) to mimic
-// magnetic bias asymmetry.
+// Positive peaks saturate earlier (mimicking magnetic bias asymmetry) but
+// both branches keep unity small-signal slope — the old form multiplied the
+// negative branch by 0.9 *inside* the tanh with no normalization, which
+// acted as a hidden level trim on everything passing through.
 // ---------------------------------------------------------------------------
 float Saturation::AsymmetricSoftClip(float x) {
-    const float shaped = x * (x >= 0.0f ? 1.1f : 0.9f);
-    return SoftClip(shaped);
+    return x >= 0.0f ? NormalizedSoftClip(x, 1.1f) : SoftClip(x);
 }
 
 // ---------------------------------------------------------------------------
@@ -65,13 +74,16 @@ float Saturation::LimitFeedback(float input, QualityMode mode) {
             return SoftClip(input);
 
         case QualityMode::kSunnyTape:
-            // Slightly compressed feedback
-            return AsymmetricSoftClip(input * 0.9f);
+            // Asymmetric tape limiting, unity small-signal gain (the old
+            // *0.9f trim made Sunny decay ~0.9 dB/repeat faster than the
+            // other modes at the same feedback knob).
+            return AsymmetricSoftClip(input);
 
         case QualityMode::kScorchedCassette:
-            // Hard clip at +/-1: the storage codec clamps on write anyway,
-            // so clipping here just bounds the feedback sum pre-encoder.
-            return HardClip(input, 1.0f);
+            // Soft tanh bound — "grungy tape saturation" per the spec, not
+            // a hard wall. The write path adds the deep per-pass drive
+            // (SaturateWrite); this just bounds the feedback sum warmly.
+            return SoftClip(input);
     }
     return input;
 }
@@ -80,6 +92,33 @@ StereoFrame Saturation::LimitFeedback(StereoFrame input, QualityMode mode) {
     return {
         LimitFeedback(input.l, mode),
         LimitFeedback(input.r, mode)
+    };
+}
+
+// ---------------------------------------------------------------------------
+// SaturateWrite: write-path tape drive (see header). Digital modes pass
+// through; tape ceilings (1/1.54 and 1/1.4 for Sunny +/-, 1/2.2 Scorched)
+// stay below the storage codec's +/-1 clamp on purpose.
+// ---------------------------------------------------------------------------
+float Saturation::SaturateWrite(float input, QualityMode mode) {
+    switch (mode) {
+        case QualityMode::kBrightDigital:
+        case QualityMode::kColdDigital:
+            return input;
+        case QualityMode::kSunnyTape:
+            return input >= 0.0f
+                       ? NormalizedSoftClip(input, kSunnyWriteDrive * 1.1f)
+                       : NormalizedSoftClip(input, kSunnyWriteDrive);
+        case QualityMode::kScorchedCassette:
+            return NormalizedSoftClip(input, kScorchedWriteDrive);
+    }
+    return input;
+}
+
+StereoFrame Saturation::SaturateWrite(StereoFrame input, QualityMode mode) {
+    return {
+        SaturateWrite(input.l, mode),
+        SaturateWrite(input.r, mode)
     };
 }
 
