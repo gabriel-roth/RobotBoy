@@ -835,7 +835,7 @@ TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][p
     g.Init();
     Grain::GrainParameters gp{};
     gp.position = static_cast<float>(target);
-    gp.pitch_ratio = 0.30078125f;   // deliberately non-dyadic step
+    gp.pitch_ratio = 0.03f;   // sub-half-ULP at frame 700k: float32 accumulation rounds every add to zero advance and freezes; Q32.32 advances exactly
     gp.size = 1500.0f;
     gp.shape = 0.5f;
     gp.pan = 0.0f;
@@ -843,11 +843,12 @@ TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][p
     gp.pre_delay = 0;
     g.Start(gp);
 
-    // Advance ~1200 samples; consecutive read positions must differ by the
-    // exact ratio: with float32 positions at 700k, steps collapse to
-    // multiples of 1/16 and repeated samples appear. Detect via successive
-    // output values: on a smooth ramp region, output must be strictly
-    // advancing (no more than 2 consecutive identical samples).
+    // Advance ~1200 samples (×0.03 ≈ 36 frames across 2000-frame ramp region);
+    // consecutive read positions must differ by the exact ratio: with float32
+    // positions at 700k, steps below half-ULP (1/32 sample) collapse to zero
+    // and repeated samples appear. Detect via successive output values: on a
+    // smooth ramp region, output must be strictly advancing (no more than 2
+    // consecutive identical samples).
     int64_t buf_size_q = static_cast<int64_t>(buf.size()) << 32;
     int max_repeats = 0, repeats = 0;
     float prev = -2.0f;
