@@ -723,3 +723,26 @@ TEST_CASE("RecordingBuffer: decimation still applies in packed formats", "[buffe
     for (int i = 0; i < 100; ++i) buf.Write(0.5f, 0.5f);
     REQUIRE(buf.write_head() == 50);
 }
+
+TEST_CASE("RecordingBuffer: freeze seam fade works in mu-law format", "[buffer][freeze][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(1, StorageFormat::kMuLaw8, 2);
+    buf.ImmediateClear();
+
+    for (int i = 0; i < 500; ++i) buf.Write(0.8f, 0.8f);
+    REQUIRE(buf.write_head() == 500);
+
+    buf.NotifyFreeze(true);
+
+    REQUIRE(std::fabs(buf.ReadLinear(0, 499.0f)) < 0.05f);            // seam ~0
+    REQUIRE(buf.ReadLinear(0, 490.0f) > buf.ReadLinear(0, 498.0f));   // ramps up
+    REQUIRE(buf.ReadLinear(0, 460.0f) == Approx(0.8f).margin(0.06f)); // untouched
+
+    buf.NotifyFreeze(false);
+    buf.Write(0.5f, 0.5f);   // write ramp starts from faded (~0) content
+    REQUIRE(std::fabs(buf.ReadLinear(0, 500.0f)) < 0.1f);
+}

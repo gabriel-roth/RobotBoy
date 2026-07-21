@@ -240,7 +240,7 @@ float RecordingBuffer::ReadLinear(int channel, float position) const {
 // ---------------------------------------------------------------------------
 
 void RecordingBuffer::NotifyFreeze(bool frozen) {
-    if (!f32_ || size_ == 0 || channels_ < 1) return;
+    if (!u8_ || size_ == 0 || channels_ < 1) return;
 
     if (!frozen) {
         // Leaving freeze: blend the next writes from frozen content into
@@ -265,16 +265,12 @@ void RecordingBuffer::NotifyFreeze(bool frozen) {
         int oldest = (static_cast<int>(write_head_) + j) % size_int;
         const int frames[2] = {newest, oldest};
         for (int f = 0; f < 2; ++f) {
-            size_t idx = static_cast<size_t>(frames[f]) * channels_;
+            size_t frame = static_cast<size_t>(frames[f]);
             for (int c = 0; c < channels_; ++c) {
-                f32_[idx + c] *= gain;
+                StoreSample(frame, c, SampleAt(frame, c) * gain);
             }
-            // Keep the interpolation-tail mirror in sync.
             if (frames[f] < static_cast<int>(kInterpolationTail)) {
-                size_t tail = (size_ + static_cast<size_t>(frames[f])) * channels_;
-                for (int c = 0; c < channels_; ++c) {
-                    f32_[tail + c] = f32_[idx + c];
-                }
+                CopyFrameToTail(frame);
             }
         }
     }
