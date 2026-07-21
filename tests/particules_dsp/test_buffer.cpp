@@ -476,8 +476,8 @@ TEST_CASE("RecordingBuffer: TickClear zeroes data incrementally", "[buffer][clea
     ClearTestBuf tb;
     tb.buf.Clear();
 
-    // 2 floats = 1 stereo frame (L0, R0)
-    tb.buf.TickClear(2);
+    // 2 floats = 1 stereo frame (L0, R0) = 8 bytes in float32 storage
+    tb.buf.TickClear(2 * sizeof(float));
 
     // Frame 0 is now zero
     REQUIRE(tb.buf.ReadLinear(0, 0.0f) == Approx(0.0f).margin(1e-6f));
@@ -486,8 +486,8 @@ TEST_CASE("RecordingBuffer: TickClear zeroes data incrementally", "[buffer][clea
     // Frame 1 is still non-zero
     REQUIRE(std::fabs(tb.buf.ReadLinear(0, 1.0f)) > 0.5f);
 
-    // Clear the rest: pass a large count; TickClear clamps to remaining
-    tb.buf.TickClear((kClearTestFrames + kInterpolationTail) * 2 + 1000);
+    // Clear the rest: pass a large byte count; TickClear clamps to remaining
+    tb.buf.TickClear((kClearTestFrames + kInterpolationTail) * 2 * sizeof(float) + 1000);
 
     for (int i = 0; i < (int)kClearTestFrames; ++i) {
         INFO("frame " << i);
@@ -521,6 +521,55 @@ TEST_CASE("RecordingBuffer: ImmediateClear cancels pending deferred clear", "[bu
     // If TickClear re-ran from cursor 0, it would zero the just-written value.
     // The value surviving proves TickClear is a true no-op.
     REQUIRE(std::fabs(tb.buf.ReadLinear(0, 0.0f)) > 0.5f);
+}
+
+TEST_CASE("RecordingBuffer: deferred clear drains in bytes and reports pending", "[buffer][clear]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+    REQUIRE_FALSE(buf.ClearPending());
+
+    buf.Clear();
+    REQUIRE(buf.ClearPending());
+    // Total: (1000 + 4) frames * 2ch * 4B = 8032 bytes -> 9 ticks of 1000.
+    int ticks = 0;
+    while (buf.ClearPending()) { buf.TickClear(1000); ++ticks; REQUIRE(ticks < 100); }
+    REQUIRE(ticks == 9);
+    REQUIRE(buf.ReadLinear(0, 500.0f) == 0.0f);
+}
+
+TEST_CASE("RecordingBuffer: clear extent follows the active config", "[buffer][clear][format]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    buf.Configure(2, StorageFormat::kMuLaw8, 1);   // mono mu-law: full pool
+    buf.Clear();
+    size_t expected = (buf.size() + kInterpolationTail) * 1 * 1;   // == pool bytes
+    size_t drained = 0;
+    while (buf.ClearPending()) { buf.TickClear(512); drained += 512; }
+    REQUIRE(drained >= expected);
+    REQUIRE(buf.ReadLinear(0, 2000.0f) == 0.0f);
+}
+
+TEST_CASE("RecordingBuffer: ImmediateClear cancels a pending deferred clear", "[buffer][clear]") {
+    size_t num_frames = 1000;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> mem(bytes, 0);
+    RecordingBuffer buf;
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) buf.Write(1.0f, 1.0f);
+
+    buf.Clear();
+    REQUIRE(buf.ClearPending());
+    buf.ImmediateClear();
+    REQUIRE_FALSE(buf.ClearPending());
+    REQUIRE(buf.ReadLinear(0, 999.0f) == 0.0f);
 }
 
 // ============================================================================

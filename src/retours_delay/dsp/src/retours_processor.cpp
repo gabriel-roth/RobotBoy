@@ -148,11 +148,10 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
     Impl& s = *impl_;
 
     // Drain any deferred buffer clear (post-quality-change) incrementally.
-    // Chunk size chosen so draining the whole buffer takes 128 blocks —
-    // same derivation Particules uses for its identical constant, aligned
-    // with kQualityXfadeSamples (128 × kMaxBlockSize == 8192).
-    static constexpr size_t kClearChunkFloats = (kBufferFrames / 128) * 2;
-    s.recording_buffer.TickClear(kClearChunkFloats);
+    // Byte-based chunk: capacity/128 keeps the drain at ~128 blocks, aligned
+    // with kQualityXfadeSamples (128 × kMaxBlockSize == 8192), in every
+    // storage config.
+    s.recording_buffer.TickClear(s.recording_buffer.capacity_bytes() / 128);
 
     // Quality mode change: new decimation factor, deferred buffer clear +
     // output duck, and notify BaseTimeControl of the new effective buffer

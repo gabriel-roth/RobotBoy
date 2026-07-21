@@ -160,10 +160,9 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
     auto& s = *impl_;  // shorthand
 
     // Drain any deferred buffer clear (post-quality-change) incrementally.
-    // Runs once per <=64-frame block on every host, so the clear rate and the
-    // quality-transition duck stay aligned at any caller block size.
-    static constexpr size_t kClearChunkFloats = (kDefaultBufferFrames / 128) * 2;
-    s.recording_buffer.TickClear(kClearChunkFloats);
+    // Byte-based chunk: capacity/128 keeps the drain at ~128 blocks (~170 ms
+    // at 48 kHz / 64-sample blocks) in every storage config.
+    s.recording_buffer.TickClear(s.recording_buffer.capacity_bytes() / 128);
 
     // Freeze transitions: declick the seam / arm the unfreeze write ramp.
     if (s.params.freeze != s.prev_freeze) {

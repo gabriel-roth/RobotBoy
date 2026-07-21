@@ -165,9 +165,11 @@ public:
     // must see silence right away rather than old content from the far end.
     void ImmediateClear();
 
-    // Zero up to max_floats pending floats from the last Clear() call.
-    // Call once per Process() block to drain the deferred clear incrementally.
-    void TickClear(size_t max_floats);
+    // Zero up to max_bytes of the pending clear started by Clear(). Byte-
+    // based so wall-clock drain time is identical in every storage config.
+    void TickClear(size_t max_bytes);
+    // True while a deferred Clear() has not finished draining.
+    bool ClearPending() const { return clear_cursor_ < clear_total_; }
 
     void SetDecimationFactor(int factor);
     int decimation_factor() const { return decimation_factor_; }
@@ -248,8 +250,8 @@ private:
     int decimation_counter_ = 0;
 
     // Deferred clear state (set by Clear(), drained by TickClear())
-    size_t clear_cursor_ = 0;  // next float index to zero
-    size_t clear_total_  = 0;  // total floats to zero (0 = none pending)
+    size_t clear_cursor_ = 0;  // next byte to zero
+    size_t clear_total_  = 0;  // total bytes to zero (0 = none pending)
 
     // Unfreeze write-crossfade state (counts accepted writes remaining)
     int write_ramp_remaining_ = 0;

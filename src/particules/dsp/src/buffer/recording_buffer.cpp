@@ -114,23 +114,21 @@ void RecordingBuffer::Clear() {
     write_head_ = 0;
     decimation_counter_ = 0;
     clear_cursor_ = 0;
-    clear_total_  = (size_ + kInterpolationTail) * static_cast<size_t>(channels_);
+    clear_total_ = (size_ + kInterpolationTail)
+                   * static_cast<size_t>(channels_) * bytes_per_sample();
 }
 
 void RecordingBuffer::ImmediateClear() {
     if (!u8_ || size_ == 0) return;
-    size_t bytes = (size_ + kInterpolationTail) * static_cast<size_t>(channels_)
-                   * bytes_per_sample();
-    std::memset(u8_, 0, bytes);
-    // Cancel any pending deferred clear
+    std::memset(u8_, 0, (size_ + kInterpolationTail)
+                        * static_cast<size_t>(channels_) * bytes_per_sample());
     clear_cursor_ = clear_total_;
 }
 
-void RecordingBuffer::TickClear(size_t max_floats) {
+void RecordingBuffer::TickClear(size_t max_bytes) {
     if (clear_cursor_ >= clear_total_) return;
-    size_t remaining = clear_total_ - clear_cursor_;
-    size_t chunk = std::min(max_floats, remaining);
-    std::memset(f32_ + clear_cursor_, 0, chunk * sizeof(float));
+    size_t chunk = std::min(max_bytes, clear_total_ - clear_cursor_);
+    std::memset(u8_ + clear_cursor_, 0, chunk);
     clear_cursor_ += chunk;
 }
 
