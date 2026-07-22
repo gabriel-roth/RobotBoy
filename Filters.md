@@ -35,7 +35,7 @@ The two cutoffs have independent knobs. To sweep them together the way the MS-20
 - **HP Peak** — high-pass resonance, 0–100%. Self-oscillates at 100%.
 - **LP Cutoff** — low-pass cutoff, 20 Hz – 20 kHz (log), default 750 Hz.
 - **LP Peak** — low-pass resonance, 0–100%. Self-oscillates at 100%.
-- **Drive** — 1× to 8×. At 1× the filter is clean; raising it drives the input into soft clipping.
+- **Drive** — 1× to 8×. At 1× the OTA filter is clean (in Korg35 mode a full-scale ±5 V signal already grazes the clipper); raising it drives the input into soft clipping.
 
 The two filters are always independent at the knob level; use the **Total** input (below) to move them together.
 
@@ -56,7 +56,7 @@ MF-20 is polyphonic on both hosts.
 
 ### Under the hood
 
-Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts the nonlinearity in the forward (input) path with slightly asymmetric clipping, which produces the even-order harmonics that give the original its character.
+Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts its main nonlinearity in the forward (input) path with slightly asymmetric clipping — which produces the even-order harmonics that give the original its character — plus a second clipper in the resonance loop that keeps its scream in check.
 
 ### Sources
 
@@ -87,7 +87,7 @@ A few of Onbetap's behaviors run counter to what most filters do — they're the
 ### Controls
 
 - **Cutoff** — 20 Hz – 20 kHz (log), default 750 Hz. 1 V/octave CV input, scaled by its attenuverter.
-- **Q** (resonance) — 0–100%. Self-oscillation begins around three-quarters of the way up (earlier at high cutoff — see above). Its CV input covers the full range from a 0–5 V envelope at full attenuverter.
+- **Q** (resonance) — 0–100%. Self-oscillation begins in the top fifth of the knob at typical cutoffs (earlier at high cutoff — see above). Its CV input covers the full range from a 0–5 V envelope at full attenuverter.
 - **Drive** — 0–100%, roughly −12 to +24 dB into the core. Adds asymmetric-clipping grit and, characteristically, suppresses resonance as you push it. At the very top the tone keeps thickening even as the resonant ring is choked off, so more Drive never means a softer sound. CV input with attenuverter.
 - **Mode** — a five-position knob: **Lowpass** (12 dB/oct), **Bandpass** (6 dB/oct — the circuit's two native outputs), **Highpass**, **Notch**, and **Peak**. Lowpass and Bandpass are what the hardware actually had; the other three are extensions built from the same solved core. Mode changes crossfade over 5 ms to avoid clicks (except in Vintage — see below).
 
@@ -158,7 +158,7 @@ Vespid is polyphonic on both hosts.
 - **Oversampling** — **Auto** (default), 1×, 2×, or 4×. Higher settings reduce aliasing at the cost of CPU. Auto picks a sensible factor for your sample rate (and stays more conservative on MetaModule's weaker processor).
 - **Self-oscillation pitch (German)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
 - **Input trim** — ±12 dB into the filter, applied on top of the per-mode level staging (see Drive above). Use it to nudge either mode cleaner or dirtier without touching the Drive sweep.
-- **Output level** — ±12 dB on every output. Useful for matching levels between the British and German modes, which differ in loudness.
+- **Output level** — ±12 dB on every output. The two Character modes are level-matched at low drive; British runs about 4–5 dB quieter at high drive, and this is the control for evening that out.
 - **Panel** — **Charcoal** (default) or **Gold** faceplate.
 
 ### Under the hood
