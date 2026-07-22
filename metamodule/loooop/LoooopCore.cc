@@ -87,8 +87,12 @@ public:
         setOutput<Head2OutL>(hs[1].l * 5.f); setOutput<Head2OutR>(hs[1].r * 5.f);
         setOutput<Head3OutL>(hs[2].l * 5.f); setOutput<Head3OutR>(hs[2].r * 5.f);
         setOutput<Head4OutL>(hs[3].l * 5.f); setOutput<Head4OutR>(hs[3].r * 5.f);
-        float wetL = hs[0].l*g0.l + hs[1].l*g1.l + hs[2].l*g2.l + hs[3].l*g3.l;
-        float wetR = hs[0].r*g0.r + hs[1].r*g1.r + hs[2].r*g2.r + hs[3].r*g3.r;
+        // Level and Pan apply to the mix only; the head outs above carry the
+        // full-level signal.
+        const float lv0 = engine_.smoothedLevel(0), lv1 = engine_.smoothedLevel(1),
+                    lv2 = engine_.smoothedLevel(2), lv3 = engine_.smoothedLevel(3);
+        float wetL = hs[0].l*g0.l*lv0 + hs[1].l*g1.l*lv1 + hs[2].l*g2.l*lv2 + hs[3].l*g3.l*lv3;
+        float wetR = hs[0].r*g0.r*lv0 + hs[1].r*g1.r*lv1 + hs[2].r*g2.r*lv2 + hs[3].r*g3.r*lv3;
         float w = mixSm_.process(loooop::normalizedControl(
             getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
         setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);

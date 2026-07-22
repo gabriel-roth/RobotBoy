@@ -543,8 +543,10 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             double winStart, winLen;
             windowBounds(h, winStart, winLen);
             float l, r; readHead(h, winStart, winLen, l, r);
-            heads[i].l = l * h.levelSm;
-            heads[i].r = r * h.levelSm;
+            // Full-level: Level is a mix-only gain, applied by the hosts (and
+            // the mono process() below) via smoothedLevel().
+            heads[i].l = l;
+            heads[i].r = r;
             advanceHead(h, i, winStart, winLen);
         }
     }
@@ -554,7 +556,7 @@ float LoopEngine::process(float in) {
     std::array<HeadOut, NUM_HEADS> hs;
     process(in, in, hs);
     float out = 0.f;
-    for (const auto& o : hs) out += o.l;
+    for (int i = 0; i < numHeads_; ++i) out += hs[i].l * heads_[i].levelSm;
     return out;
 }
 

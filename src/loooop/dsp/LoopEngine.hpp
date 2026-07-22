@@ -24,7 +24,9 @@ public:
     // content in the buffer (see the clear() comment for why that matters).
     void setSampleRate(float sampleRate);
     void process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads);
-    float process(float in);      // mono convenience: inL=inR=in, returns summed head L
+    // Mono convenience: inL=inR=in, returns the level-weighted sum of head L
+    // (mix-like, no pan) — mirrors the hosts' Mix path.
+    float process(float in);
 
     // Momentary toggle: record <-> stop/overdub. continueOverdub only affects
     // the toggle that CLOSES the initial recording pass: when true (and overdub
@@ -37,9 +39,9 @@ public:
     void setGrid(int segments);   // snap windows to N equal loop segments; <2 = off
     void setGridExclude(int head, bool exclude);   // head ignores the grid entirely
 
-    // Overdub write mode (F1). Add must stay index 0: the MetaModule patch
-    // loader zero-inits unset alt-params, so pre-existing patches must land
-    // on the legacy sum-into-buffer behavior.
+    // Overdub write mode (F1). These enum values are engine-internal: hosts
+    // map their UI/alt-param index through loooop::overdubWriteMode, whose
+    // index 0 = Layer is the fresh-patch default on both hosts.
     enum class WriteMode { Add = 0, Replace = 1, Layer = 2, Decay = 3 };
     // Hot path: applyOverdub calls this every sample. Keep the no-op case
     // inline; only a real mode change drops out-of-line to reseed the filter.
@@ -55,8 +57,15 @@ public:
     void setSpeed(int head, float x);        // 1=normal, <0=reverse
     void setPosition(int head, float c01);   // sub-loop centre, 0..1
     void setSize(int head, float s01);       // sub-loop size, 0..1
-    void setLevel(int head, float g);        // output gain, 0..1
+    void setLevel(int head, float g);        // mix gain, 0..1 (head outs stay full-level)
     void setJitter(int head, float j01);     // window wander amount, 0..1
+
+    // Smoothed Level the hosts apply to this head's Mix contribution. Level is
+    // mix-only: the per-head outputs carry the full-level signal so a head can
+    // be removed from the Mix (Level CCW) while still feeding its own outs.
+    float smoothedLevel(int head) const {
+        return (head >= 0 && head < numHeads_) ? heads_[head].levelSm : 0.f;
+    }
 
     // Trigger-jack operations (hosts translate jack edges into these calls)
     void restartHead(int head);           // snap to window start (direction-aware)
