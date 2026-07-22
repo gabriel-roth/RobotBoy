@@ -1,7 +1,8 @@
 #include <rack.hpp>
 
 // Combined registration entry defined in src/plugin.cpp under METAMODULE_BUILTIN.
-// Registers all four modules (native Loooop/Löp cores + MF-20/Particules adapter).
+// Registers all eight modules (native Loooop/Löp cores + the MF-20, Onbetap,
+// Particules, Ondes, Vespid, and Retours VCV adapters).
 void init_RobotBoy(rack::Plugin* p);
 
 #ifndef SIMULATOR

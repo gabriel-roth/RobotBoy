@@ -48,7 +48,7 @@ A stereo RAM looper: capture a loop, then play it back with four independent pla
 
 ## Filters
 
-<img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
+<img src="screenshots/MF20Filter.png" alt="MF-20 module" height="300">
 <img src="screenshots/Onbetap.png" alt="Onbetap module" height="300">
 <img src="screenshots/Vespid-c.png" alt="Vespid module (charcoal)" height="300">
 <img src="screenshots/Vespid-y.png" alt="Vespid module (gold)" height="300">

@@ -203,14 +203,16 @@ struct Loooop : Module {
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             outputs[HEAD1_L_OUTPUT + 2 * h].setVoltage(hs[h].l * 5.f);
             outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
-            // Pan is a balance on each head's contribution to the mix only;
-            // the individual head outputs above are unaffected. Center = unity.
+            // Level and Pan shape each head's contribution to the mix only;
+            // the individual head outputs above are unaffected. Pan center =
+            // unity balance.
             const float pan = panSm[h].process(loooop::panControl(
                 params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
                 inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
             const float gL = loooop::panLeftGain(pan);
             const float gR = loooop::panRightGain(pan);
-            wetL += hs[h].l * gL; wetR += hs[h].r * gR;
+            const float lvl = engine.smoothedLevel(h);
+            wetL += hs[h].l * lvl * gL; wetR += hs[h].r * lvl * gR;
         }
         const float w = mixSm.process(loooop::normalizedControl(
             params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));

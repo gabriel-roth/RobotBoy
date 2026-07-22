@@ -117,9 +117,9 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 
 ---
 
-## 6. Onbetap — "Feral lead" (drive-vs-resonance, moving self-osc onset, Tuning sliders)
+## 6. Onbetap — "Feral lead" (drive-vs-resonance, moving self-osc onset)
 
-**Tests:** the Polivoks signature behaviors — **drive suppresses resonance**, **self-osc onset moves with cutoff**, relaxation-regime harshness — plus the **Tuning** menu sliders (this is a find-a-value patch).
+**Tests:** the Polivoks signature behaviors — **drive suppresses resonance**, **self-osc onset moves with cutoff**, relaxation-regime harshness.
 
 **Modules:** Fundamental SEQ3 → Fundamental VCO (saw) → Onbetap (mono). Fundamental ADSR → Q CV.
 
@@ -134,14 +134,7 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 - **Self-osc onset moves with cutoff.** Input silent, Drive low. Find the Q position where self-oscillation just starts at cutoff \~200 Hz (should be around 3/4 travel). Now raise cutoff to \~5 kHz without touching Q — the filter should already be singing, because onset comes *earlier* at high cutoff. Sweep cutoff up and down and listen to oscillation appearing/disappearing at fixed Q.
 - **Relaxation regime.** Q maxed, Drive high, cutoff low-mid: the self-oscillation may drop into a lower-pitched, harsher, buzzier mode than the filter's ringing frequency — the "suddenly harsh" Polivoks misbehavior. It should sound alarming but stay bounded (no runaway level).
 
-**Find a value (Tuning sliders):** while the sequence runs, open the menu and adjust by ear:
-
-- **Drive span** (24–48 dB, default 36): does the Drive knob's useful range feel right? If everything past noon is mush, try a smaller span; if you have to crank it to hear grit, larger.
-- **Core headroom** (0.5–2×, default 1×): with Drive at \~30%, the tone should be *mostly* clean with hair on it. Adjust so "clean" and "driven" both live on the knob.
-- **Self-osc onset trim** (±0.1): set Q to exactly 75% at 500 Hz cutoff — oscillation should be *just* starting. Trim until it does.
-- **Output trim** (±12 dB): match bypass loudness (mute/unmute the module in a mixer) at Drive \~30%, Q \~50%.
-
-Note all four values in the checklist at the bottom of this file.
+**Menu check:** the Tuning sliders this patch originally value-found (Drive span, Core headroom, Self-osc onset trim, Output trim) have since been baked in and removed (onset trim shipped as a 0.045 constant). The context menu now holds only **Character** (Tamed/Vintage), **Resonance limiting** (Soft default / Hard), and **Oversampling** (1×/2× default/4×) — confirm those three are all that's there, and that the baked values still pass the ear tests above (Drive knob's useful range, "clean with hair" at \~30% Drive, onset in the top fifth of Q travel at typical cutoffs (earlier at high cutoff), roughly bypass-matched loudness).
 
 ---
 
@@ -161,48 +154,48 @@ Note all four values in the checklist at the bottom of this file.
 
 - **No bass loss check (LP):** crank Q to 85% on the LP mode — the pad's low end should stay planted under the resonance rather than thinning out. This is a Polivoks trait; most SVFs lose bass here.
 - **Vintage character:** switch Character → **Vintage**. Within \~30 seconds you should hear the stereo image come alive — L and R cutoffs drifting independently (slow, seasick detune of the filter color), and mode changes now *click* hard (unfaded, authentic). Sweep cutoff fast (grab the knob and yank) and listen for the DC **thump** — like the real panel switch. Reload the patch: the drift should evolve *identically* (it's seeded). Switch back to Tamed and the image should freeze solid again.
-- **Resonance limiting (Hard vs Soft):** silence the VCOs, Q to max, let it self-oscillate. A/B Hard vs Soft: pitch should differ audibly (Soft oscillates noticeably higher — roughly 310 vs 360 Hz territory under like conditions), and behavior right at onset should feel slightly different; the *timbre* difference is intentionally subtle. Pick the one you prefer as the shipping default and note it.
+- **Resonance limiting (Hard vs Soft):** silence the VCOs, Q to max, let it self-oscillate. A/B Hard vs Soft: pitch should differ audibly (Soft oscillates noticeably higher — roughly 310 vs 360 Hz territory under like conditions), and behavior right at onset should feel slightly different; the *timbre* difference is intentionally subtle. **Soft** shipped as the default — confirm it still sounds like the right call.
 - **Oversampling:** Drive to max, cutoff \~8 kHz, high-pitched saw input. A/B 1× / 2× / 4×: at 1× listen for inharmonic aliasing "birdies" under the distortion (frequencies that sweep *down* when you play *up*); 2× should mostly clean them; 4× should be clean. Confirm 2× is an acceptable default on musical material.
 
 ---
 
-## 8. Yellowjacket — "Wasp sting" (the CMOS rasp, Mix morph, Tame vs Screaming)
+## 8. Vespid — "Wasp sting" (the CMOS rasp, Mix morph, British vs German)
 
-**Tests:** the Wasp's signature nasal aggression, LP/BP/HP + **Mix** crossfade output with CV, Drive CV, **Character: Tame vs Screaming**.
+**Tests:** the Wasp's signature nasal aggression, LP/BP/HP + **Mix** crossfade output with CV, Drive CV, **Character: British vs German**.
 
-**Modules:** Fundamental SEQ3 → Fundamental VCO (square) → Yellowjacket. Fundamental ADSR → Freq CV; Fundamental LFO → Mix CV.
+**Modules:** Fundamental SEQ3 → Fundamental VCO (square) → Vespid. Fundamental ADSR → Freq CV; Fundamental LFO → Mix CV.
 
 **Patch:**
 
-1. Sequence a mid-tempo bass/lead line; square wave → Yellowjacket In L. Freq \~300 Hz, Res \~60%, Drive \~40%.
+1. Sequence a mid-tempo bass/lead line; square wave → Vespid In L. Freq \~300 Hz, Res \~60%, Drive \~40%.
 2. ADSR (snappy) → Freq CV, attenuverter \~+50%.
 3. Take the **BP output** first.
 
-**What to hear:** this is the character test. The Wasp doesn't sound like a Moog or an SVF-textbook filter — the CMOS inverter core adds a **buzzy, nasal, slightly fizzy rasp** even at moderate settings, most obvious on the BP output: hollow and aggressive at once, like the filter is spitting. Compare directly against Fundamental VCF (same input, same cutoff/res, BP out) — the Fundamental should sound polite and glassy; Yellowjacket should sound like it's working an attitude. If they sound alike, the nonlinearity isn't doing its job.
+**What to hear:** this is the character test. The Wasp doesn't sound like a Moog or an SVF-textbook filter — the CMOS inverter core adds a **buzzy, nasal, slightly fizzy rasp** even at moderate settings, most obvious on the BP output: hollow and aggressive at once, like the filter is spitting. Compare directly against Fundamental VCF (same input, same cutoff/res, BP out) — the Fundamental should sound polite and glassy; Vespid should sound like it's working an attitude. If they sound alike, the nonlinearity isn't doing its job.
 
 - **Mix output morph:** switch to the **Mix** output and patch a slow LFO into **Mix CV**. The tone should sweep continuously LP → notch → HP — at the midpoint, a hollow scooped sound (notch), not silence and not a bandpass. Musically: a slow, phasery "opening up" gesture over the sequence.
-- **Tame vs Screaming:** Res to max, input still running. **Tame** (+5 V rails, the 1978 board): the filter should sit *at the verge* — whistling and chirping along with the notes, resonance singing on transients but never taking off on its own. Kill the input: the whistle should die. **Screaming** (+12 V rails, the Doepfer A-124 mod): same settings, the filter should cross into genuine self-oscillation and keep singing after the input stops, loud but bounded by the rails. This A/B is the module's party trick — verify both halves.
+- **British vs German:** Res to max, input still running. **British** (+5 V rails, the 1978 board): the filter should sit *at the verge* — whistling and chirping along with the notes, resonance singing on transients but never taking off on its own. Kill the input: the whistle should die. **German** (+12 V rails, the Doepfer A-124 mod): same settings, the filter should cross into genuine self-oscillation and keep singing after the input stops, loud but bounded by the rails. This A/B is the module's party trick — verify both halves.
 - **Find a value (Input trim / Output level, ±12 dB):** with a ±5 V square in, Drive at minimum, the filter should be clean; with Drive up it should snarl. If it's already snarling at zero Drive, pull Input trim down. Match bypass loudness with Output level. Note both.
 
 ---
 
-## 9. Yellowjacket — "Screaming voice" (self-osc tracking, Inverter bandwidth, Accuracy, oversampling)
+## 9. Vespid — "Singing voice" (self-osc tracking, Accuracy, oversampling)
 
-**Tests:** playing the self-oscillation as a voice, **Self-oscillation pitch** (hardware drift vs corrected 1 V/oct), **Inverter bandwidth** value-finding, **Accuracy**, **Oversampling**.
+**Tests:** playing the self-oscillation as a voice, **Self-oscillation pitch** (hardware drift vs corrected 1 V/oct), **Accuracy**, **Oversampling**.
 
-**Modules:** Fundamental SEQ3 (or MIDI-CV) → Yellowjacket Freq CV. No audio input at all.
+**Modules:** Fundamental SEQ3 (or MIDI-CV) → Vespid Freq CV. No audio input at all.
 
 **Patch:**
 
-1. Character **Screaming**, Res max, no input. The filter is now an oscillator.
+1. Character **German**, Res max, no input. The filter is now an oscillator.
 2. Sequence a simple melody into **Freq CV** (attenuverter full / 1 V/oct).
 
 **What to hear:**
 
 - **Self-oscillation pitch = corrected 1 V/oct:** the melody should play in tune across 3–4 octaves — a hollow, slightly gritty sine lead. Check octaves against a reference VCO.
 - **Hardware-accurate mode:** the same melody should now drift and detune the way the real circuit does — intervals compress/stretch, especially at the extremes. Musically it should sound "vintage out-of-tune," not broken. This A/B tells us the option is worth its menu space.
-- **Find a value (Inverter bandwidth, 60–300 kHz):** this tunes how eagerly the core self-oscillates and how bright the rasp is. Sweep it while the patch runs: too low and Screaming mode may refuse to sing or sound dull; too high and Tame mode may tip into unwanted self-osc. Find the value where **Tame just barely doesn't self-oscillate at max Res** and **Screaming sings confidently** — that's the shipping default. Note it.
-- **Accuracy (Standard vs High):** A/B on this patch and on patch 8 at high Drive. If you can't hear a difference, Standard wins (it's cheaper on MM). If High sounds cleaner at the top of the Res range, note where.
+- **Inverter bandwidth:** resolved — the menu slider is gone; the value is baked per character (British 60 kHz, German 50 kHz), chosen exactly so **British just barely doesn't self-oscillate at max Res** and **German sings confidently**. Confirm both halves of that promise here.
+- **Accuracy (Standard vs High):** **High** shipped as the default. A/B against Standard on this patch and on patch 8 at high Drive — if High sounds cleaner at the top of the Res range, that's the default earning its keep (Standard remains the cheaper fallback on MM).
 - **Oversampling (Auto/1×/2×/4×):** as with Onbetap — high Drive, high Freq, listen for aliasing birdies at 1×, confirm Auto picks something clean.
 
 ---
@@ -272,42 +265,42 @@ Note all four values in the checklist at the bottom of this file.
 
 ## 13. Retours — "Tape doppler delay" (manual time, Time-change response, quality, find slew value)
 
-**Tests:** manual Density→time mapping, TIME multiplier, **doppler pitch bends**, **Time change response (Tape vs Crossfade)**, **Doppler slew** value-finding, per-quality feedback, single vs multi-tap.
+**Tests:** manual Interval→time mapping, TIME multiplier, **doppler pitch bends**, **Time change response (Tape vs Crossfade)**, **Doppler slew** value-finding, per-quality feedback, single vs multi-tap.
 
 **Modules:** Macro Oscillator 2 (Plaits) or Fundamental VCO+ADSR+VCA (sparse plucky notes) → Retours. Fundamental LFO for Time modulation.
 
 **Patch:**
 
 1. Sparse melodic plucks → **In L**. Dry/Wet \~50%. Feedback \~40%. Shape fully CCW (plain repeats). Pitch at noon (bypass). No clock patched — manual mode.
-2. Density \~10 o'clock (CCW side = single tap): medium delay time. TIME \~9 o'clock (1× the base time).
+2. Interval \~10 o'clock (CCW side = single tap): medium delay time. TIME \~9 o'clock (1× the base time).
 
 **What to hear:** a straightforward, clean delay. Now the tests:
 
 - **Doppler (the headline):** grab the TIME knob and turn it while repeats are sounding. In **Tape (doppler)** mode the echoes should *pitch-bend* like varispeeding a tape machine — swooping down when you lengthen, up when you shorten — with no clicks. Patch a slow sine LFO into **Time CV** (small amount) for continuous chorus/tape-warble on the repeats. Then switch the menu to **Crossfade** and repeat: time changes should now be pitch-neutral and click-free but "jump" rather than swoop. Both modes must be artifact-free; they should just *feel* completely different (tape machine vs. digital delay).
 - **Find a value (Doppler slew, 0.01–1 s):** in Tape mode, wiggle TIME hard. Small slew = fast, chirpy bends; large = long lazy swoops. Find the value where a hand-turned knob sounds like a real tape echo's varispeed (musical swoop, not a comedy pitch drop). Note it — this slider doesn't exist on MM, so this becomes the baked-in feel.
-- **Multi-tap:** move Density to the **CW** side of noon at a similar distance. A second, unevenly spaced tap should appear — repeats go from "ping… ping…" to a galloping, syncopated pattern. Confirm the CCW side stays single-tap.
+- **Multi-tap:** move Interval to the **CW** side of noon at a similar distance. A second, unevenly spaced tap should appear — repeats go from "ping… ping…" to a galloping, syncopated pattern. Confirm the CCW side stays single-tap.
 - **Quality + feedback:** Feedback to \~75%. On **Bright digital** the regeneration should stack up clean and finally brickwall gracefully. On **Sunny tape / Scorched cassette** each repeat should get progressively darker and more saturated — a self-degrading echo that fades into warm murk (Scorched adds wow/flutter warble to the tail). This per-quality decay character is the point of the Quality switch on a *delay*.
-- **Find a value (Random LFO rate, 0.02–2 Hz):** turn the TIME attenurandomizer CCW with nothing in Time CV — the delay time should wander slowly (tape-mechanism instability). Tune the menu slider so it reads as "old tape deck," not vibrato. Note it. (Also check **Input trim** ±12 dB if hot sources distort the input stage.)
+- **Random LFO rate:** resolved — the menu slider is gone; the rate is baked at 0.1 Hz. Turn the TIME attenurandomizer CCW with nothing in Time CV — the delay time should wander slowly (tape-mechanism instability) and read as "old tape deck," not vibrato. (Also check **Input trim** ±12 dB if hot sources distort the input stage — that slider and **Doppler slew** are the only two menu sliders left.)
 
 ---
 
-## 14. Retours — "Clocked slicer & shimmer" (clock sync, Shape, Freeze slicer, pitch feedback, Karplus-Strong)
+## 14. Retours — "Clocked slicer & shimmer" (clock sync, Shape, Slice, pitch feedback, Karplus-Strong)
 
-**Tests:** clocked mode + subdivisions, tap tempo, **Shape** tempo-synced envelope, **Freeze beat-slicer** with TIME as slice selector, **Pitch** shifter in the feedback path (shimmer), **Envelope feedback tap**, audio-rate Karplus-Strong.
+**Tests:** clocked mode + subdivisions, tap tempo, **Shape** tempo-synced envelope, **Slice** beat-slicer with TIME as slice selector, **Pitch** shifter in the feedback path (shimmer), **Envelope feedback tap**, audio-rate Karplus-Strong.
 
 **Modules:** Fundamental SEQ3 (clock + melody) → 4ms Djembe (rhythmic source) → Retours. For Karplus: any trigger + SEQ3 pitch CV.
 
 **Patch (rhythmic half):**
 
-1. SEQ3 clock → Djembe trigger *and* → Retours **Seed/Clock input**. Djembe → In L. Dry/Wet \~50%, Feedback \~50%.
-2. Density at noon = repeats at exactly 1/1 with the clock; turn CCW for locked binary subdivisions (1/2, 1/4 — echoes in perfect eighth/sixteenth time), CW for the wider ratio set (triplety 1/3, 1/6 feels). The delay should stay locked if you nudge the SEQ3 tempo. Tap the **Seed button** in time instead of patching the clock and confirm tap tempo works (light blinks the base time).
+1. SEQ3 clock → Djembe trigger *and* → Retours **Clock input**. Djembe → In L. Dry/Wet \~50%, Feedback \~50%.
+2. Interval at noon = repeats at exactly 1/1 with the clock; turn CCW for locked binary subdivisions (1/2, 1/4 — echoes in perfect eighth/sixteenth time), CW for the wider ratio set (triplety 1/3, 1/6 feels). The delay should stay locked if you nudge the SEQ3 tempo. Tap the **Tap tempo button** in time instead of patching the clock and confirm tap tempo works (light blinks the base time).
 3. **Shape:** sweep it up from CCW. The flat echo tail should become *pumping*, tempo-synced repeats — rectangular gating first, then soft breathing swells fully CW. This should stay phase-locked to the beat.
-4. **Freeze slicer:** engage **Freeze** (button or gate). Recording stops; now turn **TIME** — it should step between *slices* of the recent audio, each one beat long, looping cleanly. Musically: an instant beat-repeat/roll effect you can play with one knob. Density subdivision stays live while frozen.
-5. **Shimmer:** unfreeze. Set Pitch to **+12 st** (it should click into the notch) with Feedback \~65%. Each repeat should climb an octave — the classic shimmer staircase, rising into sparkle before the limiter tames it. At noon, confirm the shifter is *truly bypassed* (repeats bit-identical in tone, no chorus blur). Try −12 for descending darkness. Then A/B **Envelope feedback tap** (post vs pre): with Shape up and high feedback, "post" should feed the *shaped* repeats back (rhythm reinforces itself), "pre" should keep the envelope cosmetic (tails stay full under the pumping).
+4. **Beat slicer:** engage **Slice** (button or gate). Recording stops; now turn **TIME** — it should step between *slices* of the recent audio, each one beat long, looping cleanly. Musically: an instant beat-repeat/roll effect you can play with one knob. Interval subdivision stays live while Slice is engaged.
+5. **Shimmer:** disengage Slice. Set Pitch to **+12 st** (it should click into the notch) with Feedback \~65%. Each repeat should climb an octave — the classic shimmer staircase, rising into sparkle before the limiter tames it. At noon, confirm the shifter is *truly bypassed* (repeats bit-identical in tone, no chorus blur). Try −12 for descending darkness. Then A/B **Envelope feedback tap** (post vs pre): with Shape up and high feedback, "post" should feed the *shaped* repeats back (rhythm reinforces itself), "pre" should keep the envelope cosmetic (tails stay full under the pumping).
 
 **Patch (Karplus-Strong coda):**
 
-6. Remove the clock cable (back to manual). Density fully CCW-ish to reach audio-rate base times, Feedback \~85%, quality Bright. Feed a single short click/trigger into In L (a bare SEQ3 gate works). You should hear a *plucked string*. Patch SEQ3 pitch CV → **Density CV** (it's V/oct at audio rates) and sequence it — a playable Karplus-Strong voice. Check tuning stability over a couple of octaves and that high feedback sustains without blowing up.
+6. Remove the clock cable (back to manual). Interval fully CCW-ish to reach audio-rate base times, Feedback \~85%, quality Bright. Feed a single short click/trigger into In L (a bare SEQ3 gate works). You should hear a *plucked string*. Patch SEQ3 pitch CV → **Interval CV** (it's V/oct at audio rates) and sequence it — a playable Karplus-Strong voice. Check tuning stability over a couple of octaves and that high feedback sustains without blowing up.
 
 ---
 
@@ -321,7 +314,7 @@ Run one identical signal into all three Robot Boy filters plus a reference, swit
 | **MF-20 (OTA)** | Smooth, open, creamy resonance; drive rounds it off |
 | **MF-20 (Korg35)** | Same family but edgier, asymmetric rasp under drive |
 | **Onbetap** | Growly and organic; resonance *ducks* as you push level; bass stays planted at high Q |
-| **Yellowjacket** | Nasal, buzzy, fizzy CMOS attitude even at moderate settings; BP output is the fingerprint |
+| **Vespid** | Nasal, buzzy, fizzy CMOS attitude even at moderate settings; BP output is the fingerprint |
 
 If any two of these are hard to tell apart in a blind A/B at high resonance + drive, that's a finding worth reporting.
 
@@ -329,20 +322,20 @@ If any two of these are hard to tell apart in a blind A/B at high resonance + dr
 
 ## Value-finding checklist
 
-Fill these in during patches 6, 8, 9, and 13; they become shipping defaults (several sliders are VCV-desktop-only, so MM users get exactly these numbers).
+Fill these in during patches 8 and 13; they become shipping defaults (several sliders are VCV-desktop-only, so MM users get exactly these numbers). Rows marked **resolved** were found in earlier passes and baked into the code — their sliders no longer exist; they're kept here as the record of what shipped.
 
 | Module | Menu parameter | Range (default) | Found value |
 |---|---|---|---|
-| Onbetap | Drive span | 24–48 dB (36) | |
-| Onbetap | Core headroom | 0.5–2× (1×) | |
-| Onbetap | Self-osc onset trim | ±0.1 (0) | |
-| Onbetap | Output trim | ±12 dB (0) | |
-| Onbetap | Resonance limiting | Hard/Soft (Hard) | |
+| Onbetap | Drive span | 24–48 dB (36) | Resolved — baked, slider removed |
+| Onbetap | Core headroom | 0.5–2× (1×) | Resolved — baked, slider removed |
+| Onbetap | Self-osc onset trim | ±0.1 (0) | Resolved — baked at 0.045, slider removed |
+| Onbetap | Output trim | ±12 dB (0) | Resolved — baked, slider removed |
+| Onbetap | Resonance limiting | Hard/Soft (Soft) | Resolved — Soft shipped as default |
 | Onbetap | Oversampling default | 1×/2×/4× (2×) | |
-| Yellowjacket | Input trim | ±12 dB | |
-| Yellowjacket | Output level | ±12 dB | |
-| Yellowjacket | Inverter bandwidth | 60–300 kHz | |
-| Yellowjacket | Accuracy default | Standard/High | |
+| Vespid | Input trim | ±12 dB | |
+| Vespid | Output level | ±12 dB | |
+| Vespid | Inverter bandwidth | 60–300 kHz | Resolved — baked per character (British 60 / German 50 kHz), slider removed |
+| Vespid | Accuracy default | Standard/High | Resolved — High shipped as default |
 | Retours | Input trim | ±12 dB (0) | |
 | Retours | Doppler slew | 0.01–1 s | |
-| Retours | Random LFO rate | 0.02–2 Hz | |
+| Retours | Random LFO rate | 0.02–2 Hz | Resolved — baked at 0.1 Hz, slider removed |

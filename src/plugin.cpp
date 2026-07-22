@@ -28,7 +28,7 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelRetours);
 }
 #else
-// VCV Rack build: standard single init() registering all six modules.
+// VCV Rack build: standard single init() registering all eight modules.
 Plugin* pluginInstance;
 void init(Plugin* p) {
 	pluginInstance = p;

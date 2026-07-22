@@ -38,9 +38,9 @@ Feedback sends the delayed signal back to be recorded again, so it repeats and d
 
 ### Repeat character
 
-*Shape:* A tempo-synced envelope drawn over each repeat. Fully counter-clockwise (off) leaves the echoes untouched — a normal delay. Turning it up morphs the envelope through three stages: first a **gate** that chops each repeat shorter and shorter (rhythmic, gated echoes), then a smooth **Hann swell** (each repeat fades in and out), and finally a **slow ramp** that swells across the whole repeat and resets sharply — a reversed-sounding bloom. The envelope's period follows the delay time and re-syncs to incoming clock ticks, so the chopping stays locked to tempo.
+*Shape:* A tempo-synced envelope drawn over each repeat. Fully counter-clockwise (off) leaves the echoes untouched — a normal delay. Turning it up morphs the envelope through three stages: first a **gate** that chops each repeat shorter and shorter (rhythmic, gated echoes), then a smooth **Hann swell** (each repeat fades in and out), and finally a **slow ramp** that swells across the whole repeat and resets sharply — a reversed-sounding bloom. The envelope's period follows the base Interval (before the Time multiplier — the same as the full delay time when Time is at 1×) and re-syncs to incoming clock ticks, so the chopping stays locked to tempo.
 
-*Feedback:* How much of the delayed signal is fed back to be recorded again — from a single echo up to long, piling repeats and runaway self-oscillation. Each Quality setting limits feedback differently, from a clean brickwall to grungy tape saturation.
+*Feedback:* How much of the delayed signal is fed back to be recorded again — from a single echo up to long, piling repeats and runaway self-oscillation. The small arrow at 90% of the knob's travel marks exact unity gain: below it, repeats decay; above it (up to 1.1×), they build with every pass. The feedback path is limited to keep runaway in check: Cold rounds the peaks off with a soft clip and Sunny squashes them with an asymmetric tape-style curve, while Bright and Scorched simply hard-clip — Scorched's grunge comes from its µ-law storage, not its limiter.
 
 ### Slice
 
@@ -54,23 +54,23 @@ Feedback, Dry/Wet, Time, Pitch, and Shape each have their own **CV input** and a
 
 ### Quality
 
-The **Quality** button (top center, with the multicolor LED) cycles through four recording characters — the same four as Particules. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. Because the feedback loop re-records through this stage on every pass, the lower-quality modes get dirtier the longer the echoes last. The recording rate is a fixed division of your engine's sample rate; the figures below are what that works out to at 48 kHz:
+The **Quality** button (top center, with the multicolor LED) cycles through four recording characters — the same four as Particules. Each changes the recording sample rate, bit depth, and buffer length (Cold and Sunny also color the feedback limiter — see Feedback above). Because the feedback loop re-records through this stage on every pass, the lower-quality modes get dirtier the longer the echoes last. The recording rate is a fixed division of your engine's sample rate; the figures below — buffer lengths included, since the buffer holds a fixed number of frames — are what that works out to at 48 kHz (at a 96 kHz engine rate, all the lengths halve):
 
 *Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit or better — cleanest and brightest. 4-second buffer.
 
 *Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain. 8-second buffer.
 
-*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle wow — warm tape. 16-second buffer.
+*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle (half-depth) wow and flutter — warm tape. 16-second buffer.
 
 *Scorched cassette* (magenta LED): rate ÷ 2 (24 kHz at 48 kHz), true 8-bit µ-law, tape hiss, wow and flutter — crunchy lo-fi. 32-second buffer.
 
-All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. Lower-quality settings trade brightness for a **longer buffer**, so the longest available delay time actually grows as the sound gets grungier. Quality can't be changed while Slice is engaged.
+All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. Lower-quality settings trade brightness for a **longer buffer**, so the longest available delay time actually grows as the sound gets grungier. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the right-click menu (or the MetaModule switch) does change the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
 
 ### The trimpots (Time · Pitch · Shape)
 
 Below **Time, Pitch,** and **Shape** sits a small trimpot that does one of two things, exactly as on Particules:
 
-- **With a CV cable patched** into that parameter's input: it's an attenuverter for the CV. From center, turn **clockwise for more external modulation**; turn **counter-clockwise to instead spread the value randomly** around the knob position, scaled by the CV.
+- **With a CV cable patched** into that parameter's input: it's an attenuator for the CV (there's no inverting range — the counter-clockwise half does something else). From center, turn **clockwise for more external modulation**; turn **counter-clockwise to instead spread the value randomly** around the knob position, scaled by the CV.
 - **With nothing patched:** it sets how much that parameter drifts on its own from an internal slow-random source. Center is no movement. Counter-clockwise gives a *peaky* wander (mostly near the knob setting, extremes rare); clockwise gives a wide, *uniform* wander.
 
 The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV inputs, not randomizers.
@@ -78,7 +78,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 ### Lights
 
 - The **Slice** button lights when Slice is active.
-- The **Clock** light (center, between the knobs) blinks once per delay period — a visual metronome of the current repeat time.
+- The **Clock** light (center, between the knobs) blinks once per base Interval (before the Time multiplier) — a visual metronome of the underlying tempo, matching the full delay period when Time is at 1×.
 
 ---
 
@@ -105,7 +105,7 @@ Retours can run free or lock to a clock.
 - **Nothing patched into Clock, and no taps** — *free-running.* Interval sets the delay time directly, as described above.
 - **A clock patched into Clock, or tapping the Clock button** — *clocked.* Retours measures the tempo and Interval becomes a **musical divider/multiplier** of it: straight up is 1:1 (one repeat per beat), counter-clockwise gives simple divisions (1/2, 1/4, 1/8, 1/16), and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer). Time then multiplies that by a snapped musical factor. The Shape envelope re-syncs to every clock tick, so gated and swelling repeats stay in time.
 
-The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. Retours abandons a tapped or clocked tempo if the clock stops for a few seconds or you move Interval far enough, dropping back to free-running.
+The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. With nothing patched into Clock, Retours abandons a tapped tempo if the taps stop for a few seconds or you move Interval far enough, dropping back to free-running. While a cable is patched into Clock, Retours stays clocked at the last measured tempo — even if the clock stops — until you unpatch it.
 
 ---
 

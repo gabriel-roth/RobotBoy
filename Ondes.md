@@ -20,9 +20,9 @@
 
 ## The wavetable set
 
-- **Banks 0–7** — mild / additive: sines, combs, pairs, triangles, drawbars.
-- **Banks 8–15** — formant-flavoured: trisaw, burst, formant, pulse, sine^n.
-- **Banks 16–23** — Braids imports: Male, Choir, Digi, Drone, Metal, Fant.
+- **Banks 0–7** — mild / additive: sines, quadra waves, combs, pairs, triangles, drawbars.
+- **Banks 8–15** — formant-flavoured: trisaw, sawtri, burst, formant, pulse, sine^n.
+- **Banks 16–23** — Braids imports: Male, Choir, Digi, Drone, Metal, Fant, plus two banks of Braids extras.
 
 ---
 

@@ -261,7 +261,7 @@ struct Particules : Module {
 		manual_gain_db_      = 0.f;
 		needs_calibration_   = true;
 		clear_requested_.store(false);   // reset clears now; drop any queued menu clear
-		processor_.ClearBuffer();   // 4 s buffer, feedback path, reverb tail
+		processor_.ClearBuffer();   // recording buffer only (not feedback path or reverb tail)
 		ResetControlConditioners();
 	}
 
