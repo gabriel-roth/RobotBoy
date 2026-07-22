@@ -3,18 +3,27 @@
 ## [Unreleased]
 
 - **Particules/Retours** — recording buffer now packs samples at true bit width and channel count — Sunny/Scorched run at 24 kHz with real 12-bit/8-bit µ-law storage; mono input doubles buffer length (up to 64 s).
+- **Loooop** — Level is now mix-only, matching the manual: each head's own
+  Out L/R always carries the full-level signal, so a head can be removed from
+  the Mix (Level fully CCW) while still feeding its own outputs.
 - **Onbetap** — Polivoks-style stereo multimode filter, new module.
 - **Vespid** — new module: EDP Wasp-style CMOS state-variable filter, with
   British (original '78 Wasp, verge-of-oscillation) and German (Doepfer A-124
   self-oscillation mod, true self-oscillation) character modes.
 - **Retours** — new module: a delay based on the hidden delay mode of Mutable
   Instruments Beads. Manual, clocked, or tap-tempo base time with
-  subdivisions (DENSITY, down to audio rates for Karplus-Strong playing),
-  delay-time multiplier that becomes a beat slicer under FREEZE (TIME),
+  subdivisions (INTERVAL, down to audio rates for Karplus-Strong playing),
+  delay-time multiplier that becomes a beat slicer under SLICE (TIME),
   rotary-head pitch shifter inside the feedback path (PITCH, ±24 st with
   notches), tempo-synced repeat envelope (SHAPE), per-quality feedback
   limiting, the four Beads quality modes, and slow-random
   attenurandomizers. VCV Rack + MetaModule.
+- **Ondes** — new module: a morphing wavetable oscillator inspired by the
+  wavetable mode of Mutable Instruments Beads. 24 banks of 8 waveforms
+  (derived from Plaits), swept by BANK and POSITION knobs with CV
+  attenuverters and interpolation on both axes, a pitch knob notched at
+  octaves/fifths/unison, a V/oct input, and a live waveform display.
+  VCV Rack + MetaModule.
 - Particules: fixed a macOS-simulator portability issue in the `memalign()`
   usage guard (real firmware and VCV Rack behavior unchanged).
 - **Particules & Retours** — fixed an inverted quality-mode fidelity ladder
