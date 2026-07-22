@@ -65,8 +65,10 @@ inline int gridSegments(int choiceIdx) {
 }
 
 // Engine write mode for an overdub choice index, in the 5-state Overdub order
-// (Layer, Decay, Add, Replace); index 4 (Lock) has no write mode and clamps to
-// Layer. Shared so VCV's Overdub button and MetaModule's Write-mode alt-param
+// (Layer, Decay, Add, Replace). Index 4 (Lock) is never passed here — while
+// Locked the hosts leave the last write mode set (see OverdubControl.hpp);
+// out-of-range indices fall back to Layer.
+// Shared so VCV's Overdub button and MetaModule's Write-mode alt-param
 // map a given index to the same behavior — the write-mode analogue of
 // gridSegments. Both hosts default to index 0 = Layer (MM's alt-param loader
 // zero-inits unset params, so index 0 is the fresh/legacy default).

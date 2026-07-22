@@ -86,7 +86,7 @@ Jack IDs (from `Retours.cpp`'s `enum InputId`/`OutputId`): `IN_L_INPUT=0`,
 `OUT_R_OUTPUT=1` map to `mapped_outs` panel jacks 0/1.
 
 `static_knobs` used in `retours_default.yml`:
-- `param_id: 1` (`DENSITY_PARAM`) = 0.409091
+- `param_id: 1` (`INTERVAL_PARAM`) = 0.409091
 - `param_id: 5` (`FEEDBACK_PARAM`) = 0.3
 
 TIME (`param_id: 2`), PITCH, SHAPE, QUALITY, DRY_WET are left at their

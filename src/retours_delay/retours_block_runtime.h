@@ -53,7 +53,7 @@ public:
         return out;
     }
 
-    // Clock/tap edge tracking: SEED jack (Schmitt) and SEED button edges are
+    // Clock/tap edge tracking: CLOCK jack (Schmitt) and tap-tempo button edges are
     // both noted per sample by the caller; this latches the sample offset of
     // the FIRST rising edge seen within the current block (whichever source
     // reaches it first) into RetoursParameters::clock_tick_offset. Consuming

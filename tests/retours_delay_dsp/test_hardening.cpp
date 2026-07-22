@@ -49,7 +49,7 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
 // sake) — BaseTimeSeconds() is the cleanest observable for this because
 // BaseTimeControl::Update() recomputes it synchronously from
 // buffer_samples_ every block (no slew), unlike DelayTimeSeconds() which
-// one-pole slews toward its target over ~0.08 s.
+// one-pole slews toward its target over ~0.3 s.
 float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
     auto cfg = particules_dsp::QualityConfigFor(quality);
     size_t capacity_bytes =

@@ -49,36 +49,36 @@ You control **how often** grains are born (Density), **where** on the tape they 
 
 Below **Time, Size, Shape,** and **Pitch** sits a small trimpot — the *attenurandomizer*. It does one of two things depending on whether a cable is in that parameter's CV input:
 
-- **With a CV cable patched:** it's an attenuverter for that CV. From center, turn **clockwise for more external modulation**; turn **counter-clockwise to instead spread the value randomly** around the knob position, scaled by the CV.
+- **With a CV cable patched:** it's an attenuator for that CV (there's no inverting range — the counter-clockwise half does something else). From center, turn **clockwise for more external modulation**; turn **counter-clockwise to instead spread the value randomly** around the knob position, scaled by the CV.
 - **With nothing patched:** it sets how much that parameter is randomized from an internal random source. Center is no randomness. Counter-clockwise gives a *peaky* distribution (values clustered near the knob setting, extremes rare); clockwise gives a *uniform* spread (any value equally likely).
 
 This is the main tool for turning a static drone into a living, evolving one — a touch of Size and Pitch randomness goes a long way.
 
-> **Pitch note:** the **Pitch CV input always tracks 1 V/octave** for the grain's root note, regardless of the attenurandomizer. The Pitch attenurandomizer then adds pitch *randomization* on top. So you can sequence or play a melody into Pitch CV and still dial in some pitch scatter.
+> **Pitch note:** the **Pitch CV input is scaled by its attenurandomizer** like the others. Fully clockwise gives exact **1 V/octave** tracking of the grain's root note; at center the CV is ignored; counter-clockwise turns the CV into pitch *randomization* instead. To sequence or play melodies into Pitch CV, set the attenurandomizer fully clockwise.
 
 ### Mixing
 
-*Feedback:* Feeds the processed output back into the recording chain. Each quality setting (see below) limits feedback differently — from a clean brickwall to grungy tape saturation.
+*Feedback:* Feeds the processed output back into the recording chain. The feedback path is limited to keep runaway in check: Cold rounds the peaks off with a soft clip and Sunny squashes them with an asymmetric tape-style curve, while Bright and Scorched simply hard-clip — Scorched's grunge comes from its µ-law storage (see below), not its limiter.
 
 *Dry/Wet:* Balance between your untouched input (dry) and the granular output (wet).
 
-*Reverb:* Amount of built-in reverb on the wet signal.
+*Reverb:* Amount of built-in reverb, applied to the dry/wet mix at the end of the chain (as on hardware Beads) — so even a fully dry mix can reverberate.
 
 Each of these has its own **CV input** and a small **CV-amount trimpot** beside it (unlike the four grain controls, these are plain attenuators, not attenurandomizers).
 
 ### Quality
 
-The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes the recording sample rate, bit depth, buffer length, and the flavor of the feedback limiter. Lower-fidelity modes store samples at reduced bit width, which is what buys the longer buffer (rate and length are independent, as on hardware Beads). The recording rate is a fixed decimation factor of your engine's sample rate, not an absolute number — the figures below are what that factor works out to at a 48 kHz sample rate:
+The **Quality** button (top, with the multicolor LED) cycles through four recording characters. Each changes the recording sample rate, bit depth, and buffer length (Cold and Sunny also color the feedback limiter — see Feedback above). Lower-fidelity modes store samples at reduced bit width, which is what buys the longer buffer (rate and length are independent, as on hardware Beads). The recording rate is a fixed decimation factor of your engine's sample rate, not an absolute number — the figures below are what that factor works out to at a 48 kHz sample rate:
 
 *Bright digital* (white LED): full rate (48 kHz at 48 kHz), 16-bit or better — cleanest and brightest. 4-second buffer.
 
 *Cold digital* (cyan LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit — the classic Mutable *Clouds* grain. 8-second buffer.
 
-*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle wow — warm tape. 16-second buffer.
+*Sunny tape* (amber LED): rate ÷ 2 (24 kHz at 48 kHz), 12-bit, gentle (half-depth) wow and flutter — warm tape. 16-second buffer.
 
 *Scorched cassette* (magenta LED): rate ÷ 2 (24 kHz at 48 kHz), true 8-bit µ-law, tape hiss, wow and flutter — crunchy lo-fi. 32-second buffer.
 
-All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the wet signal and clearing recorded audio. Quality can't be changed while Freeze is engaged.
+All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the wet signal and clearing recorded audio. Changing Quality re-formats it the same way: a quick fade out (about 43 ms), a cleared buffer, and a fade back in. While Freeze is engaged, the Quality button refuses to cycle; choosing a quality from the right-click menu (or the MetaModule switch) does change the selection, but the reformat waits until you release Freeze — either way the frozen audio is protected.
 
 ### Lights
 
@@ -97,7 +97,7 @@ All buffer lengths double when the input is mono (nothing patched into IN R): 8,
 
 *Time / Size / Shape CV:* Modulation for those controls, scaled by their attenurandomizers.
 
-*Pitch CV:* 1 V/octave pitch input for the grain root note (always V/oct; the attenurandomizer adds randomization).
+*Pitch CV:* Pitch input for the grain root note, scaled by its attenurandomizer — exact 1 V/octave with the attenurandomizer fully clockwise; randomization instead when it's counter-clockwise.
 
 *Density CV:* Modulates grain rate / probability.
 
@@ -122,7 +122,7 @@ The **Seed** input, together with the **Seed CV mode** menu option, decides how 
 
 Right-click the panel in VCV Rack, or open Options on MetaModule:
 
-- **Auto gain** — Particules normally sets its own input gain (0 to +32 dB) whenever you patch or unpatch, leaving headroom. Selecting this re-runs calibration; the menu shows the current gain.
+- **Auto gain** — Particules normally sets its own input gain (anywhere from −60 to +32 dB) whenever you patch or unpatch, leaving headroom — quiet sources are boosted and hot ones attenuated (a full-scale ±5 V input lands around −8 dB). Selecting this re-runs calibration; the menu shows the current gain.
 - **Manual gain** — turns auto gain off and lets you set a fixed input gain (0–32 dB). Useful when the source is silent or intermittent and auto gain would otherwise crank up the noise floor.
 - **Input** — a live readout of the input level in dB, shown next to the gain options; reads "silent" below −60 dB. On MetaModule the value is captured at the moment the menu opens rather than updating live.
 - **Seed CV mode** — **Triggers** (default) or **Gates**; see [Seed](#seed-clocking-grains).

@@ -227,9 +227,10 @@ TEST_CASE("ParticulesProcessor: Mode transitions produce no NaN", "[processor][d
 }
 
 TEST_CASE("ParticulesProcessor: LoFi delay mode produces output", "[processor][decimation]") {
-    // Verify LoFi delay mode (8x decimation) works correctly end-to-end.
-    // The buffer-level "Effective duration scales with decimation" test
-    // verifies the >2s retention property directly.
+    // Verify Sunny tape (2x decimation) at size=1.0 — the legacy Beads
+    // "delay mode" — works correctly end-to-end. The buffer-level
+    // "Effective duration scales with decimation" test verifies the >2s
+    // retention property directly.
     TestProcessor tp;
 
     ParticulesParameters params;

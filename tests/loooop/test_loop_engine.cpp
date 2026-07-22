@@ -418,13 +418,18 @@ static void test_mono_convenience_matches_stereo() {
 }
 
 static void test_per_head_outs() {
+    // Level is mix-only: head outs carry the full-level signal regardless of
+    // Level, and the smoothed mix gain is exposed for the hosts.
     LoopEngine e; record_ramp(e, 4);      // soloHead0: heads 1-3 at level 0
     std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
     e.setLevel(1, 0.5f);
     e.process(0.f, 0.f, hs);
-    check(near(hs[0].l, 1.f),  "headouts: head0 at level 1");
-    check(near(hs[1].l, 0.5f), "headouts: head1 scaled by its level");
-    check(near(hs[2].l, 0.f),  "headouts: muted head silent");
+    check(near(hs[0].l, 1.f), "headouts: head0 out full-level");
+    check(near(hs[1].l, 1.f), "headouts: Level does not scale the head out");
+    check(near(hs[2].l, 1.f), "headouts: Level-0 head still on its own out");
+    check(near(e.smoothedLevel(0), 1.f),  "headouts: head0 mix gain 1");
+    check(near(e.smoothedLevel(1), 0.5f), "headouts: mix gain follows Level");
+    check(near(e.smoothedLevel(2), 0.f),  "headouts: Level-0 head muted in mix");
 }
 
 static void test_restart_head() {

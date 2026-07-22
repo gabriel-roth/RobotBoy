@@ -10,6 +10,8 @@ On **Scorched cassette**, the sound comes out very dark/dull ("low-pitched"), hi
 not musical. This document explains what is actually happening and what it would take to
 fix it while honoring the hardware Beads behavior.
 
+*The findings below are historical — file/line references and filter figures reflect the code as it stood on 2026-07-20, before the Resolution. See the Resolution section for what shipped.*
+
 ## Finding 1 — the code and the Particules manual are inverted; the manual is stale
 
 `Particules.md:77-79` documents:
@@ -160,6 +162,7 @@ The buffer decoupling has been implemented for all four modes via **packed stora
 
 **Findings resolved:**
 - **Finding 1** (manual/code mismatch): Manuals updated to reflect the true packed-storage behavior.
+- **Finding 2** (Scorched darkness): Fixed alongside the decoupling (commit `e06d2c0`) — the sample-rate ladder is now ÷1/2/2/2 (Scorched runs at 24 kHz, not 6 kHz) and its input low-pass was retuned from 2.5 kHz to 10 kHz, so the 2.5 kHz filtering described above no longer exists. Acceptance-tested in `7ac4c99` (Scorched brightness, 3–5 kHz passes).
 - **Finding 3** (missing 8-bit quantization): Real µ-law quantization now implemented on Scorched.
 
 Reference: `docs/superpowers/specs/2026-07-16-quality-mode-fidelity-fix-design.md`.

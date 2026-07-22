@@ -11,7 +11,7 @@ full test suite: it only covers what was portable from each source repo.
 cd tests && ./run.sh
 ```
 
-`run.sh` builds and runs every `tests/{mf20,loooop,particules}/test_*.cpp`
+`run.sh` builds and runs every `tests/{mf20,loooop,particules,onbetap,vespid}/test_*.cpp`
 against `../src`, printing PASS/FAIL per assertion and exiting non-zero if
 any binary fails or returns non-zero.
 
@@ -34,16 +34,24 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 Only include paths were changed (pointing at the new `src/` locations);
 test logic and assertions are untouched.
 
+The table above records the original port only. The suite has grown well
+past it since — new modules brought their own tests (currently 16
+`test_*.cpp` files across the five `run.sh` dirs: `mf20/`, `loooop/`,
+`particules/`, `onbetap/`, `vespid/`), plus the Catch2 lanes below. `run.sh`
+picks up new `test_*.cpp` files automatically, so this table is history,
+not the current inventory.
+
 ## Test lanes
 
-This repo has two independent test lanes:
+This repo has three independent test lanes:
 
 - **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
-  and the small Particules pitch-map), plain-assert style, followed by a
+  Particules, Onbetap, Vespid), plain-assert style, followed by a
   `python3 -m unittest discover` pass over `tests/test_*.py` (identity/build
   guard tests — plugin metadata, slug parity between `plugin.json` and
-  `metamodule/plugin-mm.json`, and no-delay-mode symbol removal). Runs
-  anywhere, no build system needed beyond a `python3` on `PATH`.
+  `metamodule/plugin-mm.json`, no-delay-mode symbol removal, and head-color
+  parity between `src/loooop/HeadColors.hpp` and `panel-specs/loooop.yaml`).
+  Runs anywhere, no build system needed beyond a `python3` on `PATH`.
 - **Lane 2 — `tests/particules_dsp/run.sh`** — the Particules granular-DSP
   Catch2 suite (CMake + CTest). Covers the granular / delay / reverb / quality
   / pitch DSP that powers Particules. Catch2 is vendored (amalgamated, v3.5.2),
@@ -51,6 +59,14 @@ This repo has two independent test lanes:
 
   ```
   ./tests/particules_dsp/run.sh
+  ```
+- **Lane 3 — `tests/retours_delay_dsp/run.sh`** — the Retours delay-DSP
+  Catch2 suite, same CMake + CTest + vendored-Catch2 setup as Lane 2. Covers
+  the echo engine, base-time/clocking, slicer, pitch shifter, envelope, and
+  quality modes that power Retours. Run it with:
+
+  ```
+  ./tests/retours_delay_dsp/run.sh
   ```
 
 ## What was intentionally skipped, and why
@@ -88,7 +104,9 @@ This repo has two independent test lanes:
   directories referenced those excluded modules, so there was nothing to
   filter out on that basis.
 
-## Current results
+## Results at port time
 
-All 5 ported test binaries build and pass: 201 `ok:`/`PASS` lines across
-MF-20 (30 + 8), Loooop (2 suites), and Particules — `run.sh` exits 0.
+All 5 ported test binaries built and passed: 201 `ok:`/`PASS` lines across
+MF-20 (30 + 8), Loooop (2 suites), and Particules — `run.sh` exited 0.
+Those counts are a snapshot of the original port; the suite has grown since
+(see above), so run the three lanes for current numbers.

@@ -25,10 +25,12 @@
  *
  * States are clamped at the output-swing rails (Wasp DAFx-2022 result: clamp
  * the STATES, not the output, or high-resonance behavior is wrong):
- *   Hard (factory/Erica): asymmetric hard clamp at +4.4/−4.1 → square-ish
- *     rail-to-rail self-osc ("suddenly harsh").
- *   Soft (diode-clamp mod, Elta "soft"): saturating knee 3.4→4.0 → sine-ish
- *     self-osc, slightly higher pitch.
+ *   Hard (factory/Erica): asymmetric hard clamp at +4.4/−4.1.
+ *   Soft (diode-clamp mod, Elta "soft"): saturating knee 3.4→4.0.
+ *   Measured (onbetap-worklog test 2d): both self-oscillate square-ish with
+ *     nearly identical crest (hard 1.044, soft 1.052); Soft sits slightly
+ *     higher in pitch. The audible difference is mainly pitch and behavior
+ *     near the onset of oscillation, not waveshape.
  *
  * Discretization: TPT trapezoidal integrators; the two embedded saturators are
  * handled by secant-gain linearisation (N(v) ≈ n·v, n = N(v*)/v*), two fixed

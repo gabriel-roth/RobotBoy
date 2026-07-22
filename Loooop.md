@@ -21,7 +21,7 @@ A smaller single-playhead version, **Löp**, is described [at the end](#löp) of
 
 ## The display
 
-The strip across the top shows the recorded audio as a waveform. While you record, it fills in left-to-right. Once you have a loop, you'll see up to four colored **playhead markers** sweeping across it, along with a shaded band showing each head's *window* (the slice of the loop that head plays). This is the easiest way to see what Position, Size, and Speed are actually doing.
+The strip across the top shows the recorded audio as a waveform. While you record, everything captured so far is stretched across the full width, compressing as the recording grows. Once you have a loop, you'll see up to four colored **playhead markers** sweeping across it, along with a shaded band showing each head's *window* (the slice of the loop that head plays). This is the easiest way to see what Position, Size, and Speed are actually doing.
 
 ---
 
@@ -66,7 +66,7 @@ The bottom row holds the global controls, left to right:
 - **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Dry/Wet** — Sets the blend between incoming audio (dry) and loop playback (wet) at the Mix output. Fully clockwise = loop only.
 
-> **On MetaModule**, Overdub and Grid live in the options list (scroll down past the jacks) instead of on the panel, and Overdub is split into two settings: **Overdub** (On/Off — Off is Lock) and **Write mode** (Add / Replace / Layer / Decay).
+> **On MetaModule**, Overdub and Grid are panel controls just as on VCV — Overdub is a five-position switch (Layer / Decay / Add / Replace / Lock) in the same spot, and Grid is a snapped panel knob. The options list (scroll down past the jacks) holds only the menu items: Trig mode, Speed V/Oct, Exclude from Grid, Crossfade, and Trigger when recording.
 
 ---
 
@@ -89,7 +89,7 @@ Nearly every knob has an associated **CV input.** Positive or negative CV is add
 
 ### Trigger jacks and one-shot mode
 
-By default, a trigger at a head's **Trig** input restarts that head at the beginning of its window — use it to sync heads to a clock.
+By default, a trigger at a head's **Trig** input restarts that head at the beginning of its window (for a head running at a reverse speed, that's the window's *end* — the start in playback order) — use it to sync heads to a clock.
 
 Checking a playhead under **One-shot on trigger** in the context menu changes that: the head stays silent until triggered, then plays **through its window exactly once and stops**, ending with a short fade so it doesn't click. This turns a head into a sample-triggered one-shot player. While a one-shot head is waiting for a trigger but not playing, its lane on the display **dims.** If a playhead ever seems dead, it's probably in one-shot mode.
 
@@ -120,6 +120,6 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 
 ## Löp
 
-**Löp** is Loooop with a **single playhead** instead of four. It works exactly like one head of Loooop.
+**Löp** is Loooop with a **single playhead** instead of four. It works like one head of Loooop, minus the mixing controls — with only one head there are no Pan or Level knobs and no Exclude-from-Grid option.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">
