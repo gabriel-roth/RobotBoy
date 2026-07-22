@@ -154,8 +154,10 @@ SteadyStats RenderSteady(QualityMode mode, float buffer_seconds) {
 // -----------------------------------------------------------------------
 // (A1) Scorched repeats darken fast in the presence band. Differential =
 // extra HF (3.3 kHz) loss between repeats 1 and 4 beyond the level decay
-// (measured at 440 Hz). With the 2.8 kHz tone LP this is ~-14 dB over the
-// three passes; the old 5 kHz voicing gave only ~-2.3 dB.
+// (measured at 440 Hz). With the 2.5 kHz tone LP this differential is
+// ~9.6 dB; the old 5 kHz voicing gave only ~-2.3 dB. (Cutoff lowered from
+// 2.8 to 2.5 kHz when main's slower 0.3 s Doppler slew was merged in — the
+// gentler pitch modulation had trimmed the differential to ~7.6 dB.)
 // -----------------------------------------------------------------------
 TEST_CASE("degradation: Scorched repeats darken fast in the presence band") {
     auto r = RenderBurst(QualityMode::kScorchedCassette, 32.f);

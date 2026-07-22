@@ -20,7 +20,7 @@ static constexpr float kBufferSeconds = static_cast<float>(kBufferFrames) / 4800
 // repeats below ~4 kHz. Voice them lower here: Sunny mellows gradually,
 // Scorched murks within a few repeats.
 static constexpr float kSunnyToneCutoffHz = 6500.0f;
-static constexpr float kScorchedToneCutoffHz = 2800.0f;
+static constexpr float kScorchedToneCutoffHz = 2500.0f;
 
 static size_t AlignUp(size_t size, size_t alignment = kImplAlignment) {
     return (size + alignment - 1) & ~(alignment - 1);

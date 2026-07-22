@@ -364,3 +364,27 @@ its `[1.2, 1.6]` / `[11000, 11800]` latitude range.
 ./tests/retours_delay_dsp/run.sh   -> 100% tests passed, 62 test cases
 make -C vcv -j4                    -> clean build
 ```
+
+## Merge re-voicing (2026-07-22): Scorched cutoff 2.8 -> 2.5 kHz
+
+Merging `main` into this branch pulled in the Doppler-slew default change
+(`kSlewSecondsDefault` 0.08 -> 0.3 s, `kRandomLfoHz` 0.15 -> 0.1 Hz, commit
+`0ab139c`). Both branches passed their suites in isolation, but the merged
+result failed `degradation: Scorched repeats darken fast in the presence
+band`: the gentler pitch modulation smears the 3.3 kHz measurement less, so
+the HF-vs-LF drop differential fell from a comfortable margin to 7.59 dB,
+just under the test's >8.0 dB bar.
+
+Resolution (per the re-voice-Scorched decision, not a test relaxation):
+lowered `kScorchedToneCutoffHz` 2800 -> 2500 Hz in `retours_processor.cpp`.
+Each feedback pass is a one-pole tone LP, so the lower cutoff steepens the
+per-pass 3.3 kHz roll-off while barely touching 440 Hz. Re-measured:
+
+- A1 differential: **9.56 dB** (was 7.59; bar is >8.0). Pass with headroom.
+- Mono round-trip RMS sanity check: 0.12 (bar is >0.02). Pass.
+- Full `retours_delay_dsp` + `particules_dsp` suites: 100% pass.
+
+Stale "2.8 kHz" comments in `test_quality_degradation.cpp` and
+`test_quality_modes.cpp` updated to match. `test_tape_voicing.cpp` keeps its
+explicit 2800 Hz filter-math input (a standalone `QualityProcessor` unit
+test, independent of the Retours production voicing).

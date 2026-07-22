@@ -758,10 +758,10 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
     }
     // Threshold lowered from 0.05 to 0.02 (Task 3, 2026-07): Scorched's
     // write-path saturation now compresses this 0.9-amplitude noise (well
-    // into its ~0.45 ceiling) before it's ever written, and the 2.8 kHz tape
+    // into its ~0.45 ceiling) before it's ever written, and the 2.5 kHz tape
     // tone cutoff (Task 3) attenuates this broadband fixture further on top
     // of that, so the round-tripped level is legitimately lower than
-    // pre-wiring. Measured RMS here is ~0.039 -- comfortably non-zero (true
+    // pre-wiring. Measured RMS here is ~0.12 -- comfortably non-zero (true
     // silence reads near 0), which is all this sanity check needs to confirm.
     double rms_mono = Rms(mono_out, mono_out.size() - 4000, mono_out.size());
     REQUIRE(rms_mono > 0.02);
