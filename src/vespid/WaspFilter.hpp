@@ -24,8 +24,10 @@
 namespace wasp {
 
 // Per-mode circuit constants. Values are the fitted set from
-// fitted_constants.md (matching wasp_ref.py MODES exactly, so this core
-// reproduces golden.json). wcComp = 1/sqrt(lambda*kR2),
+// fitted_constants.md (matching wasp_ref.py MODES, except British makeup:
+// 2.5 here vs 1.0 in the ref — see the note above kBritish. Golden
+// comparisons are unaffected; they measure pre-makeup states, so this core
+// still reproduces golden.json). wcComp = 1/sqrt(lambda*kR2),
 // lambda = invA0/(nInv+invA0), precomputed:
 //   German:  lambda = 17.88/24.58 = 0.7274207, wcComp = 0.60954726
 //   British: lambda = 23.44/27.44 = 0.8542274, wcComp = 1.08196598

@@ -43,7 +43,7 @@ struct RetoursParameters {
 
     // Clock / tap: sample offset of a rising edge within this block, -1 none
     int   clock_tick_offset = -1;
-    bool  clock_connected = false;  // SEED jack patched
+    bool  clock_connected = false;  // CLOCK jack patched
     bool  freeze = false;
 
     QualityMode quality = QualityMode::kBrightDigital;
@@ -54,7 +54,7 @@ struct RetoursParameters {
     bool  envelope_pre_feedback = false;  // false = feedback taps post-envelope
     float input_trim_db = 0.0f;           // -12..+12
     float slew_seconds = kSlewSecondsDefault;  // 0.01..1.0
-    float random_lfo_hz = kRandomLfoHz;        // 0.02..2
+    float random_lfo_hz = kRandomLfoHz;        // fixed at 0.1 Hz; no UI sets this
 };
 
 } // namespace retours_delay_dsp

@@ -21,7 +21,7 @@
 // makeup is a CONSTANT buffer gain (Drive-independent): the core's rail clamping
 // already compresses level, so a Drive-dependent makeup double-compensates —
 // dropping level and stripping grit as Drive rises. drive knob [0,1] → input
-// gain 0.25×…16× (−12…+24 dB, span baked at onbetap::kDriveSpanDb); output:
+// gain 0.25×…≈15.8× (−12…+24 dB, span baked at onbetap::kDriveSpanDb); output:
 // volts = core × makeup, then VCA sat
 // 9·tanhish(v/9). See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
 // A Drive-following push into the output VCA (drive.hpp vcaPush, quadratic in
