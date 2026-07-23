@@ -58,6 +58,58 @@ TEST_CASE("freeze slicing math") {
     REQUIRE(r.slice_index == 7);
 }
 
+// Establish a tapped tempo of `interval_samples` with NO clock cable
+// (clock_connected=false), i.e. via the tap-tempo button path. Leaves the
+// control clocked at that interval.
+static void EstablishTappedTempo(BaseTimeControl& b, int interval_samples) {
+    int blocks = interval_samples / 64;
+    b.Update(0.5f, 0.f, 0.f, /*clock_connected=*/false, 0, 64);        // tick 1
+    for (int i = 0; i < blocks - 1; ++i)
+        b.Update(0.5f, 0.f, 0.f, false, -1, 64);
+    b.Update(0.5f, 0.f, 0.f, false, 0, 64);                            // tick 2
+}
+
+TEST_CASE("tapped tempo holds indefinitely (no timeout without a cable)") {
+    auto b = MakeBtc();
+    EstablishTappedTempo(b, 24000);
+    REQUIRE(b.IsClocked());
+    float base_locked = b.BaseSeconds();
+    // Run well past the old 5 s timeout (>7 s) with no further taps, no cable.
+    for (int i = 0; i < 7 * 48000 / 64; ++i)
+        b.Update(0.5f, 0.f, 0.f, false, -1, 64);
+    REQUIRE(b.IsClocked());
+    REQUIRE(b.BaseSeconds() == Catch::Approx(base_locked));
+}
+
+TEST_CASE("tapped tempo survives a large Interval move") {
+    auto b = MakeBtc();
+    EstablishTappedTempo(b, 24000);
+    REQUIRE(b.IsClocked());
+    // Sweep Interval hard from noon to fully CCW: previously this abandoned
+    // the tapped tempo; now it just re-selects the subdivision.
+    b.Update(0.0f, 0.f, 0.f, false, -1, 64);
+    REQUIRE(b.IsClocked());
+}
+
+TEST_CASE("ClearClock returns to free-running") {
+    auto b = MakeBtc();
+    EstablishTappedTempo(b, 24000);
+    REQUIRE(b.IsClocked());
+    b.ClearClock();
+    auto r = b.Update(0.5f, 0.f, 0.f, false, -1, 64);
+    REQUIRE_FALSE(r.clocked);
+    REQUIRE_FALSE(b.IsClocked());
+    // noon, free-running = full buffer again
+    REQUIRE(r.base_samples == Catch::Approx(192000.f).epsilon(0.01));
+    REQUIRE(b.ClockIntervalSeconds() == 0.f);
+}
+
+TEST_CASE("ClockIntervalSeconds reports the measured beat") {
+    auto b = MakeBtc();
+    EstablishTappedTempo(b, 24000);   // 24000 samples @ 48k = 0.5 s
+    REQUIRE(b.ClockIntervalSeconds() == Catch::Approx(0.5f).epsilon(0.02));
+}
+
 TEST_CASE("subdivision zone hysteresis") {
     auto b = MakeBtc();
     b.Update(0.5f, 0.f, 0.f, true, 0, 64);

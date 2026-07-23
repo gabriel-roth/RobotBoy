@@ -58,11 +58,9 @@ void BaseTimeControl::Init(float sample_rate, float buffer_seconds) {
     subdivision_zone_ = -1;
     last_base_samples_ = 0.f;
     has_tick_ = false;
-    density_at_last_tick_ = 0.5f;
 }
 
-void BaseTimeControl::UpdateClockTiming(bool clock_connected, int clock_tick_offset,
-                                          size_t block_frames, float density_knob) {
+void BaseTimeControl::UpdateClockTiming(int clock_tick_offset, size_t block_frames) {
     bool tick = clock_tick_offset >= 0;
 
     if (tick) {
@@ -93,25 +91,17 @@ void BaseTimeControl::UpdateClockTiming(bool clock_connected, int clock_tick_off
         }
 
         has_tick_ = true;
-        density_at_last_tick_ = density_knob;
-        // Residual samples from this tick to the end of the current block;
-        // this doubles as the "time since last tick" used for the 5 s
-        // clock-timeout / tap-tempo-abandon check below.
+        // Residual samples from this tick to the end of the current block,
+        // i.e. the "time since last tick" the next interval measurement adds
+        // its own offset to.
         samples_since_tick_ = static_cast<float>(block_frames) - offset;
     } else {
         samples_since_tick_ += static_cast<float>(block_frames);
     }
 
-    if (!clock_connected && clocked_) {
-        bool timed_out = samples_since_tick_ > 5.f * sample_rate_;
-        bool density_moved = std::fabs(density_knob - density_at_last_tick_) > 0.05f;
-        if (timed_out || density_moved) {
-            clocked_ = false;
-            clock_interval_ = 0.f;
-            has_tick_ = false;
-            subdivision_zone_ = -1;
-        }
-    }
+    // A measured tempo (tap or cable) now holds indefinitely: no timeout and
+    // no Interval-move exit. The only way back to free-running is ClearClock()
+    // (the "Clear tapped tempo" menu item) or establishing a new tempo.
 }
 
 float BaseTimeControl::ResolveSubdivision(float density_knob) {
@@ -180,7 +170,8 @@ float BaseTimeControl::ApplyDensityCvZoneShift(float subdivision, float density_
 BaseTimeControl::Result BaseTimeControl::Update(float density_knob, float density_cv_volts,
                                                   float time_knob, bool clock_connected,
                                                   int clock_tick_offset, size_t block_frames) {
-    UpdateClockTiming(clock_connected, clock_tick_offset, block_frames, density_knob);
+    (void)clock_connected;  // no longer gates tempo abandon; kept in the API
+    UpdateClockTiming(clock_tick_offset, block_frames);
 
     Result r{};
     r.clocked = clocked_;
@@ -238,6 +229,19 @@ float BaseTimeControl::BaseSeconds() const {
 
 bool BaseTimeControl::IsClocked() const {
     return clocked_;
+}
+
+float BaseTimeControl::ClockIntervalSeconds() const {
+    if (!clocked_ || clock_interval_ <= 0.f || sample_rate_ <= 0.f) return 0.f;
+    return clock_interval_ / sample_rate_;
+}
+
+void BaseTimeControl::ClearClock() {
+    clocked_ = false;
+    clock_interval_ = 0.f;
+    has_tick_ = false;
+    subdivision_zone_ = -1;
+    samples_since_tick_ = 0.f;
 }
 
 }  // namespace retours_delay_dsp

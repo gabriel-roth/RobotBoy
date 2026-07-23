@@ -78,7 +78,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 ### Lights
 
 - The **Slice** button lights when Slice is active.
-- The **Clock** light (center, between the knobs) blinks once per base Interval (before the Time multiplier) — a visual metronome of the underlying tempo, matching the full delay period when Time is at 1×.
+- The **Clock** light (center, between the knobs) is a visual metronome. When Retours is **clocked** it blinks once per clock beat, locked to the incoming clock (or to the tapped tempo). When **free-running** it blinks once per base Interval (before the Time multiplier) — matching the full delay period when Time is at 1×.
 
 ---
 
@@ -102,10 +102,10 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 
 Retours can run free or lock to a clock.
 
-- **Nothing patched into Clock, and no taps** — *free-running.* Interval sets the delay time directly, as described above.
+- **Nothing patched into Clock, and no tempo set** — *free-running.* Interval sets the delay time directly, as described above.
 - **A clock patched into Clock, or tapping the Clock button** — *clocked.* Retours measures the tempo and Interval becomes a **musical divider/multiplier** of it: straight up is 1:1 (one repeat per beat), counter-clockwise gives simple divisions (1/2, 1/4, 1/8, 1/16), and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer). Time then multiplies that by a snapped musical factor. The Shape envelope re-syncs to every clock tick, so gated and swelling repeats stay in time.
 
-The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. With nothing patched into Clock, Retours abandons a tapped tempo if the taps stop for a few seconds or you move Interval far enough, dropping back to free-running. While a cable is patched into Clock, Retours stays clocked at the last measured tempo — even if the clock stops — until you unpatch it.
+The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. **A tempo, once set — by tapping or from a patched clock — holds indefinitely.** It sticks through a stopped clock, an unpatched cable, and any Interval move (Interval just re-selects the subdivision). To return to free-running, use **Clear tapped tempo** in the right-click menu, or establish a new tempo.
 
 ---
 
@@ -118,6 +118,7 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Envelope feedback tap** — whether the Shape envelope is applied **before** or **after** the signal is fed back. Post-envelope (default) shapes only what you hear; Pre-envelope feeds the shaped signal back too, so the chopping compounds with each repeat.
 - **Input trim** (desktop only) — ±12 dB of input gain trim.
 - **Doppler slew** (desktop only) — how quickly the tape head glides to a new delay time in Tape mode (0.01–1 s, default 0.3 s). Shorter is snappier; longer is a slower, more dramatic pitch sweep.
+- **Clear tapped tempo** — abandons a held tap/clock tempo and returns Retours to free-running (Interval sets the delay time directly again).
 - **Clear buffer** — empties the recording buffer immediately.
 
 On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the sliders and Clear buffer are not undoable).

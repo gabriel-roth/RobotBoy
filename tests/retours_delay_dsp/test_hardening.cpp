@@ -438,7 +438,7 @@ TEST_CASE("NaN CV input for one block does not permanently poison the DSP") {
     REQUIRE(measured_seconds == Catch::Approx(0.15f).epsilon(0.05));
 }
 
-TEST_CASE("telemetry: IsClocked false->true after two ticks->false after timeout") {
+TEST_CASE("telemetry: IsClocked false->true after two ticks, holds, clears on demand") {
     const float sr = 48000.f;
     Proc proc(sr);
     RetoursParameters params;
@@ -467,12 +467,17 @@ TEST_CASE("telemetry: IsClocked false->true after two ticks->false after timeout
     proc.p.Process(blk.data(), blk_out.data(), blk.size());
     REQUIRE(proc.p.IsClocked());
 
-    // Clock jack pulled, >5 s of silence: falls out of clocked state.
+    // Clock jack pulled, >5 s of silence: the tempo now HOLDS (no timeout).
     params.clock_tick_offset = -1;
     params.clock_connected = false;
     proc.p.SetParameters(params);
     size_t long_quiet = static_cast<size_t>(5.5f * sr);
     std::vector<StereoFrame> lq_in(long_quiet, StereoFrame{0.f, 0.f}), lq_out(long_quiet);
     proc.p.Process(lq_in.data(), lq_out.data(), long_quiet);
+    REQUIRE(proc.p.IsClocked());
+
+    // Explicit clear ("Clear tapped tempo") is the way back to free-running.
+    proc.p.ClearTappedTempo();
+    proc.p.Process(blk.data(), blk_out.data(), blk.size());
     REQUIRE_FALSE(proc.p.IsClocked());
 }

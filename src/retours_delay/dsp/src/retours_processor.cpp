@@ -428,12 +428,21 @@ void RetoursProcessor::ClearBuffer() {
     impl_->feedback_hp_r.Reset();
 }
 
+void RetoursProcessor::ClearTappedTempo() {
+    if (!impl_) return;
+    impl_->base_time.ClearClock();
+}
+
 float RetoursProcessor::BaseTimeSeconds() const {
     return impl_ ? impl_->base_time.BaseSeconds() : 0.0f;
 }
 
 bool RetoursProcessor::IsClocked() const {
     return impl_ ? impl_->base_time.IsClocked() : false;
+}
+
+float RetoursProcessor::ClockBeatSeconds() const {
+    return impl_ ? impl_->base_time.ClockIntervalSeconds() : 0.0f;
 }
 
 float RetoursProcessor::DelayTimeSeconds() const {

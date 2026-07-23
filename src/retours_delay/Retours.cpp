@@ -98,6 +98,8 @@ struct Retours : Module {
 	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
 	// call to the audio thread (process()) so it's not racing the DSP.
 	std::atomic<bool> clear_requested_{false};
+	// Same deferral for "Clear tapped tempo" (abandon a held tap/clock tempo).
+	std::atomic<bool> clear_tempo_requested_{false};
 
 	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
@@ -210,7 +212,9 @@ struct Retours : Module {
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		clock_light_phase_       = 0.f;
 		clear_requested_.store(false);   // reset clears now; drop any queued menu clear
+		clear_tempo_requested_.store(false);
 		processor_.ClearBuffer();
+		processor_.ClearTappedTempo();   // initialize returns to free-running
 	}
 
 	json_t* dataToJson() override {
@@ -357,6 +361,8 @@ struct Retours : Module {
 		if (block_runtime_.BlockReady()) {
 			if (clear_requested_.exchange(false))
 				processor_.ClearBuffer();
+			if (clear_tempo_requested_.exchange(false))
+				processor_.ClearTappedTempo();
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -365,10 +371,21 @@ struct Retours : Module {
 							   kWrapperBlockSize);
 			block_runtime_.CommitProcessedBlock(scratch_output_buf_, kWrapperBlockSize);
 
-			// CLOCK_LIGHT blink: phase advances once per block; brightness is
-			// high only near the start of each delay period.
-			float base_seconds = processor_.BaseTimeSeconds();
-			float period_samples = std::max(base_seconds * args.sampleRate, 1.f);
+			// CLOCK_LIGHT blink. When clocked, it is a true clock indicator:
+			// one flash per measured beat, re-anchored to every incoming tick
+			// (like the Shape envelope's resync) so it visibly locks to the
+			// clock instead of free-running at the subdivided base Interval —
+			// which, at fast tempos on a subdivided knob, strobed too fast to
+			// read. When free-running there is no external beat, so it falls
+			// back to blinking at the base Interval (the effective repeat rate).
+			float beat_seconds = processor_.ClockBeatSeconds();  // 0 unless clocked
+			float period_seconds = (beat_seconds > 0.f) ? beat_seconds
+			                                             : processor_.BaseTimeSeconds();
+			float period_samples = std::max(period_seconds * args.sampleRate, 1.f);
+			// Re-anchor to the clock edge: a tick landed in this block if the
+			// core consumed a tick offset for it.
+			if (params_.clock_tick_offset >= 0)
+				clock_light_phase_ = 0.f;
 			clock_light_phase_ += static_cast<float>(kWrapperBlockSize) / period_samples;
 			if (clock_light_phase_ >= 1.f)
 				clock_light_phase_ -= std::floor(clock_light_phase_);
@@ -546,6 +563,13 @@ struct RetoursWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear buffer", "",
 			[=]() { module->clear_requested_.store(true); }
+		));
+
+		// --- Clear tapped tempo ---
+		// A tapped (or clocked) tempo now holds indefinitely; this is the way
+		// back to free-running. Deferred to the audio thread like Clear buffer.
+		menu->addChild(createMenuItem("Clear tapped tempo", "",
+			[=]() { module->clear_tempo_requested_.store(true); }
 		));
 	}
 
