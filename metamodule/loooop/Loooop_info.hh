@@ -40,8 +40,9 @@ struct LoooopInfo : ModuleInfoBase {
     // with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, Grid exclude, and Crossfade
     // are menu-only (AltParamChoiceLabeled, position fields unused); they sit
     // in ONE contiguous block AFTER all the jacks and BEFORE the display,
-    // grouped by command (Crossfade, then all Trig-modes, then all Speed
-    // V/Oct, then all Grid-excludes) so the MetaModule roller headers this
+    // grouped by command (Trigger-when-recording, Crossfade, then all
+    // Trig-modes, then all Speed V/Oct, then all Grid-excludes) so the
+    // MetaModule roller headers this
     // block as an "Options:" section (a param group that FOLLOWS the jacks),
     // matching VCV's command-first menu layout instead of interleaving with
     // the panel knobs.
@@ -139,20 +140,20 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackOut{{185.690f, 102.100f, Center, "Purple Out R", "", 8.f, 8.f}},
 
         // ── Options (menu-only alt-params), grouped by command ──
-        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 1 mode", ""}},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 2 mode", ""}},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 3 mode", ""}},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trig 4 mode", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 1 V/Oct", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 2 V/Oct", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 3 V/Oct", ""}},
-        QlpVoctAlt{{0.f, 0.f, Center, "Speed 4 V/Oct", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 1 exclude", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 2 exclude", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 3 exclude", ""}},
-        QlpExcludeGridAlt{{0.f, 0.f, Center, "Grid 4 exclude", ""}},
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", ""}},
+        QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Red Trig mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Yellow Trig mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Blue Trig mode", ""}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Purple Trig mode", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Red Speed V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Yellow Speed V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Blue Speed V/Oct", ""}},
+        QlpVoctAlt{{0.f, 0.f, Center, "Purple Speed V/Oct", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Red Grid exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Yellow Grid exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Blue Grid exclude", ""}},
+        QlpExcludeGridAlt{{0.f, 0.f, Center, "Purple Grid exclude", ""}},
 
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
@@ -176,11 +177,11 @@ struct LoooopInfo : ModuleInfoBase {
         Head1OutL, Head1OutR, Head2OutL, Head2OutR,
         Head3OutL, Head3OutR, Head4OutL, Head4OutR,
         // Options (menu-only alt-params), grouped by command
+        TrigWhenRecAlt,
         CrossfadeSwitch,
         TrigMode1Alt, TrigMode2Alt, TrigMode3Alt, TrigMode4Alt,
         SpeedVoct1Alt, SpeedVoct2Alt, SpeedVoct3Alt, SpeedVoct4Alt,
         ExcludeGrid1Alt, ExcludeGrid2Alt, ExcludeGrid3Alt, ExcludeGrid4Alt,
-        TrigWhenRecAlt,
         Display,
     };
 

@@ -22,8 +22,9 @@ struct Loooop : Module {
     // Global params come FIRST, then the panel KNOBS grouped PER HEAD (a
     // contiguous block of HEAD_PARAMS knobs each — index with
     // `X1_PARAM + HEAD_PARAMS * h`), then a trailing "Options" block of the
-    // menu-only params grouped by command (Crossfade, then per-head Trig-mode,
-    // Speed-V/Oct, Grid-exclude — each a contiguous run indexed `X1_PARAM + h`).
+    // menu-only params grouped by command (Trigger-when-recording, Crossfade,
+    // then per-head Trig-mode, Speed-V/Oct, Grid-exclude — each a contiguous
+    // run indexed `X1_PARAM + h`).
     // This ParamId order is IDENTICAL to the MetaModule Elem order
     // (metamodule/loooop/Loooop_info.hh): MetaModule assigns param IDs by
     // Elements-array position, and VCV↔MM patch conversion maps by ID, so the
@@ -34,11 +35,10 @@ struct Loooop : Module {
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM,
                    SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM,
                    SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM,
-                   CROSSFADE_PARAM,
+                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM,
                    TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
                    SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
                    EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
-                   TRIG_WHEN_REC_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
@@ -343,16 +343,13 @@ struct LoooopWidget : ModuleWidget {
             {"Stops recording", "Starts overdubbing"},
             [m] { return (int)std::round(m->params[Loooop::TRIG_WHEN_REC_PARAM].getValue()); },
             [m](int i) { m->paramQuantities[Loooop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
+        menu->addChild(new MenuSeparator);
         // Playheads (by color) in the submenus. One-shot is a checkmark per
         // playhead; unchecked (default) a trigger restarts the playhead at
         // its window start — that mode has no name in the interface.
-        menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
-        }));
         menu->addChild(createSubmenuItem("One-shot on trigger", "", [m](Menu* sub) {
             for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
                 sub->addChild(createBoolMenuItem(kHeadNames[h], "",
@@ -367,9 +364,13 @@ struct LoooopWidget : ModuleWidget {
                     [m, h](bool v) {
                         m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
         }));
-        menu->addChild(createBoolMenuItem("Crossfade", "",
-            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
+        menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
+            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
+                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f; },
+                    [m, h](bool v) {
+                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
+        }));
     }
 };
 
