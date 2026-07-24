@@ -37,8 +37,10 @@ struct RetoursQualityParamQuantity : ParamQuantity {
 struct Retours : Module {
 	enum ParamId {
 		SLICE_PARAM,
-		INTERVAL_PARAM,
+		QUALITY_PARAM,
+		CLOCK_PARAM,
 		TIME_PARAM,
+		INTERVAL_PARAM,
 		PITCH_PARAM,
 		SHAPE_PARAM,
 		FEEDBACK_PARAM,
@@ -46,8 +48,6 @@ struct Retours : Module {
 		TIME_AR_PARAM,
 		PITCH_AR_PARAM,
 		SHAPE_AR_PARAM,
-		QUALITY_PARAM,
-		CLOCK_PARAM,
 		FEEDBACK_AR_PARAM,
 		DRY_WET_AR_PARAM,
 		PARAMS_LEN
@@ -55,14 +55,14 @@ struct Retours : Module {
 	enum InputId {
 		IN_L_INPUT,
 		IN_R_INPUT,
-		INTERVAL_CV_INPUT,
+		SLICE_INPUT,
+		CLOCK_INPUT,
 		TIME_CV_INPUT,
+		INTERVAL_CV_INPUT,
 		PITCH_CV_INPUT,
 		SHAPE_CV_INPUT,
 		FEEDBACK_CV_INPUT,
 		DRY_WET_CV_INPUT,
-		CLOCK_INPUT,
-		SLICE_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -137,9 +137,9 @@ struct Retours : Module {
 		configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet");
-		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time CV amount");
-		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch CV amount");
-		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape CV amount");
+		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
+		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
+		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
 		configButton(CLOCK_PARAM, "Tap tempo");
 		configParam(FEEDBACK_AR_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
 		configParam(DRY_WET_AR_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
@@ -483,22 +483,22 @@ struct RetoursWidget : ModuleWidget {
 			}
 		));
 
-		// --- Clear Buffer ---
-		// Deferred to the audio thread (process()) to avoid racing the DSP;
-		// takes effect at the next block boundary.
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); },
-			/*disabled=*/module->processor_.BufferEmpty()
-		));
-
 		// --- Clear saved tempo ---
 		// A tempo held from a tap or a patched clock now sticks indefinitely;
 		// this is the way back to free-running. Deferred to the audio thread
 		// like Clear buffer, and greyed out when no tempo is saved.
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear saved tempo", "",
 			[=]() { module->clear_tempo_requested_.store(true); },
 			/*disabled=*/!module->processor_.IsClocked()
+		));
+
+		// --- Clear Buffer ---
+		// Deferred to the audio thread (process()) to avoid racing the DSP;
+		// takes effect at the next block boundary.
+		menu->addChild(createMenuItem("Clear buffer", "",
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->processor_.BufferEmpty()
 		));
 	}
 

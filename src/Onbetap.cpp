@@ -38,12 +38,12 @@ static constexpr float kTwoPi = 6.28318530717959f;
 struct Onbetap : Module {
 	enum ParamId {
 		CUTOFF_PARAM,
-		CUTOFF_CV_PARAM,   // Cutoff CV attenuverter
 		RES_PARAM,         // Resonance (labelled "Q" on the panel)
-		RES_CV_PARAM,      // Resonance CV attenuverter
 		DRIVE_PARAM,
-		DRIVE_CV_PARAM,    // Drive CV attenuverter
 		MODE_PARAM,        // 0=LP 1=BP 2=HP 3=Notch 4=Peak
+		CUTOFF_CV_PARAM,   // Cutoff CV attenuverter
+		RES_CV_PARAM,      // Resonance CV attenuverter
+		DRIVE_CV_PARAM,    // Drive CV attenuverter
 		NUM_PARAMS
 	};
 	enum InputId {

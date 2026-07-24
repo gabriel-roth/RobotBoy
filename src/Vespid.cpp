@@ -31,10 +31,10 @@ struct Vespid : Module {
 		NUM_INPUTS
 	};
 	enum OutputId {
-		LP_OUTPUT,  LP_OUTPUT_R,
-		BP_OUTPUT,  BP_OUTPUT_R,
-		HP_OUTPUT,  HP_OUTPUT_R,
 		MIX_OUTPUT, MIX_OUTPUT_R,   // Blend of LP/HP (notch at centre)
+		HP_OUTPUT,  HP_OUTPUT_R,
+		BP_OUTPUT,  BP_OUTPUT_R,
+		LP_OUTPUT,  LP_OUTPUT_R,
 		NUM_OUTPUTS
 	};
 	enum LightId {
@@ -103,7 +103,7 @@ struct Vespid : Module {
 		            "Frequency", " Hz", 2.f);
 		configParam(RES_PARAM, 0.f, 1.f, 0.f, "Resonance", "%", 0.f, 100.f);
 		configParam(DRIVE_PARAM, 0.f, 1.f, 0.f, "Drive", "%", 0.f, 100.f);
-		configParam(BLEND_PARAM, 0.f, 1.f, 0.5f, "Blend (LP–notch–HP)");
+		configParam(BLEND_PARAM, 0.f, 1.f, 0.5f, "Blend: LP/notch/HP");
 		configParam(FREQ_CV_PARAM,  -1.f, 1.f, 1.f, "Frequency CV", "x");
 		configParam(RES_CV_PARAM,   -1.f, 1.f, 1.f, "Resonance CV", "x");
 		configParam(DRIVE_CV_PARAM, -1.f, 1.f, 1.f, "Drive CV", "x");
@@ -121,8 +121,8 @@ struct Vespid : Module {
 		configOutput(BP_OUTPUT_R, "Bandpass R");
 		configOutput(HP_OUTPUT,   "Highpass L");
 		configOutput(HP_OUTPUT_R, "Highpass R");
-		configOutput(MIX_OUTPUT,   "Mix L (LP–notch–HP blend)");
-		configOutput(MIX_OUTPUT_R, "Mix R (LP–notch–HP blend)");
+		configOutput(MIX_OUTPUT,   "Mix L");
+		configOutput(MIX_OUTPUT_R, "Mix R");
 
 		// Bypass routes the dry audio input to every output.
 		for (int out : {LP_OUTPUT, BP_OUTPUT, HP_OUTPUT, MIX_OUTPUT})

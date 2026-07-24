@@ -14,12 +14,14 @@ struct Lop : Module {
     // VCV↔MM patch conversion maps by ID, so the two must line up
     // element-for-element or a patch's knob values land on the wrong control
     // when it crosses hosts. Order: panel knobs, then globals, then the
-    // menu-only "Options" (Crossfade, Trigger, Speed-V/Oct). Keep in lockstep.
+    // menu-only "Options" (Trigger-when-recording, Crossfade, Trigger,
+    // Speed-V/Oct). Keep in lockstep.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, GRID_PARAM,
-                   CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, TRIG_WHEN_REC_PARAM, PARAMS_LEN };
-    enum InputId { SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
-                   AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT, INPUTS_LEN };
+                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, PARAMS_LEN };
+    enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT,
+                   SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
+                   DRYWET_CV_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, INPUTS_LEN };
     enum OutputId { OUT_L_OUTPUT, OUT_R_OUTPUT, OUTPUTS_LEN };
     enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
@@ -44,7 +46,7 @@ struct Lop : Module {
         // patched silences the loop with nothing on the panel to show why.
         configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
             {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
-        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
+        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger mode",
             {"Loop start", "One-shot"})->randomizeEnabled = false;
         configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct",
             {"Off", "On"})->randomizeEnabled = false;
@@ -205,6 +207,10 @@ struct LopWidget : ModuleWidget {
             {"Stops recording", "Starts overdubbing"},
             [m] { return (int)std::round(m->params[Lop::TRIG_WHEN_REC_PARAM].getValue()); },
             [m](int i) { m->paramQuantities[Lop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
+        menu->addChild(createBoolMenuItem("Crossfade", "",
+            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
+            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
+        menu->addChild(new MenuSeparator);
         // Overdub (incl. write modes) and Grid are panel controls; only the
         // modes with no panel control live in the menu.
         // Same item language and order as Loooop's menu tail; One-shot is a
@@ -216,9 +222,6 @@ struct LopWidget : ModuleWidget {
         menu->addChild(createBoolMenuItem("Speed CV = V/Oct", "",
             [m] { return m->params[Lop::SPEED_VOCT_PARAM].getValue() > 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::SPEED_VOCT_PARAM]->setValue(v ? 1.f : 0.f); }));
-        menu->addChild(createBoolMenuItem("Crossfade", "",
-            [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
     }
 };
 
