@@ -67,7 +67,7 @@ struct LopInfo : ModuleInfoBase {
         // ── Options (menu-only alt-params), grouped by command ──
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", "", 0.f, 0.f}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
-        QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger", "", 0.f, 0.f}},
+        QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger mode", "", 0.f, 0.f}},
         QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};

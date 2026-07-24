@@ -45,7 +45,7 @@ struct Lop : Module {
         // patched silences the loop with nothing on the panel to show why.
         configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
             {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
-        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger",
+        configSwitch(TRIG_MODE_PARAM, 0.f, 1.f, 0.f, "Trigger mode",
             {"Loop start", "One-shot"})->randomizeEnabled = false;
         configSwitch(SPEED_VOCT_PARAM, 0.f, 1.f, 0.f, "Speed CV V/Oct",
             {"Off", "On"})->randomizeEnabled = false;
