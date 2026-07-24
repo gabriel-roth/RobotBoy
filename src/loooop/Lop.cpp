@@ -29,6 +29,7 @@ struct Lop : Module {
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
     float lastJumpV = 0.f;
     float overdubPhase = 0.f;   // Lock-mode LED blink phase, [0,1)
+    loooop::VOctSpeedMemo voctMemo;
     loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
     float smootherRate = 0.f;
 
@@ -90,11 +91,11 @@ struct Lop : Module {
             smootherRate = args.sampleRate;
             mixSm.alpha = loooop::smootherAlpha(smootherRate, 0.002f);
         }
-        int od = (int)std::round(params[OVERDUB_PARAM].getValue());
+        int od = (int)(params[OVERDUB_PARAM].getValue() + 0.5f);
         loooop::applyOverdub(engine, od);
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setGrid(loooop::gridSegments(
-            (int)std::round(params[GRID_PARAM].getValue())));
+            (int)(params[GRID_PARAM].getValue() + 0.5f)));
         // Evaluate both triggers into locals before OR-ing: `||` short-
         // circuits, so `a || b` would skip calling b.process() (and updating
         // its Schmitt state) on any sample where a is already true.
@@ -111,7 +112,7 @@ struct Lop : Module {
         float spKnob = params[SPEED_PARAM].getValue();
         float spCv = inputs[SPEED_CV_INPUT].getVoltage();
         engine.setSpeed(0, params[SPEED_VOCT_PARAM].getValue() > 0.5f
-            ? loooop::speedFromVOct(spKnob, spCv)
+            ? voctMemo.get(spKnob, spCv)
             : loooop::speedFromControls(spKnob, spCv));
         engine.setPosition(0, loooop::normalizedControl(
             params[POSITION_PARAM].getValue(), inputs[POSITION_CV_INPUT].getVoltage()));
@@ -136,15 +137,15 @@ struct Lop : Module {
         const auto in = loooop::normalledStereo(
             inputs[AUDIO_L_INPUT].isConnected(), inputs[AUDIO_L_INPUT].getVoltage(),
             inputs[AUDIO_R_INPUT].isConnected(), inputs[AUDIO_R_INPUT].getVoltage());
-        const float inL = in.l;
-        const float inR = in.r;
+        const float inL = in.l * 0.2f;   // ±5V -> ±1
+        const float inR = in.r * 0.2f;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
-        engine.process(inL / 5.f, inR / 5.f, hs);   // ±5V <-> ±1
+        engine.process(inL, inR, hs);
         const float w = mixSm.process(loooop::normalizedControl(
             params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
-        outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL / 5.f, hs[0].l, w) * 5.f);
-        outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR / 5.f, hs[0].r, w) * 5.f);
+        outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL, hs[0].l, w) * 5.f);
+        outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR, hs[0].r, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
         loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od, overdubPhase, args.sampleTime);
     }

@@ -22,6 +22,7 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     bufL_.assign(maxSamples_, 0.f); bufR_.assign(maxSamples_, 0.f);   // pre-allocate once; never resized in audio
     writeIdx_ = 0;
     loopLen_ = 0;
+    invLoopLen_ = 0.f;
     recording_ = false;
     stopPending_ = false;
     odGain_ = 1.f;
@@ -80,6 +81,7 @@ void LoopEngine::toggleRecord(bool continueOverdub) {
         // Closing the initial pass freezes the loop length now: there is no
         // prior content to blend with, and the seam crossfade declicks the join.
         loopLen_ = writeIdx_;
+        invLoopLen_ = (loopLen_ > 0) ? 1.f / static_cast<float>(loopLen_) : 0.f;
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
         if (continueOverdub && overdubEnabled_) {
             // "Trigger when recording = Starts overdubbing": don't stop — keep
@@ -134,6 +136,7 @@ void LoopEngine::clear() {
     // buffer here is a ~23 MB memset that blew the per-sample audio deadline on
     // MetaModule and crashed the patch.
     loopLen_ = 0;
+    invLoopLen_ = 0.f;
     writeIdx_ = 0;
     recording_ = false;
     stopPending_ = false;
@@ -454,7 +457,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
         }
     }
 
-    const float invL = 1.f / static_cast<float>(loopLen_);   // loopLen_ > 0 whenever heads run
+    const float invL = invLoopLen_;   // loopLen_ > 0 whenever heads run
     dispPos01_[idx].store(static_cast<float>(h.pos) * invL, std::memory_order_relaxed);
     dispWinStart01_[idx].store(static_cast<float>(winStart) * invL, std::memory_order_relaxed);
     dispWinEnd01_[idx].store(static_cast<float>(winStart + winLen) * invL, std::memory_order_relaxed);
@@ -475,6 +478,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             dispRecLen_.store(static_cast<std::uint32_t>(writeIdx_), std::memory_order_relaxed);
             if (writeIdx_ >= maxSamples_) {  // buffer ceiling -> auto-end
                 loopLen_ = maxSamples_;
+                invLoopLen_ = (loopLen_ > 0) ? 1.f / static_cast<float>(loopLen_) : 0.f;
                 recording_ = false;
                 writeIdx_ = 0;
                 dispRecording_.store(false, std::memory_order_relaxed);
@@ -533,7 +537,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 // aware) so it stays inside the window bar.
                 double ws, wl;
                 windowBounds(h, ws, wl);
-                const float invL = 1.f / static_cast<float>(loopLen_);
+                const float invL = invLoopLen_;
                 const double hp = h.speed < 0.f ? ws + wl - 1.0 : ws;
                 dispPos01_[i].store(static_cast<float>(hp) * invL, std::memory_order_relaxed);
                 dispWinStart01_[i].store(static_cast<float>(ws) * invL, std::memory_order_relaxed);

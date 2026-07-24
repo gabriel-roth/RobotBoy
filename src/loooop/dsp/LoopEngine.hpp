@@ -156,6 +156,7 @@ private:
     std::size_t maxSamples_ = 0;
     std::size_t writeIdx_ = 0;
     std::size_t loopLen_ = 0;
+    float invLoopLen_ = 0.f;   // 1/loopLen_, kept in sync at every loopLen_ assignment; 0 when no loop
     bool recording_ = false;
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
