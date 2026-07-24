@@ -41,6 +41,7 @@ public:
     float AutoGainDb() const;
     void TriggerAutoGainCalibration();
     void ClearBuffer();
+    bool BufferEmpty() const;         // no audio recorded since last clear
 
     // Scale quantization
     void LoadScale(const double* ratios, uint32_t num_notes);

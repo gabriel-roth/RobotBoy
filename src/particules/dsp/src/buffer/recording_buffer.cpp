@@ -21,6 +21,7 @@ void RecordingBuffer::Init(float* buffer, size_t num_frames, int num_channels) {
     decimation_factor_ = 1;
     decimation_counter_ = 0;
     write_ramp_remaining_ = 0;
+    dirty_ = false;
 
     std::memset(u8_, 0, capacity_bytes_);
 }
@@ -50,6 +51,7 @@ void RecordingBuffer::Configure(int decimation_factor, StorageFormat format,
     size_ = frames;
     write_head_ = 0;
     write_ramp_remaining_ = 0;
+    dirty_ = false;
     // Pool bytes are now garbage under the new interpretation; caller must
     // Clear() and mute until ClearPending() (see header contract).
 }
@@ -60,6 +62,11 @@ void RecordingBuffer::Configure(int decimation_factor, StorageFormat format,
 
 void RecordingBuffer::Write(float left, float right) {
     if (size_ == 0 || !u8_ || channels_ < 1) return;
+
+    // Content tracking for the "Clear buffer" grey-out: any non-silent input
+    // means the buffer holds something. Checked before the decimation gate so
+    // a decimated-away frame doesn't hide live signal.
+    if (left != 0.f || right != 0.f) dirty_ = true;
 
     // Sample-and-hold decimation: keep every Nth sample.
     // The SVF pre-filter in QualityProcessor handles anti-aliasing;
@@ -113,6 +120,7 @@ void RecordingBuffer::Clear() {
     if (!u8_ || size_ == 0) return;
     write_head_ = 0;
     decimation_counter_ = 0;
+    dirty_ = false;
     clear_cursor_ = 0;
     clear_total_ = (size_ + kInterpolationTail)
                    * static_cast<size_t>(channels_) * bytes_per_sample();
@@ -122,6 +130,7 @@ void RecordingBuffer::ImmediateClear() {
     if (!u8_ || size_ == 0) return;
     std::memset(u8_, 0, (size_ + kInterpolationTail)
                         * static_cast<size_t>(channels_) * bytes_per_sample());
+    dirty_ = false;
     clear_cursor_ = clear_total_;
 }
 

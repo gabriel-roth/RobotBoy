@@ -38,6 +38,18 @@ public:
     float BaseSeconds() const;
     bool  IsClocked() const;
 
+    // Measured clock beat (tick-to-tick interval) in seconds; 0 when not
+    // clocked or no interval known yet. Drives the Clock light's beat-rate,
+    // clock-anchored blink (see Retours.cpp) — distinct from BaseSeconds(),
+    // which carries the subdivided base Interval.
+    float ClockIntervalSeconds() const;
+
+    // Abandon any measured tempo (tap or cable) and return to free-running.
+    // Backs the "Clear tapped tempo" menu item. Since tempos now hold
+    // indefinitely (no timeout, no Interval-move exit), this is the only path
+    // back to free-running short of establishing a new tempo.
+    void  ClearClock();
+
 private:
     float sample_rate_ = 48000.f;
     float buffer_samples_ = 192000.f;
@@ -48,14 +60,9 @@ private:
     int   subdivision_zone_ = -1;      // hysteresis state
     float last_base_samples_ = 0.f;
 
-    // Extra bookkeeping needed by the tap-tempo / clock-timeout behavior
-    // described in the task brief but not spelled out in its class sketch:
     bool  has_tick_ = false;            // false until the first tick ever seen
-    float density_at_last_tick_ = 0.5f; // DENSITY position at the last tick,
-                                         // for the >0.05-move tap-tempo exit
 
-    void  UpdateClockTiming(bool clock_connected, int clock_tick_offset,
-                             size_t block_frames, float density_knob);
+    void  UpdateClockTiming(int clock_tick_offset, size_t block_frames);
     float ResolveSubdivision(float density_knob);
     float ApplyDensityCvZoneShift(float subdivision, float density_cv_volts) const;
 };

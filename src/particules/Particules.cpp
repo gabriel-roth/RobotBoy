@@ -745,7 +745,8 @@ struct ParticulesWidget : ModuleWidget {
 		// Deferred to the audio thread (process()) to avoid racing the DSP;
 		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); }
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->processor_.BufferEmpty()
 		));
 
 	}

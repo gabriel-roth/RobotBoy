@@ -21,6 +21,12 @@ static constexpr size_t kWrapperBlockSize = 64;
 static_assert(kWrapperBlockSize <= retours_delay_dsp::kMaxBlockSize,
 	"Retours wrapper block size must not exceed retours_delay_dsp::kMaxBlockSize");
 
+// CLOCK_LIGHT flash decay time. The beat flash snaps to full brightness, then
+// decays over this long so each pulse spans many video frames and reads evenly
+// (a hard on/off flash is ~1-2 frames at fast tempos, which aliases against the
+// frame rate and looks uneven).
+static constexpr float kClockFlashDecaySeconds = 0.08f;
+
 
 struct Retours;
 
@@ -98,6 +104,8 @@ struct Retours : Module {
 	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
 	// call to the audio thread (process()) so it's not racing the DSP.
 	std::atomic<bool> clear_requested_{false};
+	// Same deferral for "Clear tapped tempo" (abandon a held tap/clock tempo).
+	std::atomic<bool> clear_tempo_requested_{false};
 
 	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
 	// the knob hasn't moved (knobs are human-speed, not audio-rate).
@@ -106,8 +114,10 @@ struct Retours : Module {
 	// Last quality state written to LEDs — skip redundant setBrightness calls.
 	int   light_quality_state_    = -1;
 	// CLOCK_LIGHT blink phase, advanced once per block by
-	// blockFrames / (BaseTimeSeconds() * sampleRate); wraps at 1.0.
+	// blockFrames / (period * sampleRate); wraps at 1.0.
 	float clock_light_phase_       = 0.f;
+	// Decaying brightness of the Clock light (see kClockFlashDecaySeconds).
+	float clock_light_level_       = 0.f;
 
 	Retours() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -191,6 +201,7 @@ struct Retours : Module {
 		block_runtime_ = RetoursBlockRuntime<kWrapperBlockSize>{};
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		clock_light_phase_ = 0.f;
+		clock_light_level_ = 0.f;
 		// Re-arm so a possibly-new audio thread gets FTZ configured.
 		metamodule_fpu_configured_ = false;
 		if (dsp_memory_) {
@@ -209,8 +220,11 @@ struct Retours : Module {
 		block_runtime_          = RetoursBlockRuntime<kWrapperBlockSize>{};
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		clock_light_phase_       = 0.f;
+		clock_light_level_       = 0.f;
 		clear_requested_.store(false);   // reset clears now; drop any queued menu clear
+		clear_tempo_requested_.store(false);
 		processor_.ClearBuffer();
+		processor_.ClearTappedTempo();   // initialize returns to free-running
 	}
 
 	json_t* dataToJson() override {
@@ -357,6 +371,8 @@ struct Retours : Module {
 		if (block_runtime_.BlockReady()) {
 			if (clear_requested_.exchange(false))
 				processor_.ClearBuffer();
+			if (clear_tempo_requested_.exchange(false))
+				processor_.ClearTappedTempo();
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -365,10 +381,21 @@ struct Retours : Module {
 							   kWrapperBlockSize);
 			block_runtime_.CommitProcessedBlock(scratch_output_buf_, kWrapperBlockSize);
 
-			// CLOCK_LIGHT blink: phase advances once per block; brightness is
-			// high only near the start of each delay period.
-			float base_seconds = processor_.BaseTimeSeconds();
-			float period_samples = std::max(base_seconds * args.sampleRate, 1.f);
+			// CLOCK_LIGHT blink. When clocked, it is a true clock indicator:
+			// one flash per measured beat, re-anchored to every incoming tick
+			// (like the Shape envelope's resync) so it visibly locks to the
+			// clock instead of free-running at the subdivided base Interval —
+			// which, at fast tempos on a subdivided knob, strobed too fast to
+			// read. When free-running there is no external beat, so it falls
+			// back to blinking at the base Interval (the effective repeat rate).
+			float beat_seconds = processor_.ClockBeatSeconds();  // 0 unless clocked
+			float period_seconds = (beat_seconds > 0.f) ? beat_seconds
+			                                             : processor_.BaseTimeSeconds();
+			float period_samples = std::max(period_seconds * args.sampleRate, 1.f);
+			// Re-anchor to the clock edge: a tick landed in this block if the
+			// core consumed a tick offset for it.
+			if (params_.clock_tick_offset >= 0)
+				clock_light_phase_ = 0.f;
 			clock_light_phase_ += static_cast<float>(kWrapperBlockSize) / period_samples;
 			if (clock_light_phase_ >= 1.f)
 				clock_light_phase_ -= std::floor(clock_light_phase_);
@@ -384,7 +411,14 @@ struct Retours : Module {
 			lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
 		}
 
-		lights[CLOCK_LIGHT].setBrightness(clock_light_phase_ < 0.1f ? 1.f : 0.f);
+		// Snap to full brightness during the flash window at the start of each
+		// beat, then decay smoothly (see kClockFlashDecaySeconds).
+		if (clock_light_phase_ < 0.1f)
+			clock_light_level_ = 1.f;
+		else
+			clock_light_level_ = std::max(0.f,
+				clock_light_level_ - args.sampleTime / kClockFlashDecaySeconds);
+		lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
 	}
 };
 
@@ -545,7 +579,17 @@ struct RetoursWidget : ModuleWidget {
 		// takes effect at the next block boundary.
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); }
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->processor_.BufferEmpty()
+		));
+
+		// --- Clear saved tempo ---
+		// A tempo held from a tap or a patched clock now sticks indefinitely;
+		// this is the way back to free-running. Deferred to the audio thread
+		// like Clear buffer, and greyed out when no tempo is saved.
+		menu->addChild(createMenuItem("Clear saved tempo", "",
+			[=]() { module->clear_tempo_requested_.store(true); },
+			/*disabled=*/!module->processor_.IsClocked()
 		));
 	}
 

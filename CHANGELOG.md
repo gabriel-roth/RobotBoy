@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **Retours** — tap tempo now holds indefinitely, like a normal tap-tempo control: a tempo set by tapping or from a patched clock sticks through a stopped clock, an unpatched cable, or an Interval move, until you use the new **Clear saved tempo** right-click item (or set a new tempo).
+- **Retours** — the Clock light now tracks the clock: when clocked it blinks once per beat, locked to incoming ticks, instead of free-running at the subdivided base Interval (which strobed too fast to read at fast tempos on a subdivided knob).
+- **Particules & Retours** — the right-click **Clear buffer** item is greyed out when the recording buffer is already empty.
 - **Particules/Retours** — recording buffer now packs samples at true bit width and channel count — Sunny/Scorched run at 24 kHz with real 12-bit/8-bit µ-law storage; mono input doubles buffer length (up to 64 s).
 - **Loooop** — Level is now mix-only, matching the manual: each head's own
   Out L/R always carries the full-level signal, so a head can be removed from
