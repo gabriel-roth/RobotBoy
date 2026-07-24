@@ -13,7 +13,7 @@ struct Ondes : Module {
         BANK_AMT_PARAM,
         PARAMS_LEN
     };
-    enum InputId { VOCT_INPUT, POSITION_INPUT, BANK_INPUT, INPUTS_LEN };
+    enum InputId { VOCT_INPUT, BANK_INPUT, POSITION_INPUT, INPUTS_LEN };
     enum OutputId { OUT_OUTPUT, OUTPUTS_LEN };
     enum LightId { LIGHTS_LEN };
 
