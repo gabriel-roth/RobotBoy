@@ -370,9 +370,10 @@ int LoopEngine::fadeLen(const PlayHead& h, double winLen) const {
     if (!crossfade_ || xfadeSamples_ == 0 || h.oneShot) return 0;
     const double sp = std::fabs(static_cast<double>(h.speed));
     if (sp < 1e-9) return 0;                        // a stationary head never wraps
-    const int cap = static_cast<int>((winLen / sp) * 0.5);   // fade <= half a pass
     int F = static_cast<int>(xfadeSamples_);
-    if (F > cap) F = cap;
+    // cap = (winLen / sp) * 0.5; only divide when the cap actually binds.
+    if (static_cast<double>(F) * sp * 2.0 > winLen)
+        F = static_cast<int>((winLen / sp) * 0.5);
     return F < 1 ? 0 : F;
 }
 
@@ -383,9 +384,10 @@ int LoopEngine::oneShotFadeLen(const PlayHead& h, double winLen) const {
     if (!crossfade_ || xfadeSamples_ == 0) return 0;
     const double sp = std::fabs(static_cast<double>(h.speed));
     if (sp < 1e-9) return 0;
-    const int cap = static_cast<int>((winLen / sp) * 0.5);
     int F = static_cast<int>(xfadeSamples_);
-    if (F > cap) F = cap;
+    // cap = (winLen / sp) * 0.5; only divide when the cap actually binds.
+    if (static_cast<double>(F) * sp * 2.0 > winLen)
+        F = static_cast<int>((winLen / sp) * 0.5);
     return F < 1 ? 0 : F;
 }
 
@@ -394,11 +396,12 @@ int LoopEngine::oneShotFadeLen(const PlayHead& h, double winLen) const {
 float LoopEngine::oneShotFadeGain(const PlayHead& h, double winStart,
                                   double winLen, int F) const {
     const double sp = std::fabs(static_cast<double>(h.speed));
-    const double outToEnd = (h.speed >= 0.f)
-        ? (winStart + winLen - h.pos) / sp
-        : (h.pos - winStart) / sp;
-    if (outToEnd < 0.0) return 0.f;
-    if (outToEnd >= static_cast<double>(F)) return 1.f;
+    const double dist = (h.speed >= 0.f)
+        ? (winStart + winLen - h.pos)
+        : (h.pos - winStart);
+    if (dist < 0.0) return 0.f;
+    if (dist >= static_cast<double>(F) * sp) return 1.f;
+    const double outToEnd = dist / sp;   // rare: only inside the fade window
     const float t = static_cast<float>(outToEnd / F);   // 0 at end -> 1 at fade start
     return t * t * (3.f - 2.f * t);
 }
@@ -421,10 +424,10 @@ void LoopEngine::readHead(const PlayHead& h, int headIdx, double winStart, doubl
     const int F = fadeLen(h, winLen);
     if (F < 1) return;
     const double sp = std::fabs(static_cast<double>(h.speed));
-    const double outToSeam = (h.speed >= 0.f)
-        ? (winStart + winLen - h.pos) / sp
-        : (h.pos - winStart) / sp;
-    if (outToSeam < 0.0 || outToSeam >= static_cast<double>(F)) return;
+    const double distToSeam = (h.speed >= 0.f) ? (winStart + winLen - h.pos)
+                                               : (h.pos - winStart);
+    if (distToSeam < 0.0 || distToSeam >= static_cast<double>(F) * sp) return;
+    const double outToSeam = distToSeam / sp;   // rare: only inside the fade window
     double prog = outToSeam / static_cast<double>(F);   // 1 at fade start -> 0 at seam
     if (prog < 0.0) prog = 0.0;
     if (prog > 1.0) prog = 1.0;
