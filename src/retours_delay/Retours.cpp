@@ -127,7 +127,8 @@ struct Retours : Module {
 		// name (the adapter can't label a momentary button). Desktop keeps the
 		// momentary cycle button below.
 		configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
-			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"});
+			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"})
+			->randomizeEnabled = false;
 #else
 		configButton<RetoursQualityParamQuantity>(QUALITY_PARAM, "Quality");
 #endif
