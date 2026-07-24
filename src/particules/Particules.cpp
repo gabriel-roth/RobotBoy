@@ -718,7 +718,7 @@ struct ParticulesWidget : ModuleWidget {
 		}
 
 		// --- Grain Trigger Output ---
-		menu->addChild(createBoolMenuItem("Grain trigger on R output", "",
+		menu->addChild(createBoolMenuItem("Grain trigger on R Out", "",
 			[=]() { return module->grain_trigger_out_; },
 			[=](bool val) {
 				withMenuUndo(module, "toggle grain trigger output",
