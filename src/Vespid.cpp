@@ -296,7 +296,7 @@ struct Vespid : Module {
 	// module-level Blend smoother is advanced once per sample in process() —
 	// not here — so every voice sees the same value and the slew time
 	// constant doesn't shrink with the voice count.
-	void processChannel(int c, float m) {
+	void processChannel(int c, float m, bool rConnected) {
 		wasp::VoiceEngine& eng = _pool.engines[c];
 
 		float g     = eng.gSlew.process(eng.gTarget);
@@ -321,7 +321,7 @@ struct Vespid : Module {
 		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
 		outputs[MIX_OUTPUT].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
 
-		if (inputs[AUDIO_INPUT_R].isConnected()) {
+		if (rConnected) {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
 			wasp::WaspFilter::Out oR =
@@ -345,8 +345,11 @@ struct Vespid : Module {
 		                            inputs[AUDIO_INPUT_R].getChannels()});
 		_pool.setVoices(channels);
 
-		for (int out = 0; out < NUM_OUTPUTS; out++)
-			outputs[out].setChannels(channels);
+		// setChannels only needs to run when the voice count changes, not
+		// 8 outputs x every sample.
+		if (outputs[LP_OUTPUT].getChannels() != channels)
+			for (int out = 0; out < NUM_OUTPUTS; out++)
+				outputs[out].setChannels(channels);
 
 		if (++_steps >= _modulationSteps) {
 			_steps = 0;
@@ -355,10 +358,12 @@ struct Vespid : Module {
 
 		_dither = -_dither;
 		// Blend smoother advances once per sample (MF-20 pattern), not per
-		// voice — see processChannel's comment.
+		// voice — see processChannel's comment. The stereo check is hoisted
+		// out of the voice loop (Onbetap already does this).
 		float m = _blendSlew.process(_blendTarget);
+		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
 		for (int c = 0; c < channels; c++)
-			processChannel(c, m);
+			processChannel(c, m, rConnected);
 	}
 
 	json_t* dataToJson() override {
