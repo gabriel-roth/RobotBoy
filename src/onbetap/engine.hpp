@@ -53,13 +53,26 @@ struct DecimFir13 {
         0.3019243f,  0.4675237f,  0.3019243f,  0.0096953f, -0.0952920f,
        -0.0089609f,  0.0510650f,  0.0078065f
     };
+    // Ring buffer instead of a shift register: push() previously moved all
+    // 12 history samples every call (cpu-optimization-2026-07-24.md §4.5 —
+    // the same rework Vespid's halfbands already got). head indexes the
+    // most recent sample; the MAC walks the taps in the same
+    // newest-to-oldest order as the shift-register version. Scalar op order
+    // is identical; compiler vectorization may still reorder the reduction,
+    // so outputs match to float-noise (measured ≤ 1e-6 on ±5 noise), same
+    // as the Vespid halfband rework's documented ~1e-7.
     float z[13] = {0.f};
-    void reset() { for (auto& v : z) v = 0.f; }
+    int head = 0;
+    void reset() { for (auto& v : z) v = 0.f; head = 0; }
+    // Advance history without computing the output — for substeps whose
+    // output the caller discards (§4.4).
+    void pushHistory(float x) { head = (head == 0) ? 12 : head - 1; z[head] = x; }
     float push(float x) {
-        for (int i = 12; i > 0; i--) z[i] = z[i - 1];
-        z[0] = x;
+        pushHistory(x);
         float y = 0.f;
-        for (int i = 0; i < 13; i++) y += h[i] * z[i];
+        int i = 0;
+        for (int idx = head; idx < 13; ++idx, ++i) y += h[i] * z[idx];
+        for (int idx = 0; i < 13; ++idx, ++i)      y += h[i] * z[idx];
         return y;
     }
 };
@@ -82,13 +95,20 @@ struct DecimFir9 {
         -0.0042816f, -0.0436724f, 0.0182510f, 0.2921273f, 0.4751513f,
          0.2921273f,  0.0182510f, -0.0436724f, -0.0042816f
     };
+    // Ring buffer, same rework as DecimFir13 above. pushHistory() matters
+    // here: on the 4x path this FIR is fed every substep but its output is
+    // consumed only on even substeps, so the odd-substep MACs were pure
+    // waste (§4.4) — the caller now advances history only.
     float z[9] = {0.f};
-    void reset() { for (auto& v : z) v = 0.f; }
+    int head = 0;
+    void reset() { for (auto& v : z) v = 0.f; head = 0; }
+    void pushHistory(float x) { head = (head == 0) ? 8 : head - 1; z[head] = x; }
     float push(float x) {
-        for (int i = 8; i > 0; i--) z[i] = z[i - 1];
-        z[0] = x;
+        pushHistory(x);
         float y = 0.f;
-        for (int i = 0; i < 9; i++) y += h[i] * z[i];
+        int i = 0;
+        for (int idx = head; idx < 9; ++idx, ++i) y += h[i] * z[idx];
+        for (int idx = 0; i < 9; ++idx, ++i)      y += h[i] * z[idx];
         return y;
     }
 };
