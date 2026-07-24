@@ -77,6 +77,8 @@ void LoopEngine::toggleRecord(bool continueOverdub) {
         }
         dispRecording_.store(true, std::memory_order_relaxed);
         dispRecLen_.store(0, std::memory_order_relaxed);
+        revThrottle_ = 0;
+        bumpWaveformRevision();   // pass start: make it visible immediately, not after 2048 samples
     } else if (loopLen_ == 0) {
         // Closing the initial pass freezes the loop length now: there is no
         // prior content to blend with, and the seam crossfade declicks the join.
@@ -96,6 +98,7 @@ void LoopEngine::toggleRecord(bool continueOverdub) {
                 decayLpL_ = bufL_[0];
                 decayLpR_ = bufR_[0];
             }
+            revThrottle_ = 0;
             // recording_ and dispRecording_ stay true.
         } else {
             recording_ = false;
@@ -115,6 +118,7 @@ void LoopEngine::toggleRecord(bool continueOverdub) {
         recording_ = false;   // xfadeSamples_ == 0: legacy step behavior
         dispRecording_.store(false, std::memory_order_relaxed);
         dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+        bumpWaveformRevision();   // stop transition: converge the display immediately
     }
 }
 
@@ -473,7 +477,8 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
         if (loopLen_ == 0) {                 // initial pass: overwrite
             bufL_[writeIdx_] = inL;
             bufR_[writeIdx_] = inR;
-            bumpWaveformRevision();   // content changed -> invalidate display cache
+            if ((++revThrottle_ & REV_THROTTLE_MASK) == 0)
+                bumpWaveformRevision();   // throttled: content changes every sample while recording
             ++writeIdx_;
             dispRecLen_.store(static_cast<std::uint32_t>(writeIdx_), std::memory_order_relaxed);
             if (writeIdx_ >= maxSamples_) {  // buffer ceiling -> auto-end
@@ -501,7 +506,8 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             // further reduces to the legacy old + in, bit-exact.
             bufL_[writeIdx_] = oldL + odGain_ * (fb * fbL - oldL) + odGain_ * inL;
             bufR_[writeIdx_] = oldR + odGain_ * (fb * fbR - oldR) + odGain_ * inR;
-            bumpWaveformRevision();   // content changed -> invalidate display cache
+            if ((++revThrottle_ & REV_THROTTLE_MASK) == 0)
+                bumpWaveformRevision();   // throttled: content changes every sample while recording
             ++writeIdx_;
             if (writeIdx_ >= loopLen_) writeIdx_ = 0;
             if (stopPending_) {
@@ -512,6 +518,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                     recording_ = false;
                     dispRecording_.store(false, std::memory_order_relaxed);
                     dispLoopLen_.store(static_cast<std::uint32_t>(loopLen_), std::memory_order_relaxed);
+                    bumpWaveformRevision();   // stop transition: converge the display immediately
                 }
             } else if (odGain_ < 1.f) {
                 odGain_ += odGainStep_;

@@ -198,6 +198,13 @@ private:
     std::atomic<std::uint32_t> dispGrid_{0};
     std::atomic<std::uint32_t> waveformRevision_{0};
     std::uint32_t waveformRevisionCounter_ = 0;
+    // Per-sample bump throttle during recording: a release store is a full
+    // memory barrier on ARMv7, and the churn also makes MetaModule's GUI
+    // re-scan the whole waveform every frame while recording. Throttled to
+    // ~23 Hz at 48 kHz; recording-state transitions bump unconditionally so
+    // the display still converges immediately at pass boundaries.
+    std::uint32_t revThrottle_ = 0;
+    static constexpr std::uint32_t REV_THROTTLE_MASK = 2047;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};

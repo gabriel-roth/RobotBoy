@@ -1369,6 +1369,33 @@ static void test_armed_oneshot_window_tracks_size() {
     check(!s2.playing[0], "armed one-shot: head still not playing (silent)");
 }
 
+// Task 4: the per-sample bump in the record paths is throttled to ~every
+// 2048 samples (REV_THROTTLE_MASK) so the release store (a full memory
+// barrier on ARMv7) and the GUI's waveform re-scan don't run every sample.
+// Transition bumps (pass start, pass stop) still make the display converge
+// immediately, so a start->write->stop sequence must show the revision
+// change right away at both ends while the mid-pass churn stays throttled.
+static void test_waveform_revision_throttled_during_recording() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    const auto beforeRecord = e.waveformRevision();
+    e.toggleRecord();                       // start: unconditional transition bump
+    const auto afterStart = e.waveformRevision();
+    check(afterStart != beforeRecord, "throttle: starting a pass bumps immediately");
+    const int N = 10000;
+    for (int i = 0; i < N; ++i) e.process(0.1f);
+    const auto afterWrites = e.waveformRevision();
+    // Delta since the pass started must be far below N: with a 2048-sample
+    // throttle period, 10000 samples produce only a handful of bumps.
+    const std::uint32_t delta = afterWrites - afterStart;
+    char msg[80];
+    std::snprintf(msg, sizeof(msg), "throttle: revision delta %u over %d samples < 100", delta, N);
+    check(delta < 100, msg);
+    e.toggleRecord();                       // stop: unconditional transition bump
+    const auto afterStop = e.waveformRevision();
+    check(afterStop != afterWrites, "throttle: ending the pass bumps immediately");
+}
+
 int main() {
     test_continue_overdub_on_close();
     test_continue_overdub_lock_stops();
@@ -1423,6 +1450,7 @@ int main() {
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
     test_waveform_revision_tracks_write_changes_only();
+    test_waveform_revision_throttled_during_recording();
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
