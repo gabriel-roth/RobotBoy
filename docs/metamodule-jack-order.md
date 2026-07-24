@@ -165,8 +165,8 @@ Inputs:
 
 Outputs:
 
-1. Mix L (LP–notch–HP blend)
-2. Mix R (LP–notch–HP blend)
+1. Mix L
+2. Mix R
 3. Highpass L
 4. Highpass R
 5. Bandpass L

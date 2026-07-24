@@ -183,7 +183,7 @@ Roller params:
 1. Frequency
 2. Resonance
 3. Drive
-4. Blend (LP–notch–HP)
+4. Blend: LP/notch/HP
 5. Frequency CV
 6. Resonance CV
 7. Drive CV
