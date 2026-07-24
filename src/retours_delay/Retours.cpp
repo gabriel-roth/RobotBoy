@@ -483,22 +483,22 @@ struct RetoursWidget : ModuleWidget {
 			}
 		));
 
-		// --- Clear Buffer ---
-		// Deferred to the audio thread (process()) to avoid racing the DSP;
-		// takes effect at the next block boundary.
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); },
-			/*disabled=*/module->processor_.BufferEmpty()
-		));
-
 		// --- Clear saved tempo ---
 		// A tempo held from a tap or a patched clock now sticks indefinitely;
 		// this is the way back to free-running. Deferred to the audio thread
 		// like Clear buffer, and greyed out when no tempo is saved.
+		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear saved tempo", "",
 			[=]() { module->clear_tempo_requested_.store(true); },
 			/*disabled=*/!module->processor_.IsClocked()
+		));
+
+		// --- Clear Buffer ---
+		// Deferred to the audio thread (process()) to avoid racing the DSP;
+		// takes effect at the next block boundary.
+		menu->addChild(createMenuItem("Clear buffer", "",
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->processor_.BufferEmpty()
 		));
 	}
 
