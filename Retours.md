@@ -116,12 +116,10 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Quality** — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
 - **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves — the classic delay-sweep sound. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend.
 - **Envelope feedback tap** — whether the Shape envelope is applied **before** or **after** the signal is fed back. Post-envelope (default) shapes only what you hear; Pre-envelope feeds the shaped signal back too, so the chopping compounds with each repeat.
-- **Input trim** (desktop only) — ±12 dB of input gain trim.
-- **Doppler slew** (desktop only) — how quickly the tape head glides to a new delay time in Tape mode (0.01–1 s, default 0.3 s). Shorter is snappier; longer is a slower, more dramatic pitch sweep.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running (Interval sets the delay time directly again). Greyed out when no tempo is saved.
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
-On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the sliders and Clear buffer are not undoable).
+On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (Clear buffer and Clear saved tempo are not undoable).
 
 ---
 
