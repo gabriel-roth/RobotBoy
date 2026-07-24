@@ -67,17 +67,6 @@ struct Vespid : Module {
 	// Accuracy: pivot-only (false) vs pivot + 2 Newton iterations (true).
 	bool _highAcc = true;
 
-	// Input trim (dB), folded into the drive gain at modulate rate.
-	float _inputTrimDb = 0.f;
-
-	// Output level (dB), applied as a post-gain to every output (both
-	// modes) — the rebalancing tool for the British/German loudness gap
-	// left by the per-mode makeup constants (see WaspFilter.hpp). Computed
-	// at modulate rate as a linear gain target, slewed like the other
-	// module-level shared control (Blend, below), applied after the filter
-	// so it never disturbs the Mix output's notch structure.
-	float _outputLevelDb = 0.f;
-
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
 	// German 50 kHz — eager self-oscillation, onset well under a second
@@ -97,11 +86,6 @@ struct Vespid : Module {
 	// living in EnginePool.
 	OnePoleSmoother _blendSlew { 0.5f };
 	float _blendTarget = 0.5f;
-
-	// Output-level gain: same "shared, module-level, no per-voice CV"
-	// pattern as Blend above.
-	OnePoleSmoother _outputLevelSlew { 1.f };
-	float _outputLevelTarget = 1.f;
 
 	// Deterministic noise-floor seed: alternates sign each sample (cheaper
 	// than an RNG and bit-reproducible VCV vs MetaModule). Does double duty:
@@ -185,7 +169,6 @@ struct Vespid : Module {
 			eng.resetResamplers();
 		}
 		_blendSlew.setAlpha(alpha);
-		_outputLevelSlew.setAlpha(alpha);
 
 		// Force the next process() to re-run modulate() immediately: the
 		// g/kC2/H1 targets all depend on the internal rate, so a menu-driven
@@ -223,9 +206,6 @@ struct Vespid : Module {
 		bool freqCvConn  = inputs[FREQ_INPUT].isConnected();
 		bool resCvConn   = inputs[RES_INPUT].isConnected();
 		bool driveCvConn = inputs[DRIVE_INPUT].isConnected();
-
-		// Input trim is a fixed (non-CV) menu setting -> shared gain factor.
-		float trimGain = std::pow(10.f, _inputTrimDb / 20.f);
 
 		for (int c = 0; c < _pool.activeVoices; c++) {
 			wasp::VoiceEngine& eng = _pool.engines[c];
@@ -270,17 +250,17 @@ struct Vespid : Module {
 			eng.rhoTarget = rho;
 
 			// Drive: knob 0..1 -> 2x..64x (2x fixed pre-gain, 30 dB span),
-			// times the fixed input-trim gain and the per-mode hardware
-			// level staging (mode.inGain). At drive 0 a 5 V signal lands at
-			// German mode's Euro-hot staging (10 V eq., clean, onset ~6% up
-			// the knob) and British mode's EDP-nominal 2.5 V (the original's light
-			// rasp, ~12% THD). See 2026-07-19-vespid-drive-remap-design.md
-			// and 2026-07-19-vespid-input-calibration-design.md.
+			// times the per-mode hardware level staging (mode.inGain). At
+			// drive 0 a 5 V signal lands at German mode's Euro-hot staging
+			// (10 V eq., clean, onset ~6% up the knob) and British mode's
+			// EDP-nominal 2.5 V (the original's light rasp, ~12% THD). See
+			// 2026-07-19-vespid-drive-remap-design.md and
+			// 2026-07-19-vespid-input-calibration-design.md.
 			float drive01 = driveKnob;
 			if (driveCvConn)
 				drive01 += driveCvAtten * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
 			drive01 = clamp(drive01, 0.f, 1.f);
-			eng.driveTarget = 2.f * std::exp2(5.f * drive01) * trimGain * mode.inGain;
+			eng.driveTarget = 2.f * std::exp2(5.f * drive01) * mode.inGain;
 
 			// H1 (resonance network) coefficients: computeH1 is division-heavy,
 			// so it's evaluated here (modulate rate) and its outputs are what
@@ -296,17 +276,14 @@ struct Vespid : Module {
 		if (inputs[BLEND_INPUT].isConnected())
 			blend += inputs[BLEND_INPUT].getVoltage() / 10.f;
 		_blendTarget = clamp(blend, 0.f, 1.f);
-
-		// Output level: fixed (non-CV) menu setting, post-filter gain.
-		_outputLevelTarget = std::pow(10.f, _outputLevelDb / 20.f);
 	}
 
 	// Process one voice (channel c). Advances its smoothers and runs the
 	// audio cascade for L, and for R unless it's normalled to L. The shared
-	// module-level smoothers (blend, output level) are advanced once per
-	// sample in process() — not here — so every voice sees the same value
-	// and the slew time constant doesn't shrink with the voice count.
-	void processChannel(int c, float m, float outGain) {
+	// module-level Blend smoother is advanced once per sample in process() —
+	// not here — so every voice sees the same value and the slew time
+	// constant doesn't shrink with the voice count.
+	void processChannel(int c, float m) {
 		wasp::VoiceEngine& eng = _pool.engines[c];
 
 		float g     = eng.gSlew.process(eng.gTarget);
@@ -326,27 +303,27 @@ struct Vespid : Module {
 		wasp::WaspFilter::Out oL =
 			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2, _highAcc);
 
-		outputs[LP_OUTPUT].setVoltage(outGain * oL.lp, c);
-		outputs[BP_OUTPUT].setVoltage(outGain * oL.bp, c);
-		outputs[HP_OUTPUT].setVoltage(outGain * oL.hp, c);
-		outputs[MIX_OUTPUT].setVoltage(outGain * ((1.f - m) * oL.lp + m * oL.hp), c);
+		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
+		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
+		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
+		outputs[MIX_OUTPUT].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
 
 		if (inputs[AUDIO_INPUT_R].isConnected()) {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
 			wasp::WaspFilter::Out oR =
 				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2, _highAcc);
-			outputs[LP_OUTPUT_R].setVoltage(outGain * oR.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(outGain * oR.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(outGain * oR.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage(outGain * ((1.f - m) * oR.lp + m * oR.hp), c);
+			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oR.lp + m * oR.hp, c);
 		} else {
 			// R normalled to L: mirror L's outputs, skip the R compute
 			// entirely (matches the MF-20 mono-patch optimization).
-			outputs[LP_OUTPUT_R].setVoltage(outGain * oL.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(outGain * oL.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(outGain * oL.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage(outGain * ((1.f - m) * oL.lp + m * oL.hp), c);
+			outputs[LP_OUTPUT_R].setVoltage(oL.lp, c);
+			outputs[BP_OUTPUT_R].setVoltage(oL.bp, c);
+			outputs[HP_OUTPUT_R].setVoltage(oL.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
 		}
 	}
 
@@ -364,12 +341,11 @@ struct Vespid : Module {
 		}
 
 		_dither = -_dither;
-		// Shared smoothers advance once per sample (MF-20 pattern), not per
+		// Blend smoother advances once per sample (MF-20 pattern), not per
 		// voice — see processChannel's comment.
 		float m = _blendSlew.process(_blendTarget);
-		float outGain = _outputLevelSlew.process(_outputLevelTarget);
 		for (int c = 0; c < channels; c++)
-			processChannel(c, m, outGain);
+			processChannel(c, m);
 	}
 
 	json_t* dataToJson() override {
@@ -378,8 +354,6 @@ struct Vespid : Module {
 		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
 		json_object_set_new(root, "highAcc", json_boolean(_highAcc));
 		json_object_set_new(root, "osMenu", json_integer(_osMenu));
-		json_object_set_new(root, "inputTrimDb", json_real(_inputTrimDb));
-		json_object_set_new(root, "outputLevelDb", json_real(_outputLevelDb));
 		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
 	}
@@ -406,14 +380,10 @@ struct Vespid : Module {
 		// or invert clamp bounds). Mirrors the menu Quantity setters' ranges.
 		if (_osMenu != 0 && _osMenu != 1 && _osMenu != 2 && _osMenu != 4)
 			_osMenu = 0;
-		json_t* it = json_object_get(root, "inputTrimDb");
-		if (it)
-			_inputTrimDb = clamp((float)json_real_value(it), -12.f, 12.f);
-		json_t* ol = json_object_get(root, "outputLevelDb");
-		if (ol)
-			_outputLevelDb = clamp((float)json_real_value(ol), -12.f, 12.f);
-		// Older patches carry an "fPole" key (Inverter bandwidth slider,
-		// removed 2026-07-19 — baked per mode above); it is ignored.
+		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
+		// Output level menu sliders, removed — both were unity by default) and
+		// an "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
+		// per mode above); all are ignored.
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
@@ -425,62 +395,6 @@ struct Vespid : Module {
 };
 
 
-// Menu-slider Quantities (VCV desktop only — MetaModule's context menu has no
-// ui::Slider widget; see the #ifndef METAMODULE guards below, same pattern as
-// Particules' ManualGainSlider/Quantity).
-
-// Input trim: linear dB, ±12 dB, default 0.
-struct InputTrimQuantity : Quantity {
-	Vespid* module;
-	InputTrimQuantity(Vespid* m) : module(m) {}
-	void setValue(float value) override {
-		if (module)
-			module->_inputTrimDb = clamp(value, getMinValue(), getMaxValue());
-	}
-	float getValue() override { return module ? module->_inputTrimDb : getDefaultValue(); }
-	float getMinValue() override { return -12.f; }
-	float getMaxValue() override { return 12.f; }
-	float getDefaultValue() override { return 0.f; }
-	std::string getLabel() override { return "Input trim"; }
-	std::string getUnit() override { return " dB"; }
-	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
-};
-
-// Output level: linear dB, ±12 dB, default 0. Post-filter gain applied to
-// every output, both modes — same shape as InputTrimQuantity above.
-struct OutputLevelQuantity : Quantity {
-	Vespid* module;
-	OutputLevelQuantity(Vespid* m) : module(m) {}
-	void setValue(float value) override {
-		if (module)
-			module->_outputLevelDb = clamp(value, getMinValue(), getMaxValue());
-	}
-	float getValue() override { return module ? module->_outputLevelDb : getDefaultValue(); }
-	float getMinValue() override { return -12.f; }
-	float getMaxValue() override { return 12.f; }
-	float getDefaultValue() override { return 0.f; }
-	std::string getLabel() override { return "Output level"; }
-	std::string getUnit() override { return " dB"; }
-	std::string getDisplayValueString() override { return string::f("%.1f", getValue()); }
-};
-
-#ifndef METAMODULE
-struct InputTrimSlider : ui::Slider {
-	InputTrimSlider(InputTrimQuantity* q) {
-		quantity = q;
-		box.size.x = 200.f;
-	}
-	~InputTrimSlider() { delete quantity; }
-};
-
-struct OutputLevelSlider : ui::Slider {
-	OutputLevelSlider(OutputLevelQuantity* q) {
-		quantity = q;
-		box.size.x = 200.f;
-	}
-	~OutputLevelSlider() { delete quantity; }
-};
-#endif
 
 struct VespidWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
@@ -584,53 +498,6 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Corrected (tracks knob)",
 			m->_oscPitchCorrected ? "✓" : "",
 			[m]() { m->_oscPitchCorrected = true; }));
-
-		menu->addChild(new MenuSeparator);
-#ifdef METAMODULE
-		// MetaModule's context menu has no ui::Slider widget (see the
-		// InputTrimSlider/OutputLevelSlider #ifndef METAMODULE guards above),
-		// so MM gets discrete-choice submenus instead of continuous sliders —
-		// same precedent as Particules' manual-gain menu
-		// (src/particules/Particules.cpp, the `#ifdef METAMODULE` 0-32 dB list
-		// under ManualGainItem). Persistence is unchanged: both paths write/read
-		// the same _inputTrimDb/_outputLevelDb floats and JSON fields, so
-		// patches roundtrip identically between hosts.
-		menu->addChild(createIndexSubmenuItem("Input trim",
-			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
-			[m]() -> size_t {
-				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
-				size_t best = 2;
-				float bestDiff = std::fabs(kValues[2] - m->_inputTrimDb);
-				for (size_t i = 0; i < 5; i++) {
-					float diff = std::fabs(kValues[i] - m->_inputTrimDb);
-					if (diff < bestDiff) { bestDiff = diff; best = i; }
-				}
-				return best;
-			},
-			[m](size_t i) {
-				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
-				m->_inputTrimDb = kValues[i];
-			}));
-		menu->addChild(createIndexSubmenuItem("Output level",
-			{"-12 dB", "-6 dB", "0 dB", "+6 dB", "+12 dB"},
-			[m]() -> size_t {
-				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
-				size_t best = 2;
-				float bestDiff = std::fabs(kValues[2] - m->_outputLevelDb);
-				for (size_t i = 0; i < 5; i++) {
-					float diff = std::fabs(kValues[i] - m->_outputLevelDb);
-					if (diff < bestDiff) { bestDiff = diff; best = i; }
-				}
-				return best;
-			},
-			[m](size_t i) {
-				static const float kValues[5] = {-12.f, -6.f, 0.f, 6.f, 12.f};
-				m->_outputLevelDb = kValues[i];
-			}));
-#else
-		menu->addChild(new InputTrimSlider(new InputTrimQuantity(m)));
-		menu->addChild(new OutputLevelSlider(new OutputLevelQuantity(m)));
-#endif
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Panel",

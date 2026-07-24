@@ -7,6 +7,7 @@
 - **Particules & Retours** — the right-click **Clear buffer** item is greyed out when the recording buffer is already empty.
 - **Retours** — removed the **Input trim** and **Doppler slew** menu sliders. Input trim is baked at 0 dB (unity) and the Doppler slew at 0.285 s.
 - **Retours** — removed the **Envelope feedback tap** menu option. The feedback tap is permanently post-envelope, matching hardware Beads (the Shape envelope shapes the fed-back signal, so gated repeats compound).
+- **Vespid** — removed the **Input trim** and **Output level** menu items. Both were unity by default and are now fixed there (no gain staging in the menu).
 - **Particules/Retours** — recording buffer now packs samples at true bit width and channel count — Sunny/Scorched run at 24 kHz with real 12-bit/8-bit µ-law storage; mono input doubles buffer length (up to 64 s).
 - **Loooop** — Level is now mix-only, matching the manual: each head's own
   Out L/R always carries the full-level signal, so a head can be removed from

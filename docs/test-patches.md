@@ -332,10 +332,10 @@ Fill these in during patches 8 and 13; they become shipping defaults (several sl
 | Onbetap | Output trim | ±12 dB (0) | Resolved — baked, slider removed |
 | Onbetap | Resonance limiting | Hard/Soft (Soft) | Resolved — Soft shipped as default |
 | Onbetap | Oversampling default | 1×/2×/4× (2×) | |
-| Vespid | Input trim | ±12 dB | |
-| Vespid | Output level | ±12 dB | |
+| Vespid | Input trim | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
+| Vespid | Output level | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Inverter bandwidth | 60–300 kHz | Resolved — baked per character (British 60 / German 50 kHz), slider removed |
 | Vespid | Accuracy default | Standard/High | Resolved — High shipped as default |
-| Retours | Input trim | ±12 dB (0) | |
-| Retours | Doppler slew | 0.01–1 s | |
+| Retours | Input trim | ±12 dB (0) | Resolved — baked at 0 dB (unity), slider removed |
+| Retours | Doppler slew | 0.01–1 s | Resolved — baked at 0.285 s, slider removed |
 | Retours | Random LFO rate | 0.02–2 Hz | Resolved — baked at 0.1 Hz, slider removed |
