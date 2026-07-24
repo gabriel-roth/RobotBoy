@@ -123,15 +123,34 @@ private:
         bool gridExclude = false;   // this head ignores Grid quantization
     };
 
+    // Non-hot uncached entry points (restartHead, jumpHead, triggerOneShot):
+    // delegate to windowBoundsUncached without touching the per-head cache.
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
-    void windowBounds(const PlayHead& h, float jitterOff,
-                      double& winStart, double& winLen) const;
+    void windowBoundsUncached(const PlayHead& h, float jitterOff,
+                              double& winStart, double& winLen) const;
+    // Value-compare cache for the hot per-sample call sites (Findings §2 H5):
+    // grid-path windowBounds costs 3 double divides + 2 lround libm calls, but
+    // all its inputs are control-rate, so recomputing every sample is wasted
+    // work. Hosts call the setters every sample, so the cache MUST compare
+    // values, not a dirty flag (a flag would be set every sample = always
+    // dirty). flavor distinguishes the two call shapes sharing a head: 0 =
+    // jitterOff (main window), 1 = jitterNext (seam preview).
+    void windowBoundsCached(const PlayHead& h, int headIdx, int flavor,
+                            float jitterOff, double& winStart, double& winLen) const;
+    struct WinCache {
+        float size = -1.f, centre = -2.f, jitterOff = -2.f;
+        int grid = -1; bool gridExclude = false;
+        std::size_t loopLen = static_cast<std::size_t>(-1);
+        double winStart = 0.0, winLen = 1.0;
+    };
+    // [head][flavor]: flavor 0 = h.jitterOff calls, 1 = h.jitterNext calls.
+    mutable std::array<std::array<WinCache, 2>, NUM_HEADS> winCache_{};
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
     float readRaw(double p, const std::vector<float>& buf) const;
     float tapWrapped(double x, double winStart, double winLen,
                      const std::vector<float>& buf) const;
-    void readHead(const PlayHead& h, double winStart, double winLen,
+    void readHead(const PlayHead& h, int headIdx, double winStart, double winLen,
                   float& outL, float& outR) const;
     // Crossfade length in output samples for this head/window, capped to half the
     // window's output-period; 0 disables (window too short, or crossfade off).

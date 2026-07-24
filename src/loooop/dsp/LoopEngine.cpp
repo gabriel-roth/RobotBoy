@@ -29,6 +29,10 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     odGainStep_ = 0.f;
     rng_ = 0x9E3779B9u;
     for (auto& h : heads_) h = PlayHead{};
+    // minWinLen_ just changed (derived from sampleRate above) and isn't part
+    // of the cache's compare set, so invalidate every slot explicitly.
+    for (auto& perHead : winCache_)
+        for (auto& c : perHead) c.loopLen = static_cast<std::size_t>(-1);
     dispLoopLen_.store(0, std::memory_order_relaxed);
     dispRecLen_.store(0, std::memory_order_relaxed);
     dispRecording_.store(false, std::memory_order_relaxed);
@@ -54,6 +58,9 @@ void LoopEngine::setSampleRate(float sampleRate) {
     levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
+    // minWinLen_ isn't part of the cache's compare set; invalidate explicitly.
+    for (auto& perHead : winCache_)
+        for (auto& c : perHead) c.loopLen = static_cast<std::size_t>(-1);
 }
 
 void LoopEngine::toggleRecord(bool continueOverdub) {
@@ -261,10 +268,27 @@ void LoopEngine::jumpHead(int head, float t01) {
 }
 
 void LoopEngine::windowBounds(const PlayHead& h, double& winStart, double& winLen) const {
-    windowBounds(h, h.jitterOff, winStart, winLen);
+    windowBoundsUncached(h, h.jitterOff, winStart, winLen);
 }
 
-void LoopEngine::windowBounds(const PlayHead& h, float jitterOff,
+// Value-compare cache (Findings §2 H5): every input here is control-rate, but
+// hosts call the setters every sample, so a dirty flag would always be dirty.
+// Comparing the actual values instead recomputes only on a real change.
+// minWinLen_ is deliberately excluded: it only changes in reset()/
+// setSampleRate(), which invalidate every slot directly instead.
+void LoopEngine::windowBoundsCached(const PlayHead& h, int headIdx, int flavor,
+                                    float jitterOff, double& winStart, double& winLen) const {
+    WinCache& c = winCache_[headIdx][flavor];
+    if (h.size != c.size || h.centre != c.centre || jitterOff != c.jitterOff
+        || grid_ != c.grid || h.gridExclude != c.gridExclude || loopLen_ != c.loopLen) {
+        c.size = h.size; c.centre = h.centre; c.jitterOff = jitterOff;
+        c.grid = grid_; c.gridExclude = h.gridExclude; c.loopLen = loopLen_;
+        windowBoundsUncached(h, jitterOff, c.winStart, c.winLen);
+    }
+    winStart = c.winStart; winLen = c.winLen;
+}
+
+void LoopEngine::windowBoundsUncached(const PlayHead& h, float jitterOff,
                               double& winStart, double& winLen) const {
     const double L = static_cast<double>(loopLen_);
     const double minWinLen = minWinLen_;
@@ -384,7 +408,7 @@ float LoopEngine::oneShotFadeGain(const PlayHead& h, double winStart,
 // before the loop point it is equal-power-crossfaded with the loop head read
 // ahead from the window start (direction-aware). advanceHead() resumes just past
 // that previewed head region so nothing is double-played.
-void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
+void LoopEngine::readHead(const PlayHead& h, int headIdx, double winStart, double winLen,
                           float& outL, float& outR) const {
     outL = readInterpolated(h, bufL_, winStart, winLen);
     outR = readInterpolated(h, bufR_, winStart, winLen);
@@ -408,7 +432,7 @@ void LoopEngine::readHead(const PlayHead& h, double winStart, double winLen,
     // Preview from the NEXT window (jitterNext) — that is where advanceHead()
     // will resume at the wrap.
     double ns, nl;
-    windowBounds(h, h.jitterNext, ns, nl);
+    windowBoundsCached(h, headIdx, 1, h.jitterNext, ns, nl);
     const double headPos = (h.speed >= 0.f)
         ? ns + headAdvance
         : ns + nl - 1.0 - headAdvance;
@@ -440,7 +464,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
             if (F < 1) {
                 h.pos -= winLen;                    // no crossfade: exact wrap
             } else {                                // resume past the previewed head
-                double ns, nl; windowBounds(h, ns, nl);
+                double ns, nl; windowBoundsCached(h, idx, 0, h.jitterOff, ns, nl);
                 h.pos = ns + static_cast<double>(F) * std::fabs(h.speed) + overshoot;
                 if (h.pos >= ns + nl) h.pos = ns;
             }
@@ -454,7 +478,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
             if (F < 1) {
                 h.pos += winLen;                    // no crossfade: exact wrap
             } else {
-                double ns, nl; windowBounds(h, ns, nl);
+                double ns, nl; windowBoundsCached(h, idx, 0, h.jitterOff, ns, nl);
                 h.pos = ns + nl - 1.0 - static_cast<double>(F) * std::fabs(h.speed) - overshoot;
                 if (h.pos < ns) h.pos = ns + nl - 1.0;
             }
@@ -543,7 +567,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 // knob. Park the head marker at the window start (direction-
                 // aware) so it stays inside the window bar.
                 double ws, wl;
-                windowBounds(h, ws, wl);
+                windowBoundsCached(h, i, 0, h.jitterOff, ws, wl);
                 const float invL = invLoopLen_;
                 const double hp = h.speed < 0.f ? ws + wl - 1.0 : ws;
                 dispPos01_[i].store(static_cast<float>(hp) * invL, std::memory_order_relaxed);
@@ -552,8 +576,8 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 continue;
             }
             double winStart, winLen;
-            windowBounds(h, winStart, winLen);
-            float l, r; readHead(h, winStart, winLen, l, r);
+            windowBoundsCached(h, i, 0, h.jitterOff, winStart, winLen);
+            float l, r; readHead(h, i, winStart, winLen, l, r);
             // Full-level: Level is a mix-only gain, applied by the hosts (and
             // the mono process() below) via smoothedLevel().
             heads[i].l = l;
