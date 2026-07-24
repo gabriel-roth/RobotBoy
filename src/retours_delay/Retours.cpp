@@ -37,8 +37,10 @@ struct RetoursQualityParamQuantity : ParamQuantity {
 struct Retours : Module {
 	enum ParamId {
 		SLICE_PARAM,
-		INTERVAL_PARAM,
+		QUALITY_PARAM,
+		CLOCK_PARAM,
 		TIME_PARAM,
+		INTERVAL_PARAM,
 		PITCH_PARAM,
 		SHAPE_PARAM,
 		FEEDBACK_PARAM,
@@ -46,8 +48,6 @@ struct Retours : Module {
 		TIME_AR_PARAM,
 		PITCH_AR_PARAM,
 		SHAPE_AR_PARAM,
-		QUALITY_PARAM,
-		CLOCK_PARAM,
 		FEEDBACK_AR_PARAM,
 		DRY_WET_AR_PARAM,
 		PARAMS_LEN
@@ -137,9 +137,9 @@ struct Retours : Module {
 		configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet");
-		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time CV amount");
-		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch CV amount");
-		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape CV amount");
+		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
+		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
+		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
 		configButton(CLOCK_PARAM, "Tap tempo");
 		configParam(FEEDBACK_AR_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
 		configParam(DRY_WET_AR_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
