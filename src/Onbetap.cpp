@@ -235,6 +235,7 @@ struct Onbetap : Module {
 	// fir4* stage-A decimators); the 1x path bypasses them entirely.
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
 	                  float g, float kEff, float driveScale, float makeup, float push,
+	                  bool needHp,
 	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp,
 	                  DecimFir9& fir4Lp, DecimFir9& fir4Bp, DecimFir9& fir4Hp) {
 		float lp = 0, bp = 0, hp = 0;
@@ -243,19 +244,23 @@ struct Onbetap : Module {
 			// 4x: two-stage decimation — fir4* (DecimFir9, 192k→96k) feeds
 			// the same DecimFir13 stage the 2x path uses (96k→48k), so the
 			// 4x passband matches 2x by construction. See engine.hpp for
-			// the folding-band math and design provenance.
+			// the folding-band math and design provenance. The stage-A FIRs
+			// must see every substep, but their output is only consumed on
+			// even substeps, so odd substeps advance history without the
+			// 9-tap MAC (pushHistory — cpu-optimization doc §4.4).
 			for (int i = 1; i <= 4; i++) {
-				float t = (float)i / 4.f;
+				float t = (float)i * 0.25f;
 				float x = xPrev + (x1 - xPrev) * t;  // linear interp upsample
 				auto o = flt.processG(x, g, kEff);
-				float al = fir4Lp.push(o.lp);
-				float ab = fir4Bp.push(o.bp);
-				float ah = fir4Hp.push(o.hp);
 				if ((i & 1) == 0) {                  // 96k instants: substeps 2, 4
-					float fl = firLp.push(al);
-					float fb = firBp.push(ab);
-					float fh = firHp.push(ah);
+					float fl = firLp.push(fir4Lp.push(o.lp));
+					float fb = firBp.push(fir4Bp.push(o.bp));
+					float fh = firHp.push(fir4Hp.push(o.hp));
 					if (i == 4) { lp = fl; bp = fb; hp = fh; }
+				} else {
+					fir4Lp.pushHistory(o.lp);
+					fir4Bp.pushHistory(o.bp);
+					fir4Hp.pushHistory(o.hp);
 				}
 			}
 		} else if (oversample == 2) {
@@ -264,7 +269,7 @@ struct Onbetap : Module {
 			// alias band and both droops the top octave and lets content
 			// above the new Nyquist fold back down (measured, Task 5).
 			for (int i = 1; i <= 2; i++) {
-				float t = (float)i / 2.f;
+				float t = (float)i * 0.5f;
 				float x = xPrev + (x1 - xPrev) * t;  // linear interp upsample
 				auto o = flt.processG(x, g, kEff);
 				float fl = firLp.push(o.lp);
@@ -273,16 +278,18 @@ struct Onbetap : Module {
 				if (i == 2) { lp = fl; bp = fb; hp = fh; }  // decimate: keep 1 of 2
 			}
 		} else {
-			for (int i = 1; i <= oversample; i++) {
-				float t = (float)i / oversample;
-				float x = xPrev + (x1 - xPrev) * t;      // linear interp upsample
-				auto o = flt.processG(x, g, kEff);
-				lp += o.lp; bp += o.bp; hp += o.hp;      // average = crude decimator
-			}
-			float inv = 1.f / oversample;
-			lp *= inv; bp *= inv; hp *= inv;
+			// 1x (the MetaModule default): no resampling — the old generic
+			// fall-through interpolated toward t = 1 and averaged over one
+			// sample, i.e. two runtime divides and arithmetic to reproduce
+			// the input (doc §4.2). needHp only gates the tap here: at 1x
+			// skipping it is exactly equivalent (hp is not filter state);
+			// at 2x/4x the decimation FIRs must keep seeing hp, so those
+			// paths always compute it.
+			auto o = flt.processG(x1, g, kEff, needHp);
+			lp = o.lp; bp = o.bp; hp = o.hp;
 		}
-		xPrev = x1;
+		xPrev = x1;   // still tracked at 1x so an oversampling switch
+		              // interpolates from the right previous sample
 
 		// taps + 5 ms crossfade on mode change (Vintage: hard switch, DC step
 		// and all, like the factory panel switch)
@@ -301,7 +308,7 @@ struct Onbetap : Module {
 
 		float v = -y * makeup;
 		v = dc.process(v, dcCoef);                   // AC-couple (rectification DC)
-		return 9.f * OnbetapFilter::tanhish(push * v / 9.f); // "overdriven VCA" stage
+		return 9.f * OnbetapFilter::tanhish(push * v * (1.f / 9.f)); // "overdriven VCA" stage
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -317,6 +324,15 @@ struct Onbetap : Module {
 
 		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
 
+		// HP tap gate (§4.6/§7.2, conservative): only the 1x path may skip
+		// the tap, and only when neither the crossfade target nor — while a
+		// crossfade is still running — its source reads hp. Vintage switches
+		// modes hard, so only the target matters there. Modes 2/3/4
+		// (HP/notch/peak) read hp.
+		auto usesHp = [](int m) { return m >= 2; };
+		bool needHp = oversample != 1 || usesHp(modeTarget)
+		              || (modeXf < 1.f && !vintageDrift && usesHp(modeCurrent));
+
 		for (int c = 0; c < voices; c++) {
 			OnbetapVoice& v = pool.voices[c];
 			float g      = v.gSlew.process(v.gTarget);
@@ -328,7 +344,7 @@ struct Onbetap : Module {
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
 			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
-			                         push, v.firLpL, v.firBpL, v.firHpL,
+			                         push, needHp, v.firLpL, v.firBpL, v.firHpL,
 			                         v.fir4LpL, v.fir4BpL, v.fir4HpL);
 			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
 
@@ -336,7 +352,7 @@ struct Onbetap : Module {
 				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
 				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
 				                         g * v.fRgRatio, kEff, drive, makeup, push,
-				                         v.firLpR, v.firBpR, v.firHpR,
+				                         needHp, v.firLpR, v.firBpR, v.firHpR,
 				                         v.fir4LpR, v.fir4BpR, v.fir4HpR);
 				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
 			} else {
