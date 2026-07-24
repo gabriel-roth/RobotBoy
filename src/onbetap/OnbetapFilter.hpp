@@ -90,6 +90,11 @@ public:
     static constexpr float kLeakCornerHz  = 80.f;
     static constexpr float kLeakBoostMax  = 4.f;
     static constexpr float kSatLeak    = 0.05f;// sat() slope beyond the clamp
+    // Reciprocals: the MetaModule SDK compiles without -ffast-math, so every
+    // division by a constant is a real Cortex-A7 VDIV.F32 unless precomputed
+    // (cpu-optimization-2026-07-24.md §4.3).
+    static constexpr float kInvAsymNeg  = 1.f / kAsymNeg;
+    static constexpr float kInvSoftSpan = 1.f / (kSoftMax - kSoftKnee);
 
     static float cutoffToG(float fcHz, float fsOs) {
         float fc = std::clamp(fcHz, 0.5f, fsOs * 0.245f);
@@ -108,16 +113,26 @@ public:
     // small-signal gain never reaches exactly zero (rail-pin guard).
     static float sat(float v) {
         float lim  = (v >= 0.f) ? 3.f : -3.f * kAsymNeg;
-        float core = (v >= 0.f) ? tanhish(v) : kAsymNeg * tanhish(v / kAsymNeg);
+        float core = (v >= 0.f) ? tanhish(v) : kAsymNeg * tanhish(v * kInvAsymNeg);
         float over = (v >= 0.f) ? std::max(v - lim, 0.f) : std::min(v - lim, 0.f);
         return core + kSatLeak * over;
     }
 
     // Secant gain sat(v)/v — the linearised per-sample gain. →1 as v→0.
+    // Closed per-region forms (cpu-optimization-2026-07-24.md §4.1): the
+    // division by v cancels inside the tanhish window, so each call is one
+    // divide instead of two. The rational regions are well-behaved at 0
+    // (→ 1 exactly), so the old 1e-4 guard is unnecessary. In the leak
+    // regions `core` is a constant: exactly 1.0 at the positive clamp
+    // (3·36/108) and −kAsymNeg at the negative one.
     static float satGain(float v) {
-        float a = std::fabs(v);
-        if (a < 1e-4f) return 1.f;
-        return sat(v) / v;
+        if (v >= 0.f) {
+            if (v <= 3.f) { float v2 = v * v; return (27.f + v2) / (27.f + 9.f * v2); }
+            return (1.f + kSatLeak * (v - 3.f)) / v;
+        }
+        float w = v * kInvAsymNeg;
+        if (w >= -3.f) { float w2 = w * w; return (27.f + w2) / (27.f + 9.f * w2); }
+        return (-kAsymNeg + kSatLeak * (v + 3.f * kAsymNeg)) / v;
     }
 
     void setLimit(Limit m) { limit = m; }
@@ -128,7 +143,11 @@ public:
     void reset() { s1 = s2 = 0.f; }
     bool stateFinite() const { return std::isfinite(s1) && std::isfinite(s2); }
 
-    Out processG(float in, float g, float kEff) {
+    // needHp = false skips the HP tap's sat() evaluation and returns hp = 0.
+    // hp is not part of the state update, so this is exactly equivalent when
+    // the caller discards it (LP/BP modes at 1x — see §4.6/§7.2; the module
+    // only passes false when no crossfade endpoint reads hp).
+    Out processG(float in, float g, float kEff, bool needHp = true) {
         float g1 = g * gs1, g2 = g * gs2;
         float xin = kGin * in + off;
 
@@ -143,7 +162,7 @@ public:
         y1 = solveY1(xin, g1, g2, kEff, n1, n2);
         y2 = s2 + g2 * n2 * y1;
 
-        float hp = -sat(xin + y2 + kEff * y1);
+        float hp = needHp ? -sat(xin + y2 + kEff * y1) : 0.f;
 
         s1 = 2.f * y1 - s1;
         s2 = 2.f * y2 - s2;
@@ -178,7 +197,7 @@ private:
     static float softLimitOne(float v) {
         float av = std::fabs(v);
         if (av <= kSoftKnee) return v;
-        float t = (av - kSoftKnee) / (kSoftMax - kSoftKnee);
+        float t = (av - kSoftKnee) * kInvSoftSpan;
         float lim = kSoftKnee + (kSoftMax - kSoftKnee) * t / (1.f + t);
         return v > 0.f ? lim : -lim;
     }
