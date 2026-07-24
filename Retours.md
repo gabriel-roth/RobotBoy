@@ -119,7 +119,7 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Input trim** (desktop only) — ±12 dB of input gain trim.
 - **Doppler slew** (desktop only) — how quickly the tape head glides to a new delay time in Tape mode (0.01–1 s, default 0.3 s). Shorter is snappier; longer is a slower, more dramatic pitch sweep.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running (Interval sets the delay time directly again). Greyed out when no tempo is saved.
-- **Clear buffer** — empties the recording buffer immediately.
+- **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
 On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the sliders and Clear buffer are not undoable).
 

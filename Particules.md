@@ -129,7 +129,7 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Lock pitch** — quantize the Pitch control: **Off**, **Octaves**, **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic**, or **Minor pentatonic**. The five scale modes quantize grain pitch to a 12-tone scale; a **Root** submenu (C through B, default C) sets the scale root and applies only to the scale modes.
 - **Dry signal follows input gain** (default **on**) — takes the dry side of the Dry/Wet blend after the input gain stage, so mid-knob mixes stay level-matched with the wet path even while auto gain is boosting a quiet input. Turn it off to restore the previous behavior, where Dry/Wet at 0 is a bit-exact bypass of the raw input. With the option on, the dry path also passes through the input soft limiter, so at very hot input levels "dry" is no longer bit-clean.
 - **Grain trigger on R output** — replaces the right output with a trigger pulse on every grain (a 1 ms gate), while the left output carries a mono sum of the audio. Back-to-back triggers always leave a one-sample low gap between pulses, so downstream trigger inputs see separate events rather than one long gate. Handy for clocking other modules from the grain rate. Patch Out R for the triggers and take audio from Out L.
-- **Clear buffer** — empties the recording buffer immediately.
+- **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 - **Undo (VCV only)** — context-menu option changes can be undone with Ctrl-Z / Cmd-Z. The manual-gain slider and Clear buffer are not undoable.
 
 ---
