@@ -164,10 +164,10 @@ struct HalfbandDown {
 
 // Soft rail clamp: identity until within 0.3 V of a rail, tanh knee beyond.
 inline float railClamp(float v, float vHi, float vLo) {
-    constexpr float w = 0.3f;
+    constexpr float w = 0.3f, invW = 1.f / w;
     float hi = vHi - w, lo = -vLo + w;
-    if (v > hi) return hi + w*tanhApprox((v - hi)/w);
-    if (v < lo) return lo - w*tanhApprox((lo - v)/w);
+    if (v > hi) return hi + w*tanhApprox((v - hi)*invW);
+    if (v < lo) return lo - w*tanhApprox((lo - v)*invW);
     return v;
 }
 
