@@ -346,43 +346,6 @@ TEST_CASE("ParticulesProcessor: Output levels match Eurorack input levels", "[pr
         REQUIRE(peak > 0.5f);
         REQUIRE(peak < 1.4f);
     }
-
-    // -- Dry pass-through: should be unity --
-    SECTION("Dry pass-through") {
-        TestProcessor tp;
-        ParticulesParameters params;
-        params.dry_wet = 0.0f;            // Full dry
-        params.reverb = 0.0f;
-        params.manual_gain_db = 0.0f;
-        // This SECTION pins the menu-off bypass-dry path (dry = raw input);
-        // the default post-gain path is covered by the [drytap] tests.
-        params.dry_post_gain = false;
-        tp.processor.SetParameters(params);
-
-        std::vector<StereoFrame> input(kBlockSize);
-        std::vector<StereoFrame> output(kBlockSize);
-
-        // A few blocks to settle
-        for (int b = 0; b < 10; ++b) {
-            make_sine_block(input.data(), kBlockSize, b);
-            tp.processor.Process(input.data(), output.data(), kBlockSize);
-        }
-
-        float peak = 0.0f;
-        for (int b = 0; b < 10; ++b) {
-            make_sine_block(input.data(), kBlockSize, 10 + b);
-            tp.processor.Process(input.data(), output.data(), kBlockSize);
-            for (size_t i = 0; i < kBlockSize; ++i) {
-                peak = std::max(peak,
-                    std::max(std::abs(output[i].l), std::abs(output[i].r)));
-            }
-        }
-
-        // Dry pass-through should be near unity
-        INFO("Dry pass-through peak = " << peak);
-        REQUIRE(peak > 0.9f);
-        REQUIRE(peak < 1.1f);
-    }
 }
 
 TEST_CASE("ParticulesProcessor: High density + large size produces continuous audio", "[processor][stress]") {
@@ -492,14 +455,13 @@ static void make_scaled_sine_block(StereoFrame* buf, size_t n, int block_index,
     }
 }
 
-TEST_CASE("ParticulesProcessor: dry tap follows input gain when dry_post_gain is set", "[processor][drytap]") {
+TEST_CASE("ParticulesProcessor: dry tap follows input gain", "[processor][drytap]") {
     TestProcessor tp;
     ParticulesParameters params;
     params.dry_wet = 0.0f;            // Full dry
     params.reverb = 0.0f;
     params.auto_gain = false;
     params.manual_gain_db = 12.0f;    // 10^(12/20) = 3.9811x
-    params.dry_post_gain = true;      // The new default, set explicitly
     tp.processor.SetParameters(params);
 
     std::vector<StereoFrame> input(kBlockSize);
@@ -524,35 +486,6 @@ TEST_CASE("ParticulesProcessor: dry tap follows input gain when dry_post_gain is
         for (size_t i = 0; i < kBlockSize; ++i) {
             REQUIRE(output[i].l == Approx(input[i].l * 3.9811f).margin(0.002f));
             REQUIRE(output[i].r == Approx(input[i].r * 3.9811f).margin(0.002f));
-        }
-    }
-}
-
-TEST_CASE("ParticulesProcessor: dry_post_gain=false keeps the pre-gain bypass dry", "[processor][drytap]") {
-    TestProcessor tp;
-    ParticulesParameters params;
-    params.dry_wet = 0.0f;
-    params.reverb = 0.0f;
-    params.auto_gain = false;
-    params.manual_gain_db = 12.0f;    // gain applies to wet path only
-    params.dry_post_gain = false;
-    tp.processor.SetParameters(params);
-
-    std::vector<StereoFrame> input(kBlockSize);
-    std::vector<StereoFrame> output(kBlockSize);
-
-    for (int b = 0; b < 50; ++b) {
-        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
-        tp.processor.Process(input.data(), output.data(), kBlockSize);
-    }
-
-    // Dry equals the RAW input despite the +12 dB input gain.
-    for (int b = 50; b < 55; ++b) {
-        make_scaled_sine_block(input.data(), kBlockSize, b, 0.05f);
-        tp.processor.Process(input.data(), output.data(), kBlockSize);
-        for (size_t i = 0; i < kBlockSize; ++i) {
-            REQUIRE(output[i].l == Approx(input[i].l).margin(0.002f));
-            REQUIRE(output[i].r == Approx(input[i].r).margin(0.002f));
         }
     }
 }
