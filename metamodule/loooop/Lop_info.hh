@@ -45,7 +45,7 @@ struct LopInfo : ModuleInfoBase {
         QlpKnob{{12.160f, 92.950f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
         QlpButtonLight{{30.480f, 92.950f, Center, "Record", "", 5.f, 5.f}},
         QlpButton{{48.800f, 92.950f, Center, "Clear", "", 5.f, 5.f}},
-        QlpOverdubSwitch{{30.480f, 116.050f, Center, "Overdub", "", 5.f, 5.f}},
+        QlpOverdubSwitch{{30.480f, 116.050f, Center, "Overdub mode", "", 5.f, 5.f}},
         QlpGridKnob{{48.800f, 74.150f, Center, "Grid", "", 9.f, 9.f}},
         // ── Input jacks: Size CV, Pos CV, Speed CV, Jitter CV, Trig, Jump ──
         QlpJackIn{{9.870f, 58.000f, Center, "Size CV", "", 6.f, 6.f}},

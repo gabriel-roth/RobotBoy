@@ -48,7 +48,7 @@ struct LoooopInfo : ModuleInfoBase {
     static constexpr std::array<Element, 91> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
-        QlpOverdubSwitch{{69.543f, 116.050f, Center, "Overdub", "", 7.f, 7.f}},
+        QlpOverdubSwitch{{69.543f, 116.050f, Center, "Overdub mode", "", 7.f, 7.f}},
         QlpButton{{91.785f, 116.050f, Center, "Clear", "", 7.f, 7.f}},
         QlpGridKnob{{122.687f, 116.050f, Center, "Grid", "", 9.f, 9.f}},
         QlpKnob{{143.488f, 116.050f, Center, "Dry/Wet", "", 9.f, 9.f}, 1.0f},
