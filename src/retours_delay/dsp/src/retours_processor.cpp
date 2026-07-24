@@ -347,16 +347,14 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         wet = s.quality_processor.ProcessOutput(wet, s.active_quality);
 
         // SHAPE repeat envelope: amplitude-shapes the wet signal per delay
-        // period. Feedback normally taps the post-envelope signal (a closed
-        // gate quiets the feedback loop too); envelope_pre_feedback instead
-        // lets feedback sustain repeats unshaped, chopping only the output.
-        StereoFrame fb_src_pre = wet;
+        // period. Feedback taps the post-envelope signal, matching hardware
+        // Beads (the delay grain's envelope shapes the fed-back signal), so a
+        // closed gate quiets the feedback loop too and gated repeats compound.
         float env_gain = s.envelope.Next();
         wet.l *= env_gain;
         wet.r *= env_gain;
-        StereoFrame fb_src = s.params.envelope_pre_feedback ? fb_src_pre : wet;
 
-        StereoFrame fb_in{fb_src.l * s.smoothed_feedback, fb_src.r * s.smoothed_feedback};
+        StereoFrame fb_in{wet.l * s.smoothed_feedback, wet.r * s.smoothed_feedback};
         StereoFrame fb = s.saturation.LimitFeedback(fb_in, s.active_quality);
         fb.l = s.feedback_hp_l.ProcessHP(fb.l);
         fb.r = s.feedback_hp_r.ProcessHP(fb.r);

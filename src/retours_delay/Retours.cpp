@@ -293,10 +293,6 @@ struct Retours : Module {
 
 		params_.quality = static_cast<retours_delay_dsp::QualityMode>(quality_state_);
 		params_.time_change_mode      = time_change_mode_;
-		// Baked, no UI: feedback tap permanently post-envelope (matches hardware
-		// Beads, where the delay grain's Shape envelope shapes the fed-back
-		// signal, so gated repeats compound).
-		params_.envelope_pre_feedback = false;
 		// Baked, no UI: input trim fixed at 0 dB (unity), Doppler slew fixed.
 		params_.input_trim_db         = 0.f;
 		params_.slew_seconds          = retours_delay_dsp::kSlewSecondsDefault;
