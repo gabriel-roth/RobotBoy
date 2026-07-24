@@ -354,6 +354,10 @@ void ParticulesProcessor::ClearBuffer() {
     if (impl_) impl_->recording_buffer.ImmediateClear();
 }
 
+bool ParticulesProcessor::BufferEmpty() const {
+    return impl_ ? impl_->recording_buffer.empty() : true;
+}
+
 void ParticulesProcessor::LoadScale(const double* ratios, uint32_t num_notes) {
     if (impl_) impl_->grain_engine.LoadScale(ratios, num_notes);
 }

@@ -433,6 +433,10 @@ void RetoursProcessor::ClearTappedTempo() {
     impl_->base_time.ClearClock();
 }
 
+bool RetoursProcessor::BufferEmpty() const {
+    return impl_ ? impl_->recording_buffer.empty() : true;
+}
+
 float RetoursProcessor::BaseTimeSeconds() const {
     return impl_ ? impl_->base_time.BaseSeconds() : 0.0f;
 }

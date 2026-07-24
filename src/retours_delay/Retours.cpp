@@ -579,7 +579,8 @@ struct RetoursWidget : ModuleWidget {
 		// takes effect at the next block boundary.
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); }
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->processor_.BufferEmpty()
 		));
 
 		// --- Clear saved tempo ---

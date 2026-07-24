@@ -13,6 +13,7 @@ public:
     void Process(const StereoFrame* input, StereoFrame* output, size_t num_frames);
     void ClearBuffer();
     void ClearTappedTempo();          // abandon measured tempo -> free-running
+    bool BufferEmpty() const;         // no audio recorded since last clear
 
     // Telemetry (block-rate; for panel lights)
     float BaseTimeSeconds() const;    // current base delay time

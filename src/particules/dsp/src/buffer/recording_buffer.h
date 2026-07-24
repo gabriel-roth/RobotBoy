@@ -175,6 +175,12 @@ public:
     // True while a deferred Clear() has not finished draining.
     bool ClearPending() const { return clear_cursor_ < clear_total_; }
 
+    // True until a non-zero sample has been recorded since the last clear /
+    // (re)configure / Init. Backs the "Clear buffer" menu grey-out; the flag
+    // is set at the write site (any non-silent input) and reset by every
+    // clear path, so it self-corrects across quality/channel reformats.
+    bool empty() const { return !dirty_; }
+
     void SetDecimationFactor(int factor);
     int decimation_factor() const { return decimation_factor_; }
 
@@ -256,6 +262,9 @@ private:
     // Deferred clear state (set by Clear(), drained by TickClear())
     size_t clear_cursor_ = 0;  // next byte to zero
     size_t clear_total_  = 0;  // total bytes to zero (0 = none pending)
+
+    // Content flag: false = known-empty (all silence since last clear).
+    bool dirty_ = false;
 
     // Unfreeze write-crossfade state (counts accepted writes remaining)
     int write_ramp_remaining_ = 0;

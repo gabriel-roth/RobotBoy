@@ -47,6 +47,35 @@ TEST_CASE("RecordingBuffer: Write and ReadLinear roundtrip", "[buffer]") {
     }
 }
 
+TEST_CASE("RecordingBuffer: empty() tracks recorded content", "[buffer]") {
+    size_t bytes = RecordingBuffer::RequiredBytes(kSampleRate, kDuration);
+    std::vector<uint8_t> mem(bytes, 0);
+
+    RecordingBuffer buf;
+    size_t num_frames = static_cast<size_t>(kSampleRate * kDuration);
+    buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+
+    // Fresh buffer, and silence, are empty.
+    REQUIRE(buf.empty());
+    buf.Write(0.f, 0.f);
+    REQUIRE(buf.empty());
+
+    // Any non-silent sample marks it non-empty...
+    buf.Write(0.5f, -0.5f);
+    REQUIRE_FALSE(buf.empty());
+    // ...and it stays non-empty through subsequent silence.
+    buf.Write(0.f, 0.f);
+    REQUIRE_FALSE(buf.empty());
+
+    // Every clear path resets it to empty.
+    buf.ImmediateClear();
+    REQUIRE(buf.empty());
+    buf.Write(0.25f, 0.25f);
+    REQUIRE_FALSE(buf.empty());
+    buf.Clear();
+    REQUIRE(buf.empty());
+}
+
 TEST_CASE("RecordingBuffer: ReadHermite at integer positions matches samples", "[buffer]") {
     size_t bytes = RecordingBuffer::RequiredBytes(kSampleRate, kDuration);
     std::vector<uint8_t> mem(bytes, 0);
