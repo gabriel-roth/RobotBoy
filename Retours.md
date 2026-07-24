@@ -105,7 +105,7 @@ Retours can run free or lock to a clock.
 - **Nothing patched into Clock, and no tempo set** — *free-running.* Interval sets the delay time directly, as described above.
 - **A clock patched into Clock, or tapping the Clock button** — *clocked.* Retours measures the tempo and Interval becomes a **musical divider/multiplier** of it: straight up is 1:1 (one repeat per beat), counter-clockwise gives simple divisions (1/2, 1/4, 1/8, 1/16), and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer). Time then multiplies that by a snapped musical factor. The Shape envelope re-syncs to every clock tick, so gated and swelling repeats stay in time.
 
-The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. **A tempo, once set — by tapping or from a patched clock — holds indefinitely.** It sticks through a stopped clock, an unpatched cable, and any Interval move (Interval just re-selects the subdivision). To return to free-running, use **Clear tapped tempo** in the right-click menu, or establish a new tempo.
+The **Clock** button doubles as a **tap-tempo** input: tap it a couple of times to set the delay tempo by hand. **A tempo, once set — by tapping or from a patched clock — holds indefinitely.** It sticks through a stopped clock, an unpatched cable, and any Interval move (Interval just re-selects the subdivision). To return to free-running, use **Clear saved tempo** in the right-click menu, or establish a new tempo.
 
 ---
 
@@ -118,7 +118,7 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 - **Envelope feedback tap** — whether the Shape envelope is applied **before** or **after** the signal is fed back. Post-envelope (default) shapes only what you hear; Pre-envelope feeds the shaped signal back too, so the chopping compounds with each repeat.
 - **Input trim** (desktop only) — ±12 dB of input gain trim.
 - **Doppler slew** (desktop only) — how quickly the tape head glides to a new delay time in Tape mode (0.01–1 s, default 0.3 s). Shorter is snappier; longer is a slower, more dramatic pitch sweep.
-- **Clear tapped tempo** — abandons a held tap/clock tempo and returns Retours to free-running (Interval sets the delay time directly again).
+- **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running (Interval sets the delay time directly again). Greyed out when no tempo is saved.
 - **Clear buffer** — empties the recording buffer immediately.
 
 On VCV Rack, menu changes can be undone with Ctrl-Z / Cmd-Z (the sliders and Clear buffer are not undoable).
