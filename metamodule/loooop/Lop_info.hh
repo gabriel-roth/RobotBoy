@@ -58,8 +58,8 @@ struct LopInfo : ModuleInfoBase {
         // ── Global input jacks ──
         QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 6.f, 6.f}},
         QlpJackIn{{17.050f, 116.050f, Center, "In R", "", 6.f, 6.f}},
-        QlpJackIn{{30.480f, 104.900f, Center, "Rec Trig", "", 6.f, 6.f}},
-        QlpJackIn{{48.800f, 104.900f, Center, "Clear Trig", "", 6.f, 6.f}},
+        QlpJackIn{{30.480f, 104.900f, Center, "Record Trigger", "", 6.f, 6.f}},
+        QlpJackIn{{48.800f, 104.900f, Center, "Clear Trigger", "", 6.f, 6.f}},
         QlpJackIn{{12.160f, 104.900f, Center, "Dry/Wet CV", "", 6.f, 6.f}},
         // ── Output jacks ──
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},

@@ -86,8 +86,8 @@ struct LoooopInfo : ModuleInfoBase {
         // ── Global jacks ──
         QlpJackIn{{7.350f, 116.050f, Center, "In L", "", 8.f, 8.f}},
         QlpJackIn{{17.050f, 116.050f, Center, "In R", "", 8.f, 8.f}},
-        QlpJackIn{{47.302f, 116.050f, Center, "Rec Trig", "", 8.f, 8.f}},
-        QlpJackIn{{102.635f, 116.050f, Center, "Clear Trig", "", 8.f, 8.f}},
+        QlpJackIn{{47.302f, 116.050f, Center, "Record Trigger", "", 8.f, 8.f}},
+        QlpJackIn{{102.635f, 116.050f, Center, "Clear Trigger", "", 8.f, 8.f}},
         QlpJackIn{{155.838f, 116.050f, Center, "Dry/Wet CV", "", 8.f, 8.f}},
         QlpJackOut{{175.990f, 116.050f, Center, "Mix L", "", 8.f, 8.f}},
         QlpJackOut{{185.690f, 116.050f, Center, "Mix R", "", 8.f, 8.f}},
