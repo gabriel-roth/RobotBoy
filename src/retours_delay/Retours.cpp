@@ -97,7 +97,6 @@ struct Retours : Module {
 	dsp::SchmittTrigger clock_gate_;     // same for CLOCK jack
 	bool prev_clock_button_ = false;     // CLOCK momentary button edge detect
 	retours_delay_dsp::TimeChangeMode time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
-	bool envelope_pre_feedback_ = false;
 	bool metamodule_fpu_configured_ = false;
 	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
 	// call to the audio thread (process()) so it's not racing the DSP.
@@ -212,7 +211,6 @@ struct Retours : Module {
 		Module::onReset(e);
 		quality_state_          = 0;
 		time_change_mode_       = retours_delay_dsp::TimeChangeMode::kTape;
-		envelope_pre_feedback_  = false;
 		block_runtime_          = RetoursBlockRuntime<kWrapperBlockSize>{};
 		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
 		clock_light_phase_       = 0.f;
@@ -227,7 +225,6 @@ struct Retours : Module {
 		json_t* root = json_object();
 		json_object_set_new(root, "qualityState", json_integer(quality_state_));
 		json_object_set_new(root, "timeChangeMode", json_integer(static_cast<int>(time_change_mode_)));
-		json_object_set_new(root, "envelopePreFeedback", json_boolean(envelope_pre_feedback_));
 		return root;
 	}
 
@@ -240,13 +237,10 @@ struct Retours : Module {
 				clamp((int)json_integer_value(j), 0, 1));
 		else
 			time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
-		if ((j = json_object_get(root, "envelopePreFeedback")))
-			envelope_pre_feedback_ = json_boolean_value(j);
-		else
-			envelope_pre_feedback_ = false;
-		// "inputTrimDb"/"slewSeconds" from older patches are intentionally
-		// ignored: input trim is baked at 0 dB and the Doppler slew at
-		// kSlewSecondsDefault, with no UI to change them.
+		// "inputTrimDb"/"slewSeconds"/"envelopePreFeedback" from older patches
+		// are intentionally ignored: input trim is baked at 0 dB, the Doppler
+		// slew at kSlewSecondsDefault, and the feedback tap permanently
+		// post-envelope, with no UI to change any of them.
 	}
 
 	void updateSlowParams(bool frozen) {
@@ -299,7 +293,10 @@ struct Retours : Module {
 
 		params_.quality = static_cast<retours_delay_dsp::QualityMode>(quality_state_);
 		params_.time_change_mode      = time_change_mode_;
-		params_.envelope_pre_feedback = envelope_pre_feedback_;
+		// Baked, no UI: feedback tap permanently post-envelope (matches hardware
+		// Beads, where the delay grain's Shape envelope shapes the fed-back
+		// signal, so gated repeats compound).
+		params_.envelope_pre_feedback = false;
 		// Baked, no UI: input trim fixed at 0 dB (unity), Doppler slew fixed.
 		params_.input_trim_db         = 0.f;
 		params_.slew_seconds          = retours_delay_dsp::kSlewSecondsDefault;
@@ -486,17 +483,6 @@ struct RetoursWidget : ModuleWidget {
 			[=](int val) {
 				withMenuUndo(module, "change time-change response", [=]() {
 					module->time_change_mode_ = static_cast<retours_delay_dsp::TimeChangeMode>(val);
-				});
-			}
-		));
-
-		// --- Envelope feedback tap ---
-		menu->addChild(createIndexSubmenuItem("Envelope feedback tap",
-			{"Post-envelope", "Pre-envelope"},
-			[=]() { return module->envelope_pre_feedback_ ? 1 : 0; },
-			[=](int val) {
-				withMenuUndo(module, "change envelope feedback tap", [=]() {
-					module->envelope_pre_feedback_ = (val == 1);
 				});
 			}
 		));

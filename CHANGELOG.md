@@ -6,6 +6,7 @@
 - **Retours** — the Clock light now tracks the clock: when clocked it blinks once per beat, locked to incoming ticks, instead of free-running at the subdivided base Interval (which strobed too fast to read at fast tempos on a subdivided knob).
 - **Particules & Retours** — the right-click **Clear buffer** item is greyed out when the recording buffer is already empty.
 - **Retours** — removed the **Input trim** and **Doppler slew** menu sliders. Input trim is baked at 0 dB (unity) and the Doppler slew at 0.285 s.
+- **Retours** — removed the **Envelope feedback tap** menu option. The feedback tap is permanently post-envelope, matching hardware Beads (the Shape envelope shapes the fed-back signal, so gated repeats compound).
 - **Particules/Retours** — recording buffer now packs samples at true bit width and channel count — Sunny/Scorched run at 24 kHz with real 12-bit/8-bit µ-law storage; mono input doubles buffer length (up to 64 s).
 - **Loooop** — Level is now mix-only, matching the manual: each head's own
   Out L/R always carries the full-level signal, so a head can be removed from
