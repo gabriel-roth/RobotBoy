@@ -36,22 +36,22 @@ struct QualityParamQuantity : ParamQuantity {
 struct Particules : Module {
 	enum ParamId {
 		FREEZE_PARAM,
-		DENSITY_PARAM,
-		TIME_PARAM,
-		PITCH_PARAM,
 		QUALITY_PARAM,
-		FEEDBACK_PARAM,
-		FEEDBACK_AMT_PARAM,
+		TIME_PARAM,
+		DENSITY_PARAM,
+		PITCH_PARAM,
 		SIZE_PARAM,
 		SHAPE_PARAM,
-		DRY_WET_PARAM,
-		DRY_WET_AMT_PARAM,
+		FEEDBACK_PARAM,
 		REVERB_PARAM,
-		REVERB_AMT_PARAM,
+		DRY_WET_PARAM,
 		TIME_AR_PARAM,
+		PITCH_AR_PARAM,
 		SIZE_AR_PARAM,
 		SHAPE_AR_PARAM,
-		PITCH_AR_PARAM,
+		FEEDBACK_AMT_PARAM,
+		REVERB_AMT_PARAM,
+		DRY_WET_AMT_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -155,10 +155,10 @@ struct Particules : Module {
 		configParam(DRY_WET_AMT_PARAM, 0.f, 1.f, 0.5f, "Dry/wet CV amount");
 		configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
 		configParam(REVERB_AMT_PARAM, 0.f, 1.f, 0.5f, "Reverb CV amount");
-		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time CV amount");
-		configParam(SIZE_AR_PARAM, -1.f, 1.f, 0.f, "Size CV amount");
-		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape CV amount");
-		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch CV amount");
+		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
+		configParam(SIZE_AR_PARAM, -1.f, 1.f, 0.f, "Size AR");
+		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
+		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
 
 		configInput(FEEDBACK_INPUT, "Feedback CV");
 		configInput(DRY_WET_INPUT, "Dry/wet CV");
