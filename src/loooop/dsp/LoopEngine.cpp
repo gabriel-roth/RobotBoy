@@ -352,6 +352,36 @@ float LoopEngine::readInterpolated(const PlayHead& h, const std::vector<float>& 
     return ((c3 * frac + c2) * frac + c1) * frac + t1;
 }
 
+// Shared L/R Catmull-Rom read. Interior fast path: all four taps in
+// [winStart, winStart+winLen) and inside [0, loopLen) -> direct loads,
+// no floor/libm, indices shared across channels. Falls back to the
+// original per-channel path within 2 samples of a window edge.
+void LoopEngine::readInterpolatedLR(const PlayHead& h, double winStart, double winLen,
+                                    float& outL, float& outR) const {
+    double p = h.pos;
+    if (p < winStart || p >= winStart + winLen) p = winStart;
+    const double ip = std::floor(p);                     // one floor per head, not 10
+    const float frac = static_cast<float>(p - ip);
+    const long long i = static_cast<long long>(ip);
+    const bool interior =
+        (ip - 1.0 >= winStart) && (ip + 2.0 < winStart + winLen) &&
+        (i >= 1) && (static_cast<std::size_t>(i + 2) < loopLen_);
+    if (interior) {
+        const std::size_t i0 = static_cast<std::size_t>(i);
+        auto cr = [frac](float t0, float t1, float t2, float t3) {
+            const float c1 = 0.5f * (t2 - t0);
+            const float c2 = t0 - 2.5f * t1 + 2.f * t2 - 0.5f * t3;
+            const float c3 = 1.5f * (t1 - t2) + 0.5f * (t3 - t0);
+            return ((c3 * frac + c2) * frac + c1) * frac + t1;
+        };
+        outL = cr(bufL_[i0-1], bufL_[i0], bufL_[i0+1], bufL_[i0+2]);
+        outR = cr(bufR_[i0-1], bufR_[i0], bufR_[i0+1], bufR_[i0+2]);
+    } else {
+        outL = readInterpolated(h, bufL_, winStart, winLen);
+        outR = readInterpolated(h, bufR_, winStart, winLen);
+    }
+}
+
 // Raw interpolated buffer read, clamped to [0, loopLen). Used by the seam
 // crossfade to read the loop head ahead of the primary (window-clamped) reader.
 float LoopEngine::readRaw(double p, const std::vector<float>& buf) const {
@@ -413,8 +443,7 @@ float LoopEngine::oneShotFadeGain(const PlayHead& h, double winStart,
 // that previewed head region so nothing is double-played.
 void LoopEngine::readHead(const PlayHead& h, int headIdx, double winStart, double winLen,
                           float& outL, float& outR) const {
-    outL = readInterpolated(h, bufL_, winStart, winLen);
-    outR = readInterpolated(h, bufR_, winStart, winLen);
+    readInterpolatedLR(h, winStart, winLen, outL, outR);
     if (h.oneShot) {
         const int Fo = oneShotFadeLen(h, winLen);
         float g = (Fo >= 1) ? oneShotFadeGain(h, winStart, winLen, Fo) : 1.f;

@@ -2,6 +2,9 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
+#include <cstdint>
+#include <cstring>
+#include <vector>
 
 static int g_failures = 0;
 static void check(bool cond, const char* name) {
@@ -1396,6 +1399,94 @@ static void test_waveform_revision_throttled_during_recording() {
     check(afterStop != afterWrites, "throttle: ending the pass bumps immediately");
 }
 
+// --- Task 7 pinning test -------------------------------------------------
+// Bit-exact pin for the readInterpolatedLR interior fast path (Findings §2
+// H2). Hashes below were captured against the UNMODIFIED per-channel
+// readInterpolated path (two separate calls in readHead) before the
+// shared-index rework; the reworked code must reproduce them exactly. If a
+// hash moves, the rework changed behavior -- fix the code, do not
+// regenerate the hash. Scenarios cover: full window, a fractional
+// grid-style window (grid=12 segments -> seg=341.333..., matching a
+// winStart=341.333/winLen=1365.333 window), the minimum window (tiny), and
+// windows pinned to the buffer start/end -- each at a fractional forward
+// (0.73) and reverse (-1.31) speed so the head wraps repeatedly over 8192
+// samples, exercising both the interior fast path and the near-edge
+// fallback (and the seam crossfade, which reads through readRaw).
+static std::uint64_t fnv1aFloats(const std::vector<float>& v) {
+    std::uint64_t h = 14695981039346656037ull;
+    for (float f : v) {
+        std::uint32_t bits;
+        std::memcpy(&bits, &f, sizeof(bits));
+        for (int b = 0; b < 4; ++b) {
+            h ^= static_cast<std::uint64_t>((bits >> (b * 8)) & 0xFFu);
+            h *= 1099511628211ull;
+        }
+    }
+    return h;
+}
+
+// Deterministic pseudo-random stereo fill (LCG, not the engine's own jitter
+// RNG), then freeze the loop at exactly 4096 samples.
+static void pinRecordedEngine(LoopEngine& e) {
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    std::uint32_t lcgL = 12345u, lcgR = 987654321u;
+    for (int i = 0; i < 4096; ++i) {
+        lcgL = lcgL * 1664525u + 1013904223u;
+        lcgR = lcgR * 1664525u + 1013904223u;
+        const float inL = static_cast<float>(lcgL >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+        const float inR = static_cast<float>(lcgR >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+        std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+        e.process(inL, inR, hs);
+    }
+    e.toggleRecord();   // freeze: loopLength() == 4096
+}
+
+struct PinScenario {
+    const char* name;
+    float size, pos; int grid; float speed;
+    std::uint64_t expected;
+};
+
+static void runPinScenario(const PinScenario& s) {
+    LoopEngine e;
+    pinRecordedEngine(e);
+    e.setGrid(s.grid);
+    e.setSize(0, s.size);
+    e.setPosition(0, s.pos);
+    e.setSpeed(0, s.speed);
+    std::vector<float> out;
+    out.reserve(8192 * 2);
+    for (int i = 0; i < 8192; ++i) {
+        std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+        e.process(0.f, 0.f, hs);
+        out.push_back(hs[0].l);
+        out.push_back(hs[0].r);
+    }
+    const std::uint64_t got = fnv1aFloats(out);
+    if (got != s.expected)
+        std::printf("  hash %s: got 0x%016llx expected 0x%016llx\n",
+                     s.name, (unsigned long long)got, (unsigned long long)s.expected);
+    check(got == s.expected, s.name);
+}
+
+static void test_readhead_pinning() {
+    static const PinScenario scenarios[] = {
+        // name                  size       pos     grid  speed    expected (captured against unmodified code, Step 2)
+        {"pin_full_fwd",         1.f,       0.5f,   0,    0.73f,  0xa27d25802bb7e9deull},
+        {"pin_full_rev",         1.f,       0.5f,   0,   -1.31f,  0x1db41b575959ffd8ull},
+        {"pin_grid_fwd",         1.f/3.f,   0.25f,  12,   0.73f,  0xf814c063ebf03856ull},
+        {"pin_grid_rev",         1.f/3.f,   0.25f,  12,  -1.31f,  0xad2e5d08132432d2ull},
+        {"pin_tiny_fwd",         0.001f,    0.5f,   0,    0.73f,  0x5ce25cdaeee761a1ull},
+        {"pin_tiny_rev",         0.001f,    0.5f,   0,   -1.31f,  0x52b808064ca238d3ull},
+        {"pin_edge_start_fwd",   0.1f,      0.0f,   0,    0.73f,  0x28e7e95f89772920ull},
+        {"pin_edge_start_rev",   0.1f,      0.0f,   0,   -1.31f,  0x42d0d324330a2cb4ull},
+        {"pin_edge_end_fwd",     0.1f,      1.0f,   0,    0.73f,  0x1105faa6b22cdee4ull},
+        {"pin_edge_end_rev",     0.1f,      1.0f,   0,   -1.31f,  0xf05ce8104b5667c4ull},
+    };
+    for (const auto& s : scenarios) runPinScenario(s);
+}
+
 int main() {
     test_continue_overdub_on_close();
     test_continue_overdub_lock_stops();
@@ -1472,6 +1563,7 @@ int main() {
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();
     test_level_smoothing();
+    test_readhead_pinning();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

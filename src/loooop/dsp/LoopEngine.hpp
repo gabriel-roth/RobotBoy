@@ -147,6 +147,15 @@ private:
     mutable std::array<std::array<WinCache, 2>, NUM_HEADS> winCache_{};
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
+    // Shared L/R Catmull-Rom read (Findings §2 H2): one floor/frac/index
+    // computation for both channels instead of two independent
+    // readInterpolated calls. Interior taps (all 4 taps inside the window
+    // and inside [0, loopLen_)) load bufL_/bufR_ directly, matching
+    // readInterpolated's tap values exactly (tapWrapped/readRaw are no-ops
+    // there); within 2 samples of a window edge it falls back to the
+    // original per-channel path unchanged.
+    void readInterpolatedLR(const PlayHead& h, double winStart, double winLen,
+                            float& outL, float& outR) const;
     float readRaw(double p, const std::vector<float>& buf) const;
     float tapWrapped(double x, double winStart, double winLen,
                      const std::vector<float>& buf) const;
