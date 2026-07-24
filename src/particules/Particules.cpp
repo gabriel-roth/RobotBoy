@@ -149,13 +149,13 @@ struct Particules : Module {
 		configParam(TIME_PARAM, 0.f, 1.f, 0.5f, "Time");
 		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
 		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
-		configParam(FEEDBACK_AMT_PARAM, 0.f, 1.f, 0.5f, "Feedback CV amount");
+		configParam(FEEDBACK_AMT_PARAM, 0.f, 1.f, 0.f, "Feedback CV amount");
 		configParam(SIZE_PARAM, -1.f, 1.f, 0.f, "Size");
 		configParam(SHAPE_PARAM, 0.f, 1.f, 0.5f, "Shape");
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/Wet");
-		configParam(DRY_WET_AMT_PARAM, 0.f, 1.f, 0.5f, "Dry/wet CV amount");
+		configParam(DRY_WET_AMT_PARAM, 0.f, 1.f, 0.f, "Dry/wet CV amount");
 		configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
-		configParam(REVERB_AMT_PARAM, 0.f, 1.f, 0.5f, "Reverb CV amount");
+		configParam(REVERB_AMT_PARAM, 0.f, 1.f, 0.f, "Reverb CV amount");
 		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
 		configParam(SIZE_AR_PARAM, -1.f, 1.f, 0.f, "Size AR");
 		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
