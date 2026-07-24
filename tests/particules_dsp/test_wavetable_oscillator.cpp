@@ -88,3 +88,75 @@ TEST_CASE("WavetableOscillator: boundary bank/position stay bounded", "[wavetabl
         }
     }
 }
+
+// Pins the setup-vs-loop split: everything computed once per Process() call
+// (frequency, bank/wave region, waveform pointers) must be a pure function of
+// its inputs, so calling Process() once per sample (the Ondes.cpp usage
+// pattern: num_frames=1 every sample) must produce bit-identical output to
+// one call rendering the whole block. True before AND after the rework.
+TEST_CASE("WavetableOscillator: Process(N frames) equals N x Process(1 frame)", "[wavetable]") {
+    RackWavetableProvider provider;
+    constexpr size_t kFrames = 256;
+    constexpr float kPitch = 7.3f, kBank = 0.4f, kWave = 0.6f;
+
+    WavetableOscillator oscBlock;
+    oscBlock.Init(48000.0f);
+    oscBlock.SetProvider(&provider);
+    std::vector<StereoFrame> outBlock(kFrames, {0.0f, 0.0f});
+    oscBlock.Process(kPitch, kBank, kWave, outBlock.data(), kFrames);
+
+    WavetableOscillator oscPerSample;
+    oscPerSample.Init(48000.0f);
+    oscPerSample.SetProvider(&provider);
+    std::vector<StereoFrame> outPerSample(kFrames, {0.0f, 0.0f});
+    for (size_t i = 0; i < kFrames; ++i) {
+        oscPerSample.Process(kPitch, kBank, kWave, &outPerSample[i], 1);
+    }
+
+    for (size_t i = 0; i < kFrames; ++i) {
+        REQUIRE(outBlock[i].l == outPerSample[i].l);
+        REQUIRE(outBlock[i].r == outPerSample[i].r);
+    }
+}
+
+// Guards the fmod-removal edge: with an integer-octave pitch (Exp2Fast/
+// SemitonesToRatio agree exactly at whole octaves) and bank=wave=0 (so the
+// output is a pure single-table read, no bilinear crossfade blending), the
+// output must stay bounded and never jump farther between consecutive
+// samples than the phase step could possibly explain from the raw table's
+// own sample-to-sample variation. A broken wrap (e.g. an off-by-one that
+// resets phase_ to the wrong value) would show up as a much larger jump.
+TEST_CASE("WavetableOscillator: static-pitch output is periodic after rework (phase wrap exact)", "[wavetable]") {
+    RackWavetableProvider provider;
+    WavetableOscillator osc;
+    osc.Init(48000.0f);
+    osc.SetProvider(&provider);
+
+    constexpr size_t kFrames = 4096;
+    std::vector<StereoFrame> out(kFrames, {0.0f, 0.0f});
+    osc.Process(12.0f, 0.0f, 0.0f, out.data(), kFrames);
+
+    for (const auto& f : out) {
+        REQUIRE(std::isfinite(f.l));
+        REQUIRE(std::fabs(f.l) <= 1.5f);
+    }
+
+    // Max sample-to-sample delta of the raw table itself (bank 0, wave 0),
+    // including the wraparound edge.
+    const float* raw = provider.GetWaveform(0, 0);
+    REQUIRE(raw != nullptr);
+    float maxRawDelta = 0.0f;
+    for (int i = 0; i < kWavetableSize; ++i) {
+        int next = (i + 1) & (kWavetableSize - 1);
+        maxRawDelta = std::max(maxRawDelta, std::fabs(raw[next] - raw[i]));
+    }
+
+    // phase_increment_ = kBaseFreq * ratio(12 semitones = 2x) * kWavetableSize / sampleRate.
+    constexpr float kBaseFreq = 261.63f;
+    float phaseIncrement = kBaseFreq * 2.0f * static_cast<float>(kWavetableSize) / 48000.0f;
+    float allowedDelta = maxRawDelta * (std::ceil(phaseIncrement) + 1.0f);
+
+    for (size_t i = 1; i < out.size(); ++i) {
+        REQUIRE(std::fabs(out[i].l - out[i - 1].l) <= allowedDelta);
+    }
+}

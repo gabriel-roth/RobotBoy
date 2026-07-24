@@ -22,6 +22,15 @@ private:
     WavetableProvider* provider_ = nullptr;
     float phase_ = 0.0f;
     float phase_increment_ = 0.0f;
+
+    float phase_scale_ = 0.0f;        // kWavetableSize / sample_rate_, set in Init()
+    // Value-compare caches (self-invalidating): recompute only when the
+    // corresponding input actually changes.
+    float last_pitch_ = -1e9f;
+    float last_bank_ = -1.0f, last_wave_ = -1.0f;
+    int   num_banks_ = 0, waveforms_per_bank_ = 0;    // cached in SetProvider()
+    const float *w_ll_ = nullptr, *w_lh_ = nullptr, *w_hl_ = nullptr, *w_hh_ = nullptr;
+    float bank_frac_ = 0.0f, wave_frac_ = 0.0f;
 };
 
 } // namespace particules_dsp
