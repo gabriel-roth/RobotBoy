@@ -659,3 +659,41 @@ Onbetap 46.8 → 27.7 ns/sample (−41%). No desktop regression.
   British drive rasp, Onbetap self-osc pitch and onset, mode crossfades
   into HP/notch/peak, Vintage hard mode switches.
 - [ ] Desktop VCV: A/B against the previous build at normal and max drive.
+
+### 10.1 MF-20 port (same branch, follow-up request)
+
+The same audit applied to MF-20 (`src/mf20/`). Portable items, implemented:
+
+- **`processVCV`/`processVCVG` divided by `kVCVScale` (0.2f) three times per
+  call** — now `* kInvVCVScale`. This was the largest cost: each stereo voice
+  makes four filter calls per sample (HP→LP × L/R), so 12 constant divides.
+- **Both solvers spent a divide classifying the clip region** (trial
+  `rhs / D1`, then a second divide when clipped). The test
+  `|k·rhs| ≤ T·D1` classifies identically (D1 > 0 is established on both
+  paths — for OTA, D1 = 1 + g·(2−k) + g² > 0 up to the resTaper max
+  k = 2.05), so exactly one divide executes per solve. A7 disassembly
+  confirmed GCC was really executing two divides on clipped samples.
+- **K35's forward clip divided by the slewed threshold** (`in/clipThreshold`)
+  — `setDriveCharacterFromThreshold` gained a two-argument form taking the
+  precomputed reciprocal (the module's existing `_driveSqrt` smoother); the
+  clip is now a multiply. Transient nuance: a slewed reciprocal ≠ the
+  reciprocal of the slewed threshold mid-Drive-sweep (\~5 ms, inaudible).
+- **`isConnected()` hoisted out of the per-voice loop** (same as Vespid).
+
+Measurements:
+
+- A7 static (`processVCVG`, both mode branches): 152 insns / 9 vdiv →
+  160 / 5; executed divides per filter call 4–6 → **exactly 1** (plus zero
+  from the VCV rescale). Per stereo voice: \~16–24 → 4 per sample.
+- Host with the **actual VCV desktop flags** (`-O3
+  -funsafe-math-optimizations`): 7.6 → 4.6 ns/sample per filter call (−40%).
+  Note: at plain `-O2` the region change *looks* like a regression (clang
+  if-converts the old code into two pipelined divides, branchless, which
+  beats a data-dependent branch on Apple Silicon) — that flag set ships on
+  neither platform; measured and disregarded.
+- Per-step resync equivalence vs `main` over mode/res/g/drive/amp grid
+  (incl. res = 1.025, the K35 D1 ≤ 0 regime): max **2.86e-6 V**.
+- Full suite green; VCV + MM builds clean.
+
+Not portable: sinh/tanh caching (piecewise-linear clips, no transcendentals),
+FIR ring buffers (no oversampling), the Newton `#if` (no accuracy modes).

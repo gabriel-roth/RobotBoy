@@ -217,11 +217,14 @@ struct MF20FilterModule : Module {
     }
 
     // Process one voice (channel c). Advances its smoothers and runs the audio cascade.
-    void processChannel(const ProcessArgs& args, int c) {
+    void processChannel(const ProcessArgs& args, int c, bool rConnected) {
         VoiceEngine& eng = _pool.engines[c];
 
-        eng.hpFilter.setDriveCharacterFromThreshold(_clipThresh);
-        eng.lpFilter.setDriveCharacterFromThreshold(_clipThresh);
+        // Two-argument form: _driveSqrt is the slewed K35 forward-clip
+        // pre-gain, so the filter never divides per sample to recover it.
+        // (OTA mode ignores the second value.)
+        eng.hpFilter.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
+        eng.lpFilter.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
         eng.hpFilter.setFbThreshold(_fbThresh);
         eng.lpFilter.setFbThreshold(_fbThresh);
 
@@ -258,10 +261,10 @@ struct MF20FilterModule : Module {
         auto lpStage = eng.lpFilter.processVCVG(hpStage.hp, gLp, res);
         outputs[LP_OUTPUT].setVoltage(lpStage.lp, c);
 
-        if (inputs[AUDIO_INPUT_R].isConnected()) {
+        if (rConnected) {
             // True stereo: process R through its own filter pair.
-            eng.hpFilterR.setDriveCharacterFromThreshold(_clipThresh);
-            eng.lpFilterR.setDriveCharacterFromThreshold(_clipThresh);
+            eng.hpFilterR.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
+            eng.lpFilterR.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
             eng.hpFilterR.setFbThreshold(_fbThresh);
             eng.lpFilterR.setFbThreshold(_fbThresh);
             float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
@@ -293,8 +296,10 @@ struct MF20FilterModule : Module {
         _driveSqrt  = _driveSqrtSlew.process(_driveSqrtTarget);
         _clipThresh = _clipThreshSlew.process(_clipThreshTarget);
         _fbThresh   = _fbThreshSlew.process(_fbThreshTarget);
+        // Stereo check hoisted out of the voice loop (matches Onbetap/Vespid).
+        bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
         for (int c = 0; c < voices; c++)
-            processChannel(args, c);
+            processChannel(args, c, rConnected);
     }
 };
 

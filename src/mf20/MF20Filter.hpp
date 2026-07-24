@@ -120,13 +120,27 @@ public:
         float s       = 1.f / std::sqrt(drive);
         clipThreshold = s;
         satSlope      = 0.25f * s;
+        fwdGain       = std::sqrt(drive);
     }
 
-    /** Store an already-computed clip threshold (= 1/√drive). Lets hosts slew
-        the drive character per-sample without any per-sample sqrt/divide. */
-    void setDriveCharacterFromThreshold(float t) {
+    /** Store an already-computed clip threshold (= 1/√drive) plus its
+        reciprocal (= √drive, the K35 forward-clip pre-gain). Lets hosts slew
+        the drive character per-sample without any per-sample sqrt/divide —
+        including the K35 forward clip's former in/threshold divide, which
+        was a real per-sample VDIV on the Cortex-A7
+        (cpu-optimization-2026-07-24.md §4.3 pattern). Note a slewed
+        reciprocal is not the reciprocal of the slewed threshold while a
+        Drive sweep is in flight (~5 ms transient, inaudible); at rest they
+        agree. */
+    void setDriveCharacterFromThreshold(float t, float invT) {
         clipThreshold = t;
         satSlope      = 0.25f * t;
+        fwdGain       = invT;
+    }
+    /** Convenience form (modulate-rate / test use only — the divide here is
+        exactly what the two-argument form lets the audio path avoid). */
+    void setDriveCharacterFromThreshold(float t) {
+        setDriveCharacterFromThreshold(t, 1.f / t);
     }
 
     /** K35 resonance-loop clip threshold (normalised). Default 1.0 = original
@@ -158,7 +172,7 @@ public:
 
     Out processVCV(float inVolts, float cutoffHz, float res) {
         auto [lp, bp, hp] = process(inVolts * kVCVScale, cutoffHz, res);
-        return { lp / kVCVScale, bp / kVCVScale, hp / kVCVScale };
+        return { lp * kInvVCVScale, bp * kInvVCVScale, hp * kInvVCVScale };
     }
 
     /** Process one sample with a precomputed prewarp gain (see cutoffToG). */
@@ -170,7 +184,7 @@ public:
 
     Out processVCVG(float inVolts, float g, float res) {
         auto [lp, bp, hp] = processG(inVolts * kVCVScale, g, res);
-        return { lp / kVCVScale, bp / kVCVScale, hp / kVCVScale };
+        return { lp * kInvVCVScale, bp * kInvVCVScale, hp * kInvVCVScale };
     }
 
     static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
@@ -204,12 +218,16 @@ public:
 private:
     static constexpr float kPi           = 3.14159265358979f;
     static constexpr float kVCVScale     = 0.2f;
+    // Reciprocal for the output rescale: the MetaModule SDK compiles without
+    // -ffast-math, so x / kVCVScale was three real VDIV.F32s per filter call.
+    static constexpr float kInvVCVScale  = 1.f / kVCVScale;
 
     float sampleRate    = 44100.f;
     float s1            = 0.f;    // BP integrator state
     float s2            = 0.f;    // LP integrator state
     float clipThreshold = 1.f;    // diode clip threshold (normalised ±1 V)
     float satSlope      = 0.25f;  // gain in saturation region
+    float fwdGain       = 1.f;    // K35 forward-clip pre-gain (= 1/clipThreshold = √drive)
     float fbThreshold   = 1.f;    // K35 resonance-loop clip threshold (see setFbThreshold)
     Mode  mode          = Mode::OTA;
 
@@ -220,23 +238,26 @@ private:
         float rhs = s1 + g * (in - s2);
 
         // Solve x1_mid from: x1_mid·(1+g)² = rhs + g·diodeClip(k·x1_mid)
-        // Try region 1 (no clipping) first.
+        // Region classification without the trial divide: |k·rhs/D1| ≤ T is
+        // tested as |k·rhs| ≤ T·D1 (D1 = 1 + g·(2−k) + g² > 0 for all g when
+        // k ≤ 2.05, the resTaper max), so exactly one divide executes per
+        // sample instead of two on the clipped path. sign(x1_r1) == sign(rhs)
+        // for the same reason.
         const float onePlusG2 = (1.f + g) * (1.f + g);
-        float D1    = onePlusG2 - g * k;
-        float x1_r1 = rhs / D1;
+        float D1 = onePlusG2 - g * k;
 
         float x1_mid;
         float clip_val;
-        if (std::fabs(k * x1_r1) <= clipThreshold) {
-            x1_mid   = x1_r1;
+        if (std::fabs(k * rhs) <= clipThreshold * D1) {
+            x1_mid   = rhs / D1;
             clip_val = k * x1_mid;
         } else {
             // Regions 2 / 3: clip active, effective gain → satSlope·k
             float D2     = onePlusG2 - satSlope * g * k;
             float knee   = (1.f - satSlope) * g * clipThreshold;
-            float offset = (x1_r1 > 0.f) ? knee : -knee;
+            float offset = (rhs > 0.f) ? knee : -knee;
             x1_mid = (rhs + offset) / D2;
-            float sign = (x1_r1 > 0.f) ? 1.f : -1.f;
+            float sign = (rhs > 0.f) ? 1.f : -1.f;
             clip_val = satSlope * k * x1_mid + sign * (1.f - satSlope) * clipThreshold;
         }
 
@@ -253,10 +274,11 @@ private:
     Out processK35(float in, float g, float res) {
         float k  = res * (8.f / 3.f);
 
-        // Forward-path nonlinearity: pre-gain input by 1/clipThreshold (= √drive),
-        // then clip at normalised thresholds. More drive → louder and more
-        // saturated → wilder. See k35ForwardClip.
-        float clip_in = k35ForwardClip(in / clipThreshold);
+        // Forward-path nonlinearity: pre-gain input by fwdGain (= 1/clipThreshold
+        // = √drive, precomputed by the drive setters so this is a multiply, not
+        // a per-sample divide), then clip at normalised thresholds. More drive
+        // → louder and more saturated → wilder. See k35ForwardClip.
+        float clip_in = k35ForwardClip(in * fwdGain);
 
         // Resonance loop with saturating feedback:
         //   ẋ₁ = ωc·(clip_in − (8/3)·x₁ + fbClip(k·x₁) − x₂)
@@ -279,15 +301,15 @@ private:
         // (bistable analog regime), so solve the saturated region, taking the
         // branch sign from the drive term rhs. When D1 > 0 the region-1 trial
         // classifies exactly (implicit LHS is monotone), as in processOTA.
+        // Region test without the trial divide (|k·rhs/D1| ≤ T as
+        // |k·rhs| ≤ T·D1, valid since the branch requires D1 > 0): one divide
+        // executes per sample whichever region solves.
         bool linear = false;
         float x1_mid = 0.f, fb_val = 0.f;
-        if (D1 > 0.f) {
-            float x1_try = rhs / D1;
-            if (std::fabs(k * x1_try) <= kFbThreshold) {
-                x1_mid = x1_try;
-                fb_val = k * x1_mid;
-                linear = true;
-            }
+        if (D1 > 0.f && std::fabs(k * rhs) <= kFbThreshold * D1) {
+            x1_mid = rhs / D1;
+            fb_val = k * x1_mid;
+            linear = true;
         }
         if (!linear) {
             float D2   = base - kFbSlope * g * k;
