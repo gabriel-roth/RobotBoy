@@ -31,10 +31,10 @@ struct Vespid : Module {
 		NUM_INPUTS
 	};
 	enum OutputId {
-		LP_OUTPUT,  LP_OUTPUT_R,
-		BP_OUTPUT,  BP_OUTPUT_R,
-		HP_OUTPUT,  HP_OUTPUT_R,
 		MIX_OUTPUT, MIX_OUTPUT_R,   // Blend of LP/HP (notch at centre)
+		HP_OUTPUT,  HP_OUTPUT_R,
+		BP_OUTPUT,  BP_OUTPUT_R,
+		LP_OUTPUT,  LP_OUTPUT_R,
 		NUM_OUTPUTS
 	};
 	enum LightId {
