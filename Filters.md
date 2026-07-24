@@ -101,7 +101,7 @@ Onbetap is polyphonic on both hosts (voice count follows the wider of the two in
 
 - **Character** — **Tamed** (default), a calibrated, stable version of the circuit; or **Vintage**, which layers in the imperfections of a real, aging unit: a slow drift of cutoff (independent per channel), a fixed mismatch between the two filter stages, a per-unit DC offset that produces a thump on fast cutoff sweeps, and a hard (unfaded) mode switch. It's all seeded, so a given patch drifts the same way every time you load it.
 - **Resonance limiting** — **Soft** (default) or **Hard**. The two behave almost identically at full resonance; the audible difference is mainly in pitch and behavior near the onset of oscillation.
-- **Oversampling** — 1× / **2×** (default) / 4×. 4× reduces aliasing at maximum drive at roughly double the CPU cost; 1× is available for CPU-constrained patches.
+- **Oversampling** — 1× / **2×** (default in VCV Rack) / 4×. 4× reduces aliasing at maximum drive at roughly double the CPU cost; 1× is available for CPU-constrained patches, and is the default on MetaModule, where the processor needs the headroom.
 
 ### Under the hood
 
@@ -154,12 +154,10 @@ Vespid is polyphonic on both hosts.
 ### Right-click menu
 
 - **Character** — **British** (default): the original 1978 Wasp, riding the edge of oscillation for whistles and chirps but staying under control. **German**: the Doepfer A-124's self-oscillation mod, which crosses into full self-oscillation.
-- **Accuracy** — **Standard** or **High** (default). High runs a more accurate solver; Standard is lighter on CPU.
-- **Oversampling** — **Auto** (default), 1×, 2×, or 4×. Higher settings reduce aliasing at the cost of CPU. Auto picks a sensible factor for your sample rate (and stays more conservative on MetaModule's weaker processor).
+- **Accuracy** — **Standard** or **High** (default). High runs a more accurate solver; Standard is lighter on CPU. VCV Rack only: MetaModule is locked to Standard, since its processor can't spare the extra solver iterations.
+- **Oversampling** — in VCV Rack: **Auto** (default), 1×, 2×, or 4×; Auto picks a factor to suit your sample rate. On MetaModule there is no Auto and the choice is 1× (default), 2×, or 4×, since its processor needs the headroom. Higher settings reduce aliasing at the cost of CPU.
 - **Self-oscillation pitch (German)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.
-- **Input trim** — ±12 dB into the filter, applied on top of the per-mode level staging (see Drive above). Use it to nudge either mode cleaner or dirtier without touching the Drive sweep.
-- **Output level** — ±12 dB on every output. The two Character modes are level-matched at low drive; British runs about 4–5 dB quieter at high drive, and this is the control for evening that out.
-- **Panel** — **Charcoal** (default) or **Gold** faceplate.
+- **Panel** — **Charcoal** (default) or **Gold** faceplate. VCV Rack only: MetaModule always shows the charcoal panel.
 
 ### Under the hood
 

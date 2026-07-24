@@ -48,7 +48,8 @@ struct Vespid : Module {
 	bool german = false;
 
 	// Panel theme: 0 = charcoal (default), 1 = gold. Persisted; the widget reads
-	// it to pick which faceplate SVG to draw.
+	// it to pick which faceplate SVG to draw. MetaModule is locked to charcoal:
+	// no Panel menu there, and dataFromJson ignores the key.
 	int panelTheme = 0;
 
 	// Per-voice DSP state (up to 16 voices), stereo, oversampled.
@@ -61,11 +62,28 @@ struct Vespid : Module {
 	float _sampleRate = 44100.f;   // host rate; mirrors the engine rate for modulate-rate math
 
 	// Oversampling: 0 = auto (4x <=48k, 2x <=96k, 1x above), else 1/2/4 forced.
-	int _osMenu = 0;
-	int _osActual = 4;             // resolved factor currently applied to the pool
+	// MetaModule has no Auto entry (see appendContextMenu) and defaults to 1x:
+	// headless-simulator timing (tests/vespid/mm-sim-notes.md) showed 4x costing
+	// ~7x what 1x costs on the Cortex-A7 core — halfband resampler overhead, not
+	// just the 4x extra WaspFilter::process() calls — and true-stereo patches pay
+	// double a mono/normalled-R patch. 2x and 4x stay available from the menu.
+#if defined(METAMODULE)
+	static constexpr int kDefaultOsMenu = 1;
+#else
+	static constexpr int kDefaultOsMenu = 0;   // Auto
+#endif
+	int _osMenu = kDefaultOsMenu;
+	int _osActual = kDefaultOsMenu == 0 ? 4 : kDefaultOsMenu;  // resolved factor currently applied to the pool
 
 	// Accuracy: pivot-only (false) vs pivot + 2 Newton iterations (true).
+	// MetaModule is locked to standard (pivot-only) — the Cortex-A7 core can't
+	// spare the Newton iterations, so there is no Accuracy menu there and
+	// dataFromJson ignores the key.
+#if defined(METAMODULE)
+	bool _highAcc = false;
+#else
 	bool _highAcc = true;
+#endif
 
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
@@ -138,14 +156,9 @@ struct Vespid : Module {
 		int os = _osMenu;
 		if (os == 0) {
 #if defined(METAMODULE)
-			// MetaModule's Cortex-A7 core is far weaker than a desktop CPU.
-			// Headless-simulator timing (tests/vespid/mm-sim-notes.md)
-			// showed 4x oversampling costing ~7x what 1x costs (halfband
-			// resampler overhead, not just the 4x extra WaspFilter::process()
-			// calls), and true-stereo patches pay double a mono/normalled-R
-			// patch. Auto stays conservative at 2x here; users who want 4x on
-			// MM can still pick it explicitly from the Oversampling menu.
-			os = (_sampleRate <= 96000.f) ? 2 : 1;
+			// No Auto entry on MetaModule, so a 0 can only reach here from a
+			// desktop patch; it lands on the MM default of 1x (see kDefaultOsMenu).
+			os = 1;
 #else
 			os = (_sampleRate <= 48000.f) ? 4 : (_sampleRate <= 96000.f) ? 2 : 1;
 #endif
@@ -366,20 +379,32 @@ struct Vespid : Module {
 			s = json_object_get(root, "screaming");   // ...and pre-pre-rename
 		if (s)
 			german = json_boolean_value(s);
+#if !defined(METAMODULE)
+		// Desktop only: MetaModule is locked to charcoal + standard accuracy,
+		// so a patch carrying either key can't unlock them there — the member
+		// initializers stand.
 		json_t* p = json_object_get(root, "panelTheme");
 		if (p)
 			panelTheme = json_integer_value(p);
 		json_t* ha = json_object_get(root, "highAcc");
 		if (ha)
 			_highAcc = json_boolean_value(ha);
+#endif
 		json_t* om = json_object_get(root, "osMenu");
 		if (om)
 			_osMenu = json_integer_value(om);
 		// Validate loaded values that feed DSP invariants (a hand-edited or
 		// corrupted patch must not desync the internal rate from the cascade
 		// or invert clamp bounds). Mirrors the menu Quantity setters' ranges.
+#if defined(METAMODULE)
+		// 0 (Auto) is not a legal selection on MetaModule — a desktop patch
+		// carrying it, like any corrupt value, lands on the 1x default.
+		if (_osMenu != 1 && _osMenu != 2 && _osMenu != 4)
+			_osMenu = kDefaultOsMenu;
+#else
 		if (_osMenu != 0 && _osMenu != 1 && _osMenu != 2 && _osMenu != 4)
-			_osMenu = 0;
+			_osMenu = kDefaultOsMenu;
+#endif
 		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
 		// Output level menu sliders, removed — both were unity by default) and
 		// an "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
@@ -399,19 +424,24 @@ struct Vespid : Module {
 struct VespidWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
 
+#if !defined(METAMODULE)
 	// Swap the faceplate SVG for the selected theme (0 = charcoal, 1 = gold).
-	// Screws stay dark (ScrewBlack) on both themes.
+	// Screws stay dark (ScrewBlack) on both themes. Desktop only: MetaModule is
+	// locked to charcoal, so it never leaves the panel set below.
 	void setPanelTheme(int t) {
 		std::string f = (t == 1) ? "res/Vespid-gold.svg" : "res/Vespid.svg";
 		panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
 	}
+#endif
 
 	VespidWidget(Vespid* module) {
 		setModule(module);
 		panel = createPanel(asset::plugin(pluginInstance, "res/Vespid.svg"));
 		setPanel(panel);
+#if !defined(METAMODULE)
 		if (module)
 			setPanelTheme(module->panelTheme);
+#endif
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -464,6 +494,9 @@ struct VespidWidget : ModuleWidget {
 			m->german ? "✓" : "",
 			[m]() { m->german = true; }));
 
+#if !defined(METAMODULE)
+		// MetaModule is locked to standard accuracy (see Vespid::_highAcc), so
+		// this section is desktop-only.
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Accuracy"));
 		menu->addChild(createMenuItem("Standard",
@@ -472,8 +505,27 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(createMenuItem("High (default)",
 			m->_highAcc ? "✓" : "",
 			[m]() { m->_highAcc = true; }));
+#endif
 
 		menu->addChild(new MenuSeparator);
+#if defined(METAMODULE)
+		// No Auto on MetaModule: it would only ever resolve to the 1x default
+		// there, so the menu is the three explicit factors (matching Onbetap).
+		menu->addChild(createIndexSubmenuItem("Oversampling",
+			{"1x", "2x", "4x"},
+			[m]() -> size_t {
+				switch (m->_osMenu) {
+					case 2: return 1;
+					case 4: return 2;
+					default: return 0;
+				}
+			},
+			[m](size_t i) {
+				static const int kValues[3] = {1, 2, 4};
+				m->_osMenu = kValues[i];
+				m->updateOversampling();
+			}));
+#else
 		menu->addChild(createIndexSubmenuItem("Oversampling",
 			{"Auto", "1x", "2x", "4x"},
 			[m]() -> size_t {
@@ -489,6 +541,7 @@ struct VespidWidget : ModuleWidget {
 				m->_osMenu = kValues[i];
 				m->updateOversampling();
 			}));
+#endif
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Self-oscillation pitch (German)"));
@@ -499,11 +552,14 @@ struct VespidWidget : ModuleWidget {
 			m->_oscPitchCorrected ? "✓" : "",
 			[m]() { m->_oscPitchCorrected = true; }));
 
+#if !defined(METAMODULE)
+		// Desktop only: MetaModule is locked to the charcoal faceplate.
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Panel",
 			{"Charcoal", "Gold"},
 			[m]() -> size_t { return m->panelTheme; },
 			[m, this](size_t i) { m->panelTheme = (int)i; setPanelTheme((int)i); }));
+#endif
 	}
 };
 

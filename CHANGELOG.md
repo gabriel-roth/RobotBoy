@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- **Vespid on MetaModule** — locked to standard accuracy and the charcoal panel. The **Accuracy** and **Panel** right-click items are gone from the MetaModule build (both remain in VCV Rack), and a patch carrying High accuracy or the gold panel no longer unlocks them there.
+- **Vespid & Onbetap on MetaModule** — oversampling now defaults to 1×, where the processor has the least headroom to spare; 2× and 4× are still selectable from the right-click menu. Vespid's **Auto** entry is gone on MetaModule (it would only ever have resolved to 1× there); a patch saved with Auto opens at 1×. VCV Rack is unchanged — Vespid still defaults to Auto and Onbetap to 2×.
 - **Retours** — tap tempo now holds indefinitely, like a normal tap-tempo control: a tempo set by tapping or from a patched clock sticks through a stopped clock, an unpatched cable, or an Interval move, until you use the new **Clear saved tempo** right-click item (or set a new tempo).
 - **Retours** — the Clock light now tracks the clock: when clocked it blinks once per beat, locked to incoming ticks, instead of free-running at the subdivided base Interval (which strobed too fast to read at fast tempos on a subdivided knob).
 - **Particules & Retours** — the right-click **Clear buffer** item is greyed out when the recording buffer is already empty.

@@ -211,6 +211,18 @@ if/when available, but isn't a blocker for shipping the conservative default.
 resonant emphasis, so this is not a functional regression — just a lower
 default aliasing-suppression ceiling on MM.
 
+**Superseded 2026-07-24 — MM default is now 1x, and Auto is gone from the MM
+menu.** The §4 CPU numbers stand (they're what justified moving further down),
+but the conclusion above no longer describes the shipped build: on MetaModule
+`kDefaultOsMenu` is 1, the Oversampling submenu offers only 1x/2x/4x (no Auto —
+it would have resolved to 1x there anyway), and a desktop patch carrying
+`osMenu: 0` coerces to 1x on load. Desktop is untouched: Auto is still the
+default and still resolves 4x/2x/1x by sample rate. Onbetap's default moved the
+same way in the same pass (2x → 1x on MM only); its menu had no Auto to remove.
+Note that the two fixtures with no `osMenu` key (`vespid_default.yml`,
+`vespid_res_screaming.yml`) therefore exercise 1x on MM now, not 2x — re-running
+§4's table against them measures the new default, not the old one.
+
 ## 6. MM discrete menu fallbacks (Input trim / Inverter bandwidth)
 
 MM users previously had **no menu access at all** to Input trim or Inverter
@@ -241,5 +253,5 @@ identically between hosts, and existing `.vcv`/MM patch files are unaffected
 | WAV output, default settings | Non-silent, band-limited lowpass around ~750 Hz, 0 NaN/Inf |
 | WAV output, Screaming + Res 0.95 | Non-silent, resonant emphasis near cutoff, 0 NaN/Inf |
 | CPU, 1x/2x/4x (host-relative, stereo) | ~0.70% / ~2.36% / ~5.14% of one host core (300 s sim) |
-| MM default decision | Auto capped at 2x on MetaModule (`#if defined(METAMODULE)`); manual 1x/2x/4x still available |
+| MM default decision | Auto capped at 2x on MetaModule (`#if defined(METAMODULE)`); manual 1x/2x/4x still available — **superseded 2026-07-24: MM default is 1x and Auto is gone from the MM menu, see the §5 addendum** |
 | MM menu gap closed | Input trim + Inverter bandwidth discrete submenus added for MM |

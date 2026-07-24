@@ -6,8 +6,9 @@
 
 // Onbetap — Polivoks-style multimode filter.
 //
-// Nonlinear TPT two-integrator core (OnbetapFilter), oversampled 2x by
-// default, one core per stereo side per voice (OnbetapPool, up to 16 voices).
+// Nonlinear TPT two-integrator core (OnbetapFilter), oversampled 2x by default
+// on desktop and 1x on MetaModule (kDefaultOversample), one core per stereo
+// side per voice (OnbetapPool, up to 16 voices).
 // Cutoff/resonance/drive are smoothed in the g/k/drive domain at ~2.5 ms
 // intervals (modulate()); the audio path (process()/processSide()) only
 // slews and runs the oversampled solve. Mode switching crossfades over 5 ms
@@ -75,7 +76,16 @@ struct Onbetap : Module {
 	// option. All tuning constants are baked — see onbetap/drive.hpp and
 	// kOnsetTrim above.
 	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Soft;
-	int oversample = 2;                             // 1 / 2 / 4
+
+	// Oversampling default: 1x on MetaModule, where the Cortex-A7 core needs the
+	// headroom; 2x on desktop. The 1x/2x/4x menu is available on both hosts, and
+	// a patch that saved a factor keeps it.
+#if defined(METAMODULE)
+	static constexpr int kDefaultOversample = 1;
+#else
+	static constexpr int kDefaultOversample = 2;
+#endif
+	int oversample = kDefaultOversample;            // 1 / 2 / 4
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -357,7 +367,7 @@ struct Onbetap : Module {
 		json_t* os = json_object_get(root, "oversample");
 		if (os) {
 			int v = (int)json_integer_value(os);
-			oversample = (v == 1 || v == 2 || v == 4) ? v : 2;
+			oversample = (v == 1 || v == 2 || v == 4) ? v : kDefaultOversample;
 		}
 		// tune* keys from the removed Tuning menu (including tuneOnset) are
 		// deliberately ignored — the voicing is baked now.

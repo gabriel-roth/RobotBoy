@@ -134,7 +134,7 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 - **Self-osc onset moves with cutoff.** Input silent, Drive low. Find the Q position where self-oscillation just starts at cutoff \~200 Hz (should be around 3/4 travel). Now raise cutoff to \~5 kHz without touching Q — the filter should already be singing, because onset comes *earlier* at high cutoff. Sweep cutoff up and down and listen to oscillation appearing/disappearing at fixed Q.
 - **Relaxation regime.** Q maxed, Drive high, cutoff low-mid: the self-oscillation may drop into a lower-pitched, harsher, buzzier mode than the filter's ringing frequency — the "suddenly harsh" Polivoks misbehavior. It should sound alarming but stay bounded (no runaway level).
 
-**Menu check:** the Tuning sliders this patch originally value-found (Drive span, Core headroom, Self-osc onset trim, Output trim) have since been baked in and removed (onset trim shipped as a 0.045 constant). The context menu now holds only **Character** (Tamed/Vintage), **Resonance limiting** (Soft default / Hard), and **Oversampling** (1×/2× default/4×) — confirm those three are all that's there, and that the baked values still pass the ear tests above (Drive knob's useful range, "clean with hair" at \~30% Drive, onset in the top fifth of Q travel at typical cutoffs (earlier at high cutoff), roughly bypass-matched loudness).
+**Menu check:** the Tuning sliders this patch originally value-found (Drive span, Core headroom, Self-osc onset trim, Output trim) have since been baked in and removed (onset trim shipped as a 0.045 constant). The context menu now holds only **Character** (Tamed/Vintage), **Resonance limiting** (Soft default / Hard), and **Oversampling** (1×/2×/4×, default 2× in VCV Rack and 1× on MetaModule) — confirm those three are all that's there, and that the baked values still pass the ear tests above (Drive knob's useful range, "clean with hair" at \~30% Drive, onset in the top fifth of Q travel at typical cutoffs (earlier at high cutoff), roughly bypass-matched loudness).
 
 ---
 
@@ -155,7 +155,7 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 - **No bass loss check (LP):** crank Q to 85% on the LP mode — the pad's low end should stay planted under the resonance rather than thinning out. This is a Polivoks trait; most SVFs lose bass here.
 - **Vintage character:** switch Character → **Vintage**. Within \~30 seconds you should hear the stereo image come alive — L and R cutoffs drifting independently (slow, seasick detune of the filter color), and mode changes now *click* hard (unfaded, authentic). Sweep cutoff fast (grab the knob and yank) and listen for the DC **thump** — like the real panel switch. Reload the patch: the drift should evolve *identically* (it's seeded). Switch back to Tamed and the image should freeze solid again.
 - **Resonance limiting (Hard vs Soft):** silence the VCOs, Q to max, let it self-oscillate. A/B Hard vs Soft: pitch should differ audibly (Soft oscillates noticeably higher — roughly 310 vs 360 Hz territory under like conditions), and behavior right at onset should feel slightly different; the *timbre* difference is intentionally subtle. **Soft** shipped as the default — confirm it still sounds like the right call.
-- **Oversampling:** Drive to max, cutoff \~8 kHz, high-pitched saw input. A/B 1× / 2× / 4×: at 1× listen for inharmonic aliasing "birdies" under the distortion (frequencies that sweep *down* when you play *up*); 2× should mostly clean them; 4× should be clean. Confirm 2× is an acceptable default on musical material.
+- **Oversampling:** Drive to max, cutoff \~8 kHz, high-pitched saw input. A/B 1× / 2× / 4×: at 1× listen for inharmonic aliasing "birdies" under the distortion (frequencies that sweep *down* when you play *up*); 2× should mostly clean them; 4× should be clean. Confirm 2× is an acceptable default on musical material in VCV Rack — and, since MetaModule now defaults to 1×, that 1× is tolerable on musical material there (the birdie test above is the worst case, not the typical one).
 
 ---
 
@@ -195,8 +195,8 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 - **Self-oscillation pitch = corrected 1 V/oct:** the melody should play in tune across 3–4 octaves — a hollow, slightly gritty sine lead. Check octaves against a reference VCO.
 - **Hardware-accurate mode:** the same melody should now drift and detune the way the real circuit does — intervals compress/stretch, especially at the extremes. Musically it should sound "vintage out-of-tune," not broken. This A/B tells us the option is worth its menu space.
 - **Inverter bandwidth:** resolved — the menu slider is gone; the value is baked per character (British 60 kHz, German 50 kHz), chosen exactly so **British just barely doesn't self-oscillate at max Res** and **German sings confidently**. Confirm both halves of that promise here.
-- **Accuracy (Standard vs High):** **High** shipped as the default. A/B against Standard on this patch and on patch 8 at high Drive — if High sounds cleaner at the top of the Res range, that's the default earning its keep (Standard remains the cheaper fallback on MM).
-- **Oversampling (Auto/1×/2×/4×):** as with Onbetap — high Drive, high Freq, listen for aliasing birdies at 1×, confirm Auto picks something clean.
+- **Accuracy (Standard vs High):** **High** shipped as the default. A/B against Standard on this patch and on patch 8 at high Drive — if High sounds cleaner at the top of the Res range, that's the default earning its keep. VCV Rack only — MetaModule is locked to Standard and has no Accuracy menu item, so this A/B is a desktop test.
+- **Oversampling:** as with Onbetap — high Drive, high Freq, listen for aliasing birdies at 1×. In VCV Rack (Auto/1×/2×/4×) confirm Auto picks something clean. On MetaModule the menu is 1×/2×/4× with no Auto and 1× is the default, so confirm 1× is tolerable there and that 2×/4× are reachable if a patch needs them.
 
 ---
 
@@ -331,11 +331,12 @@ Fill these in during patches 8 and 13; they become shipping defaults (several sl
 | Onbetap | Self-osc onset trim | ±0.1 (0) | Resolved — baked at 0.045, slider removed |
 | Onbetap | Output trim | ±12 dB (0) | Resolved — baked, slider removed |
 | Onbetap | Resonance limiting | Hard/Soft (Soft) | Resolved — Soft shipped as default |
-| Onbetap | Oversampling default | 1×/2×/4× (2×) | |
+| Onbetap | Oversampling default | 1×/2×/4× (2×) | Resolved — 2× on desktop, 1× on MetaModule |
 | Vespid | Input trim | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Output level | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Inverter bandwidth | 60–300 kHz | Resolved — baked per character (British 60 / German 50 kHz), slider removed |
-| Vespid | Accuracy default | Standard/High | Resolved — High shipped as default |
+| Vespid | Accuracy default | Standard/High | Resolved — High shipped as the desktop default; MetaModule is locked to Standard (menu item removed there) |
+| Vespid | Oversampling default | Auto/1×/2×/4× | Resolved — Auto on desktop; MetaModule defaults to 1× with no Auto entry |
 | Retours | Input trim | ±12 dB (0) | Resolved — baked at 0 dB (unity), slider removed |
 | Retours | Doppler slew | 0.01–1 s | Resolved — baked at 0.285 s, slider removed |
 | Retours | Random LFO rate | 0.02–2 Hz | Resolved — baked at 0.1 Hz, slider removed |
