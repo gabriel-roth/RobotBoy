@@ -15,6 +15,18 @@ inline float WrapPosition(float position, float size_f) {
     return position;
 }
 
+// Wrap for positions already within (-size, 2*size): one conditional each
+// way, exactly equal to fmod there (Sterbenz: x-s exact for s<=x<=2s).
+// ReadWet's positions are bounded by construction (read_subsample_ resyncs
+// to write_head() < size every block and advances <= 64/decimation; delay
+// <= size-1) -- see ReadWet call sites for the per-site bound. The general
+// WrapPosition stays for block-rate callers (NotifyFreeze, SetTargets).
+inline float WrapBounded(float p, float size_f) {
+    if (p >= size_f) p -= size_f;
+    else if (p < 0.f) p += size_f;
+    return p;
+}
+
 // Frames of linear crossfade applied at the tail of a frozen slice, toward
 // the sample at the slice's start, so the loop-point wrap doesn't click.
 constexpr float kSeamCrossfadeFrames = 64.f;
@@ -42,6 +54,16 @@ void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate
     frozen_anchor_ = 0.f;
     read_subsample_ = buf_ ? static_cast<float>(buf_->write_head()) : 0.f;
     read_rate_scale_ = 1.f;
+    // Matches decimation 1 (the initial Configure() quality mode, kBrightDigital
+    // -- see retours_processor.cpp) in case ReadWet() is ever called before the
+    // first SetTargets(); SetTargets() (always called block-rate before ReadWet
+    // in normal use) refreshes this from the buffer's actual decimation factor.
+    inv_decimation_ = 1.f;
+    slice_start_pos_ = 0.f;
+    slice_fade_len_ = kSeamCrossfadeFrames;
+    inv_slice_fade_len_ = 1.f / kSeamCrossfadeFrames;
+    seam_l_ = 0.f;
+    seam_r_ = 0.f;
 }
 
 void EchoEngine::SetReadRateScale(float scale) {
@@ -53,6 +75,7 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
     if (!buf_) return;
 
     int decimation = std::max(1, buf_->decimation_factor());
+    inv_decimation_ = 1.f / static_cast<float>(decimation);  // exact for 1, 2
     float frames = delay_samples / static_cast<float>(decimation);
     float size_f = static_cast<float>(buf_->size());
     // Keep at least 1 frame of headroom so wrapped reads never straddle the
@@ -120,18 +143,36 @@ void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_in
 
     bool was_frozen = frozen_;
 
+    // Refresh the ReadWet frozen-branch hoists whenever slice_start_/
+    // slice_len_frames_ change: the wrapped start position, the seam
+    // crossfade length (and its reciprocal), and the Hermite read AT that
+    // start position. Caching that last read across samples is safe because
+    // RecordingBuffer::Write() is unconditionally skipped by the caller for
+    // the entire freeze duration (retours_processor.cpp: "if (!s.params.freeze)
+    // s.recording_buffer.Write(...)", not just around the write-head seam),
+    // so buffer content anywhere -- including slice_start_pos_ -- cannot
+    // change between here and the next call that moves slice_start_ again.
+    auto refresh_seam_cache = [&]() {
+        slice_start_pos_ = slice_start_;  // already wrapped into [0, size_f)
+        slice_fade_len_ = std::min(kSeamCrossfadeFrames, slice_len_frames_ * 0.5f);
+        inv_slice_fade_len_ = (slice_fade_len_ > 0.f) ? 1.f / slice_fade_len_ : 0.f;
+        buf_->ReadHermiteStereoFast(slice_start_pos_, &seam_l_, &seam_r_);
+    };
+
     if (frozen && !was_frozen) {
         // Rising edge: anchor to the current write head (buffer frames,
         // frozen for the duration) and start the slice read fresh from
         // phase 0. buf_->NotifyFreeze(true) declicks the write seam so the
         // now-static write head doesn't leave a hard edge for playback to
-        // cross every time the slice loops past it.
+        // cross every time the slice loops past it. The seam cache is
+        // refreshed AFTER that declick so it reflects the post-fade content.
         frozen_anchor_ = static_cast<float>(buf_->write_head());
         slice_len_frames_ = new_slice_len;
         slice_start_ = WrapPosition(
             frozen_anchor_ - static_cast<float>(k + 1) * slice_len_frames_, size_f);
         slice_phase_ = 0.f;
         buf_->NotifyFreeze(true);
+        refresh_seam_cache();
     } else if (frozen && was_frozen) {
         // Still frozen: TIME (slice index) or DENSITY (slice length) may
         // have changed live. Re-anchor the slice window and re-clamp phase
@@ -143,6 +184,7 @@ void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_in
             slice_phase_ = std::fmod(slice_phase_, slice_len_frames_);
             if (slice_phase_ < 0.f) slice_phase_ += slice_len_frames_;
         }
+        refresh_seam_cache();
     } else if (!frozen && was_frozen) {
         // Falling edge: derive the delay-frame offset that reproduces the
         // last frozen read position under the normal read formula
@@ -178,7 +220,6 @@ void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_in
 StereoFrame EchoEngine::ReadWet() {
     if (!buf_) return StereoFrame{0.f, 0.f};
 
-    int decimation = std::max(1, buf_->decimation_factor());
     float size_f = static_cast<float>(buf_->size());
 
     // write_pos_continuous = write_head + decimation_counter/decimation,
@@ -187,33 +228,38 @@ StereoFrame EchoEngine::ReadWet() {
     // 1/decimation per ReadWet() call. Use the pre-increment value: at the
     // top of this sample's processing, the buffer has not yet been written
     // to for this sample (the processor calls ReadWet() before Write()).
+    // read_subsample_ resyncs to write_head() (in [0, size_f)) every block
+    // (<=64 samples) and advances by read_rate_scale_*inv_decimation_ <= ~1
+    // per sample, so it stays within [0, size_f + 64) here.
     float write_pos_continuous = read_subsample_;
-    read_subsample_ += read_rate_scale_ / static_cast<float>(decimation);
+    read_subsample_ += read_rate_scale_ * inv_decimation_;
 
     if (frozen_) {
-        slice_phase_ += read_rate_scale_ / static_cast<float>(decimation);
+        slice_phase_ += read_rate_scale_ * inv_decimation_;
         if (slice_phase_ < 0.f || slice_phase_ >= slice_len_frames_) {
             slice_phase_ = std::fmod(slice_phase_, slice_len_frames_);
             if (slice_phase_ < 0.f) slice_phase_ += slice_len_frames_;
         }
 
-        float pos_main = WrapPosition(slice_start_ + slice_phase_, size_f);
+        // pos_main = slice_start_pos_ (in [0, size_f)) + slice_phase_ (in
+        // [0, slice_len_frames_), and slice_len_frames_ <= size_f since the
+        // host-sample slice length is clamped to the buffer duration in
+        // BaseTimeControl::Update before reaching NotifyFreeze) is in
+        // [0, 2*size_f): WrapBounded's single-branch range.
+        float pos_main = WrapBounded(slice_start_pos_ + slice_phase_, size_f);
         float l, r;
         buf_->ReadHermiteStereoFast(pos_main, &l, &r);
 
         // Seam declick: crossfade the tail of the slice toward the (fixed)
         // sample at the slice start, so the loop-point wrap doesn't click.
-        // Guard short slices so the fade window never exceeds half the
-        // slice length.
-        float fade_len = std::min(kSeamCrossfadeFrames, slice_len_frames_ * 0.5f);
-        if (fade_len > 0.f && slice_phase_ >= slice_len_frames_ - fade_len) {
-            float w = (slice_phase_ - (slice_len_frames_ - fade_len)) / fade_len;
+        // slice_fade_len_/inv_slice_fade_len_/the slice-start read (seam_l_/
+        // seam_r_) are hoisted into NotifyFreeze -- see refresh_seam_cache
+        // there for why the cached read stays valid for the whole freeze.
+        if (slice_fade_len_ > 0.f && slice_phase_ >= slice_len_frames_ - slice_fade_len_) {
+            float w = (slice_phase_ - (slice_len_frames_ - slice_fade_len_)) * inv_slice_fade_len_;
             w = std::clamp(w, 0.f, 1.f);
-            float pos_start = WrapPosition(slice_start_, size_f);
-            float ls, rs;
-            buf_->ReadHermiteStereoFast(pos_start, &ls, &rs);
-            l = (1.f - w) * l + w * ls;
-            r = (1.f - w) * r + w * rs;
+            l = (1.f - w) * l + w * seam_l_;
+            r = (1.f - w) * r + w * seam_r_;
         }
 
         return StereoFrame{l, r};
@@ -226,7 +272,10 @@ StereoFrame EchoEngine::ReadWet() {
         delay_frames_ += slew_coeff_ * (target_frames_ - delay_frames_);
         delay_used = delay_frames_;
 
-        float read_pos = WrapPosition(write_pos_continuous - delay_frames_, size_f);
+        // write_pos_continuous in [0, size_f+64); delay_frames_ clamped to
+        // [0, size_f-1] in SetTargets, so read_pos in (-(size_f-1), size_f+64)
+        // -- within WrapBounded's (-size_f, 2*size_f) range.
+        float read_pos = WrapBounded(write_pos_continuous - delay_frames_, size_f);
         float l, r;
         buf_->ReadHermiteStereoFast(read_pos, &l, &r);
         wet.l = l;
@@ -240,8 +289,11 @@ StereoFrame EchoEngine::ReadWet() {
         float g_old = 1.f - t;
         float g_new = t;
 
-        float pos_old = WrapPosition(write_pos_continuous - fade_from_frames_, size_f);
-        float pos_new = WrapPosition(write_pos_continuous - target_frames_, size_f);
+        // Same bound as the tape read_pos above: fade_from_frames_ and
+        // target_frames_ are both frames-clamped-to-[0,size_f-1] values
+        // (assigned from SetTargets()'s `frames`, or from each other).
+        float pos_old = WrapBounded(write_pos_continuous - fade_from_frames_, size_f);
+        float pos_new = WrapBounded(write_pos_continuous - target_frames_, size_f);
         float lo, ro, ln, rn;
         buf_->ReadHermiteStereoFast(pos_old, &lo, &ro);
         buf_->ReadHermiteStereoFast(pos_new, &ln, &rn);
@@ -265,7 +317,18 @@ StereoFrame EchoEngine::ReadWet() {
         // it's a coarse texture tap, and snapping avoids a sub-sample Hermite
         // read losing amplitude to interpolation rolloff at an arbitrary
         // (golden-ratio-derived) fractional offset.
-        float tap2_pos = WrapPosition(std::round(write_pos_continuous - delay_used * kTap2Ratio), size_f);
+        //
+        // Wrap first (write_pos_continuous - delay_used*kTap2Ratio bounded the
+        // same way as the tape read_pos above, since delay_used is delay_frames_
+        // taken before or after this block's slew step -- either way within
+        // [0, size_f-1] -- and kTap2Ratio < 1 only shrinks the subtracted
+        // term), then snap to the nearest integer frame without libm: adding
+        // 0.5 and truncating is round-half-up for t2 >= 0 (guaranteed by the
+        // wrap), differing from std::round only on an exact-tie fraction
+        // (float noise on this golden-ratio-derived, coarse-texture tap).
+        float t2 = WrapBounded(write_pos_continuous - delay_used * kTap2Ratio, size_f);
+        float tap2_pos = static_cast<float>(static_cast<int>(t2 + 0.5f));  // t2 >= 0
+        if (tap2_pos >= size_f) tap2_pos -= size_f;   // snap can land exactly on size
         float l2, r2;
         buf_->ReadHermiteStereoFast(tap2_pos, &l2, &r2);
         wet.l += kTap2Gain * l2;

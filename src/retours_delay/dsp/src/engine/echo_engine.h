@@ -45,6 +45,18 @@ private:
     float frozen_anchor_ = 0.f;          // write head at freeze
     float read_subsample_ = 0.f;         // accumulates 1/decimation steps
     float read_rate_scale_ = 1.f;        // tape wow/flutter, block-rate
+    float inv_decimation_ = 1.f;         // 1/decimation, refreshed in SetTargets
+
+    // Frozen-seam hoists (NotifyFreeze recomputes these whenever slice_start_
+    // changes; ReadWet's frozen branch just reads them). Safe to cache the
+    // buffer content at slice_start_pos_ across samples because writes into
+    // the RecordingBuffer are fully suppressed for the entire freeze duration
+    // (retours_processor.cpp gates Write() on `!params.freeze`, not just at
+    // the write-head seam) -- see NotifyFreeze for the full citation.
+    float slice_start_pos_ = 0.f;        // WrapPosition(slice_start_, size_f)
+    float slice_fade_len_ = 1.f;         // min(kSeamCrossfadeFrames, len*0.5)
+    float inv_slice_fade_len_ = 1.f;     // 1/slice_fade_len_
+    float seam_l_ = 0.f, seam_r_ = 0.f;  // Hermite read at slice_start_pos_
 };
 
 } // namespace retours_delay_dsp
