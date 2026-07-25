@@ -98,8 +98,12 @@ void Grain::Start(const GrainParameters& params) {
     // Equal-power panning.
     // pan: -1 (full left) to +1 (full right), 0 = center.
     float p = Clamp(params.pan * 0.5f + 0.5f, 0.0f, 1.0f);  // map to 0..1
-    pan_l_ = std::cos(p * kPi * 0.5f);
-    pan_r_ = std::sin(p * kPi * 0.5f);
+    // pan_l = cos(p*pi/2), pan_r = sin(p*pi/2) = cos(p*pi/2 - pi/2).
+    // CosLookup(x) = cos(2*pi*x), so cos(p*pi/2) = CosLookup(p*0.25) and
+    // cos(p*pi/2 - pi/2) = CosLookup(p*0.25 - 0.25). Table-lerped, so this
+    // differs from libm by ~1e-4 -- fine for a per-spawn equal-power pan.
+    pan_l_ = CosLookup(p * 0.25f);
+    pan_r_ = CosLookup(p * 0.25f - 0.25f);
 
     gain_ = params.gain;
     pre_delay_ = std::max(params.pre_delay, 0);

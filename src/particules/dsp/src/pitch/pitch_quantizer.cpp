@@ -16,6 +16,7 @@ static inline double Log2(double x) {
 
 PitchQuantizer::PitchQuantizer() noexcept
     : log2_period_(1.0),
+      inv_log2_period_(1.0),
       num_notes_(0),
       root_v_oct_(0.0) {
   std::memset(log2_ratios_, 0, sizeof(log2_ratios_));
@@ -37,6 +38,7 @@ void PitchQuantizer::loadRatios(const double* ratios, uint32_t num_notes) noexce
   }
   log2_period_ = log2_ratios_[num_notes - 1];
   if (log2_period_ <= 0.0) log2_period_ = 1.0;  // safety
+  inv_log2_period_ = 1.0 / log2_period_;
 }
 
 void PitchQuantizer::clear() noexcept {
@@ -55,32 +57,22 @@ float PitchQuantizer::quantize(float v_oct) const noexcept {
   // Remove root offset so we quantize relative to the scale root
   double pitch = static_cast<double>(v_oct) - root_v_oct_;
 
-  // Convert V/oct to ratio
-  double ratio = std::pow(2.0, pitch);
+  // Guard non-finite input (e.g. a transient NaN/Inf CV glitch surviving
+  // from upstream): the old pow/log round trip happened to degrade NaN
+  // comparisons to a harmless finite fallback, but static_cast<int> below
+  // is UB on a non-finite double, so bail out explicitly instead.
+  if (!std::isfinite(pitch)) return v_oct;
 
-  // Normalize ratio into [1.0, period_ratio), tracking octave offset.
-  // Iteration bound prevents runaway loops with degenerate scales
-  // (e.g. period_ratio very close to 1.0).  128 iterations covers
-  // +-128 octaves which is far beyond any musically useful range.
-  const double period_ratio = std::pow(2.0, log2_period_);
-  int octave_offset = 0;
-  static constexpr int kMaxIter = 128;
-
-  if (ratio < 1.0) {
-    for (int iter = 0; iter < kMaxIter && ratio < 1.0; ++iter) {
-      ratio *= period_ratio;
-      octave_offset--;
-    }
-  } else if (ratio >= period_ratio) {
-    for (int iter = 0; iter < kMaxIter && ratio >= period_ratio; ++iter) {
-      ratio /= period_ratio;
-      octave_offset++;
-    }
-  }
+  // v_oct is already log2(freq), so the scale table (log2_ratios_,
+  // log2_period_) can be scanned directly -- no pow/log round trip needed.
+  // Reduce pitch into [0, log2_period_) in one step (replaces the old
+  // iterative multiply/divide-by-period_ratio loop).
+  double k = std::floor(pitch * inv_log2_period_);
+  double log2_ratio = pitch - k * log2_period_;
+  int octave_offset = static_cast<int>(k);
 
   // Linear scan: find the nearest degree in log2 space.
   // Degree 0 is implicit 1/1 (log2 = 0.0).
-  double log2_ratio = Log2(ratio);
   int best_degree = 0;
   double best_dist = std::fabs(log2_ratio);  // distance to degree 0
 

@@ -66,6 +66,7 @@ private:
 
     RecordingBuffer* buffer_ = nullptr;
     float sample_rate_ = 48000.0f;
+    float inv_sample_rate_ = 1.0f / 48000.0f;  // kept in sync with sample_rate_ (set in Init)
 
     // Monotonically increasing spawn-order counter, stamped onto each
     // grain at activation (see Process()). Used by FindOldestActiveGrain
@@ -88,6 +89,23 @@ private:
     int cached_decimation_ = -1;
     float cached_grain_dur_ = 0.f;
     int cached_max_active_ = kMaxGrains;
+    // log2(buf_dur / kMinGrainDurationSeconds): the transcendental argument
+    // to GrainDurationSeconds()'s exp2. Depends only on decimation/buffer
+    // size, not per-grain SIZE modulation, so it's recomputed alongside
+    // cached_decimation_ (block/decimated rate) instead of every spawn.
+    float cached_log2_dur_range_ = 0.f;
+    // 1.0f / decimation_factor(), recomputed alongside cached_decimation_
+    // (see above) -- turns the per-spawn "/ df_f" divides in
+    // ComputeGrainParams into multiplies.
+    float inv_df_ = 1.0f;
+
+    // Overlap-normalization block coefficient cache: 1-pow(1-slope_coeff,
+    // num_frames) only takes on a handful of distinct values in practice
+    // (slope_coeff is one of two constants; num_frames is normally the
+    // fixed engine block size), so avoid re-running pow() every block.
+    float cached_slope_coeff_ = -1.0f;
+    size_t cached_overlap_num_frames_ = 0;
+    float cached_block_coefficient_ = 0.0f;
 
     // Startup ramp: limit grain count for the first second to avoid
     // CPU spike when loading a patch with high density settings.

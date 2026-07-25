@@ -63,9 +63,9 @@ struct ParticulesParameters {
 // Applied after all modulation so it is always the last word on pitch.
 inline float QuantizePitchLock(float semitones, int mode) {
     if (mode == 1) {
-        return std::round(semitones / 12.f) * 12.f;
+        return std::round(semitones * (1.f / 12.f)) * 12.f;
     } else if (mode == 2) {
-        float base = std::floor(semitones / 12.f) * 12.f;
+        float base = std::floor(semitones * (1.f / 12.f)) * 12.f;
         float candidates[] = { base, base + 7.f, base + 12.f, base + 19.f };
         float nearest = candidates[0];
         float minDist = std::fabs(semitones - candidates[0]);

@@ -17,7 +17,11 @@ inline int16_t Int12Encode(float x) {
     if (!(x == x)) return 0;               // NaN
     if (x > 1.0f) x = 1.0f;
     if (x < -1.0f) x = -1.0f;
-    return static_cast<int16_t>(std::lround(x * 2047.0f));
+    // Manual round-half-away-from-zero: matches std::lround exactly
+    // (including ties) without a libm call.
+    float s = x * 2047.0f;
+    int v = (int)(s >= 0.f ? s + 0.5f : s - 0.5f);
+    return static_cast<int16_t>(v);
 }
 
 inline float Int12Decode(int16_t v) {
