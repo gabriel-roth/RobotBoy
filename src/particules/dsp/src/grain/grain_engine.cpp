@@ -256,8 +256,10 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // --- Schedule triggers ---
     static constexpr int kMaxTriggers = 32;
     int trigger_samples[kMaxTriggers];
+    bool trigger_droppable[kMaxTriggers];
     int num_triggers = scheduler_.Process(params, num_frames,
-                                          trigger_samples, kMaxTriggers);
+                                          trigger_samples, kMaxTriggers,
+                                          trigger_droppable);
 
     // Compute a dynamic grain cap based on grain size.
     // Long grains don't benefit from heavy overlap — they play the same
@@ -305,6 +307,16 @@ void GrainEngine::Process(const ParticulesParameters& params,
         bool reused_active_slot = false;
         if (active_before < max_active) g = AllocateGrain();
         if (!g) {
+            // Long-grain cap floor: at cached_max_active_ == 2 (grain
+            // duration > half the buffer), automatic (droppable) triggers
+            // are dropped instead of stealing, so buffer-length grains play
+            // out undisturbed rather than churning on every density tick.
+            // Uses cached_max_active_, not the startup-ramped max_active,
+            // so the 1-second startup ramp (which pins the effective cap to
+            // 2 even with short grains) keeps today's steal behavior. See
+            // docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md.
+            if (trigger_droppable[t] && cached_max_active_ == 2) continue;
+
             int victim = FindOldestActiveGrain();
             if (victim < 0) break;   // every active grain is already dying; drop the rest
             Grain* free_slot = AllocateGrain();

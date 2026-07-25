@@ -32,8 +32,19 @@ float GrainScheduler::DensityToRate(float density) {
 }
 
 int GrainScheduler::Process(const ParticulesParameters& params, size_t block_size,
-                            int* trigger_samples, int max_triggers) {
+                            int* trigger_samples, int max_triggers, bool* droppable) {
     int trigger_count = 0;
+
+    // Emits one trigger at `sample`, tagging it droppable/non-droppable per
+    // the spec (see the Process() declaration comment in the header). Every
+    // trigger_samples[] write below goes through this so droppable[] can
+    // never fall out of sync with trigger_samples[] indexing.
+    auto emit = [&](int sample, bool is_droppable) {
+        if (trigger_count >= max_triggers) return;
+        trigger_samples[trigger_count] = sample;
+        if (droppable) droppable[trigger_count] = is_droppable;
+        ++trigger_count;
+    };
 
     if (params.trigger_mode != prev_trigger_mode_) {
         // gate_phase_ is reused across modes for different purposes (a
@@ -67,7 +78,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
 
             if (latched_phase_ >= 1.0f) {
                 latched_phase_ -= 1.0f;
-                trigger_samples[trigger_count++] = static_cast<int>(i);
+                emit(static_cast<int>(i), /*is_droppable=*/true);  // automatic
 
                 if (use_random) {
                     // CW density randomizes the inter-grain interval.
@@ -91,9 +102,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
         bool rising_edge = gate && !prev_gate_;
 
         if (rising_edge) {
-            if (trigger_count < max_triggers) {
-                trigger_samples[trigger_count++] = 0;
-            }
+            emit(0, /*is_droppable=*/false);  // manual: gate rising edge
             gate_phase_ = 0.0f;
         }
 
@@ -109,7 +118,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                         if (skip_first) {
                             skip_first = false;
                         } else {
-                            trigger_samples[trigger_count++] = static_cast<int>(i);
+                            emit(static_cast<int>(i), /*is_droppable=*/true);  // held-repeat: automatic
                             if (use_random) {
                                 float exp_rand = random_.NextExponential();
                                 gate_phase_ = Clamp(1.0f - exp_rand, -2.0f, 0.99f);
@@ -152,9 +161,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                 gate_phase_ += 1.0f;
                 if (static_cast<int>(gate_phase_) >= division) {
                     gate_phase_ = 0.0f;
-                    if (trigger_count < max_triggers) {
-                        trigger_samples[trigger_count++] = 0;
-                    }
+                    emit(0, /*is_droppable=*/false);  // manual: dropping would skip beats
                 }
                 // Note: for division=1, every clock triggers (1 >= 1).
                 // For division=2, every other clock triggers (1 < 2, 2 >= 2).
@@ -167,9 +174,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                 // Map 0.5 → 0%, 1.0 → 100%
                 float probability = (eff_density - 0.5f) * 2.0f;
                 if (random_.NextFloat() < probability) {
-                    if (trigger_count < max_triggers) {
-                        trigger_samples[trigger_count++] = 0;
-                    }
+                    emit(0, /*is_droppable=*/false);  // manual: dropping would skip beats
                 }
             }
             // Within the noon dead zone (the default): silence — no grain
@@ -188,9 +193,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
         bool rising_edge = gate && !prev_gate_;
 
         if (rising_edge) {
-            if (trigger_count < max_triggers) {
-                trigger_samples[trigger_count++] = 0;
-            }
+            emit(0, /*is_droppable=*/false);  // kMidi: inherited dead code, untouched
             gate_phase_ = 0.0f;
         }
 
@@ -207,7 +210,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                             if (skip_first) {
                                 skip_first = false;
                             } else {
-                                trigger_samples[trigger_count++] = static_cast<int>(i);
+                                emit(static_cast<int>(i), /*is_droppable=*/false);  // kMidi: untouched
                             }
                         }
                     }
@@ -220,7 +223,7 @@ int GrainScheduler::Process(const ParticulesParameters& params, size_t block_siz
                         (static_cast<float>(b + 1) / static_cast<float>(burst_count + 1))
                         * static_cast<float>(block_size));
                     offset = std::min(offset, static_cast<int>(block_size) - 1);
-                    trigger_samples[trigger_count++] = offset;
+                    emit(offset, /*is_droppable=*/false);  // kMidi: untouched
                 }
             }
         }
