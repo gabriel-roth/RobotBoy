@@ -33,24 +33,38 @@ inline float WrapPosition(float position, float size_f) {
 // slice_len_frames_ > size_f and this bound (and WrapBounded's single
 // conditional) would no longer hold.
 //
-// Found by review + stress testing: the NON-frozen call sites (tape read,
-// crossfade old/new, multi-tap) read size_f fresh every call, but combine it
-// with delay_frames_/target_frames_/fade_from_frames_/read_subsample_, which
-// are only refreshed once per BLOCK (SetTargets, at the top of
-// RetoursProcessor::ProcessBlock). A quality-mode change's apply point
-// (retours_processor.cpp's kFadeOut case) calls recording_buffer.Configure()
-// -- which can change size()/decimation_factor() -- from INSIDE that same
-// block's per-sample loop, at whatever sample index the fade-out counter
-// reaches zero, not just at the block boundary. For the rest of that block
-// (until the next SetTargets() resync), size_f here reflects the NEW buffer
-// while delay_frames_ etc. are still clamped against the OLD one, which can
-// push the position outside (-size_f, 2*size_f) -- the single-conditional
-// wrap no longer fully corrects it, producing an out-of-[0, size_f) result
-// that sends the bounds-unchecked ReadHermiteStereoFast out of bounds
-// (reproduced as a SIGSEGV via tests/retours_delay_dsp/test_hardening.cpp's
-// freeze/quality-churn corner-stress test). This can't happen to the frozen
-// call site above: quality transitions are blocked outright while frozen
-// (retours_processor.cpp gates the apply point on `!params.freeze &&
+// Found by review + stress testing -- root cause is SLEWED/LATCHED state
+// surviving a quality-mode SIZE SHRINK, not a mid-block Configure() race:
+// a quality change (e.g. Scorched, 768012 frames, -> Bright, 192000 frames)
+// calls recording_buffer.Configure(), which changes size()/decimation_factor()
+// immediately. SetTargets() re-clamps this block's fresh `frames`/
+// target_frames_ against the new (smaller) size_f right away -- but the
+// NON-frozen call sites don't read target_frames_ directly, they read the
+// slewed/latched state that decays TOWARD it over time: delay_frames_ in
+// tape mode (only advanced per-sample by `delay_frames_ += slew_coeff_ *
+// (target_frames_ - delay_frames_)`, never re-clamped by SetTargets itself),
+// and fade_from_frames_/target_frames_ in crossfade mode while a fade is
+// already in progress (a shrink mid-fade queues the new target instead of
+// applying it -- see SetTargets' `queued_target_` branch -- so the stale,
+// now-oversized value persists until the CURRENT fade completes). Either
+// way, that latched value can keep holding the old, larger buffer's
+// magnitude for the entire slew/fade decay -- observed empirically at 65+
+// blocks post-Configure, with delay_frames_ ~= 292057 against a size_f of
+// 192000 -- not just until the next SetTargets() call (SetTargets runs every
+// block regardless and does not shorten this). This is a real duration (tens
+// of ms to whole seconds for a slow slew_seconds), during which
+// write_pos_continuous - delay_frames_ can land far outside (-size_f,
+// 2*size_f): the single-conditional wrap no longer fully corrects it,
+// producing an out-of-[0, size_f) result that sends the bounds-unchecked
+// ReadHermiteStereoFast out of bounds (reproduced as a SIGSEGV via
+// tests/retours_delay_dsp/test_hardening.cpp's freeze/quality-churn
+// corner-stress test). Note this exposure exists independent of WHERE within
+// a block Configure() happens to land -- it would exist even if the apply
+// point were moved to an exact block boundary, because the latched state
+// only unwinds via the slew/fade process, not via any per-block resync; the
+// fallback below must stay regardless of that timing. This can't happen to
+// the frozen call site above: quality transitions are blocked outright while
+// frozen (retours_processor.cpp gates the apply point on `!params.freeze &&
 // !freeze_falling_edge`, and aborts back to kFadeIn if freeze re-engages
 // mid-fade-out).
 //
@@ -67,10 +81,17 @@ inline float WrapPosition(float position, float size_f) {
 // below reproduces that scenario's pre-fix hash exactly). The result in the
 // rare mismatch window is a wrong-but-harmless sample (same as this
 // function's job everywhere else in the rare/edge case), not a crash.
+//
+// The re-check is written as `!(p >= 0.f && p < size_f)`, not
+// `p < 0.f || p >= size_f`: those are equivalent for finite p, but a NaN p
+// (e.g. from a stale latched value poisoned upstream) fails BOTH direct
+// comparisons, so the "or" form would skip the fallback and let a NaN reach
+// the int cast in ReadWet's callers. The negated-and form routes any NaN/Inf
+// into WrapPosition, whose own isfinite guard returns a safe 0.f.
 inline float WrapBounded(float p, float size_f) {
     if (p >= size_f) p -= size_f;
     else if (p < 0.f) p += size_f;
-    if (p < 0.f || p >= size_f) p = WrapPosition(p, size_f);
+    if (!(p >= 0.f && p < size_f)) p = WrapPosition(p, size_f);
     return p;
 }
 
