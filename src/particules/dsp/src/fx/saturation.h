@@ -17,6 +17,11 @@ public:
     // Positive-branch extra drive shared by AsymmetricSoftClip and Sunny's
     // SaturateWrite: positive peaks saturate 1.1x earlier (magnetic bias).
     static constexpr float kTapeBiasAsymmetry = 1.1f;
+    // Reciprocal, precomputed: NormalizedSoftClip's saturated branch needs
+    // 1/drive and every drive here is a compile-time constant (see task 14,
+    // findings §4 M1/M7 -- folds the two divides in SoftClip(x*drive)/drive
+    // down to one).
+    static constexpr float kTapeBiasAsymmetryRecip = 1.0f / kTapeBiasAsymmetry;
     void Init();
 
     // Apply saturation curve based on quality mode
@@ -44,7 +49,14 @@ public:
     // Tape write drives (ceiling = 1/drive; Sunny's positive branch gets a
     // further 1.1x for bias asymmetry).
     static constexpr float kSunnyWriteDrive = 1.4f;
+    static constexpr float kSunnyWriteDriveRecip = 1.0f / kSunnyWriteDrive;
+    // Sunny's positive-branch combined drive (write drive * bias asymmetry)
+    // and its reciprocal, precomputed once so the per-sample call is a
+    // constant lookup rather than a runtime multiply-then-reciprocal.
+    static constexpr float kSunnyWriteDrivePos = kSunnyWriteDrive * kTapeBiasAsymmetry;
+    static constexpr float kSunnyWriteDrivePosRecip = 1.0f / kSunnyWriteDrivePos;
     static constexpr float kScorchedWriteDrive = 2.2f;
+    static constexpr float kScorchedWriteDriveRecip = 1.0f / kScorchedWriteDrive;
 
     // Cold digital write drive — a Clouds emulation: Clouds ran its
     // feedback sum through stmlib SoftLimit (the same polynomial as our
@@ -54,14 +66,19 @@ public:
     // loop-gain law. See docs/superpowers/plans/
     // 2026-07-21-cold-digital-clouds-voicing-notes.md.
     static constexpr float kColdWriteDrive = 1.4f;
+    static constexpr float kColdWriteDriveRecip = 1.0f / kColdWriteDrive;
 
 private:
     // Asymmetric soft clip for tape character: positive peaks saturate
     // earlier (ceiling 1/1.1) than negative (ceiling 1); both branches
     // keep unity small-signal slope.
     static float AsymmetricSoftClip(float x);
-    // SoftClip(drive*x)/drive — unity slope at 0, ceiling 1/drive.
-    static float NormalizedSoftClip(float x, float drive);
+    // SoftClip(drive*x)/drive — unity slope at 0, ceiling 1/drive. Folded to
+    // a single divide (task 14): for |x*drive| <= 3 the FastTanh polynomial
+    // and the /drive share one denominator; above that the clip has already
+    // saturated to +/-1, so the caller's precomputed driveRecip (1/drive) is
+    // used directly instead of dividing again.
+    static float NormalizedSoftClip(float x, float drive, float driveRecip);
 };
 
 } // namespace particules_dsp
