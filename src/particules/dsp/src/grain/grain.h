@@ -30,10 +30,11 @@ public:
     // Mark grain for zero-crossing kill (replaces instant fade-out)
     void StartPendingKill();
 
-    // Process one sample, reading from the recording buffer.
+    // Process one sample, reading from the recording buffer via a
+    // block-lifetime ReadContext (see RecordingBuffer::MakeReadContext).
     // Returns true if grain is still active.
     // INLINED for the grain-major hot loop — must stay in the header.
-    inline bool Process(const RecordingBuffer& buffer,
+    inline bool Process(const RecordingBuffer::ReadContext& ctx,
                         int64_t buf_size_q, float* out_l, float* out_r) {
         if (!active_) {
             *out_l = 0.0f;
@@ -70,7 +71,7 @@ public:
         float frac = static_cast<float>(static_cast<uint32_t>(position_q_))
                      * (1.0f / 4294967296.0f);
         float sample_l, sample_r;
-        buffer.ReadHermiteStereoFrac(i0, frac, &sample_l, &sample_r);
+        ctx.buf->ReadHermiteStereoFrac(ctx, i0, frac, &sample_l, &sample_r);
 
         // Advance and wrap (integer compare/subtract; position stays in
         // [0, size) so the >>32 above is always non-negative).
@@ -104,12 +105,33 @@ public:
     // Process a full block. Checks each grain's own contribution for NaN
     // before accumulating, so a NaN from another grain can't kill this one.
     // buf_size_q should be static_cast<int64_t>(buffer.size()) << 32.
-    inline void ProcessBlock(const RecordingBuffer& buffer, int64_t buf_size_q,
+    // `ctx` must come from RecordingBuffer::MakeReadContext(), built once
+    // per render block by GrainEngine before any grain is processed.
+    inline void ProcessBlock(const RecordingBuffer::ReadContext& ctx, int64_t buf_size_q,
                              StereoFrame* output, size_t num_frames) {
         for (size_t i = 0; i < num_frames; ++i) {
             float gl = 0.0f, gr = 0.0f;
-            Process(buffer, buf_size_q, &gl, &gr);
-            if (!std::isfinite(gl) || !std::isfinite(gr)) {
+            if (!Process(ctx, buf_size_q, &gl, &gr)) {
+                // Process() returns false only from the inactive/envelope-
+                // done/pending-kill-completed paths, every one of which
+                // sets active_ false before returning (see Process()'s
+                // return-value semantics). Pre-delay returns true (grain
+                // still counts as active while it waits), so it never hits
+                // this branch. A dead grain can't reactivate mid-block, so
+                // once active_ is false the rest of this block is silence
+                // from this grain -- stop iterating instead of adding
+                // (0.0f, 0.0f) num_frames-i more times.
+                if (!active_) break;
+            }
+            // Single combined check: gl+gr is non-finite iff either
+            // operand is NaN (poisons the sum) or either is an Inf (Inf +
+            // anything finite stays Inf; Inf + -Inf -> NaN) -- exactly the
+            // same rejection set as the old `!isfinite(gl) || !isfinite(gr)`
+            // pair, at half the branches. The only way two FINITE operands
+            // sum to a non-finite result is magnitude-~3.4e38 overflow,
+            // unreachable here: grain output is envelope * gain_ * pan_,
+            // each bounded to O(1), so gl/gr never approach that range.
+            if (!std::isfinite(gl + gr)) {
                 active_ = false;
                 return;
             }

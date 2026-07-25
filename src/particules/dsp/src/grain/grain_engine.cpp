@@ -318,11 +318,18 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // all active grain positions and thrashes L1 cache.
     int active_count = 0;
     int64_t buf_size_q = static_cast<int64_t>(buffer_->size()) << 32;
+    // Resolved once per block (format/channels/pointers/mu-law LUT): every
+    // grain-sample read in the loop below uses this instead of re-deriving
+    // from *buffer_, which the compiler can't prove is unaliased with the
+    // output[] accumulation stores. Block-lifetime only -- buffer_ must not
+    // be written/reconfigured until this block's grains are all processed
+    // (it isn't; recording writes happen in a separate pass, not here).
+    RecordingBuffer::ReadContext read_ctx = buffer_->MakeReadContext();
     for (int g = 0; g < kMaxGrains; ++g) {
         if (!grains_[g].active()) continue;
         ++active_count;
 
-        grains_[g].ProcessBlock(*buffer_, buf_size_q, output, num_frames);
+        grains_[g].ProcessBlock(read_ctx, buf_size_q, output, num_frames);
     }
 
     // --- Overlap normalization (matches Clouds approach) ---

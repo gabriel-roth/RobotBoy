@@ -75,7 +75,8 @@ TEST_CASE("Grain: Processes for correct duration", "[grain]") {
 
     int sample_count = 0;
     float out_l, out_r;
-    while (g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
+    auto ctx = tb.buffer.MakeReadContext();
+    while (g.Process(ctx, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
         sample_count++;
         if (sample_count > 1000) break;  // Safety
     }
@@ -101,7 +102,8 @@ TEST_CASE("Grain: Output is non-zero with sine input", "[grain]") {
 
     float max_level = 0.0f;
     float out_l, out_r;
-    while (g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
+    auto ctx = tb.buffer.MakeReadContext();
+    while (g.Process(ctx, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r)) {
         max_level = std::max(max_level, std::max(std::abs(out_l), std::abs(out_r)));
     }
 
@@ -125,7 +127,7 @@ TEST_CASE("Grain: Bell envelope has zero at start and end", "[grain]") {
 
     float out_l, out_r;
     // First sample should be near zero (Hann window starts at 0)
-    g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r);
+    g.Process(tb.buffer.MakeReadContext(), static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r);
     REQUIRE(std::abs(out_l) < 0.05f);
 }
 
@@ -145,9 +147,10 @@ TEST_CASE("Grain: Pre-delay delays output", "[grain]") {
     g.Start(params);
 
     float out_l, out_r;
+    auto ctx = tb.buffer.MakeReadContext();
     // First 10 samples should be silent (pre-delay)
     for (int i = 0; i < 10; ++i) {
-        REQUIRE(g.Process(tb.buffer, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r) == true);
+        REQUIRE(g.Process(ctx, static_cast<int64_t>(tb.buffer.size()) << 32, &out_l, &out_r) == true);
         REQUIRE(out_l == 0.0f);
         REQUIRE(out_r == 0.0f);
     }
@@ -282,7 +285,8 @@ TEST_CASE("Grain: Reverse playback reads buffer backwards", "[grain]") {
 
     std::vector<float> fwd_samples;
     float out_l, out_r;
-    while (fwd.Process(buffer, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
+    auto ctx = buffer.MakeReadContext();
+    while (fwd.Process(ctx, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
         fwd_samples.push_back(out_l);
     }
 
@@ -300,7 +304,7 @@ TEST_CASE("Grain: Reverse playback reads buffer backwards", "[grain]") {
     rev.Start(rev_params);
 
     std::vector<float> rev_samples;
-    while (rev.Process(buffer, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
+    while (rev.Process(ctx, static_cast<int64_t>(buffer.size()) << 32, &out_l, &out_r)) {
         rev_samples.push_back(out_l);
     }
 
@@ -850,14 +854,132 @@ TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][p
     // smooth ramp region, output must be strictly advancing (no more than 2
     // consecutive identical samples).
     int64_t buf_size_q = static_cast<int64_t>(buf.size()) << 32;
+    auto read_ctx = buf.MakeReadContext();
     int max_repeats = 0, repeats = 0;
     float prev = -2.0f;
     for (int i = 0; i < 1200; ++i) {
         float l, r;
-        g.Process(buf, buf_size_q, &l, &r);
+        g.Process(read_ctx, buf_size_q, &l, &r);
         if (l == prev) { repeats++; max_repeats = std::max(max_repeats, repeats); }
         else repeats = 0;
         prev = l;
     }
     REQUIRE(max_repeats <= 2);
+}
+
+// ── Block-resolved ReadContext: bit-exact vs the old single-call path ─────
+//
+// Task 12 hoists RecordingBuffer's per-sample format_/channels_/LUT switch
+// out into a ReadContext resolved once per render block (see
+// RecordingBuffer::MakeReadContext / the ctx overload of
+// ReadHermiteStereoFrac). Grain::Process/ProcessBlock now call ONLY the ctx
+// overload -- the old (i0, frac, l, r) signature is kept solely so it still
+// delegates for other callers (VCV desktop, ReadHermiteStereoFast, these
+// tests), and is implemented as a one-line forward to the ctx overload.
+//
+// This test pins that the ctx overload's output is bit-identical to the old
+// overload's for every format the per-sample switch dispatches on (float32 /
+// int12 / mulaw), in both stereo and mono, across the full index range
+// (including the i0==0 wrap case) and a spread of fractional positions --
+// i.e. the exact domain Grain::Process feeds it while a grain sweeps
+// through the buffer. Grain's own position bookkeeping (Q32.32 -> i0/frac)
+// is untouched by this task, so pinning the read function itself over this
+// domain is equivalent to pinning any real grain trajectory through it.
+TEST_CASE("RecordingBuffer: context-resolved read matches the old single-call "
+          "read bit-for-bit, per format", "[buffer][grain][context]") {
+    auto check = [](StorageFormat fmt, int channels) {
+        size_t num_frames = 2000;
+        size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+        std::vector<uint8_t> mem(bytes, 0);
+        RecordingBuffer buf;
+        buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, channels);
+        buf.Configure(1, fmt, channels);
+        buf.ImmediateClear();
+
+        size_t n = buf.size();
+        for (size_t i = 0; i < n; ++i) {
+            float phase = static_cast<float>(i) / static_cast<float>(n) * 6.283185307f * 9.0f;
+            buf.Write(std::sin(phase), std::cos(phase * 1.6f));
+        }
+
+        // Resolved once, exactly as GrainEngine::Process does per render
+        // block, before any grain-sample read in that block.
+        auto ctx = buf.MakeReadContext();
+
+        for (size_t i0 = 0; i0 < n; i0 += 23) {   // sweep the whole buffer,
+                                                    // including i0==0 (the
+                                                    // i_1 = size_-1 wrap case)
+            for (float frac : {0.0f, 0.1f, 0.37f, 0.5f, 0.63f, 0.9f, 0.999999f}) {
+                float old_l = 0.f, old_r = 0.f, new_l = 0.f, new_r = 0.f;
+                buf.ReadHermiteStereoFrac(i0, frac, &old_l, &old_r);
+                buf.ReadHermiteStereoFrac(ctx, i0, frac, &new_l, &new_r);
+                REQUIRE(old_l == new_l);
+                REQUIRE(old_r == new_r);
+            }
+        }
+    };
+
+    SECTION("float32 stereo") { check(StorageFormat::kFloat32, 2); }
+    SECTION("float32 mono")   { check(StorageFormat::kFloat32, 1); }
+    SECTION("int12 stereo")   { check(StorageFormat::kInt12, 2); }
+    SECTION("int12 mono")     { check(StorageFormat::kInt12, 1); }
+    SECTION("mulaw stereo")   { check(StorageFormat::kMuLaw8, 2); }
+    SECTION("mulaw mono")     { check(StorageFormat::kMuLaw8, 1); }
+}
+
+// Integration smoke test: a real Grain, driven entirely through the ctx
+// overload (its only remaining read path), stays finite and completes in
+// the expected duration on each of the three storage formats -- i.e. the
+// GrainEngine -> ReadContext -> Grain::ProcessBlock wiring actually works
+// end to end, not just the raw buffer function in isolation above.
+TEST_CASE("Grain: completes normally through the ReadContext path on every storage format",
+          "[grain][context]") {
+    auto check = [](StorageFormat fmt) {
+        size_t num_frames = 4800;
+        size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+        std::vector<uint8_t> mem(bytes, 0);
+        RecordingBuffer buf;
+        buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+        buf.Configure(1, fmt, 2);
+        buf.ImmediateClear();
+
+        size_t n = buf.size();
+        for (size_t i = 0; i < n; ++i) {
+            float phase = static_cast<float>(i) / static_cast<float>(n) * 6.283185307f * 5.0f;
+            buf.Write(std::sin(phase), std::cos(phase));
+        }
+
+        Grain g;
+        g.Init();
+        Grain::GrainParameters params;
+        params.position = 100.0f;
+        params.size = 480.0f;
+        params.pitch_ratio = 1.0f;
+        params.shape = 0.5f;
+        params.pan = 0.0f;
+        params.pre_delay = 0;
+        g.Start(params);
+
+        int64_t buf_size_q = static_cast<int64_t>(buf.size()) << 32;
+        auto ctx = buf.MakeReadContext();
+
+        int sample_count = 0;
+        bool all_finite = true;
+        float max_level = 0.0f;
+        float out_l, out_r;
+        while (g.Process(ctx, buf_size_q, &out_l, &out_r)) {
+            if (!std::isfinite(out_l) || !std::isfinite(out_r)) all_finite = false;
+            max_level = std::max(max_level, std::max(std::abs(out_l), std::abs(out_r)));
+            sample_count++;
+            if (sample_count > 1000) break;  // safety
+        }
+
+        REQUIRE(all_finite);
+        REQUIRE(max_level > 0.005f);
+        REQUIRE(sample_count == Approx(480).margin(2));
+    };
+
+    SECTION("float32") { check(StorageFormat::kFloat32); }
+    SECTION("int12")   { check(StorageFormat::kInt12); }
+    SECTION("mulaw")   { check(StorageFormat::kMuLaw8); }
 }

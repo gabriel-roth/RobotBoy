@@ -56,13 +56,14 @@ TEST_CASE("Grain: kill fallback fade reaches exactly zero", "[grain][kill]") {
     g.Start(params);
 
     int64_t buf_size_q = static_cast<int64_t>(buffer.size()) << 32;
+    auto ctx = buffer.MakeReadContext();
     float out_l, out_r;
 
     // Run well past the initial envelope ramp (phase clears the ~0.025
     // clipping threshold by sample ~50 at this grain size) into the flat
     // plateau, and capture an unfaded reference amplitude.
     for (int i = 0; i < 200; ++i) {
-        REQUIRE(g.Process(buffer, buf_size_q, &out_l, &out_r));
+        REQUIRE(g.Process(ctx, buf_size_q, &out_l, &out_r));
     }
     float reference = out_l;
     REQUIRE(reference > 0.1f);  // sanity: plateau really is near full gain
@@ -72,13 +73,13 @@ TEST_CASE("Grain: kill fallback fade reaches exactly zero", "[grain][kill]") {
     // Advance through the zero-crossing deadline (32 samples of "no
     // crossing"); the fallback fade should engage right after this.
     for (int i = 0; i < 32; ++i) {
-        REQUIRE(g.Process(buffer, buf_size_q, &out_l, &out_r));
+        REQUIRE(g.Process(ctx, buf_size_q, &out_l, &out_r));
     }
 
     // The next kFallbackFadeSamples (4) samples are the fallback fade.
     std::vector<float> fade_ratios;
     for (int i = 0; i < 4; ++i) {
-        bool alive = g.Process(buffer, buf_size_q, &out_l, &out_r);
+        bool alive = g.Process(ctx, buf_size_q, &out_l, &out_r);
         REQUIRE(alive);
         fade_ratios.push_back(out_l / reference);
     }
@@ -91,7 +92,7 @@ TEST_CASE("Grain: kill fallback fade reaches exactly zero", "[grain][kill]") {
 
     // The grain must be dead on the very next sample — no further
     // discontinuity beyond the fade sequence above.
-    bool still_alive = g.Process(buffer, buf_size_q, &out_l, &out_r);
+    bool still_alive = g.Process(ctx, buf_size_q, &out_l, &out_r);
     REQUIRE_FALSE(still_alive);
     REQUIRE(out_l == 0.0f);
     REQUIRE(out_r == 0.0f);
