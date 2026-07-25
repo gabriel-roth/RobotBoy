@@ -47,12 +47,12 @@ private:
     float read_rate_scale_ = 1.f;        // tape wow/flutter, block-rate
     float inv_decimation_ = 1.f;         // 1/decimation, refreshed in SetTargets
 
-    // Frozen-seam hoists (NotifyFreeze recomputes these whenever slice_start_
-    // changes; ReadWet's frozen branch just reads them). Safe to cache the
-    // buffer content at slice_start_pos_ across samples because writes into
-    // the RecordingBuffer are fully suppressed for the entire freeze duration
-    // (retours_processor.cpp gates Write() on `!params.freeze`, not just at
-    // the write-head seam) -- see NotifyFreeze for the full citation.
+    // Frozen-seam hoists: NotifyFreeze refreshes these unconditionally every
+    // block for as long as freeze holds (not just when slice_start_ actually
+    // moves), so caching the Hermite read at slice_start_pos_ bounds its
+    // staleness to at most one block (<=64 samples) rather than requiring
+    // buffer content there to be provably static -- see NotifyFreeze's
+    // refresh_seam_cache comment for why that weaker guarantee is enough.
     float slice_start_pos_ = 0.f;        // WrapPosition(slice_start_, size_f)
     float slice_fade_len_ = 1.f;         // min(kSeamCrossfadeFrames, len*0.5)
     float inv_slice_fade_len_ = 1.f;     // 1/slice_fade_len_

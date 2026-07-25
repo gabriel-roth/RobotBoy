@@ -20,10 +20,57 @@ inline float WrapPosition(float position, float size_f) {
 // ReadWet's positions are bounded by construction (read_subsample_ resyncs
 // to write_head() < size every block and advances <= 64/decimation; delay
 // <= size-1) -- see ReadWet call sites for the per-site bound. The general
-// WrapPosition stays for block-rate callers (NotifyFreeze, SetTargets).
+// WrapPosition stays for the block-rate NotifyFreeze caller.
+//
+// The frozen-path call (pos_main = slice_start_pos_ + slice_phase_) is the
+// tightest of these: slice_len_frames_ can equal size_f exactly (no margin),
+// so pos_main's upper bound of 2*size_f is only as good as the invariant
+// that the host-sample slice length passed into NotifyFreeze never exceeds
+// the buffer's live duration (BaseTimeControl clamps base_samples to
+// buffer_samples_, and buffer_samples_ is kept in sync with size()*
+// decimation_factor() on every quality change -- see SetBufferSeconds's
+// caller in retours_processor.cpp). If that invariant were ever violated,
+// slice_len_frames_ > size_f and this bound (and WrapBounded's single
+// conditional) would no longer hold.
+//
+// Found by review + stress testing: the NON-frozen call sites (tape read,
+// crossfade old/new, multi-tap) read size_f fresh every call, but combine it
+// with delay_frames_/target_frames_/fade_from_frames_/read_subsample_, which
+// are only refreshed once per BLOCK (SetTargets, at the top of
+// RetoursProcessor::ProcessBlock). A quality-mode change's apply point
+// (retours_processor.cpp's kFadeOut case) calls recording_buffer.Configure()
+// -- which can change size()/decimation_factor() -- from INSIDE that same
+// block's per-sample loop, at whatever sample index the fade-out counter
+// reaches zero, not just at the block boundary. For the rest of that block
+// (until the next SetTargets() resync), size_f here reflects the NEW buffer
+// while delay_frames_ etc. are still clamped against the OLD one, which can
+// push the position outside (-size_f, 2*size_f) -- the single-conditional
+// wrap no longer fully corrects it, producing an out-of-[0, size_f) result
+// that sends the bounds-unchecked ReadHermiteStereoFast out of bounds
+// (reproduced as a SIGSEGV via tests/retours_delay_dsp/test_hardening.cpp's
+// freeze/quality-churn corner-stress test). This can't happen to the frozen
+// call site above: quality transitions are blocked outright while frozen
+// (retours_processor.cpp gates the apply point on `!params.freeze &&
+// !freeze_falling_edge`, and aborts back to kFadeIn if freeze re-engages
+// mid-fade-out).
+//
+// Fall back to the always-correct WrapPosition rather than re-deriving a
+// tighter bound proof against a moving buffer size mid-block. The re-check
+// below only ever fires when the two conditionals above failed to land in
+// [0, size_f) -- i.e. only in the rare cross-block state mismatch above --
+// so it costs two cheap, well-predicted (never-taken in the fast path)
+// comparisons and never touches the result for a genuinely in-domain input
+// (unlike clamping, which would also silently perturb any in-domain value
+// that happens to land within one ULP of size_f -- caught here by
+// pin_multi_tap's hash moving during this fix's own verification when an
+// earlier, clamp-based version of this safety net was tried; the fallback
+// below reproduces that scenario's pre-fix hash exactly). The result in the
+// rare mismatch window is a wrong-but-harmless sample (same as this
+// function's job everywhere else in the rare/edge case), not a crash.
 inline float WrapBounded(float p, float size_f) {
     if (p >= size_f) p -= size_f;
     else if (p < 0.f) p += size_f;
+    if (p < 0.f || p >= size_f) p = WrapPosition(p, size_f);
     return p;
 }
 
@@ -143,15 +190,21 @@ void EchoEngine::NotifyFreeze(bool frozen, float slice_len_samples, int slice_in
 
     bool was_frozen = frozen_;
 
-    // Refresh the ReadWet frozen-branch hoists whenever slice_start_/
-    // slice_len_frames_ change: the wrapped start position, the seam
-    // crossfade length (and its reciprocal), and the Hermite read AT that
-    // start position. Caching that last read across samples is safe because
-    // RecordingBuffer::Write() is unconditionally skipped by the caller for
-    // the entire freeze duration (retours_processor.cpp: "if (!s.params.freeze)
-    // s.recording_buffer.Write(...)", not just around the write-head seam),
-    // so buffer content anywhere -- including slice_start_pos_ -- cannot
-    // change between here and the next call that moves slice_start_ again.
+    // Refresh the ReadWet frozen-branch hoists: the wrapped start position,
+    // the seam crossfade length (and its reciprocal), and the Hermite read AT
+    // that start position. This runs unconditionally in both branches below
+    // that keep frozen_ true (rising edge, and "still frozen" -- the latter
+    // taken every block for as long as freeze holds, since NotifyFreeze is
+    // called every block regardless of whether TIME/DENSITY actually moved;
+    // see retours_processor.cpp's "FREEZE: called every block" comment at its
+    // call site). RecordingBuffer::Write() is skipped by the caller for the
+    // whole freeze duration in the normal case, but ClearBuffer()'s
+    // ImmediateClear() is NOT gated on freeze and can still mutate the buffer
+    // out from under a frozen slice. That's fine here specifically because
+    // this cache doesn't need content to be provably static -- it only needs
+    // staleness bounded to at most one block (<=64 samples), and refreshing
+    // unconditionally every block while frozen (regardless of whether
+    // slice_start_ moved) provides exactly that bound.
     auto refresh_seam_cache = [&]() {
         slice_start_pos_ = slice_start_;  // already wrapped into [0, size_f)
         slice_fade_len_ = std::min(kSeamCrossfadeFrames, slice_len_frames_ * 0.5f);
