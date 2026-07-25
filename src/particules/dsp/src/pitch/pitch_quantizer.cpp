@@ -60,8 +60,13 @@ float PitchQuantizer::quantize(float v_oct) const noexcept {
   // Guard non-finite input (e.g. a transient NaN/Inf CV glitch surviving
   // from upstream): the old pow/log round trip happened to degrade NaN
   // comparisons to a harmless finite fallback, but static_cast<int> below
-  // is UB on a non-finite double, so bail out explicitly instead.
-  if (!std::isfinite(pitch)) return v_oct;
+  // is UB on a non-finite double, so bail out explicitly instead. Return
+  // 0.f (log2-domain unity, i.e. the root pitch) rather than echoing the
+  // non-finite v_oct back out -- the quantizer must not launder a NaN/Inf
+  // through untouched, since callers (e.g. GrainEngine) may otherwise
+  // assume "ran through quantize()" implies "finite in, finite-or-same
+  // out".
+  if (!std::isfinite(pitch)) return 0.0f;
 
   // v_oct is already log2(freq), so the scale table (log2_ratios_,
   // log2_period_) can be scanned directly -- no pow/log round trip needed.

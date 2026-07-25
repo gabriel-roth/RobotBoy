@@ -398,3 +398,69 @@ TEST_CASE("GrainEngine: CPU-cap saturation fades oldest grain and starts new one
     // (c) Active count is transiently cap+1.
     REQUIRE(engine.ActiveGrainCount() == 3);
 }
+
+// ── (d) NaN pitch CV must resolve to the exact unity pitch fallback ────────
+//
+// SemitonesToRatioFast (Exp2Fast, Task 13) requires a finite argument:
+// unlike std::exp2, which propagates NaN straight through, Exp2Fast's
+// `(int)y` truncation is UB on non-finite input and has been observed to
+// produce small but FINITE garbage -- which would sail straight past the
+// isfinite(gp.pitch_ratio) fence in ComputeGrainParams undetected.
+// ComputeGrainParams now sanitizes mod_pitch to 0 semitones immediately
+// before the fast-exp2 call, so a NaN pitch_cv (with pitch_ar engaged, so
+// it actually reaches the engine) must produce a forward grain at exactly
+// unity rate -- not merely "some finite value", which would pass even if
+// the sanitize-before-fast-path fix regressed back to sanitizing only the
+// (now ineffective) post-multiply gp.pitch_ratio fence.
+TEST_CASE("GrainEngine: NaN pitch CV resolves to the exact unity pitch fallback",
+          "[engine][nan]") {
+    const size_t num_frames = 48000 * 2;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kGated;
+    params.time = 0.5f;
+    params.size = 0.0f;      // short grain, keeps the test fast
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.pitch_ar = 0.5f;  // CW of noon + cv_connected: modulation = ar*cv,
+                             // so a NaN pitch_cv actually reaches mod_pitch
+                             // (Attenurandomizer::Process short-circuits to
+                             // the unmodulated base when ar_amount == 0).
+    params.pitch_cv = NAN;
+    params.pitch_cv_connected = true;
+    params.density = 0.5f;   // noon = only the gate rising edge fires
+    params.gate = false;
+
+    std::vector<StereoFrame> block(64);
+
+    // Burn down the ~1s startup ramp; gate stays low so nothing fires yet.
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+    REQUIRE(engine.ActiveGrainCount() == 0);
+
+    // Rising edge: fire exactly one grain while pitch_cv is still NaN.
+    params.gate = true;
+    engine.Process(params, block.data(), 64);
+    params.gate = false;
+
+    int fired_index = -1;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.ActiveAt(i)) { fired_index = i; break; }
+    }
+    REQUIRE(fired_index >= 0);
+    // Exact equality, not Approx/isfinite: pins that the unity fallback
+    // actually engaged, rather than Exp2Fast's UB silently producing some
+    // other finite ratio that would also pass a mere finiteness check.
+    REQUIRE(engine.PhaseIncrementAt(fired_index) == 1.0f);
+}

@@ -6,7 +6,12 @@ namespace particules_dsp {
 
 // Divide-free, libm-free exp2. Max relative error ~1.5e-5. Same construction
 // as src/vespid/fastsinh.hpp's exp2Fast (kept separate: this dsp tree is
-// self-contained). Argument must be finite and within float exponent range.
+// self-contained). Argument must be finite and within float exponent range:
+// unlike std::exp2, a non-finite y does NOT propagate to a non-finite
+// result here -- `(int)y` on NaN/Inf is UB and has been observed to yield
+// small but FINITE garbage, which can defeat a downstream isfinite() fence
+// that assumed "bad input in -> non-finite output out". Callers must
+// sanitize non-finite input before calling, not after.
 inline float Exp2Fast(float y) {
     int n = (int)y;
     n -= ((float)n > y);          // floor for negative y

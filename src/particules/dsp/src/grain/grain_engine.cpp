@@ -166,20 +166,29 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     // Pitch lock is the final constraint — applied after AR and scale quantizer
     if (params.pitch_lock != 0)
         mod_pitch = QuantizePitchLock(mod_pitch, params.pitch_lock);
+    // SemitonesToRatioFast (Exp2Fast) requires a *finite* argument: unlike
+    // std::exp2, which propagates NaN straight through, Exp2Fast's
+    // `(int)y` truncation is UB on a non-finite y and has been observed to
+    // produce small but FINITE garbage (not NaN) -- which would then sail
+    // straight past the isfinite(gp.pitch_ratio) fence below undetected. A
+    // NaN pitch_cv with pitch_ar engaged (or a NaN from the scale
+    // quantizer/pitch lock, though both are guarded/finite by construction)
+    // can reach here, so sanitize before the fast path ever sees it. 0
+    // semitones = unity ratio, the intended fallback.
+    if (!std::isfinite(mod_pitch)) mod_pitch = 0.0f;
     gp.pitch_ratio = SemitonesToRatioFast(mod_pitch) * pitch_mod_ratio_ * inv_df_;
     if (reverse) {
         gp.pitch_ratio = -gp.pitch_ratio;
     }
-    // Guard against NaN pitch_ratio (e.g. a NaN pitch_cv with pitch_ar
-    // engaged survives ar_pitch_.Process() and the scale quantizer, which
-    // both pass NaN through unchanged). Grain::Start() stores this directly
-    // into phase_increment_, which is added into read_position_ every
-    // sample in the hot loop -- once read_position_ goes NaN, the very next
-    // ReadHermiteStereoFast() call does an unguarded float->int cast on it,
-    // which is undefined behavior. That happens before the per-sample
-    // isfinite(gl/gr) check in Grain::ProcessBlock ever gets a chance to
-    // catch it, so this needs its own fence, same idea as the gp.position
-    // guard below.
+    // Backstop for NaN/Inf entering multiplicatively from pitch_mod_ratio_
+    // or inv_df_ (mod_pitch itself is already sanitized above). Grain::
+    // Start() stores this directly into phase_increment_, which is added
+    // into read_position_ every sample in the hot loop -- once
+    // read_position_ goes NaN, the very next ReadHermiteStereoFast() call
+    // does an unguarded float->int cast on it, which is undefined
+    // behavior. That happens before the per-sample isfinite(gl/gr) check
+    // in Grain::ProcessBlock ever gets a chance to catch it, so this needs
+    // its own fence, same idea as the gp.position guard below.
     if (!std::isfinite(gp.pitch_ratio)) gp.pitch_ratio = reverse ? -1.0f : 1.0f;
 
     // Convert to an absolute position in the recording buffer.

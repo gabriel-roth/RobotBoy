@@ -39,6 +39,12 @@ public:
     bool ActiveAt(int index) const { return grains_[index].active(); }
     bool PendingKillAt(int index) const { return grains_[index].pending_kill(); }
     uint32_t SpawnSerialAt(int index) const { return grains_[index].spawn_serial(); }
+    // Test-only: the grain's actual playback-rate ratio (phase_increment
+    // is stored as-computed by ComputeGrainParams' pitch_ratio -> Q32.32
+    // conversion in Grain::Start). Used to pin that non-finite pitch
+    // inputs resolve to the intended unity fallback, not just "some
+    // finite value" (see the fast_exp2.h NaN-safety fix).
+    float PhaseIncrementAt(int index) const { return grains_[index].phase_increment(); }
 
     // Test-only: marks the pool's true oldest grain for the click-free
     // pending-kill, exactly as Process()'s steal path does at saturation.
