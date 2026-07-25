@@ -66,8 +66,6 @@ The bottom row holds the global controls, left to right:
 - **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
 - **Dry/Wet** — Sets the blend between incoming audio (dry) and loop playback (wet) at the Mix output. Fully clockwise = loop only.
 
-> **On MetaModule**, Overdub and Grid are panel controls just as on VCV — Overdub is a five-position switch (Layer / Decay / Add / Replace / Lock) in the same spot, and Grid is a snapped panel knob. The options list (scroll down past the jacks) holds only the menu items: Trig mode, Speed V/Oct, Exclude from Grid, Crossfade, and Trigger when recording.
-
 ---
 
 ## Jacks and CV
@@ -82,10 +80,10 @@ Nearly every knob has an associated **CV input.** Positive or negative CV is add
 
 **Per-head jacks:**
 
-- **Speed / Position / Size / Level / Jitter / Pan CV** — modulate that head's knob. (Pan is bipolar: about −5 V pushes hard left, +5 V hard right, centered at 0 V.)
+- **Speed / Position / Size / Level / Jitter / Pan CV** — modulate that head's knob. (Pan is bipolar: about −5V pushes hard left, +5V hard right, centered at 0V.)
 - **Out L / Out R** — that head's isolated stereo output.
 - **Trig** — retriggers the head (see below).
-- **Jump** — a control voltage that snaps the playhead to a spot within its window (0 V = start of window, 10 V = end). Great for stutter and glitch effects driven by an LFO or sequencer.
+- **Jump** — a control voltage that snaps the playhead to a spot within its window (0V = start of window, 10V = end). Great for stutter and glitch effects driven by an LFO or sequencer.
 
 ### Trigger jacks and one-shot mode
 
@@ -102,7 +100,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 - **Trigger when recording** — sets what a second Record command (button *or* the **Record trigger** input) does while Loooop is still recording its first loop. **Stops recording** (the default) freezes the loop and starts playback — the normal behavior. **Starts overdubbing** instead freezes the loop length at that moment and rolls straight on into an overdub pass, so a single clock or trigger stream can capture a loop and keep layering it without a second press. (In **Lock** overdub mode, overdubbing is off, so it always just stops.)
 - **Exclude from Grid** — lets a given playhead move freely even while **Grid** is on. Good for one drifting, texture-making playhead over an otherwise beat-sliced loop.
 - **One-shot on trigger** — check a playhead to put it in one-shot mode (see above). Unchecked (the default), a trigger just restarts the playhead at the start of its window.
-- **Speed CV = V/Oct** — makes a playhead's Speed CV input track **1 volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
+- **Speed CV = V/Oct** — makes a playhead's Speed CV input track **1 Volt per octave**, so you can play the loop chromatically from a keyboard or sequencer (speed then ranges much wider, up to ±16×).
 - **Crossfade** — When on (the default), Loooop applies a tiny (\~5 ms) fade at each loop's wrap-around point to hide clicks, and gives **one-shot** passes a matching fade-out at the end instead of a hard stop. Turn it off if you want the raw, seam-exact repeat (useful for rhythmic clicks or very short grains).
 
 ---

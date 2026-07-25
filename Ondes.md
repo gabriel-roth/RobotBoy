@@ -1,6 +1,6 @@
 # Ondes
 
-**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), inspired by the wavetable mode on Mutable Instruments Beads. A two-dimensional wavetable set — 24 banks of eight waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every knob position between the stored waveforms is a smooth blend rather than a hard switch.
+**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), inspired by the hidden wavetable mode on Mutable Instruments Beads. A two-dimensional wavetable set — 24 banks of eight waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every knob position between the stored waveforms is a smooth blend rather than a hard switch.
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="500">
 
@@ -8,12 +8,12 @@
 
 ## Controls
 
-- **Pitch** — −24 to +24 st. Coarse/fine pitch, notched at octaves, fifths, and unison for easy tuning (shared with Particules).
-- **V/Oct** — 1 V/octave pitch input, summed with the Pitch knob.
-- **Bank** — 0 to 1. Selects the timbral family across the 24 banks.
-- **Bank CV** + amount — ±5 V CV control of Bank, scaled by the attenuverter below it.
-- **Position** — 0 to 1. Selects the waveform within the current bank.
-- **Position CV** + amount — ±5 V CV control of Position, scaled by the attenuverter below it.
+- **Pitch** — −24 to +24 st. Coarse/fine pitch, notched at octaves, fifths, and unison for easy tuning.
+- **V/Oct** — pitch input, summed with the Pitch knob.
+- **Bank** — selects the timbral family across the 24 banks.
+- **Bank CV** + amount — ±5V CV control of Bank, scaled by the attenuverter below it.
+- **Position** — selects the waveform within the current bank.
+- **Position CV** + amount — ±5V CV control of Position, scaled by the attenuverter below it.
 - **Out** — ±5 V mono oscillator output.
 
 ---
@@ -33,5 +33,7 @@
 - Audio-rate V/Oct plus a second oscillator into Bank/Position for FM-like sidebands.
 
 ---
+_Ondes is inspired by Mutable Instruments Beads, designed by Émilie Gillet. It uses wavetable data derived from Mutable Instruments Plaits by Emilie Gillet, and code from [No Such Texture](https://github.com/thorinside/nosuch_texture) by Neal Sanche._
 
-*Wavetable data derived from Mutable Instruments Plaits (© 2016 Emilie Gillet, MIT/Apache 2.0).*
+
+
