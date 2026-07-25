@@ -55,6 +55,9 @@ struct ParticulesProcessor::Impl {
     bool pending_mono = false;
     int qt_fade_counter = 0;
     static constexpr int kQualityFadeSamples = 2048;   // ~43 ms at 48 kHz
+    // Exact reciprocal (power of two): multiply instead of dividing per
+    // sample in the fade-out/fade-in gain computation below.
+    static constexpr float kQualityFadeSamplesRecip = 1.0f / kQualityFadeSamples;
 
     // Smoothed mix parameters (zipper noise prevention)
     float smoothed_dry_wet = 0.5f;

@@ -111,6 +111,9 @@ private:
     QualityMode prev_input_mode_ = QualityMode::kBrightDigital;
     QualityMode prev_output_mode_ = QualityMode::kBrightDigital;
     static constexpr int kModeXfadeSamples = 64;
+    // Exact reciprocal (power of two): multiply instead of dividing per
+    // sample in ApplyModeXfade's mix computation.
+    static constexpr float kModeXfadeSamplesRecip = 1.0f / kModeXfadeSamples;
     int input_xfade_counter_ = 0;
     int output_xfade_counter_ = 0;
 
@@ -119,7 +122,7 @@ private:
     // jump (especially into/out of tape mode's filtering + hiss).
     static void ApplyModeXfade(int& counter, const StereoFrame& input, StereoFrame& result) {
         if (counter > 0) {
-            float mix = static_cast<float>(counter) / static_cast<float>(kModeXfadeSamples);
+            float mix = static_cast<float>(counter) * kModeXfadeSamplesRecip;
             // mix goes from 1 (all old = raw input) to 0 (all new mode)
             result.l = input.l * mix + result.l * (1.0f - mix);
             result.r = input.r * mix + result.r * (1.0f - mix);
