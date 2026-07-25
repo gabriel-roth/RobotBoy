@@ -109,6 +109,8 @@ void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate
     // target doesn't cause a spurious glide-in from an arbitrary default.
     delay_frames_ = target_frames_ = -1.f;
     slew_coeff_ = 0.001f;
+    cached_slew_s_ = -1.f;
+    cached_slew_sr_ = -1.f;
     multi_tap_ = false;
     mode_ = TimeChangeMode::kTape;
     fade_from_frames_ = 0.f;
@@ -155,7 +157,14 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
     mode_ = mode;
 
     float slew_s = std::max(slew_seconds, 1e-4f);
-    slew_coeff_ = 1.f - std::exp(-1.f / (slew_s * sample_rate_));
+    // Cache: exp() is a transcendental call, and (slew_s, sample_rate_) is
+    // usually unchanged block to block (see cached_slew_s_'s comment in
+    // echo_engine.h). Recompute only when either input actually moved.
+    if (slew_s != cached_slew_s_ || sample_rate_ != cached_slew_sr_) {
+        cached_slew_s_ = slew_s;
+        cached_slew_sr_ = sample_rate_;
+        slew_coeff_ = 1.f - std::exp(-1.f / (slew_s * sample_rate_));
+    }
 
     if (delay_frames_ < 0.f || !std::isfinite(delay_frames_)) {
         // First-ever target: snap instead of gliding from the placeholder.

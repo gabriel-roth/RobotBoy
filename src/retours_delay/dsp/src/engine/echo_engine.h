@@ -34,6 +34,13 @@ private:
     float delay_frames_ = 4800.f;        // slewed, buffer frames
     float target_frames_ = 4800.f;
     float slew_coeff_ = 0.001f;          // per-sample one-pole
+    // Cache for slew_coeff_'s recompute (M6): 1-exp(-1/(slew_s*sr)) is a
+    // transcendental call, and slew_seconds is usually unchanged block to
+    // block (a fixed knob/constant -- see SetTargets' caller). -1.f is not a
+    // legal (clamped-positive) slew_s/sample_rate, so the first call always
+    // misses and recomputes.
+    float cached_slew_s_ = -1.f;
+    float cached_slew_sr_ = -1.f;
     bool  multi_tap_ = false;
     TimeChangeMode mode_ = TimeChangeMode::kTape;
     // crossfade-jump state (kCrossfade mode)
