@@ -237,14 +237,14 @@ struct LopWidget : ModuleWidget {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createIndexSubmenuItem("When recording ends",
-            {"Plays back", "Keeps overdubbing"},
-            [m] { return (int)std::round(m->params[Lop::TRIG_WHEN_REC_PARAM].getValue()); },
-            [m](int i) { m->paramQuantities[Lop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         menu->addChild(createIndexSubmenuItem("Record jack",
             {"Trigger", "Gate"},
             [m] { return (int)std::round(m->params[Lop::REC_GATE_MODE_PARAM].getValue()); },
             [m](int i) { m->paramQuantities[Lop::REC_GATE_MODE_PARAM]->setValue((float)i); }));
+        menu->addChild(createIndexSubmenuItem("When recording ends",
+            {"Plays back", "Keeps overdubbing"},
+            [m] { return (int)std::round(m->params[Lop::TRIG_WHEN_REC_PARAM].getValue()); },
+            [m](int i) { m->paramQuantities[Lop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         menu->addChild(createBoolMenuItem("Crossfade", "",
             [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));

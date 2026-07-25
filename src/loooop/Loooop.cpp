@@ -372,14 +372,14 @@ struct LoooopWidget : ModuleWidget {
         Loooop* m = dynamic_cast<Loooop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createIndexSubmenuItem("When recording ends",
-            {"Plays back", "Keeps overdubbing"},
-            [m] { return (int)std::round(m->params[Loooop::TRIG_WHEN_REC_PARAM].getValue()); },
-            [m](int i) { m->paramQuantities[Loooop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         menu->addChild(createIndexSubmenuItem("Record jack",
             {"Trigger", "Gate"},
             [m] { return (int)std::round(m->params[Loooop::REC_GATE_MODE_PARAM].getValue()); },
             [m](int i) { m->paramQuantities[Loooop::REC_GATE_MODE_PARAM]->setValue((float)i); }));
+        menu->addChild(createIndexSubmenuItem("When recording ends",
+            {"Plays back", "Keeps overdubbing"},
+            [m] { return (int)std::round(m->params[Loooop::TRIG_WHEN_REC_PARAM].getValue()); },
+            [m](int i) { m->paramQuantities[Loooop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
         menu->addChild(createBoolMenuItem("Crossfade", "",
             [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
