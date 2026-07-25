@@ -1,7 +1,9 @@
 # Particules: drop automatic triggers at the long-grain cap floor
 
-**Date:** 2026-07-25. **Status:** approved design, prototype-first (branch
-`particules-longgrain-drop`; nothing merges until the user has listened).
+**Date:** 2026-07-25. **Status:** shipped as the new default behavior
+2026-07-25 after a user listening pass (developed prototype-first on branch
+`particules-longgrain-drop`; no menu option — replaces the old steal
+behavior outright).
 
 ## Problem
 
