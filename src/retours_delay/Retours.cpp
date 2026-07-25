@@ -26,6 +26,9 @@ static_assert(kWrapperBlockSize <= retours_delay_dsp::kMaxBlockSize,
 // (a hard on/off flash is ~1-2 frames at fast tempos, which aliases against the
 // frame rate and looks uneven).
 static constexpr float kClockFlashDecaySeconds = 0.08f;
+// Precomputed 1/kClockFlashDecaySeconds (== 12.5f exactly) so the block-rate
+// decay can multiply instead of dividing every sample.
+static constexpr float kClockFlashDecayRate = 1.f / kClockFlashDecaySeconds;
 
 
 struct Retours;
@@ -322,10 +325,7 @@ struct Retours : Module {
 		block_runtime_.NoteClockEdgeSample(clock_jack_rising || clock_button_rising,
 			block_runtime_.InputIndex());
 
-#ifdef METAMODULE
-		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
-		quality_state_ = std::clamp((int)std::lround(params[QUALITY_PARAM].getValue()), 0, 3);
-#else
+#ifndef METAMODULE
 		// Desktop: momentary button cycles the mode; blocked while frozen.
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
 		if (quality_pressed && !prev_quality_button_ && !frozen)
@@ -357,6 +357,12 @@ struct Retours : Module {
 				processor_.ClearBuffer();
 			if (clear_tempo_requested_.exchange(false))
 				processor_.ClearTappedTempo();
+#ifdef METAMODULE
+			// MetaModule: Quality is a 4-position switch, so the mode IS the
+			// param. Consumed only by updateSlowParams()/params_.quality below
+			// and the LED check further down, so read once per block.
+			quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
+#endif
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -383,6 +389,21 @@ struct Retours : Module {
 			clock_light_phase_ += static_cast<float>(kWrapperBlockSize) / period_samples;
 			if (clock_light_phase_ >= 1.f)
 				clock_light_phase_ -= std::floor(clock_light_phase_);
+
+			// Snap to full brightness during the flash window at the start of
+			// each beat, then decay smoothly (see kClockFlashDecaySeconds).
+			// Decay and publish now run once per block instead of every
+			// sample: kClockFlashDecayRate is exact, so the closed-form
+			// multiply reproduces the per-sample max(0, x - sampleTime/tau)
+			// result applied kWrapperBlockSize times (the flash/decay branch
+			// is already fixed for the whole block, since clock_light_phase_
+			// only changes here).
+			if (clock_light_phase_ < 0.1f)
+				clock_light_level_ = 1.f;
+			else
+				clock_light_level_ = std::max(0.f,
+					clock_light_level_ - kWrapperBlockSize * args.sampleTime * kClockFlashDecayRate);
+			lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
 		}
 
 		// Light updates
@@ -394,15 +415,6 @@ struct Retours : Module {
 			lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
 			lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
 		}
-
-		// Snap to full brightness during the flash window at the start of each
-		// beat, then decay smoothly (see kClockFlashDecaySeconds).
-		if (clock_light_phase_ < 0.1f)
-			clock_light_level_ = 1.f;
-		else
-			clock_light_level_ = std::max(0.f,
-				clock_light_level_ - args.sampleTime / kClockFlashDecaySeconds);
-		lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
 	}
 };
 
