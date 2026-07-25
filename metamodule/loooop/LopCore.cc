@@ -44,10 +44,13 @@ public:
         engine_.setGrid(loooop::gridSegments((int)(getState<GridKnob>() * 5.f + 0.5f)));
 
         // Record: momentary button + jack, routed through the shared
-        // RecordGateHelper -- Trigger mode reproduces the old combined
-        // (button OR jack) rising edge byte-for-byte; Gate mode reinterprets
-        // the jack's own rising/falling edges as punch-in/punch-out. Same
-        // >1.0f jack threshold as before (no hysteresis on MetaModule).
+        // RecordGateHelper. Trigger mode ORs the button's and jack's rising
+        // edges INDEPENDENTLY (matching VCV's two-independent-Schmitt-
+        // triggers behavior) rather than the previous single combined-level
+        // latch -- a deliberate behavior change here: the button is no longer
+        // dead while the jack is held high. Gate mode reinterprets the jack's
+        // own rising/falling edges as start/stop. Same >1.0f jack threshold
+        // as before (no hysteresis on MetaModule).
         const bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
         const bool recJackHigh = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
         if (!recordGateInited_) {
@@ -61,10 +64,6 @@ public:
             case loooop::RecordGateHelper::Action::Toggle:
             case loooop::RecordGateHelper::Action::Close:
                 engine_.toggleRecord(trigWhenRec);
-                break;
-            case loooop::RecordGateHelper::Action::Punch:
-                engine_.toggleRecord(trigWhenRec);
-                engine_.toggleRecord();
                 break;
             case loooop::RecordGateHelper::Action::None:
                 break;

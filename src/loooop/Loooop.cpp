@@ -159,10 +159,11 @@ struct Loooop : Module {
         // Feed the Schmitt triggers every sample so their internal (debounced)
         // level state stays current, then read that LEVEL (not the return
         // value, which is edge-only) for RecordGateHelper -- it does its own
-        // edge detection so it can tell Trigger mode's combined OR'd edge
-        // apart from Gate mode's separate button/jack edges. Same thresholds
-        // as before (0.1/2.0 hysteresis on the jack, default 0/1 on the
-        // button), so Trigger-mode timing is unchanged.
+        // per-input edge detection (Trigger mode ORs the button's and jack's
+        // edges independently, exactly like the two Schmitt triggers used to
+        // be OR'd here; Gate mode reads the jack's edges on their own). Same
+        // thresholds as before (0.1/2.0 hysteresis on the jack, default 0/1
+        // on the button), so Trigger-mode timing is unchanged.
         recordBtn.process(params[RECORD_PARAM].getValue());
         recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         const bool recBtnHigh = recordBtn.isHigh();
@@ -178,10 +179,6 @@ struct Loooop : Module {
             case loooop::RecordGateHelper::Action::Toggle:
             case loooop::RecordGateHelper::Action::Close:
                 engine.toggleRecord(trigWhenRec);
-                break;
-            case loooop::RecordGateHelper::Action::Punch:
-                engine.toggleRecord(trigWhenRec);
-                engine.toggleRecord();
                 break;
             case loooop::RecordGateHelper::Action::None:
                 break;
