@@ -2,6 +2,7 @@
 #include "../util/dsp_utils.h"
 #include "../util/interpolation.h"
 #include "../util/fast_exp2.h"
+#include <cmath>
 
 namespace particules_dsp {
 
@@ -45,7 +46,15 @@ void WavetableOscillator::Process(float pitch_semitones, float bank, float wave,
 
     if (pitch_semitones != last_pitch_) {
         last_pitch_ = pitch_semitones;
-        float clamped = Clamp(pitch_semitones, -120.0f, 120.0f);
+        // SemitonesToRatioFast (Exp2Fast) requires a finite argument -- see
+        // fast_exp2.h. Sanitize a non-finite pitch_semitones to 0 (middle C /
+        // unity ratio) AFTER the cache-compare above, not before: last_pitch_
+        // keeps the raw value, so a repeated NaN input still compares
+        // unequal (NaN != NaN is always true) and this branch keeps
+        // recomputing from 0.0f each time rather than latching a stale
+        // value -- cheap and correct, since Process() runs once per sample.
+        float sanitized = std::isfinite(pitch_semitones) ? pitch_semitones : 0.0f;
+        float clamped = Clamp(sanitized, -120.0f, 120.0f);
         phase_increment_ = kBaseFreq * SemitonesToRatioFast(clamped) * phase_scale_;
     }
 

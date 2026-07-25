@@ -387,9 +387,10 @@ Same methodology as the filter pass (`cpu-optimization-2026-07-24.md` §6/§9.2)
 
 ## 8. Implemented (2026-07-25, branch `cpu-opt-2`)
 
-Everything in `.superpowers/sdd/2026-07-24-cpu-optimization-other-modules/plan.md`
-(Tasks 1-15) is implemented on branch `cpu-opt-2`, one commit per concern, on top
-of `main` at `8213c9a` (the filter pass, already merged):
+Tasks 1-15 from `.superpowers/sdd/2026-07-24-cpu-optimization-other-modules/plan.md`
+are implemented on branch `cpu-opt-2` -- with one deliberate exception noted in
+§8.1 below -- one commit per concern, on top of `main` at `8213c9a` (the filter
+pass, already merged):
 
 ```
 b8a90d9 Record loopers/Beads-family CPU findings and implementation plan
@@ -446,6 +447,8 @@ an audio-path amplitude change).
 | 13 | Particules spawn/block-rate items (spawn-rate reciprocals, float pitch quantizer, table pan, libm-free int12) | Mostly exact/float-noise; found and fixed a real UB path — see 8.3 |
 | 14 | Shared saturation/auto-gain divide fold (`dsp_utils.h`, `saturation.cpp`) | Float-noise (single-divide algebraic fold of `SoftClip(y)/drive`, \~1 ulp), re-verified against both Particules and Retours regression lanes since the file is shared |
 | 15 | Particules reverb/fade polish (hoisted reverb coefficients, exact fade reciprocals) | Exact (reciprocals of block-invariant constants, hoisted to the setter) |
+
+Deferred by design, not overlooked: Findings §4 L7's freeze/slice per-sample `setBrightness` calls (`Particules.cpp:480`, `Retours.cpp:420`) were deliberately left off the block-rate pass -- Task 9's review verified they read an audio-rate Schmitt-trigger gate (`freeze_gate_.isHigh()`), so moving the call to block rate would change behavior (missed rapid gate transitions), not just move a rate.
 
 ### 8.2 Verification run
 

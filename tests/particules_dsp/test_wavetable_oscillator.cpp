@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cmath>
+#include <limits>
 #include <utility>
 #include <vector>
 
@@ -158,5 +159,34 @@ TEST_CASE("WavetableOscillator: static-pitch output is periodic after rework (ph
 
     for (size_t i = 1; i < out.size(); ++i) {
         REQUIRE(std::fabs(out[i].l - out[i - 1].l) <= allowedDelta);
+    }
+}
+
+// SemitonesToRatioFast (Exp2Fast) requires a finite argument (fast_exp2.h);
+// a NaN pitch_semitones must be sanitized to 0 (middle C / unity ratio)
+// before it gets there. Drive both oscillators for a few frames and require
+// bit-exact agreement, not just "finite" -- the NaN path should behave
+// exactly as if 0.0f had been passed.
+TEST_CASE("WavetableOscillator: NaN pitch behaves exactly like pitch 0", "[wavetable]") {
+    RackWavetableProvider provider;
+    constexpr size_t kFrames = 8;
+    const float kNan = std::numeric_limits<float>::quiet_NaN();
+
+    WavetableOscillator oscNan;
+    oscNan.Init(48000.0f);
+    oscNan.SetProvider(&provider);
+    std::vector<StereoFrame> outNan(kFrames, {0.0f, 0.0f});
+    oscNan.Process(kNan, 0.5f, 0.5f, outNan.data(), kFrames);
+
+    WavetableOscillator oscZero;
+    oscZero.Init(48000.0f);
+    oscZero.SetProvider(&provider);
+    std::vector<StereoFrame> outZero(kFrames, {0.0f, 0.0f});
+    oscZero.Process(0.0f, 0.5f, 0.5f, outZero.data(), kFrames);
+
+    for (size_t i = 0; i < kFrames; ++i) {
+        REQUIRE(std::isfinite(outNan[i].l));
+        REQUIRE(outNan[i].l == outZero[i].l);
+        REQUIRE(outNan[i].r == outZero[i].r);
     }
 }
