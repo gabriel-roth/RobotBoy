@@ -71,30 +71,84 @@ public:
     // ReadHermiteStereoFast.
     float ReadLinear(int channel, float position) const;
 
-    // Fast interpolated read with a pre-split position (integer frame +
-    // fraction). Preconditions: i0 < size(), 0 <= frac < 1. Q32.32 callers
-    // (grains) use this directly so precision is independent of buffer size.
-    inline void ReadHermiteStereoFrac(size_t i0, float frac,
-                                      float* out_l, float* out_r) const {
-        size_t i_1 = (i0 == 0) ? size_ - 1 : i0 - 1;
+    // Block-lifetime read context: resolves format_/channels_/data pointers/
+    // mu-law LUT ONCE, into plain local values that live outside *this*.
+    // The per-sample hot read (ReadHermiteStereoFrac's ctx overload below)
+    // then dereferences only fields of a caller-held local ReadContext
+    // rather than `this->format_` etc. on every grain-sample -- the compiler
+    // cannot prove those member loads survive across the interleaved
+    // `output[i].l/.r +=` accumulation stores (different aliasing class, no
+    // visibility into RecordingBuffer's internals), so without this it
+    // reloads and re-switches on every single sample. A plain stack-local
+    // ReadContext has no such aliasing hazard, so its fields stay in
+    // registers for the whole grain-major render loop.
+    //
+    // POINTERS AND LAYOUT ARE BLOCK-LIFETIME ONLY: Configure() or Init() can
+    // change format_/channels_/size_ (a full re-layout of the pool), which
+    // invalidates every field of a previously-resolved context. Write(),
+    // Clear()/ImmediateClear(), and SetDecimationFactor() do NOT touch any
+    // field a context holds -- they only change buffer content (or, for
+    // SetDecimationFactor, unrelated counters) under the SAME layout, so
+    // new writes are visible through an already-resolved context's pointers
+    // with no re-resolution needed. Callers (GrainEngine) still call
+    // MakeReadContext() once per render block, before any grain in that
+    // block is processed, and don't retain the context across blocks --
+    // that's a block-lifetime discipline for clarity/consistency, not a
+    // requirement forced by Write()/Clear()/SetDecimationFactor.
+    struct ReadContext {
+        int channels;
+        StorageFormat format;
+        const float* f32;
+        const int16_t* i16;
+        const uint8_t* u8;
+        const float* mulaw_lut;
+        size_t size;                 // frame count, for the i0==0 wrap
+    };
+
+    ReadContext MakeReadContext() const {
+        return ReadContext{channels_, format_, f32_, i16_, u8_,
+                            mulaw_lut_, size_};
+    }
+
+    // Context-resolved variant of ReadHermiteStereoFrac: identical math to
+    // the single-call overload below, but every format/channel/pointer
+    // value comes from `ctx` (resolved once per block by MakeReadContext)
+    // instead of being re-derived from `this` on every call. Static (no
+    // buffer instance needed) so callers holding only a ctx -- e.g.
+    // Grain::Process, which no longer keeps a RecordingBuffer reference at
+    // all -- can call it directly. Preconditions unchanged: i0 < ctx.size,
+    // 0 <= frac < 1.
+    //
+    // Forced always-inline: the delegating legacy overload below (the only
+    // production caller of which is Retours' EchoEngine::ReadWet, via
+    // ReadHermiteStereoFast, 5 per-sample call sites) calls this out of
+    // line otherwise -- neither clang nor gcc will inline this switch-heavy
+    // body into that hot path on their own, costing Retours a real desktop
+    // regression (materializing this ReadContext on the stack + a call) for
+    // zero benefit to it (Retours reads through the legacy signature, not
+    // the ctx one -- only Particules' grain loop passes a real block ctx).
+    static inline void ReadHermiteStereoFrac(const ReadContext& ctx, size_t i0, float frac,
+                                             float* out_l, float* out_r)
+        __attribute__((always_inline)) {
+        size_t i_1 = (i0 == 0) ? ctx.size - 1 : i0 - 1;
         size_t i1 = i0 + 1;   // tail guarantees valid data
         size_t i2 = i0 + 2;   // tail guarantees valid data
-        if (channels_ == 2) {
-            switch (format_) {
+        if (ctx.channels == 2) {
+            switch (ctx.format) {
                 case StorageFormat::kFloat32: {
-                    const float* p_1 = &f32_[i_1 * 2];
-                    const float* p0  = &f32_[i0  * 2];
-                    const float* p1  = &f32_[i1  * 2];
-                    const float* p2  = &f32_[i2  * 2];
+                    const float* p_1 = &ctx.f32[i_1 * 2];
+                    const float* p0  = &ctx.f32[i0  * 2];
+                    const float* p1  = &ctx.f32[i1  * 2];
+                    const float* p2  = &ctx.f32[i2  * 2];
                     *out_l = InterpolateHermite(p_1[0], p0[0], p1[0], p2[0], frac);
                     *out_r = InterpolateHermite(p_1[1], p0[1], p1[1], p2[1], frac);
                     return;
                 }
                 case StorageFormat::kInt12: {
-                    const int16_t* p_1 = &i16_[i_1 * 2];
-                    const int16_t* p0  = &i16_[i0  * 2];
-                    const int16_t* p1  = &i16_[i1  * 2];
-                    const int16_t* p2  = &i16_[i2  * 2];
+                    const int16_t* p_1 = &ctx.i16[i_1 * 2];
+                    const int16_t* p0  = &ctx.i16[i0  * 2];
+                    const int16_t* p1  = &ctx.i16[i1  * 2];
+                    const int16_t* p2  = &ctx.i16[i2  * 2];
                     constexpr float kS = 1.0f / 2047.0f;
                     *out_l = InterpolateHermite(p_1[0] * kS, p0[0] * kS,
                                                 p1[0] * kS, p2[0] * kS, frac);
@@ -103,11 +157,11 @@ public:
                     return;
                 }
                 case StorageFormat::kMuLaw8: {
-                    const uint8_t* p_1 = &u8_[i_1 * 2];
-                    const uint8_t* p0  = &u8_[i0  * 2];
-                    const uint8_t* p1  = &u8_[i1  * 2];
-                    const uint8_t* p2  = &u8_[i2  * 2];
-                    const float* lut = mulaw_lut_;
+                    const uint8_t* p_1 = &ctx.u8[i_1 * 2];
+                    const uint8_t* p0  = &ctx.u8[i0  * 2];
+                    const uint8_t* p1  = &ctx.u8[i1  * 2];
+                    const uint8_t* p2  = &ctx.u8[i2  * 2];
+                    const float* lut = ctx.mulaw_lut;
                     *out_l = InterpolateHermite(lut[p_1[0]], lut[p0[0]],
                                                 lut[p1[0]], lut[p2[0]], frac);
                     *out_r = InterpolateHermite(lut[p_1[1]], lut[p0[1]],
@@ -119,24 +173,38 @@ public:
         // Mono: one interpolation, duplicated to both outputs (cheaper than
         // stereo -- half the loads).
         float m;
-        switch (format_) {
+        switch (ctx.format) {
             case StorageFormat::kFloat32:
-                m = InterpolateHermite(f32_[i_1], f32_[i0], f32_[i1], f32_[i2], frac);
+                m = InterpolateHermite(ctx.f32[i_1], ctx.f32[i0], ctx.f32[i1], ctx.f32[i2], frac);
                 break;
             case StorageFormat::kInt12: {
                 constexpr float kS = 1.0f / 2047.0f;
-                m = InterpolateHermite(i16_[i_1] * kS, i16_[i0] * kS,
-                                       i16_[i1] * kS, i16_[i2] * kS, frac);
+                m = InterpolateHermite(ctx.i16[i_1] * kS, ctx.i16[i0] * kS,
+                                       ctx.i16[i1] * kS, ctx.i16[i2] * kS, frac);
                 break;
             }
             case StorageFormat::kMuLaw8:
-                m = InterpolateHermite(mulaw_lut_[u8_[i_1]], mulaw_lut_[u8_[i0]],
-                                       mulaw_lut_[u8_[i1]], mulaw_lut_[u8_[i2]], frac);
+                m = InterpolateHermite(ctx.mulaw_lut[ctx.u8[i_1]], ctx.mulaw_lut[ctx.u8[i0]],
+                                       ctx.mulaw_lut[ctx.u8[i1]], ctx.mulaw_lut[ctx.u8[i2]], frac);
                 break;
             default: m = 0.0f; break;
         }
         *out_l = m;
         *out_r = m;
+    }
+
+    // Fast interpolated read with a pre-split position (integer frame +
+    // fraction). Preconditions: i0 < size(), 0 <= frac < 1. Grains used to
+    // call this directly for Q32.32 precision; Grain::Process now goes
+    // through the ctx overload above instead (see GrainEngine's per-block
+    // ReadContext). This overload's only production caller today is
+    // ReadHermiteStereoFast below (i.e. Retours' EchoEngine::ReadWet, 5
+    // per-sample call sites); it's also exercised directly by RecordingBuffer
+    // unit tests. Delegates to the context overload (forced inline above) so
+    // the two can't drift, at no extra cost to this path.
+    inline void ReadHermiteStereoFrac(size_t i0, float frac,
+                                      float* out_l, float* out_r) const {
+        ReadHermiteStereoFrac(MakeReadContext(), i0, frac, out_l, out_r);
     }
 
     // Float-position variant (Retours' EchoEngine; positions re-sync per

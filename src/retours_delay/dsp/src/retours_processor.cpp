@@ -187,14 +187,21 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         s.qt_fade_counter = Impl::kQualityFadeSamples;
     }
 
-    // Block-rate: slow-random LFO rate is cheap to set every block.
-    s.ar_time.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
-    s.ar_pitch.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
-    s.ar_shape.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+    // Block-rate: slow-random LFO rate. Callers pass a constant every block
+    // (see RetoursParameters::random_lfo_hz), so gate the three SetRate
+    // calls on it (or the sample rate) actually changing.
+    if (s.params.random_lfo_hz != s.cached_random_lfo_hz_ ||
+        s.sample_rate != s.cached_random_lfo_sr_) {
+        s.cached_random_lfo_hz_ = s.params.random_lfo_hz;
+        s.cached_random_lfo_sr_ = s.sample_rate;
+        s.ar_time.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+        s.ar_pitch.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+        s.ar_shape.lfo.SetRate(s.params.random_lfo_hz, s.sample_rate);
+    }
 
     // Block-rate: TIME attenurandomizer modulates the TIME knob before it
     // reaches BaseTimeControl.
-    float time_mod = s.ar_time.Process(s.params.time_ar, s.params.time_cv / 5.f,
+    float time_mod = s.ar_time.Process(s.params.time_ar, s.params.time_cv * 0.2f,
                                         s.params.time_cv_connected, n);
     float time_knob_eff = particules_dsp::Clamp(s.params.time + time_mod, 0.f, 1.f);
 
@@ -211,20 +218,27 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
     // Block-rate: SHAPE attenurandomizer modulates the repeat envelope's
     // shape. The repeat envelope tracks the base (HOST-rate) period and
     // resyncs to phase 0 on a clock tick.
-    float shape_mod = s.ar_shape.Process(s.params.shape_ar, s.params.shape_cv / 5.f,
+    float shape_mod = s.ar_shape.Process(s.params.shape_ar, s.params.shape_cv * 0.2f,
                                           s.params.shape_cv_connected, n);
     float shape_eff = particules_dsp::Clamp(s.params.shape + shape_mod, 0.f, 1.f);
     s.envelope.SetPeriodSamples(bt.base_samples);
     s.envelope.SetShape(shape_eff);
     if (s.params.clock_tick_offset >= 0) s.envelope.SyncPhase();
 
-    // Block-rate: linear input trim gain.
-    float input_gain = particules_dsp::DbToGain(s.params.input_trim_db);
+    // Block-rate: linear input trim gain. Cached: DbToGain is a powf() call
+    // and input_trim_db is usually unchanged block-to-block (see
+    // cached_trim_db_'s comment in retours_processor.h). Recompute only when
+    // the dB value actually moves.
+    if (s.params.input_trim_db != s.cached_trim_db_) {
+        s.cached_trim_db_ = s.params.input_trim_db;
+        s.cached_input_gain_ = particules_dsp::DbToGain(s.cached_trim_db_);
+    }
+    float input_gain = s.cached_input_gain_;
 
     // Block-rate: pitch-shift ratio for the rotary shifter. PITCH's
     // attenurandomizer is always advanced (kept phase-continuous) even when
     // the CV-direct 1V/oct branch below overrides its contribution.
-    float ar_pitch_val = s.ar_pitch.Process(s.params.pitch_ar, s.params.pitch_cv / 5.f,
+    float ar_pitch_val = s.ar_pitch.Process(s.params.pitch_ar, s.params.pitch_cv * 0.2f,
                                              s.params.pitch_cv_connected, n);
     float pitch_mod_semi;
     if (s.params.pitch_ar > 0.f && s.params.pitch_cv_connected) {
@@ -238,12 +252,12 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         s.params.pitch_semitones + pitch_mod_semi, -24.f, 24.f);
     float shift_ratio = std::fabs(pitch_semi_eff) < kShifterBypassSemitones
                              ? 1.f
-                             : std::exp2(pitch_semi_eff / 12.f);
+                             : std::exp2(pitch_semi_eff * (1.f / 12.f));
     s.shifter.SetRatio(shift_ratio);
 
     // Block-rate: FEEDBACK/BLEND CV (no AR), smoothing targets.
     float feedback_knob = particules_dsp::Clamp(
-        s.params.feedback + s.params.feedback_cv / 5.f, 0.f, 1.f);
+        s.params.feedback + s.params.feedback_cv * 0.2f, 0.f, 1.f);
     // FEEDBACK gain range is 0..1.1, not 0..1: per spec, >1 loop gain is
     // signature Beads behavior (runaway/self-oscillation is a feature, not
     // a bug to clamp away). Piecewise so the first 90% of knob travel still
@@ -256,7 +270,7 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
                               ? feedback_knob / 0.9f
                               : 1.0f + (feedback_knob - 0.9f);
     float dry_wet_eff = particules_dsp::Clamp(
-        s.params.dry_wet + s.params.dry_wet_cv / 5.f, 0.f, 1.f);
+        s.params.dry_wet + s.params.dry_wet_cv * 0.2f, 0.f, 1.f);
 
     // Block-rate: tape mode wow/flutter — a slow pitch-ratio wobble applied
     // to the engine's per-sample read advance for this block. All other

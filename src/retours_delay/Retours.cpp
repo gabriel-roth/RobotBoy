@@ -26,6 +26,9 @@ static_assert(kWrapperBlockSize <= retours_delay_dsp::kMaxBlockSize,
 // (a hard on/off flash is ~1-2 frames at fast tempos, which aliases against the
 // frame rate and looks uneven).
 static constexpr float kClockFlashDecaySeconds = 0.08f;
+// Precomputed 1/kClockFlashDecaySeconds (== 12.5f exactly) so the block-rate
+// decay can multiply instead of dividing every sample.
+static constexpr float kClockFlashDecayRate = 1.f / kClockFlashDecaySeconds;
 
 
 struct Retours;
@@ -110,6 +113,14 @@ struct Retours : Module {
 	float cached_pitch_semitones_ = 0.f;
 	// Last quality state written to LEDs — skip redundant setBrightness calls.
 	int   light_quality_state_    = -1;
+	// Cable-connectivity cache (M7): isConnected() is a jack-pointer check,
+	// cheap on its own, but was being called every sample for a value that
+	// only needs re-evaluating once per 64-sample block. Refreshed in the
+	// BlockReady() branch; the output-fold (OUT_R) and mono-detect (IN_R)
+	// consumers already tolerate the resulting <=64-sample (1.3 ms) latency
+	// on a cable (dis)connect.
+	bool out_r_connected_ = false;
+	bool in_r_connected_  = false;
 	// CLOCK_LIGHT blink phase, advanced once per block by
 	// blockFrames / (period * sampleRate); wraps at 1.0.
 	float clock_light_phase_       = 0.f;
@@ -322,10 +333,7 @@ struct Retours : Module {
 		block_runtime_.NoteClockEdgeSample(clock_jack_rising || clock_button_rising,
 			block_runtime_.InputIndex());
 
-#ifdef METAMODULE
-		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
-		quality_state_ = std::clamp((int)std::lround(params[QUALITY_PARAM].getValue()), 0, 3);
-#else
+#ifndef METAMODULE
 		// Desktop: momentary button cycles the mode; blocked while frozen.
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
 		if (quality_pressed && !prev_quality_button_ && !frozen)
@@ -335,28 +343,36 @@ struct Retours : Module {
 
 		// Output from previously processed block
 		retours_delay_dsp::StereoFrame out = block_runtime_.ReadOutputSample();
-		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
+		outputs[OUT_L_OUTPUT].setVoltage((out_r_connected_ ? out.l : (out.l + out.r) * 0.5f) * 5.f);
 		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
 
 		// Accumulate input
-		bool in_r_connected = inputs[IN_R_INPUT].isConnected();
 		float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
 		if (!std::isfinite(l)) l = 0.f;
-		float r = in_r_connected ? inputs[IN_R_INPUT].getVoltage() * 0.2f : l;
+		float r = in_r_connected_ ? inputs[IN_R_INPUT].getVoltage() * 0.2f : l;
 		if (!std::isfinite(r)) r = 0.f;
 		block_runtime_.PushInputSample({l, r});
 		// Mono detection: no IN_R cable means a mono source, so the recording
 		// buffer can drop to 1 channel and double its effective duration for
 		// the same byte pool (see RetoursParameters::mono_input).
-		params_.mono_input = !in_r_connected;
+		params_.mono_input = !in_r_connected_;
 
 		// Process when block is full
 		if (block_runtime_.BlockReady()) {
+			// Refresh the connectivity cache once per block (M7) -- see
+			// out_r_connected_'s comment.
+			out_r_connected_ = outputs[OUT_R_OUTPUT].isConnected();
+			in_r_connected_  = inputs[IN_R_INPUT].isConnected();
 			if (clear_requested_.exchange(false))
 				processor_.ClearBuffer();
 			if (clear_tempo_requested_.exchange(false))
 				processor_.ClearTappedTempo();
+#ifdef METAMODULE
+			// MetaModule: Quality is a 4-position switch, so the mode IS the
+			// param. Consumed only by updateSlowParams()/params_.quality below
+			// and the LED check further down, so read once per block.
+			quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
+#endif
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);
@@ -383,6 +399,21 @@ struct Retours : Module {
 			clock_light_phase_ += static_cast<float>(kWrapperBlockSize) / period_samples;
 			if (clock_light_phase_ >= 1.f)
 				clock_light_phase_ -= std::floor(clock_light_phase_);
+
+			// Snap to full brightness during the flash window at the start of
+			// each beat, then decay smoothly (see kClockFlashDecaySeconds).
+			// Decay and publish now run once per block instead of every
+			// sample: kClockFlashDecayRate is exact, so the closed-form
+			// multiply reproduces the per-sample max(0, x - sampleTime/tau)
+			// result applied kWrapperBlockSize times (the flash/decay branch
+			// is already fixed for the whole block, since clock_light_phase_
+			// only changes here).
+			if (clock_light_phase_ < 0.1f)
+				clock_light_level_ = 1.f;
+			else
+				clock_light_level_ = std::max(0.f,
+					clock_light_level_ - kWrapperBlockSize * args.sampleTime * kClockFlashDecayRate);
+			lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
 		}
 
 		// Light updates
@@ -394,15 +425,6 @@ struct Retours : Module {
 			lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
 			lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
 		}
-
-		// Snap to full brightness during the flash window at the start of each
-		// beat, then decay smoothly (see kClockFlashDecaySeconds).
-		if (clock_light_phase_ < 0.1f)
-			clock_light_level_ = 1.f;
-		else
-			clock_light_level_ = std::max(0.f,
-				clock_light_level_ - args.sampleTime / kClockFlashDecaySeconds);
-		lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
 	}
 };
 

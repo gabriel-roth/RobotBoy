@@ -1,6 +1,7 @@
 #include "grain_engine.h"
 #include "../buffer/recording_buffer.h"
 #include "../util/dsp_utils.h"
+#include "../util/fast_exp2.h"
 
 #include <cmath>
 #include <algorithm>
@@ -12,27 +13,33 @@ namespace particules_dsp {
 // CW (> boundary) = forward; CCW (< boundary) = reverse.
 static constexpr float kSizeBoundary = -0.2f;
 static constexpr float kMinGrainDurationSeconds = 0.030f;
+// Precomputed reciprocals for NormalizedGrainSize's two range widths.
+static constexpr float kInvOneMinusBoundary = 1.0f / (1.0f - kSizeBoundary);
+static constexpr float kInvBoundaryPlusOne = 1.0f / (kSizeBoundary + 1.0f);
 
 // Normalizes a raw SIZE value (forward or reverse range) to [0, 1) around
 // kSizeBoundary, matching the mapping used for both grain-param computation
 // and the cached max-active-grain estimate.
 static float NormalizedGrainSize(float size) {
     const float normalized = size >= kSizeBoundary
-        ? (size - kSizeBoundary) / (1.0f - kSizeBoundary)
-        : (kSizeBoundary - size) / (kSizeBoundary + 1.0f);
+        ? (size - kSizeBoundary) * kInvOneMinusBoundary
+        : (kSizeBoundary - size) * kInvBoundaryPlusOne;
     return Clamp(normalized, 0.0f, 0.999f);
 }
 
 // Exponential mapping from normalized SIZE (0..1) to 30ms..max_duration.
-static float GrainDurationSeconds(float size, float max_duration) {
+// log2_dur_range is log2(max_duration / kMinGrainDurationSeconds), cached by
+// the caller (see cached_log2_dur_range_) so this reduces to a single exp2
+// per call instead of a log2f+exp2 pair.
+static float GrainDurationSeconds(float size, float log2_dur_range) {
     const float normalized = NormalizedGrainSize(size);
-    return kMinGrainDurationSeconds
-        * std::exp2(normalized * std::log2f(max_duration / kMinGrainDurationSeconds));
+    return kMinGrainDurationSeconds * std::exp2(normalized * log2_dur_range);
 }
 
 
 void GrainEngine::Init(float sample_rate, RecordingBuffer* buffer) {
     sample_rate_ = sample_rate;
+    inv_sample_rate_ = 1.0f / sample_rate_;
     buffer_ = buffer;
     overlap_count_lp_ = 0.0f;
     gain_normalization_ = 1.0f;
@@ -56,6 +63,11 @@ void GrainEngine::Init(float sample_rate, RecordingBuffer* buffer) {
     cached_decimation_ = -1;
     cached_grain_dur_ = 0.f;
     cached_max_active_ = kMaxGrains;
+    cached_log2_dur_range_ = 0.f;
+    inv_df_ = 1.0f;
+    cached_slope_coeff_ = -1.0f;
+    cached_overlap_num_frames_ = 0;
+    cached_block_coefficient_ = 0.0f;
 
     // Startup ramp: ~1 second grace period
     startup_samples_remaining_ = static_cast<int>(sample_rate_);
@@ -129,12 +141,11 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
                                        params.size_cv, params.size_cv_connected);
     bool reverse = (mod_size < kSizeBoundary);
 
-    // Exponential mapping from 0..1 to 30ms..max duration
-    // Decimation extends effective buffer duration
-    int df = buffer_->decimation_factor();
-    float df_f = static_cast<float>(df);
-    float max_dur = static_cast<float>(buffer_->size()) * df_f / sample_rate_;
-    float duration = GrainDurationSeconds(mod_size, max_dur);
+    // Exponential mapping from 0..1 to 30ms..max duration. cached_log2_dur_range_
+    // and inv_df_ track decimation_factor()/buffer size and are refreshed at
+    // block/decimated rate in Process() (see cached_decimation_), so this
+    // spawn-rate path only pays for the exp2, not a log2f or a divide.
+    float duration = GrainDurationSeconds(mod_size, cached_log2_dur_range_);
     gp.size = duration * sample_rate_;
 
     // --- TIME → buffer read position ---
@@ -155,20 +166,29 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     // Pitch lock is the final constraint — applied after AR and scale quantizer
     if (params.pitch_lock != 0)
         mod_pitch = QuantizePitchLock(mod_pitch, params.pitch_lock);
-    gp.pitch_ratio = SemitonesToRatio(mod_pitch) * pitch_mod_ratio_ / df_f;
+    // SemitonesToRatioFast (Exp2Fast) requires a *finite* argument: unlike
+    // std::exp2, which propagates NaN straight through, Exp2Fast's
+    // `(int)y` truncation is UB on a non-finite y and has been observed to
+    // produce small but FINITE garbage (not NaN) -- which would then sail
+    // straight past the isfinite(gp.pitch_ratio) fence below undetected. A
+    // NaN pitch_cv with pitch_ar engaged (or a NaN from the scale
+    // quantizer/pitch lock, though both are guarded/finite by construction)
+    // can reach here, so sanitize before the fast path ever sees it. 0
+    // semitones = unity ratio, the intended fallback.
+    if (!std::isfinite(mod_pitch)) mod_pitch = 0.0f;
+    gp.pitch_ratio = SemitonesToRatioFast(mod_pitch) * pitch_mod_ratio_ * inv_df_;
     if (reverse) {
         gp.pitch_ratio = -gp.pitch_ratio;
     }
-    // Guard against NaN pitch_ratio (e.g. a NaN pitch_cv with pitch_ar
-    // engaged survives ar_pitch_.Process() and the scale quantizer, which
-    // both pass NaN through unchanged). Grain::Start() stores this directly
-    // into phase_increment_, which is added into read_position_ every
-    // sample in the hot loop -- once read_position_ goes NaN, the very next
-    // ReadHermiteStereoFast() call does an unguarded float->int cast on it,
-    // which is undefined behavior. That happens before the per-sample
-    // isfinite(gl/gr) check in Grain::ProcessBlock ever gets a chance to
-    // catch it, so this needs its own fence, same idea as the gp.position
-    // guard below.
+    // Backstop for NaN/Inf entering multiplicatively from pitch_mod_ratio_
+    // or inv_df_ (mod_pitch itself is already sanitized above). Grain::
+    // Start() stores this directly into phase_increment_, which is added
+    // into read_position_ every sample in the hot loop -- once
+    // read_position_ goes NaN, the very next ReadHermiteStereoFast() call
+    // does an unguarded float->int cast on it, which is undefined
+    // behavior. That happens before the per-sample isfinite(gl/gr) check
+    // in Grain::ProcessBlock ever gets a chance to catch it, so this needs
+    // its own fence, same idea as the gp.position guard below.
     if (!std::isfinite(gp.pitch_ratio)) gp.pitch_ratio = reverse ? -1.0f : 1.0f;
 
     // Convert to an absolute position in the recording buffer.
@@ -182,7 +202,7 @@ Grain::GrainParameters GrainEngine::ComputeGrainParams(
     // Without this, TIME near 0 + large SIZE reads stale/unwritten data.
     float span = gp.size * std::fabs(gp.pitch_ratio);
     // Also account for write head advancing during grain lifetime
-    float write_advance = gp.size / df_f;
+    float write_advance = gp.size * inv_df_;
     float min_offset = span + write_advance;
     min_offset = std::min(min_offset, buf_size_f - 1.0f);
     offset_frames = std::max(offset_frames, min_offset);
@@ -254,9 +274,11 @@ void GrainEngine::Process(const ParticulesParameters& params,
     if (needs_update) {
         cached_size_ = raw_size;
         cached_decimation_ = df;
+        inv_df_ = 1.0f / static_cast<float>(df);
         float buf_dur = static_cast<float>(buffer_->size()) * static_cast<float>(df)
-                      / sample_rate_;
-        cached_grain_dur_ = GrainDurationSeconds(raw_size, buf_dur);
+                      * inv_sample_rate_;
+        cached_log2_dur_range_ = std::log2f(buf_dur / kMinGrainDurationSeconds);
+        cached_grain_dur_ = GrainDurationSeconds(raw_size, cached_log2_dur_range_);
         cached_max_active_ = static_cast<int>(buf_dur / cached_grain_dur_ * 1.5f);
         cached_max_active_ = std::max(cached_max_active_, 2);
         cached_max_active_ = std::min(cached_max_active_, kMaxGrains);
@@ -318,11 +340,18 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // all active grain positions and thrashes L1 cache.
     int active_count = 0;
     int64_t buf_size_q = static_cast<int64_t>(buffer_->size()) << 32;
+    // Resolved once per block (format/channels/pointers/mu-law LUT): every
+    // grain-sample read in the loop below uses this instead of re-deriving
+    // from *buffer_, which the compiler can't prove is unaliased with the
+    // output[] accumulation stores. Block-lifetime only -- buffer_ must not
+    // be written/reconfigured until this block's grains are all processed
+    // (it isn't; recording writes happen in a separate pass, not here).
+    RecordingBuffer::ReadContext read_ctx = buffer_->MakeReadContext();
     for (int g = 0; g < kMaxGrains; ++g) {
         if (!grains_[g].active()) continue;
         ++active_count;
 
-        grains_[g].ProcessBlock(*buffer_, buf_size_q, output, num_frames);
+        grains_[g].ProcessBlock(read_ctx, buf_size_q, output, num_frames);
     }
 
     // --- Overlap normalization (matches Clouds approach) ---
@@ -331,8 +360,15 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // gain slowly to prevent pumping).
     float count_f = static_cast<float>(active_count);
     float slope_coeff = (count_f > overlap_count_lp_) ? 0.9f : 0.2f;
-    const float block_coefficient = 1.0f
-        - std::pow(1.0f - slope_coeff, static_cast<float>(num_frames));
+    // slope_coeff only takes two values and num_frames is normally the
+    // engine's fixed block size, so cache the pow() result keyed on both.
+    if (slope_coeff != cached_slope_coeff_ || num_frames != cached_overlap_num_frames_) {
+        cached_slope_coeff_ = slope_coeff;
+        cached_overlap_num_frames_ = num_frames;
+        cached_block_coefficient_ = 1.0f
+            - std::pow(1.0f - slope_coeff, static_cast<float>(num_frames));
+    }
+    const float block_coefficient = cached_block_coefficient_;
     OnePole(overlap_count_lp_, count_f, block_coefficient);
 
     // 1/sqrt(n-1) for n > 2, unity gain for 1-2 grains.

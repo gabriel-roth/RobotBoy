@@ -19,9 +19,12 @@ void Reverb::Init(float* buffer, size_t buffer_size, float sample_rate) {
     sample_rate_ = sample_rate;
 
     amount_ = 0.0f;
-    decay_ = 0.5f;
-    diffusion_ = 0.7f;
-    lp_ = 0.7f;
+    // Route through the setters (not raw field assignment) so fb_/ap_coeff_/
+    // lp_coeff_ are seeded here too -- they must be valid before the first
+    // Process() call, including after the idle-sleep wake short-circuit.
+    SetDecay(0.5f);
+    SetDiffusion(0.7f);
+    SetLpCutoff(0.7f);
 
     lfo_phase_ = 0.0f;
     lfo_increment_ = (sample_rate_ > 0.0f) ? (kLfoHz / sample_rate_) : 0.0f;
@@ -101,14 +104,26 @@ void Reverb::SetMakeupGain(float gain) {
 
 void Reverb::SetDecay(float decay) {
     decay_ = Clamp(decay, 0.0f, 1.0f);
+
+    // Map decay knob (0-1) to feedback gain.
+    // Non-linear: slow ramp then steep near 1.0 for long tails.
+    float fb = 0.2f + decay_ * 0.75f;
+    if (decay_ > 0.9f) {
+        fb += (decay_ - 0.9f) * 0.5f;
+    }
+    fb_ = Clamp(fb, 0.0f, 0.9995f);
 }
 
 void Reverb::SetDiffusion(float diff) {
     diffusion_ = Clamp(diff, 0.0f, 1.0f);
+    // Diffusion coefficient for allpass stages
+    ap_coeff_ = diffusion_ * 0.75f;
 }
 
 void Reverb::SetLpCutoff(float cutoff) {
     lp_ = Clamp(cutoff, 0.0f, 1.0f);
+    // LP coefficient for feedback loop (one-pole).
+    lp_coeff_ = lp_;
 }
 
 void Reverb::Process(float left_in, float right_in,
@@ -127,19 +142,9 @@ void Reverb::Process(float left_in, float right_in,
         return;
     }
 
-    // Map decay knob (0-1) to feedback gain.
-    // Non-linear: slow ramp then steep near 1.0 for long tails.
-    float fb = 0.2f + decay_ * 0.75f;
-    if (decay_ > 0.9f) {
-        fb += (decay_ - 0.9f) * 0.5f;
-    }
-    fb = Clamp(fb, 0.0f, 0.9995f);
-
-    // LP coefficient for feedback loop (one-pole).
-    float lp_coeff = lp_;
-
-    // Diffusion coefficient for allpass stages
-    float ap_coeff = diffusion_ * 0.75f;
+    // fb_/lp_coeff_/ap_coeff_ are derived from decay_/lp_/diffusion_ in
+    // SetDecay/SetLpCutoff/SetDiffusion (which only change per-block), so
+    // there's no need to rederive them here every sample.
 
     // ------------------------------------------------------------------
     // LFO for modulated delay taps (chorus-like effect in tank)
@@ -166,10 +171,10 @@ void Reverb::Process(float left_in, float right_in,
     // this rare edge case.
     float input = (amount_ > 0.0f) ? (left_in + right_in) * 0.5f : 0.0f;
 
-    float diffused = ProcessAllpass(ap_in_1_, input, ap_coeff);
-    diffused = ProcessAllpass(ap_in_2_, diffused, ap_coeff);
-    diffused = ProcessAllpass(ap_in_3_, diffused, ap_coeff);
-    diffused = ProcessAllpass(ap_in_4_, diffused, ap_coeff);
+    float diffused = ProcessAllpass(ap_in_1_, input, ap_coeff_);
+    diffused = ProcessAllpass(ap_in_2_, diffused, ap_coeff_);
+    diffused = ProcessAllpass(ap_in_3_, diffused, ap_coeff_);
+    diffused = ProcessAllpass(ap_in_4_, diffused, ap_coeff_);
 
     // ------------------------------------------------------------------
     // Tank: two cross-coupled feedback paths (Dattorro topology)
@@ -186,7 +191,7 @@ void Reverb::Process(float left_in, float right_in,
     float prev_fb_r = feedback_r_;
 
     // LEFT PATH --------------------------------------------------------
-    float tank_l_in = diffused + fb * prev_fb_r;
+    float tank_l_in = diffused + fb_ * prev_fb_r;
 
     // Modulated delay L1: write input, read with modulation
     delay_l1_.Write(tank_l_in);
@@ -195,11 +200,11 @@ void Reverb::Process(float left_in, float right_in,
     delay_l1_.Advance();
 
     // Two allpass filters in left tank
-    float al1_out = ProcessAllpass(ap_l1_, dl1_out, ap_coeff);
-    float al2_out = ProcessAllpass(ap_l2_, al1_out, ap_coeff);
+    float al1_out = ProcessAllpass(ap_l1_, dl1_out, ap_coeff_);
+    float al2_out = ProcessAllpass(ap_l2_, al1_out, ap_coeff_);
 
     // One-pole LP in feedback path (frequency-dependent decay)
-    OnePole(lp_state_l_, al2_out, lp_coeff);
+    OnePole(lp_state_l_, al2_out, lp_coeff_);
 
     // DC blocker: subtract slowly-tracked DC estimate to prevent
     // low-frequency buildup at high decay settings.
@@ -215,7 +220,7 @@ void Reverb::Process(float left_in, float right_in,
     feedback_l_ = SoftClip(dl2_out);
 
     // RIGHT PATH -------------------------------------------------------
-    float tank_r_in = diffused + fb * prev_fb_l;
+    float tank_r_in = diffused + fb_ * prev_fb_l;
 
     // Modulated delay R1
     delay_r1_.Write(tank_r_in);
@@ -224,11 +229,11 @@ void Reverb::Process(float left_in, float right_in,
     delay_r1_.Advance();
 
     // Two allpass filters in right tank
-    float ar1_out = ProcessAllpass(ap_r1_, dr1_out, ap_coeff);
-    float ar2_out = ProcessAllpass(ap_r2_, ar1_out, ap_coeff);
+    float ar1_out = ProcessAllpass(ap_r1_, dr1_out, ap_coeff_);
+    float ar2_out = ProcessAllpass(ap_r2_, ar1_out, ap_coeff_);
 
     // One-pole LP
-    OnePole(lp_state_r_, ar2_out, lp_coeff);
+    OnePole(lp_state_r_, ar2_out, lp_coeff_);
 
     // DC blocker
     OnePole(dc_estimate_r_, lp_state_r_, dc_block_coeff_);

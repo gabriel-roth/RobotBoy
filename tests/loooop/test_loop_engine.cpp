@@ -2,6 +2,9 @@
 #include <cstdio>
 #include <cmath>
 #include <cstdlib>
+#include <cstdint>
+#include <cstring>
+#include <vector>
 
 static int g_failures = 0;
 static void check(bool cond, const char* name) {
@@ -290,14 +293,20 @@ static void test_display_snapshot() {
     check(s2.loopLen == 4 && !s2.recording,  "snap: loop frozen at 4");
     check(near(s2.headPos01[0], 0.f),        "snap: head starts at 0");
 
-    e.process(0.f); e.process(0.f);          // head advances to pos 2 of 4
+    // Display mirrors (Task 8) are throttled to every 64th sample; tick past
+    // the throttle boundary before reading a snapshot instead of reading
+    // right after a couple of process() calls. 61 more samples lands on
+    // the 65th process() call since reset() (call #1 landed on a tick too,
+    // but during the still-unfrozen record pass, so it had no effect) --
+    // the head has advanced 61 samples by then, 61 mod 4 == 1.
+    for (int i = 0; i < 61; ++i) e.process(0.f);
     auto s3 = e.displaySnapshot();
-    check(near(s3.headPos01[0], 0.5f),       "snap: head pos 0.5 after 2 samples");
+    check(near(s3.headPos01[0], 0.25f),      "snap: head pos 0.25 after settling past the display tick");
     check(near(s3.winStart01[0], 0.f),       "snap: full window start == 0");
     check(near(s3.winEnd01[0], 1.f),         "snap: full window end == 1");
 
     e.setSize(0, 0.5f); e.setPosition(0, 0.5f);
-    e.process(0.f);                          // one sample so mirrors update
+    for (int i = 0; i < 64; ++i) e.process(0.f);   // settle past the next display-mirror tick
     auto s4 = e.displaySnapshot();
     check(near(s4.winStart01[0], 0.25f),     "snap: half window start == 0.25");
     check(near(s4.winEnd01[0], 0.75f),       "snap: half window end == 0.75");
@@ -334,7 +343,16 @@ static void test_display_snapshot_four_heads() {
     e.toggleRecord();                       // loop of 8, all heads at pos 0
     e.setSpeed(1, 2.f);                     // head 1 double speed
     e.setSize(2, 0.5f); e.setPosition(2, 0.5f);   // head 2 half window [2,6)
-    e.process(0.f);                         // advance all heads once
+    // Display mirrors (Task 8) are throttled to every 64th sample; settle
+    // past the throttle boundary (57 more samples reaches the 65th
+    // process() call since reset(), the next tick after the record pass'
+    // own tick at call #1, which had no effect while the loop was still
+    // unfrozen) instead of reading right after a single process() call.
+    // 64 is a multiple of the 8-sample loop length (and head 1's 4-sample
+    // period, and head 2's 4-sample period once parked in its window), so
+    // every head is back at the exact phase a single-step read would have
+    // shown.
+    for (int i = 0; i < 57; ++i) e.process(0.f);
     auto s = e.displaySnapshot();
     check(near(s.headPos01[0], 1.f/8.f),  "snap4: head0 pos 1/8");
     check(near(s.headPos01[1], 2.f/8.f),  "snap4: head1 pos 2/8 (double speed)");
@@ -645,6 +663,11 @@ static void test_triggers_no_loop() {
 static void test_jitter_off_stable() {
     LoopEngine e; record_ramp(e, 8);
     e.setSize(0, 0.5f);                    // window can move
+    // Display mirrors (Task 8) are throttled to every 64th sample: settle
+    // past one tick here so the measurement loop below starts reading the
+    // post-setSize window, not a stale pre-change value (which would read
+    // as spurious "movement" the first time the throttle catches up).
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     bool moved = false; float first = -1.f;
     for (int i = 0; i < 64; ++i) {
         e.process(0.f);
@@ -1181,6 +1204,10 @@ static void test_grid_size_snaps_to_segments() {
     check(near(e.process(0.f), 11.f), "grid_size: out[2]==11");
     check(near(e.process(0.f), 12.f), "grid_size: out[3]==12");
     check(near(e.process(0.f), 9.f),  "grid_size: out[4]==9 (wrapped)");
+    // Window is static (no jitter); settle a full throttle period (Task 8:
+    // display mirrors tick every 64th sample) so the snapshot below reflects
+    // the current window instead of a stale pre-setSize value.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(s.grid == 4, "grid_size: snapshot reports grid");
     check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 0.75f),
@@ -1203,6 +1230,9 @@ static void test_grid_window_clamped_inside_loop() {
     e.setSize(0, 0.6f);              // 9.6 -> 2 segments (8 samples)
     e.setPosition(0, 1.f);           // start 12 -> k clamped to 2 -> [8,16)
     check(near(e.process(0.f), 9.f), "grid_clamp: window pinned inside loop");
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 1.f),
           "grid_clamp: snapshot [0.5,1.0]");
@@ -1212,7 +1242,9 @@ static void test_grid_min_one_segment() {
     LoopEngine e; record_ramp(e, 16);
     e.setGrid(4);
     e.setSize(0, 0.01f);             // under one segment -> grows to 1 segment
-    e.process(0.f);
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(near(s.winEnd01[0] - s.winStart01[0], 0.25f),
           "grid_min: window grows to one segment");
@@ -1264,7 +1296,9 @@ static void test_grid_exclude_head() {
     LoopEngine c; record_ramp(c, 16);
     c.setGrid(4); c.setGridExclude(0, true);
     c.setSize(1, 0.3f); c.setPosition(1, 0.37f);   // would snap: 1 segment at [4,8)
-    c.process(0.f);
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) c.process(0.f);
     const auto s = c.displaySnapshot();
     check(near(s.winStart01[1], 0.25f) && near(s.winEnd01[1], 0.5f),
           "grid_excl: non-excluded head still snaps");
@@ -1272,7 +1306,7 @@ static void test_grid_exclude_head() {
     // Re-including restores snapping.
     c.setGridExclude(0, false);
     c.setSize(0, 0.3f); c.setPosition(0, 0.37f);
-    c.process(0.f);
+    for (int i = 0; i < 64; ++i) c.process(0.f);   // settle past another throttle tick
     const auto s2 = c.displaySnapshot();
     check(near(s2.winStart01[0], 0.25f) && near(s2.winEnd01[0], 0.5f),
           "grid_excl: re-included head snaps again");
@@ -1358,15 +1392,133 @@ static void test_armed_oneshot_window_tracks_size() {
     e.setOneShot(0, true);            // arm: head 0 goes silent
     e.setSize(0, 0.5f);
     e.setPosition(0, 0.5f);
-    e.process(0.f, 0.f, hs);          // one idle sample
+    // The parked-head display block (Task 8) is throttled to every 64th
+    // sample too; settle past a tick instead of reading right after one
+    // idle sample.
+    for (int i = 0; i < 64; ++i) e.process(0.f, 0.f, hs);
     auto s1 = e.displaySnapshot();
     const float halfWin = s1.winEnd01[0] - s1.winStart01[0];
     e.setSize(0, 1.0f);               // grow the window
-    e.process(0.f, 0.f, hs);
+    for (int i = 0; i < 64; ++i) e.process(0.f, 0.f, hs);   // settle past another tick
     auto s2 = e.displaySnapshot();
     const float fullWin = s2.winEnd01[0] - s2.winStart01[0];
     check(fullWin > halfWin + 0.1f, "armed one-shot: window grows with Size");
     check(!s2.playing[0], "armed one-shot: head still not playing (silent)");
+}
+
+// Task 4: the per-sample bump in the record paths is throttled to ~every
+// 2048 samples (REV_THROTTLE_MASK) so the release store (a full memory
+// barrier on ARMv7) and the GUI's waveform re-scan don't run every sample.
+// Transition bumps (pass start, pass stop) still make the display converge
+// immediately, so a start->write->stop sequence must show the revision
+// change right away at both ends while the mid-pass churn stays throttled.
+static void test_waveform_revision_throttled_during_recording() {
+    LoopEngine e(1);
+    e.reset(48000.f, 1.f);
+    const auto beforeRecord = e.waveformRevision();
+    e.toggleRecord();                       // start: unconditional transition bump
+    const auto afterStart = e.waveformRevision();
+    check(afterStart != beforeRecord, "throttle: starting a pass bumps immediately");
+    const int N = 10000;
+    for (int i = 0; i < N; ++i) e.process(0.1f);
+    const auto afterWrites = e.waveformRevision();
+    // Delta since the pass started must be far below N: with a 2048-sample
+    // throttle period, 10000 samples produce only a handful of bumps.
+    const std::uint32_t delta = afterWrites - afterStart;
+    char msg[80];
+    std::snprintf(msg, sizeof(msg), "throttle: revision delta %u over %d samples < 100", delta, N);
+    check(delta < 100, msg);
+    e.toggleRecord();                       // stop: unconditional transition bump
+    const auto afterStop = e.waveformRevision();
+    check(afterStop != afterWrites, "throttle: ending the pass bumps immediately");
+}
+
+// --- Task 7 pinning test -------------------------------------------------
+// Bit-exact pin for the readInterpolatedLR interior fast path (Findings §2
+// H2). Hashes below were captured against the UNMODIFIED per-channel
+// readInterpolated path (two separate calls in readHead) before the
+// shared-index rework; the reworked code must reproduce them exactly. If a
+// hash moves, the rework changed behavior -- fix the code, do not
+// regenerate the hash. Scenarios cover: full window, a fractional
+// grid-style window (grid=12 segments -> seg=341.333..., matching a
+// winStart=341.333/winLen=1365.333 window), the minimum window (tiny), and
+// windows pinned to the buffer start/end -- each at a fractional forward
+// (0.73) and reverse (-1.31) speed so the head wraps repeatedly over 8192
+// samples, exercising both the interior fast path and the near-edge
+// fallback (and the seam crossfade, which reads through readRaw).
+static std::uint64_t fnv1aFloats(const std::vector<float>& v) {
+    std::uint64_t h = 14695981039346656037ull;
+    for (float f : v) {
+        std::uint32_t bits;
+        std::memcpy(&bits, &f, sizeof(bits));
+        for (int b = 0; b < 4; ++b) {
+            h ^= static_cast<std::uint64_t>((bits >> (b * 8)) & 0xFFu);
+            h *= 1099511628211ull;
+        }
+    }
+    return h;
+}
+
+// Deterministic pseudo-random stereo fill (LCG, not the engine's own jitter
+// RNG), then freeze the loop at exactly 4096 samples.
+static void pinRecordedEngine(LoopEngine& e) {
+    e.reset(48000.f, 1.f);
+    e.toggleRecord();
+    std::uint32_t lcgL = 12345u, lcgR = 987654321u;
+    for (int i = 0; i < 4096; ++i) {
+        lcgL = lcgL * 1664525u + 1013904223u;
+        lcgR = lcgR * 1664525u + 1013904223u;
+        const float inL = static_cast<float>(lcgL >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+        const float inR = static_cast<float>(lcgR >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+        std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+        e.process(inL, inR, hs);
+    }
+    e.toggleRecord();   // freeze: loopLength() == 4096
+}
+
+struct PinScenario {
+    const char* name;
+    float size, pos; int grid; float speed;
+    std::uint64_t expected;
+};
+
+static void runPinScenario(const PinScenario& s) {
+    LoopEngine e;
+    pinRecordedEngine(e);
+    e.setGrid(s.grid);
+    e.setSize(0, s.size);
+    e.setPosition(0, s.pos);
+    e.setSpeed(0, s.speed);
+    std::vector<float> out;
+    out.reserve(8192 * 2);
+    for (int i = 0; i < 8192; ++i) {
+        std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
+        e.process(0.f, 0.f, hs);
+        out.push_back(hs[0].l);
+        out.push_back(hs[0].r);
+    }
+    const std::uint64_t got = fnv1aFloats(out);
+    if (got != s.expected)
+        std::printf("  hash %s: got 0x%016llx expected 0x%016llx\n",
+                     s.name, (unsigned long long)got, (unsigned long long)s.expected);
+    check(got == s.expected, s.name);
+}
+
+static void test_readhead_pinning() {
+    static const PinScenario scenarios[] = {
+        // name                  size       pos     grid  speed    expected (captured against unmodified code, Step 2)
+        {"pin_full_fwd",         1.f,       0.5f,   0,    0.73f,  0xa27d25802bb7e9deull},
+        {"pin_full_rev",         1.f,       0.5f,   0,   -1.31f,  0x1db41b575959ffd8ull},
+        {"pin_grid_fwd",         1.f/3.f,   0.25f,  12,   0.73f,  0xf814c063ebf03856ull},
+        {"pin_grid_rev",         1.f/3.f,   0.25f,  12,  -1.31f,  0xad2e5d08132432d2ull},
+        {"pin_tiny_fwd",         0.001f,    0.5f,   0,    0.73f,  0x5ce25cdaeee761a1ull},
+        {"pin_tiny_rev",         0.001f,    0.5f,   0,   -1.31f,  0x52b808064ca238d3ull},
+        {"pin_edge_start_fwd",   0.1f,      0.0f,   0,    0.73f,  0x28e7e95f89772920ull},
+        {"pin_edge_start_rev",   0.1f,      0.0f,   0,   -1.31f,  0x42d0d324330a2cb4ull},
+        {"pin_edge_end_fwd",     0.1f,      1.0f,   0,    0.73f,  0x1105faa6b22cdee4ull},
+        {"pin_edge_end_rev",     0.1f,      1.0f,   0,   -1.31f,  0xf05ce8104b5667c4ull},
+    };
+    for (const auto& s : scenarios) runPinScenario(s);
 }
 
 int main() {
@@ -1423,6 +1575,7 @@ int main() {
     test_per_head_params_isolated();
     test_display_snapshot_four_heads();
     test_waveform_revision_tracks_write_changes_only();
+    test_waveform_revision_throttled_during_recording();
     test_overdub_gate();
     test_overdub_ramps_declick();
     test_stop_ramp_rearm();
@@ -1444,6 +1597,7 @@ int main() {
     test_sample_rate_change_empty_reallocates();
     test_nan_input_recorded_as_zero();
     test_level_smoothing();
+    test_readhead_pinning();
     if (g_failures) { std::printf("\n%d failure(s)\n", g_failures); return 1; }
     std::printf("\nAll tests passed\n");
     return 0;

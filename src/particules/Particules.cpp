@@ -401,10 +401,7 @@ struct Particules : Module {
 		seed_gate_.process(inputs[SEED_INPUT].getVoltage(), 0.1f, 1.f);
 		block_runtime_.NoteSeedGateSample(seed_gate_.isHigh());
 
-#ifdef METAMODULE
-		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
-		quality_state_ = std::clamp((int)std::lround(params[QUALITY_PARAM].getValue()), 0, 3);
-#else
+#ifndef METAMODULE
 		// Desktop: momentary button cycles the mode; blocked while frozen.
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
 		if (quality_pressed && !prev_quality_button_ && !frozen)
@@ -455,6 +452,12 @@ struct Particules : Module {
 				processor_.ClearBuffer();
 			if (scale_dirty_.exchange(false, std::memory_order_acquire))
 				ApplyScaleToProcessor();
+#ifdef METAMODULE
+			// MetaModule: Quality is a 4-position switch, so the mode IS the
+			// param. Consumed only by updateSlowParams()/params_.quality_mode
+			// below and the LED check further down, so read once per block.
+			quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
+#endif
 			updateSlowParams(frozen);
 
 			processor_.SetParameters(params_);

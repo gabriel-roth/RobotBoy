@@ -150,7 +150,12 @@ static void test_moved_window_lane() {
     e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
     e.toggleRecord();                        // loop of 4
     e.setSize(2, 0.5f); e.setPosition(2, 0.5f);   // head 2: window [1,3) = [0.25,0.75]
-    e.process(0.f);                          // advance; head2 snaps to 1 then moves to 2
+    // Display mirrors (Task 8) are throttled to every 64th sample; 61 more
+    // samples reaches the 65th process() call since reset() (the record
+    // pass' call #1 landed on a tick too, but had no effect while the loop
+    // was still unfrozen), landing both heads at the same phase a
+    // single-step read would have shown (61 mod 4 == 1).
+    for (int i = 0; i < 61; ++i) e.process(0.f);   // advance; head2 snaps to 1 then moves to 2
     LoopWaveformRenderer::render(buf, W, H, e, pack);
     const uint32_t bg = C(LoopWaveformRenderer::BG);
     // Lane 2 rows 48..54: window bar spans x = round(.25*63)=16 .. round(.75*63)=47.

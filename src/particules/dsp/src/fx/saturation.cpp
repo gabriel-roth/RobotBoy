@@ -10,9 +10,22 @@ void Saturation::Init() {
 // ---------------------------------------------------------------------------
 // NormalizedSoftClip: SoftClip(drive*x)/drive. Unity small-signal slope,
 // output ceiling 1/drive.
+//
+// Naively this is two divides per call: FastTanh's own (27+y^2)/(27+9y^2)
+// plus the outer /drive. Folded to one (task 14, findings §4 M1/M7): for
+// |y| <= 3, y*(27+y^2)/((27+9y^2)*drive) shares a single divide between the
+// tanh polynomial and the drive normalization. For |y| > 3 SoftClip has
+// already saturated to +/-1, so the result is just +/-1/drive -- the caller
+// passes that reciprocal in precomputed (all call sites use compile-time
+// drive constants), avoiding a second divide on the clipped branch too.
+// FastTanh's own divide is data-dependent and stays untouched elsewhere.
 // ---------------------------------------------------------------------------
-float Saturation::NormalizedSoftClip(float x, float drive) {
-    return SoftClip(x * drive) / drive;
+float Saturation::NormalizedSoftClip(float x, float drive, float driveRecip) {
+    float y = x * drive;
+    if (y > 3.0f) return driveRecip;
+    if (y < -3.0f) return -driveRecip;
+    float y2 = y * y;
+    return y * (27.0f + y2) / ((27.0f + 9.0f * y2) * drive);
 }
 
 // ---------------------------------------------------------------------------
@@ -23,7 +36,9 @@ float Saturation::NormalizedSoftClip(float x, float drive) {
 // acted as a hidden level trim on everything passing through.
 // ---------------------------------------------------------------------------
 float Saturation::AsymmetricSoftClip(float x) {
-    return x >= 0.0f ? NormalizedSoftClip(x, kTapeBiasAsymmetry) : SoftClip(x);
+    return x >= 0.0f
+               ? NormalizedSoftClip(x, kTapeBiasAsymmetry, kTapeBiasAsymmetryRecip)
+               : SoftClip(x);
 }
 
 // ---------------------------------------------------------------------------
@@ -108,13 +123,13 @@ float Saturation::SaturateWrite(float input, QualityMode mode) {
         case QualityMode::kColdDigital:
             // Clouds emulation: symmetric cubic soft-limit, Clouds' own
             // curve and drive (see kColdWriteDrive in the header).
-            return NormalizedSoftClip(input, kColdWriteDrive);
+            return NormalizedSoftClip(input, kColdWriteDrive, kColdWriteDriveRecip);
         case QualityMode::kSunnyTape:
             return input >= 0.0f
-                       ? NormalizedSoftClip(input, kSunnyWriteDrive * kTapeBiasAsymmetry)
-                       : NormalizedSoftClip(input, kSunnyWriteDrive);
+                       ? NormalizedSoftClip(input, kSunnyWriteDrivePos, kSunnyWriteDrivePosRecip)
+                       : NormalizedSoftClip(input, kSunnyWriteDrive, kSunnyWriteDriveRecip);
         case QualityMode::kScorchedCassette:
-            return NormalizedSoftClip(input, kScorchedWriteDrive);
+            return NormalizedSoftClip(input, kScorchedWriteDrive, kScorchedWriteDriveRecip);
     }
     return input;
 }

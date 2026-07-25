@@ -48,6 +48,14 @@ private:
     float decay_ = 0.5f;
     float diffusion_ = 0.7f;
     float lp_ = 0.7f;
+    // Derived coefficients, recomputed only when the corresponding knob
+    // setter is called (they used to be rederived every Process() sample
+    // from decay_/lp_/diffusion_, which change only per-block at most).
+    // Default values below match the defaults above so a Process() call
+    // before any Set* is a no-op change from prior behavior.
+    float fb_ = 0.575f;         // from SetDecay(decay_)
+    float lp_coeff_ = 0.7f;     // from SetLpCutoff(lp_)
+    float ap_coeff_ = 0.525f;   // from SetDiffusion(diffusion_)
     float makeup_gain_ = 1.0f;   // Linear gain applied to the wet output
     // Equal-power crossfade gains, precomputed from amount_ in SetAmount.
     float dry_xfade_ = 1.0f;

@@ -44,7 +44,7 @@ public:
         int od = std::clamp((int)getState<OverdubSwitch>(), 0, 4);
         loooop::applyOverdub(engine_, od);
 
-        engine_.setGrid(loooop::gridSegments((int)std::lround(getState<GridKnob>() * 5.f)));
+        engine_.setGrid(loooop::gridSegments((int)(getState<GridKnob>() * 5.f + 0.5f)));
 
         // Record: momentary button OR trigger input (rising edge)
         bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
@@ -78,8 +78,8 @@ public:
         auto inLOpt = getInput<AudioInL>(), inROpt = getInput<AudioInR>();
         const auto in = loooop::normalledStereo(
             bool(inLOpt), inLOpt.value_or(0.f), bool(inROpt), inROpt.value_or(0.f));
-        float inL = in.l / 5.f;   // ±5V -> ±1
-        float inR = in.r / 5.f;
+        float inL = in.l * 0.2f;   // ±5V -> ±1
+        float inR = in.r * 0.2f;
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
@@ -171,7 +171,7 @@ private:
         float spKnob = (getState<S>() - 0.5f) * 4.f;
         float spCv = getInput<SC>().value_or(0.f);
         engine_.setSpeed(h, getState<VO>() == 1
-            ? loooop::speedFromVOct(spKnob, spCv)
+            ? voctMemo_[h].get(spKnob, spCv)
             : loooop::speedFromControls(spKnob, spCv));
         engine_.setPosition(h, loooop::normalizedControl(
             getState<P>(), getInput<PC>().value_or(0.f)));
@@ -210,6 +210,7 @@ private:
     bool clrTrigPrev_ = false;
     bool headTrigPrev_[LoopEngine::NUM_HEADS] = {};
     float lastJumpV_[LoopEngine::NUM_HEADS] = {};
+    loooop::VOctSpeedMemo voctMemo_[LoopEngine::NUM_HEADS];
     loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
     loooop::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz in the constructor, refreshed in set_samplerate
     std::span<uint32_t> dispBuf_{};

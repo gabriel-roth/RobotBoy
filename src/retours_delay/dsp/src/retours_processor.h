@@ -59,6 +59,22 @@ struct RetoursProcessor::Impl {
     float smoothed_dry_wet = 0.5f;
     float smoothed_feedback = 0.f;
 
+    // Block-rate cache: input trim -> linear gain (M5). DbToGain is a powf()
+    // call; input_trim_db is a knob/CV-derived value that's usually constant
+    // block-to-block (and baked to 0 dB with no UI on the wrapper), so skip
+    // the recompute unless it actually changed. 1e9f is not a legal dB value
+    // reachable from any real param, so the very first block always misses
+    // and recomputes.
+    float cached_trim_db_ = 1e9f;
+    float cached_input_gain_ = 1.f;
+
+    // Block-rate cache: slow-random LFO rate (L2). SetRate is cheap on its
+    // own, but three calls a block add up; params.random_lfo_hz is a fixed
+    // constant in current callers (see retours_processor.cpp), so gate on
+    // actual change.
+    float cached_random_lfo_hz_ = -1e9f;
+    float cached_random_lfo_sr_ = -1e9f;
+
     static constexpr size_t kAlignment = 16;
 };
 

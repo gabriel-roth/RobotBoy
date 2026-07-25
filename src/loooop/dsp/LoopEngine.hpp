@@ -123,15 +123,43 @@ private:
         bool gridExclude = false;   // this head ignores Grid quantization
     };
 
+    // Non-hot uncached entry points (restartHead, jumpHead, triggerOneShot):
+    // delegate to windowBoundsUncached without touching the per-head cache.
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
-    void windowBounds(const PlayHead& h, float jitterOff,
-                      double& winStart, double& winLen) const;
+    void windowBoundsUncached(const PlayHead& h, float jitterOff,
+                              double& winStart, double& winLen) const;
+    // Value-compare cache for the hot per-sample call sites (Findings §2 H5):
+    // grid-path windowBounds costs 3 double divides + 2 lround libm calls, but
+    // all its inputs are control-rate, so recomputing every sample is wasted
+    // work. Hosts call the setters every sample, so the cache MUST compare
+    // values, not a dirty flag (a flag would be set every sample = always
+    // dirty). flavor distinguishes the two call shapes sharing a head: 0 =
+    // jitterOff (main window), 1 = jitterNext (seam preview).
+    void windowBoundsCached(const PlayHead& h, int headIdx, int flavor,
+                            float jitterOff, double& winStart, double& winLen) const;
+    struct WinCache {
+        float size = -1.f, centre = -2.f, jitterOff = -2.f;
+        int grid = -1; bool gridExclude = false;
+        std::size_t loopLen = static_cast<std::size_t>(-1);
+        double winStart = 0.0, winLen = 1.0;
+    };
+    // [head][flavor]: flavor 0 = h.jitterOff calls, 1 = h.jitterNext calls.
+    mutable std::array<std::array<WinCache, 2>, NUM_HEADS> winCache_{};
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
+    // Shared L/R Catmull-Rom read (Findings §2 H2): one floor/frac/index
+    // computation for both channels instead of two independent
+    // readInterpolated calls. Interior taps (all 4 taps inside the window
+    // and inside [0, loopLen_)) load bufL_/bufR_ directly, matching
+    // readInterpolated's tap values exactly (tapWrapped/readRaw are no-ops
+    // there); within 2 samples of a window edge it falls back to the
+    // original per-channel path unchanged.
+    void readInterpolatedLR(const PlayHead& h, double winStart, double winLen,
+                            float& outL, float& outR) const;
     float readRaw(double p, const std::vector<float>& buf) const;
     float tapWrapped(double x, double winStart, double winLen,
                      const std::vector<float>& buf) const;
-    void readHead(const PlayHead& h, double winStart, double winLen,
+    void readHead(const PlayHead& h, int headIdx, double winStart, double winLen,
                   float& outL, float& outR) const;
     // Crossfade length in output samples for this head/window, capped to half the
     // window's output-period; 0 disables (window too short, or crossfade off).
@@ -142,7 +170,10 @@ private:
     float oneShotFadeGain(const PlayHead& h, double winStart, double winLen, int F) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
-    void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
+    // dispTick gates the position/window display-mirror stores (Findings §2
+    // M5): dispPlaying_ is NOT gated here — one-shot pass endings must
+    // publish immediately regardless of the throttle.
+    void advanceHead(PlayHead& h, int idx, double winStart, double winLen, bool dispTick);
     // Waveform-cache invalidation: bumped (release) after any change to the
     // recorded audio so display hosts re-render the static waveform only when
     // recorded audio actually changed. Only the audio thread writes; the
@@ -156,6 +187,7 @@ private:
     std::size_t maxSamples_ = 0;
     std::size_t writeIdx_ = 0;
     std::size_t loopLen_ = 0;
+    float invLoopLen_ = 0.f;   // 1/loopLen_, kept in sync at every loopLen_ assignment; 0 when no loop
     bool recording_ = false;
     bool overdubEnabled_ = true;
     bool crossfade_ = true;
@@ -197,6 +229,19 @@ private:
     std::atomic<std::uint32_t> dispGrid_{0};
     std::atomic<std::uint32_t> waveformRevision_{0};
     std::uint32_t waveformRevisionCounter_ = 0;
+    // Per-sample bump throttle during recording: a release store is a full
+    // memory barrier on ARMv7, and the churn also makes MetaModule's GUI
+    // re-scan the whole waveform every frame while recording. Throttled to
+    // ~23 Hz at 48 kHz; recording-state transitions bump unconditionally so
+    // the display still converges immediately at pass boundaries.
+    std::uint32_t revThrottle_ = 0;
+    static constexpr std::uint32_t REV_THROTTLE_MASK = 2047;
+    // Display-mirror store throttle (Findings §2 M5): advanceHead's per-head
+    // position/window stores (and the parked-head display block in process())
+    // are gated to ~750 Hz at 48 kHz -- far above any display frame rate.
+    // dispPlaying_ is excluded: state transitions (e.g. a one-shot pass
+    // ending) must publish immediately, not wait for the next tick.
+    std::uint32_t dispThrottle_ = 0;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};

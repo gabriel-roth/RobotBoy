@@ -10,10 +10,17 @@ public:
     void Init(particules_dsp::Random* rng, uint32_t salt) {
         rng_ = rng; salt_ = salt; from_ = 0.f; to_ = 0.f; phase_ = 1.f;
     }
-    void SetRate(float hz, float sample_rate) { rate_hz_ = hz; sr_ = sample_rate; }
+    void SetRate(float hz, float sample_rate) {
+        rate_hz_ = hz; sr_ = sample_rate;
+        // Precompute the per-sample phase increment (L2): Next() is called
+        // every block, SetRate() is called every block too (see callers),
+        // but the division itself only needs redoing when rate_hz_/sr_
+        // actually change (callers now gate the SetRate call on that).
+        inc_per_block_ = rate_hz_ / sr_;
+    }
     // advance by n samples, return value in [-1, 1]
     float Next(size_t n) {
-        phase_ += rate_hz_ / sr_ * n;
+        phase_ += inc_per_block_ * n;
         if (phase_ >= 1.f) { phase_ -= (int)phase_; from_ = to_; to_ = rng_->NextBipolar(); }
         float t = 0.5f - 0.5f * std::cos(phase_ * particules_dsp::kPi); // block rate: std::cos OK
         return from_ + (to_ - from_) * t;
@@ -22,6 +29,7 @@ private:
     particules_dsp::Random* rng_ = nullptr;
     uint32_t salt_ = 0;
     float from_ = 0.f, to_ = 0.f, phase_ = 1.f, rate_hz_ = 0.15f, sr_ = 48000.f;
+    float inc_per_block_ = 0.15f / 48000.f;  // rate_hz_/sr_, refreshed in SetRate
 };
 
 } // namespace retours_delay_dsp

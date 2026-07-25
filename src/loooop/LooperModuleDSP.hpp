@@ -28,6 +28,16 @@ inline float speedFromVOct(float knob, float cvVolts) {
     return clampSafe(knob * std::exp2(octave), kVOctSpeedMin, kVOctSpeedMax);
 }
 
+// Per-head memo for speedFromVOct: exp2f is a libm call on MetaModule; the
+// (knob, cv) pair is static or slow-moving in practice. Exactly equivalent.
+struct VOctSpeedMemo {
+    float knob = -1e9f, cv = -1e9f, out = 0.f;
+    float get(float k, float c) {
+        if (k != knob || c != cv) { knob = k; cv = c; out = speedFromVOct(k, c); }
+        return out;
+    }
+};
+
 inline float normalizedControl(float knob, float cvVolts) {
     return clampSafe(knob + cvVolts * 0.1f, 0.0f, 1.0f);
 }

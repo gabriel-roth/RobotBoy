@@ -33,6 +33,7 @@ class PitchQuantizer {
  private:
   double log2_ratios_[128];   // log2 of each degree ratio (degree 0 implicit = 0.0)
   double log2_period_;        // log2 of the period ratio (last entry)
+  double inv_log2_period_;    // 1.0 / log2_period_, cached at loadRatios time
   uint32_t num_notes_;        // number of scale degrees (including period)
   double root_v_oct_;         // root offset in V/oct from C4
 };

@@ -258,7 +258,7 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
                 break;
             case Impl::QualityTransition::kFadeOut:
                 qt_gain = static_cast<float>(s.qt_fade_counter)
-                        / static_cast<float>(Impl::kQualityFadeSamples);
+                        * Impl::kQualityFadeSamplesRecip;
                 if (--s.qt_fade_counter <= 0) {
                     if (s.params.freeze) {
                         // Freeze was re-engaged mid-fade-out: applying now
@@ -290,7 +290,7 @@ void ParticulesProcessor::ProcessBlock(const StereoFrame* input, StereoFrame* ou
                 break;
             case Impl::QualityTransition::kFadeIn:
                 qt_gain = 1.0f - static_cast<float>(s.qt_fade_counter)
-                                / static_cast<float>(Impl::kQualityFadeSamples);
+                                * Impl::kQualityFadeSamplesRecip;
                 if (--s.qt_fade_counter <= 0) {
                     s.qt_state = Impl::QualityTransition::kIdle;
                 }

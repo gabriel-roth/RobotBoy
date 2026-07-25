@@ -1,5 +1,8 @@
 #include <catch2/catch_amalgamated.hpp>
 #include <cstdlib>
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
 #include <vector>
 #include <cmath>
 #include "retours_delay_dsp/retours_dsp.h"
@@ -26,6 +29,46 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
     for (int i = from; i < to; ++i)
         if (std::fabs(v[i].l) > mag) { mag = std::fabs(v[i].l); best = i; }
     return best;
+}
+
+// ---------------------------------------------------------------------------
+// Task 10 pinning-test helpers (same FNV-1a-over-raw-float-bits technique as
+// Task 7's LoopEngine pinning test, tests/loooop/test_loop_engine.cpp).
+// Pins EchoEngine::ReadWet's wrap/decimation/multi-tap-snap/freeze-seam
+// output bit-exact across the Task 10 rework (steps 2-5 of the brief).
+// ---------------------------------------------------------------------------
+std::uint64_t Fnv1aStereo(const std::vector<StereoFrame>& v) {
+    std::uint64_t h = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
+    auto mix = [&](float f) {
+        std::uint32_t bits;
+        std::memcpy(&bits, &f, sizeof(bits));
+        for (int b = 0; b < 4; ++b) {
+            h ^= static_cast<std::uint64_t>((bits >> (b * 8)) & 0xFFu);
+            h *= 1099511628211ull;  // FNV prime
+        }
+    };
+    for (const auto& fr : v) { mix(fr.l); mix(fr.r); }
+    return h;
+}
+
+// Deterministic LCG noise, independently seeded per channel (same constants
+// as the Task 7 loop-engine pinning test's PRNG).
+void FillLcgNoise(std::vector<StereoFrame>& buf, std::uint32_t seedL, std::uint32_t seedR) {
+    std::uint32_t lcgL = seedL, lcgR = seedR;
+    for (auto& fr : buf) {
+        lcgL = lcgL * 1664525u + 1013904223u;
+        lcgR = lcgR * 1664525u + 1013904223u;
+        fr.l = static_cast<float>(lcgL >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+        fr.r = static_cast<float>(lcgR >> 8) * (1.f / 16777216.f) * 2.f - 1.f;
+    }
+}
+
+void CheckPinHash(const char* name, std::uint64_t got, std::uint64_t expected) {
+    if (got != expected) {
+        std::printf("  hash %s: got 0x%016llx expected 0x%016llx\n",
+                     name, (unsigned long long)got, (unsigned long long)expected);
+    }
+    REQUIRE(got == expected);
 }
 } // namespace
 
@@ -350,4 +393,194 @@ TEST_CASE("NaN input does not poison the buffer") {
     proc.p.Process(in.data(), out.data(), in.size());
     for (size_t i = 4800; i < out.size(); ++i)
         REQUIRE(std::isfinite(out[i].l));
+}
+
+// ---------------------------------------------------------------------------
+// Task 10 pinning tests (written FIRST, against the unmodified EchoEngine).
+// Each scenario drives RetoursProcessor's public API through 4096 samples of
+// a known deterministic input pattern and hashes the full stereo output
+// stream (raw float bits, FNV-1a). These pin ReadWet's per-sample wrap
+// (WrapPosition -> WrapBounded), decimation divide (-> reciprocal multiply),
+// and multi-tap round() (-> libm-free tie-snap) as bit-exact across the
+// rework -- any hash drift outside the documented multi-tap exact-tie case
+// means the rework changed behavior, not just its cost.
+//
+// Fix round (code review): the first version of these tests settled the
+// buffer for far less than the chosen delay, so every non-frozen scenario's
+// main-tap read landed on the buffer's zero-initialized fill -- a position
+// computed via a broken wrap and one computed correctly both read silence,
+// making the hash blind to wrap/position bugs (mutation testing on
+// WrapBounded's own branches confirmed this: breaking either branch left all
+// hashes unchanged). Fixed by giving the tape/crossfade/multi-tap scenarios a
+// full-buffer-lap settle (exactly kBufferFrames samples of noise, so every
+// frame in the buffer holds real content and write_head wraps back to a known
+// small offset) and a short delay (10-20 ms), so early samples of the capture
+// (where write_pos_continuous < delay) exercise WrapBounded's `p < 0` branch
+// landing on real wrapped-around content, and later samples exercise the
+// unwrapped case landing on the capture's own real writes. A fifth scenario
+// (pin_frozen_seam_wrap) was added for the `p >= size_f` branch, which needs
+// slice_start_pos_ within slice_len_frames_ of the buffer end -- a case the
+// original pin_frozen_seam scenario's slice never reached.
+//
+// Hashes below were captured by running this test once against the engine at
+// commit 21ded3e (the commit immediately before this task's rework) in an
+// isolated worktree, then pasting the printed values in as expected; the
+// same test file (this one) was built there unmodified, so only the
+// production engine code differs between capture and verification.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("pinning: tape mode, delay-time retarget mid-run") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kTape;
+    params.slew_seconds = 0.02f;
+    params.density = KnobForSeconds(0.015f);   // ~720 buffer frames (15 ms)
+
+    // Full-lap settle: exactly kBufferFrames samples so write_head wraps back
+    // to 0 and every frame in the buffer holds real (non-zero) content --
+    // see the fix-round note above.
+    std::vector<StereoFrame> settle(kBufferFrames);
+    FillLcgNoise(settle, 100u, 200u);
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.SetParameters(params);
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    std::vector<StereoFrame> in(4096);
+    FillLcgNoise(in, 111u, 222u);
+    std::vector<StereoFrame> out(in.size());
+
+    proc.p.Process(in.data(), out.data(), 2048);
+
+    params.density = KnobForSeconds(0.01f);   // retarget: slews toward a new (still short) delay
+    proc.p.SetParameters(params);
+    proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
+
+    std::uint64_t got = Fnv1aStereo(out);
+    CheckPinHash("pin_tape_retarget", got, 0x0c2d2098533ad034ull);
+}
+
+TEST_CASE("pinning: crossfade mode, delay-time retarget mid-run") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kCrossfade;
+    params.density = KnobForSeconds(0.015f);   // ~720 buffer frames (15 ms)
+
+    std::vector<StereoFrame> settle(kBufferFrames);
+    FillLcgNoise(settle, 300u, 400u);
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.SetParameters(params);
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    std::vector<StereoFrame> in(4096);
+    FillLcgNoise(in, 333u, 444u);
+    std::vector<StereoFrame> out(in.size());
+
+    proc.p.Process(in.data(), out.data(), 2048);
+
+    params.density = KnobForSeconds(0.01f);   // retarget: starts a crossfade jump
+    proc.p.SetParameters(params);
+    proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
+
+    std::uint64_t got = Fnv1aStereo(out);
+    CheckPinHash("pin_crossfade_retarget", got, 0xb0f74744c671a30cull);
+}
+
+TEST_CASE("pinning: multi-tap active") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kTape;
+    // CW side above noon (density_knob > 0.55) -> BaseTimeControl.multi_tap;
+    // ~720 buffer frames (15 ms) base, same short-delay reasoning as above.
+    { float d = -std::log2(0.015f / 4.f) / 11.f; params.density = 0.5f + 0.5f * d; }
+    proc.p.SetParameters(params);
+
+    std::vector<StereoFrame> settle(kBufferFrames);
+    FillLcgNoise(settle, 500u, 600u);
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    std::vector<StereoFrame> in(4096);
+    FillLcgNoise(in, 555u, 666u);
+    std::vector<StereoFrame> out(in.size());
+    proc.p.Process(in.data(), out.data(), in.size());
+
+    std::uint64_t got = Fnv1aStereo(out);
+    CheckPinHash("pin_multi_tap", got, 0x06300e96aa82f9a2ull);
+}
+
+TEST_CASE("pinning: frozen slice, seam window covered, re-anchor mid-freeze") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    // ~300 buffer frames/slice at 48 kHz -> several seam-crossfade wraps
+    // (kSeamCrossfadeFrames = 64) across each 2048-sample half below.
+    params.density = KnobForSeconds(300.f / 48000.f);
+    params.time = 0.f;   // slice_index 0
+
+    // Settle phase (unfrozen): fill recent buffer history with known content
+    // before freezing so the frozen reads land on real signal, not the
+    // buffer's zero-initialized fill.
+    std::vector<StereoFrame> settle(20000);
+    FillLcgNoise(settle, 777u, 888u);
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.SetParameters(params);
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    // Freeze, capture the first half at slice_index 0.
+    params.freeze = true;
+    proc.p.SetParameters(params);
+    std::vector<StereoFrame> in(4096, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> out(in.size());
+    proc.p.Process(in.data(), out.data(), 2048);
+
+    // Still frozen: TIME retarget re-anchors the slice window live (the
+    // "frozen && was_frozen" branch in NotifyFreeze) for the second half.
+    params.time = 0.05f;   // slice_index 32 (slice_count ~= 640)
+    proc.p.SetParameters(params);
+    proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
+
+    std::uint64_t got = Fnv1aStereo(out);
+    CheckPinHash("pin_frozen_seam", got, 0x04098773237788abull);
+}
+
+// Fix round (code review): pin_frozen_seam's slice never came within
+// slice_len_frames_ of the buffer end, so slice_start_pos_ + slice_phase_
+// never reached size_f and WrapBounded's `p >= size_f` branch never fired --
+// mutating that branch (e.g. `p -= size_f - 1.f`) left the hash unchanged.
+// This scenario anchors the slice so it straddles the buffer end: settle
+// kBufferFrames + 1000 samples (one full lap, so every frame holds real
+// content, plus 1000 so write_head lands at frame 1000), slice_len ~300
+// frames, slice_index 3 -> slice_start_ = wrap(1000 - 4*300) = wrap(-200) =
+// size_f - 200, so the slice covers [size_f-200, size_f+100) mod size_f --
+// phases 200..299 push pos_main past size_f into [0, 100), exercising the
+// wrap on every one of the ~13.6 slice cycles across the 4096-sample capture.
+TEST_CASE("pinning: frozen slice straddling the buffer end (wrap-down branch)") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.density = KnobForSeconds(300.f / 48000.f);   // ~300 buffer frames/slice
+    params.time = 0.0047f;                              // slice_index 3 (slice_count ~= 640)
+
+    std::vector<StereoFrame> settle(kBufferFrames + 1000);
+    FillLcgNoise(settle, 999u, 111u);
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.SetParameters(params);
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    params.freeze = true;
+    proc.p.SetParameters(params);
+    std::vector<StereoFrame> in(4096, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> out(in.size());
+    proc.p.Process(in.data(), out.data(), in.size());
+
+    std::uint64_t got = Fnv1aStereo(out);
+    CheckPinHash("pin_frozen_seam_wrap", got, 0x07d48124b30468d1ull);
 }

@@ -26,13 +26,18 @@ static inline float FastGainToDb(float gain) {
 static inline float SoftLimit(float x) {
     constexpr float kThreshold = 0.8f;
     constexpr float kHeadroom = 1.0f - kThreshold;
+    // Precomputed reciprocal (task 14): kHeadroom is a compile-time
+    // constant, so the per-sample excess/kHeadroom divide becomes a
+    // multiply. FastTanh's own divide inside SoftClip is data-dependent
+    // and stays.
+    constexpr float kHeadroomRecip = 1.0f / kHeadroom;
 
     float ax = std::abs(x);
     if (ax <= kThreshold) return x;
 
     float sign = (x > 0.0f) ? 1.0f : -1.0f;
     float excess = ax - kThreshold;
-    return sign * (kThreshold + kHeadroom * SoftClip(excess / kHeadroom));
+    return sign * (kThreshold + kHeadroom * SoftClip(excess * kHeadroomRecip));
 }
 
 // Hoisted to file scope: a function-local `static const` needs a
