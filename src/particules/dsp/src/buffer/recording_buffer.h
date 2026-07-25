@@ -83,14 +83,19 @@ public:
     // ReadContext has no such aliasing hazard, so its fields stay in
     // registers for the whole grain-major render loop.
     //
-    // POINTERS ARE BLOCK-LIFETIME ONLY: any Write(), Configure(), Clear()/
-    // ImmediateClear(), or SetDecimationFactor() on this buffer invalidates
-    // every field. Callers (GrainEngine) must call MakeReadContext() once
-    // per render block, before any grain in that block is processed, and
-    // must not retain the context across blocks.
+    // POINTERS AND LAYOUT ARE BLOCK-LIFETIME ONLY: Configure() or Init() can
+    // change format_/channels_/size_ (a full re-layout of the pool), which
+    // invalidates every field of a previously-resolved context. Write(),
+    // Clear()/ImmediateClear(), and SetDecimationFactor() do NOT touch any
+    // field a context holds -- they only change buffer content (or, for
+    // SetDecimationFactor, unrelated counters) under the SAME layout, so
+    // new writes are visible through an already-resolved context's pointers
+    // with no re-resolution needed. Callers (GrainEngine) still call
+    // MakeReadContext() once per render block, before any grain in that
+    // block is processed, and don't retain the context across blocks --
+    // that's a block-lifetime discipline for clarity/consistency, not a
+    // requirement forced by Write()/Clear()/SetDecimationFactor.
     struct ReadContext {
-        const RecordingBuffer* buf;   // lets ctx-only callers invoke the
-                                      // (still member) ctx overload below
         int channels;
         StorageFormat format;
         const float* f32;
@@ -101,17 +106,30 @@ public:
     };
 
     ReadContext MakeReadContext() const {
-        return ReadContext{this, channels_, format_, f32_, i16_, u8_,
+        return ReadContext{channels_, format_, f32_, i16_, u8_,
                             mulaw_lut_, size_};
     }
 
     // Context-resolved variant of ReadHermiteStereoFrac: identical math to
     // the single-call overload below, but every format/channel/pointer
     // value comes from `ctx` (resolved once per block by MakeReadContext)
-    // instead of being re-derived from `this` on every call. Preconditions
-    // unchanged: i0 < ctx.size, 0 <= frac < 1.
-    inline void ReadHermiteStereoFrac(const ReadContext& ctx, size_t i0, float frac,
-                                      float* out_l, float* out_r) const {
+    // instead of being re-derived from `this` on every call. Static (no
+    // buffer instance needed) so callers holding only a ctx -- e.g.
+    // Grain::Process, which no longer keeps a RecordingBuffer reference at
+    // all -- can call it directly. Preconditions unchanged: i0 < ctx.size,
+    // 0 <= frac < 1.
+    //
+    // Forced always-inline: the delegating legacy overload below (the only
+    // production caller of which is Retours' EchoEngine::ReadWet, via
+    // ReadHermiteStereoFast, 5 per-sample call sites) calls this out of
+    // line otherwise -- neither clang nor gcc will inline this switch-heavy
+    // body into that hot path on their own, costing Retours a real desktop
+    // regression (materializing this ReadContext on the stack + a call) for
+    // zero benefit to it (Retours reads through the legacy signature, not
+    // the ctx one -- only Particules' grain loop passes a real block ctx).
+    static inline void ReadHermiteStereoFrac(const ReadContext& ctx, size_t i0, float frac,
+                                             float* out_l, float* out_r)
+        __attribute__((always_inline)) {
         size_t i_1 = (i0 == 0) ? ctx.size - 1 : i0 - 1;
         size_t i1 = i0 + 1;   // tail guarantees valid data
         size_t i2 = i0 + 2;   // tail guarantees valid data
@@ -176,10 +194,14 @@ public:
     }
 
     // Fast interpolated read with a pre-split position (integer frame +
-    // fraction). Preconditions: i0 < size(), 0 <= frac < 1. Q32.32 callers
-    // (grains) use this directly so precision is independent of buffer size.
-    // Kept for existing callers (VCV desktop path, tests, ReadHermiteStereoFast
-    // below): delegates to the context overload so the two never drift.
+    // fraction). Preconditions: i0 < size(), 0 <= frac < 1. Grains used to
+    // call this directly for Q32.32 precision; Grain::Process now goes
+    // through the ctx overload above instead (see GrainEngine's per-block
+    // ReadContext). This overload's only production caller today is
+    // ReadHermiteStereoFast below (i.e. Retours' EchoEngine::ReadWet, 5
+    // per-sample call sites); it's also exercised directly by RecordingBuffer
+    // unit tests. Delegates to the context overload (forced inline above) so
+    // the two can't drift, at no extra cost to this path.
     inline void ReadHermiteStereoFrac(size_t i0, float frac,
                                       float* out_l, float* out_r) const {
         ReadHermiteStereoFrac(MakeReadContext(), i0, frac, out_l, out_r);

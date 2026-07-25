@@ -71,7 +71,7 @@ public:
         float frac = static_cast<float>(static_cast<uint32_t>(position_q_))
                      * (1.0f / 4294967296.0f);
         float sample_l, sample_r;
-        ctx.buf->ReadHermiteStereoFrac(ctx, i0, frac, &sample_l, &sample_r);
+        RecordingBuffer::ReadHermiteStereoFrac(ctx, i0, frac, &sample_l, &sample_r);
 
         // Advance and wrap (integer compare/subtract; position stays in
         // [0, size) so the >>32 above is always non-negative).
@@ -111,18 +111,17 @@ public:
                              StereoFrame* output, size_t num_frames) {
         for (size_t i = 0; i < num_frames; ++i) {
             float gl = 0.0f, gr = 0.0f;
-            if (!Process(ctx, buf_size_q, &gl, &gr)) {
-                // Process() returns false only from the inactive/envelope-
-                // done/pending-kill-completed paths, every one of which
-                // sets active_ false before returning (see Process()'s
-                // return-value semantics). Pre-delay returns true (grain
-                // still counts as active while it waits), so it never hits
-                // this branch. A dead grain can't reactivate mid-block, so
-                // once active_ is false the rest of this block is silence
-                // from this grain -- stop iterating instead of adding
-                // (0.0f, 0.0f) num_frames-i more times.
-                if (!active_) break;
-            }
+            // Process() returns false only from the inactive/envelope-done/
+            // pending-kill-completed paths, every one of which sets active_
+            // false before returning (see Process()'s return-value
+            // semantics) -- so a false return here always means active_ is
+            // now false. Pre-delay returns true (grain still counts as
+            // active while it waits), so it never hits this branch. A dead
+            // grain can't reactivate mid-block, so once active_ is false
+            // the rest of this block is silence from this grain -- stop
+            // iterating instead of adding (0.0f, 0.0f) num_frames-i more
+            // times.
+            if (!Process(ctx, buf_size_q, &gl, &gr)) break;
             // Single combined check: gl+gr is non-finite iff either
             // operand is NaN (poisons the sum) or either is an Inf (Inf +
             // anything finite stays Inf; Inf + -Inf -> NaN) -- exactly the

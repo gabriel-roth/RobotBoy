@@ -867,26 +867,36 @@ TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][p
     REQUIRE(max_repeats <= 2);
 }
 
-// ── Block-resolved ReadContext: bit-exact vs the old single-call path ─────
+// ── Block-resolved ReadContext vs an independent reference reader ────────
 //
 // Task 12 hoists RecordingBuffer's per-sample format_/channels_/LUT switch
 // out into a ReadContext resolved once per render block (see
-// RecordingBuffer::MakeReadContext / the ctx overload of
+// RecordingBuffer::MakeReadContext / the static ctx overload of
 // ReadHermiteStereoFrac). Grain::Process/ProcessBlock now call ONLY the ctx
-// overload -- the old (i0, frac, l, r) signature is kept solely so it still
-// delegates for other callers (VCV desktop, ReadHermiteStereoFast, these
-// tests), and is implemented as a one-line forward to the ctx overload.
+// overload; the old (i0, frac, l, r) signature is kept only for
+// ReadHermiteStereoFast (Retours) and existing buffer tests, and it now
+// DELEGATES to the ctx overload -- so comparing the ctx overload against
+// that legacy overload would be tautological (same body, same call).
 //
-// This test pins that the ctx overload's output is bit-identical to the old
-// overload's for every format the per-sample switch dispatches on (float32 /
-// int12 / mulaw), in both stereo and mono, across the full index range
-// (including the i0==0 wrap case) and a spread of fractional positions --
-// i.e. the exact domain Grain::Process feeds it while a grain sweeps
-// through the buffer. Grain's own position bookkeeping (Q32.32 -> i0/frac)
-// is untouched by this task, so pinning the read function itself over this
-// domain is equivalent to pinning any real grain trajectory through it.
-TEST_CASE("RecordingBuffer: context-resolved read matches the old single-call "
-          "read bit-for-bit, per format", "[buffer][grain][context]") {
+// Instead this compares the ctx overload against ReadHermiteStereo, a
+// wholly separate, out-of-line code path (recording_buffer.cpp) that
+// resolves its own i0/frac via ResolveReadPosition (fmod-based wrap, not
+// the caller-supplied pre-split i0/frac) and reads samples through
+// SampleAt() -- no shared switch, no shared pointer resolution, nothing
+// delegated between the two. It's the same independent-reference pairing
+// test_buffer.cpp already uses to cross-check the fast paths (see "fast
+// path, frac path, and reference reader agree", test_buffer.cpp:673-680),
+// which uses Approx margin(1e-6f) because ResolveReadPosition reconstructs
+// frac from a float `position` by subtraction, and a non-dyadic frac loses
+// sub-ULP precision in that round-trip at larger positions. This test
+// avoids that ambiguity instead of tolerating it: every swept frac below is
+// dyadic (denominator a power of two, <=16), so `i0 + frac` stays exactly
+// representable at these buffer sizes and ResolveReadPosition's subtraction
+// recovers the identical frac bit-for-bit -- letting this assert exact
+// equality against the independent reference, a strictly tighter bar than
+// test_buffer.cpp's established tolerance.
+TEST_CASE("RecordingBuffer: context-resolved read matches the independent "
+          "SampleAt-based reference reader, per format", "[buffer][grain][context]") {
     auto check = [](StorageFormat fmt, int channels) {
         size_t num_frames = 2000;
         size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
@@ -909,12 +919,21 @@ TEST_CASE("RecordingBuffer: context-resolved read matches the old single-call "
         for (size_t i0 = 0; i0 < n; i0 += 23) {   // sweep the whole buffer,
                                                     // including i0==0 (the
                                                     // i_1 = size_-1 wrap case)
-            for (float frac : {0.0f, 0.1f, 0.37f, 0.5f, 0.63f, 0.9f, 0.999999f}) {
-                float old_l = 0.f, old_r = 0.f, new_l = 0.f, new_r = 0.f;
-                buf.ReadHermiteStereoFrac(i0, frac, &old_l, &old_r);
-                buf.ReadHermiteStereoFrac(ctx, i0, frac, &new_l, &new_r);
-                REQUIRE(old_l == new_l);
-                REQUIRE(old_r == new_r);
+            // Dyadic fracs only (denominator a power of two, <=16): at these
+            // buffer sizes (n up to ~8012, ~13 integer bits), `i0 + frac`
+            // stays exactly representable in float32 (13 integer bits + up
+            // to 11 fractional bits <= the 24-bit mantissa), so
+            // ReadHermiteStereo's ResolveReadPosition round-trips it back to
+            // the IDENTICAL frac bit-for-bit -- letting this assert bit
+            // equality instead of falling back to test_buffer.cpp's Approx
+            // margin(1e-6f) (needed there only for non-dyadic fracs, which
+            // pick up sub-ULP reconstruction error at larger positions).
+            for (float frac : {0.0f, 0.5f, 0.25f, 0.75f, 0.125f, 0.375f, 0.9375f}) {
+                float ctx_l = 0.f, ctx_r = 0.f, ref_l = 0.f, ref_r = 0.f;
+                RecordingBuffer::ReadHermiteStereoFrac(ctx, i0, frac, &ctx_l, &ctx_r);
+                buf.ReadHermiteStereo(static_cast<float>(i0) + frac, &ref_l, &ref_r);
+                REQUIRE(ctx_l == ref_l);
+                REQUIRE(ctx_r == ref_r);
             }
         }
     };
@@ -925,6 +944,83 @@ TEST_CASE("RecordingBuffer: context-resolved read matches the old single-call "
     SECTION("int12 mono")     { check(StorageFormat::kInt12, 1); }
     SECTION("mulaw stereo")   { check(StorageFormat::kMuLaw8, 2); }
     SECTION("mulaw mono")     { check(StorageFormat::kMuLaw8, 1); }
+}
+
+// ── Golden pins captured from the pre-task-12 parent commit (589c20f) ────
+//
+// Bit-exact anchor, independent of anything introduced by this task: these
+// exact (i0, frac) -> (l, r) values were captured by building the identical
+// buffer (same size/fill formula as the SECTION helper above) and calling
+// the ORIGINAL RecordingBuffer::ReadHermiteStereoFrac(i0, frac, out_l,
+// out_r) at commit 589c20f (immediately before ReadContext existed --
+// there was only one overload, so this is not something this refactor
+// could have influenced), in a throwaway worktree/build, printed as exact
+// hex-float literals (%a) to avoid any decimal-rounding ambiguity in
+// transcribing them here. Guards against a future edit that changes the
+// ctx overload AND its delegating legacy wrapper together in a way that
+// shifts the actual arithmetic (which the delegation-based tautology this
+// test replaces could never have caught).
+TEST_CASE("RecordingBuffer: ctx-resolved read matches pre-refactor golden values",
+          "[buffer][grain][context][golden]") {
+    struct Point { size_t i0; float frac; float exp_l; float exp_r; };
+
+    auto check = [](StorageFormat fmt, const Point* points, size_t count) {
+        size_t num_frames = 2000;
+        size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+        std::vector<uint8_t> mem(bytes, 0);
+        RecordingBuffer buf;
+        buf.Init(reinterpret_cast<float*>(mem.data()), num_frames, 2);
+        buf.Configure(1, fmt, 2);
+        buf.ImmediateClear();
+
+        size_t n = buf.size();
+        for (size_t i = 0; i < n; ++i) {
+            float phase = static_cast<float>(i) / static_cast<float>(n) * 6.283185307f * 9.0f;
+            buf.Write(std::sin(phase), std::cos(phase * 1.6f));
+        }
+
+        auto ctx = buf.MakeReadContext();
+        for (size_t k = 0; k < count; ++k) {
+            float l = 0.f, r = 0.f;
+            RecordingBuffer::ReadHermiteStereoFrac(ctx, points[k].i0, points[k].frac, &l, &r);
+            REQUIRE(l == points[k].exp_l);
+            REQUIRE(r == points[k].exp_r);
+        }
+    };
+
+    // n=2000 for this buffer/format combination (bytes sized for 2000
+    // float32 stereo frames at Init; Configure to a narrower format grows
+    // the frame count, but every i0 below stays valid across all three).
+    static const Point kFloat32Points[] = {
+        {0,    0.0f, 0x0p+0f,         0x1p+0f},
+        {0,    0.37f, 0x1.56c9fcp-7f,  0x1.216f22p+0f},
+        {1,    0.63f, 0x1.796a1p-5f,   0x1.fe9bcap-1f},
+        {999,  0.5f,  0x1.cf3c72p-7f,  0x1.52614ep-2f},
+        {1999, 0.1f, -0x1.a0e1dap-6f, -0x1.566748p-1f},
+        {500,  0.9f,  0x1.ffd592p-1f, -0x1.919f84p-1f},
+    };
+    // n=4004 (bytes / (2 bytes/sample * 2 channels)).
+    static const Point kInt12Points[] = {
+        {0,    0.0f, 0x0p+0f,        0x1p+0f},
+        {0,    0.37f, 0x1.57871ap-8f, 0x1.21b5aep+0f},
+        {1,    0.63f, 0x1.7a5842p-6f, 0x1.ffa108p-1f},
+        {999,  0.5f,  0x1.ffe3fcp-1f, -0x1.a83d08p-1f},
+        {1999, 0.1f,  0x1.509078p-5f, 0x1.7b899ep-2f},
+        {500,  0.9f,  0x1.6c29b8p-1f, 0x1.457b4p-2f},
+    };
+    // n=8012 (bytes / (1 byte/sample * 2 channels)).
+    static const Point kMuLawPoints[] = {
+        {0,    0.0f, 0x0p+0f,        0x1.f80788p-1f},
+        {0,    0.37f, 0x1.52274ap-9f, 0x1.1d7c12p+0f},
+        {1,    0.63f, 0x1.7822d4p-7f, 0x1.f80788p-1f},
+        {999,  0.5f,  0x1.676de4p-1f, 0x1.251768p-2f},
+        {1999, 0.1f,  0x1.f80788p-1f, -0x1.a7b22ep-1f},
+        {500,  0.9f, -0x1.84e9c4p-2f, 0x1.96fa8ap-1f},
+    };
+
+    check(StorageFormat::kFloat32, kFloat32Points, 6);
+    check(StorageFormat::kInt12, kInt12Points, 6);
+    check(StorageFormat::kMuLaw8, kMuLawPoints, 6);
 }
 
 // Integration smoke test: a real Grain, driven entirely through the ctx
