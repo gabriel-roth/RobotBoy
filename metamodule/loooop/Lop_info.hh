@@ -31,12 +31,12 @@ struct LopInfo : ModuleInfoBase {
     // 5-position FlipSwitch with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, and
     // Crossfade are menu-only (AltParamChoiceLabeled, position fields unused);
     // they sit in ONE contiguous block AFTER all the jacks and BEFORE the
-    // display, grouped by command (Trigger when recording, Crossfade, Trigger,
-    // Speed CV V/Oct) so the
+    // display, grouped by command (When recording ends, Crossfade, Trigger,
+    // Speed CV V/Oct, Record jack) so the
     // MetaModule roller headers this block as an "Options:" section (a param
     // group that FOLLOWS the jacks), matching VCV's command-first menu layout
     // instead of interleaving with the panel knobs.
-    static constexpr std::array<Element, 27> Elements{{
+    static constexpr std::array<Element, 28> Elements{{
         // ── Params: Size, Pos, Speed, Jitter ──
         QlpKnob{{9.870f, 46.050f, Center, "Size", "", 9.f, 9.f}, 1.0f},
         QlpKnob{{23.610f, 46.050f, Center, "Position", "", 9.f, 9.f}, 0.5f},
@@ -66,10 +66,13 @@ struct LopInfo : ModuleInfoBase {
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
         QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
         // ── Options (menu-only alt-params), grouped by command ──
-        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", "", 0.f, 0.f}},
+        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", "", 0.f, 0.f}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger mode", "", 0.f, 0.f}},
         QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
+        // Appended LAST among params (old-patch safety) -- Display stays the
+        // trailing sentinel entry.
+        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", "", 0.f, 0.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};
 
@@ -81,6 +84,9 @@ struct LopInfo : ModuleInfoBase {
         DryWetCvIn, RecTrigIn, ClearTrigIn,
         OutL, OutR,
         TrigWhenRecAlt, CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
+        // Appended LAST among params (old-patch safety) -- see the Elements
+        // array comment above.
+        RecGateAlt,
         Display,
     };
 

@@ -18,7 +18,11 @@ struct Lop : Module {
     // Speed-V/Oct). Keep in lockstep.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, GRID_PARAM,
-                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM, PARAMS_LEN };
+                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
+                   // Appended at the END (old-patch safety -- see the enum's
+                   // header comment): "Record jack" Trigger/Gate mode.
+                   REC_GATE_MODE_PARAM,
+                   PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT,
                    SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
                    DRYWET_CV_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, INPUTS_LEN };
@@ -27,6 +31,8 @@ struct Lop : Module {
 
     LoopEngine engine{1};      // single playhead; head level stays at its 1.0 default
     dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig;
+    loooop::RecordGateHelper recordGate;
+    bool recordGateInited = false;   // primes recordGate.syncTo() on the first process() call
     float lastJumpV = 0.f;
     float overdubPhase = 0.f;   // Lock-mode LED blink phase, [0,1)
     loooop::VOctSpeedMemo voctMemo;
@@ -57,8 +63,15 @@ struct Lop : Module {
             {"On", "Off"})->randomizeEnabled = false;
         configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
             {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
-        configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "Trigger when recording",
-            {"Stops recording", "Starts overdubbing"})->randomizeEnabled = false;
+        // Same param, same stored 0/1 values as the old "Trigger when
+        // recording" -- labels only, so existing patches keep their choice.
+        configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "When recording ends",
+            {"Plays back", "Keeps overdubbing"})->randomizeEnabled = false;
+        // Reinterprets only the Record jack: Trigger (default) matches today's
+        // behavior byte-for-byte; Gate treats the jack's rising/falling edges
+        // as punch-in/punch-out (see loooop::RecordGateHelper).
+        configSwitch(REC_GATE_MODE_PARAM, 0.f, 1.f, 0.f, "Record jack",
+            {"Trigger", "Gate"})->randomizeEnabled = false;
         configInput(AUDIO_L_INPUT, "Audio left");
         configInput(AUDIO_R_INPUT, "Audio right");
         configInput(RECORD_TRIG_INPUT, "Record trigger");
@@ -96,13 +109,36 @@ struct Lop : Module {
         engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
         engine.setGrid(loooop::gridSegments(
             (int)(params[GRID_PARAM].getValue() + 0.5f)));
-        // Evaluate both triggers into locals before OR-ing: `||` short-
-        // circuits, so `a || b` would skip calling b.process() (and updating
-        // its Schmitt state) on any sample where a is already true.
-        bool recBtn  = recordBtn.process(params[RECORD_PARAM].getValue());
-        bool recTrig = recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
-        if (recBtn || recTrig)
-            engine.toggleRecord(params[TRIG_WHEN_REC_PARAM].getValue() > 0.5f);
+        // Feed the Schmitt triggers every sample so their internal (debounced)
+        // level state stays current, then read that LEVEL (not the return
+        // value, which is edge-only) for RecordGateHelper -- it does its own
+        // edge detection so it can tell Trigger mode's combined OR'd edge
+        // apart from Gate mode's separate button/jack edges. Same thresholds
+        // as before (0.1/2.0 hysteresis on the jack, default 0/1 on the
+        // button), so Trigger-mode timing is unchanged.
+        recordBtn.process(params[RECORD_PARAM].getValue());
+        recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
+        const bool recBtnHigh = recordBtn.isHigh();
+        const bool recJackHigh = recordTrig.isHigh();
+        if (!recordGateInited) {
+            recordGate.syncTo(recJackHigh);   // patch load / first process: no phantom edge
+            recordGateInited = true;
+        }
+        const bool gateMode = params[REC_GATE_MODE_PARAM].getValue() > 0.5f;
+        const auto recAction = recordGate.step(gateMode, recJackHigh, recBtnHigh, engine.isRecording());
+        const bool trigWhenRec = params[TRIG_WHEN_REC_PARAM].getValue() > 0.5f;
+        switch (recAction) {
+            case loooop::RecordGateHelper::Action::Toggle:
+            case loooop::RecordGateHelper::Action::Close:
+                engine.toggleRecord(trigWhenRec);
+                break;
+            case loooop::RecordGateHelper::Action::Punch:
+                engine.toggleRecord(trigWhenRec);
+                engine.toggleRecord();
+                break;
+            case loooop::RecordGateHelper::Action::None:
+                break;
+        }
         bool clrBtn  = clearBtn.process(params[CLEAR_PARAM].getValue());
         bool clrTrig = clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
         if (clrBtn || clrTrig)
@@ -204,10 +240,14 @@ struct LopWidget : ModuleWidget {
         Lop* m = dynamic_cast<Lop*>(module);
         if (!m) return;
         menu->addChild(new MenuSeparator);
-        menu->addChild(createIndexSubmenuItem("Trigger when recording",
-            {"Stops recording", "Starts overdubbing"},
+        menu->addChild(createIndexSubmenuItem("When recording ends",
+            {"Plays back", "Keeps overdubbing"},
             [m] { return (int)std::round(m->params[Lop::TRIG_WHEN_REC_PARAM].getValue()); },
             [m](int i) { m->paramQuantities[Lop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
+        menu->addChild(createIndexSubmenuItem("Record jack",
+            {"Trigger", "Gate"},
+            [m] { return (int)std::round(m->params[Lop::REC_GATE_MODE_PARAM].getValue()); },
+            [m](int i) { m->paramQuantities[Lop::REC_GATE_MODE_PARAM]->setValue((float)i); }));
         menu->addChild(createBoolMenuItem("Crossfade", "",
             [m] { return m->params[Lop::CROSSFADE_PARAM].getValue() < 0.5f; },
             [m](bool v) { m->paramQuantities[Lop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));

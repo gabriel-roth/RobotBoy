@@ -43,11 +43,32 @@ public:
 
         engine_.setGrid(loooop::gridSegments((int)(getState<GridKnob>() * 5.f + 0.5f)));
 
-        bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
-        bool recTrig = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
-        bool recEdge = (recPressed || recTrig) && !recPrev_;
-        recPrev_ = recPressed || recTrig;
-        if (recEdge) engine_.toggleRecord(getState<TrigWhenRecAlt>() == 1);
+        // Record: momentary button + jack, routed through the shared
+        // RecordGateHelper -- Trigger mode reproduces the old combined
+        // (button OR jack) rising edge byte-for-byte; Gate mode reinterprets
+        // the jack's own rising/falling edges as punch-in/punch-out. Same
+        // >1.0f jack threshold as before (no hysteresis on MetaModule).
+        const bool recPressed = getState<RecordButton>() == MomentaryButton::State_t::PRESSED;
+        const bool recJackHigh = getInput<RecTrigIn>().value_or(0.f) > 1.0f;
+        if (!recordGateInited_) {
+            recordGate_.syncTo(recJackHigh);   // patch load / first update(): no phantom edge
+            recordGateInited_ = true;
+        }
+        const bool recGateMode = getState<RecGateAlt>() == 1;
+        const auto recAction = recordGate_.step(recGateMode, recJackHigh, recPressed, engine_.isRecording());
+        const bool trigWhenRec = getState<TrigWhenRecAlt>() == 1;
+        switch (recAction) {
+            case loooop::RecordGateHelper::Action::Toggle:
+            case loooop::RecordGateHelper::Action::Close:
+                engine_.toggleRecord(trigWhenRec);
+                break;
+            case loooop::RecordGateHelper::Action::Punch:
+                engine_.toggleRecord(trigWhenRec);
+                engine_.toggleRecord();
+                break;
+            case loooop::RecordGateHelper::Action::None:
+                break;
+        }
 
         bool clrPressed = getState<ClearButton>() == MomentaryButton::State_t::PRESSED;
         if (clrPressed && !clrPrev_) engine_.clear();
@@ -161,7 +182,9 @@ public:
 
 private:
     LoopEngine engine_;
-    bool recPrev_ = false, clrPrev_ = false, clrTrigPrev_ = false, trigPrev_ = false;
+    loooop::RecordGateHelper recordGate_;
+    bool recordGateInited_ = false;   // primes recordGate_.syncTo() on the first update()
+    bool clrPrev_ = false, clrTrigPrev_ = false, trigPrev_ = false;
     float lastJumpV_ = 0.f;
     loooop::VOctSpeedMemo voctMemo_;
     loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};

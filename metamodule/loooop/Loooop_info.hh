@@ -40,13 +40,13 @@ struct LoooopInfo : ModuleInfoBase {
     // with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, Grid exclude, and Crossfade
     // are menu-only (AltParamChoiceLabeled, position fields unused); they sit
     // in ONE contiguous block AFTER all the jacks and BEFORE the display,
-    // grouped by command (Trigger-when-recording, Crossfade, then all
-    // Trig-modes, then all Speed V/Oct, then all Grid-excludes) so the
-    // MetaModule roller headers this
+    // grouped by command (When-recording-ends, Crossfade, then all
+    // Trig-modes, then all Speed V/Oct, then all Grid-excludes, then Record
+    // jack) so the MetaModule roller headers this
     // block as an "Options:" section (a param group that FOLLOWS the jacks),
     // matching VCV's command-first menu layout instead of interleaving with
     // the panel knobs.
-    static constexpr std::array<Element, 91> Elements{{
+    static constexpr std::array<Element, 92> Elements{{
         // ── Global params ──
         QlpButtonLight{{36.452f, 116.050f, Center, "Record", "", 7.f, 7.f}},
         QlpOverdubSwitch{{69.543f, 116.050f, Center, "Overdub mode", "", 7.f, 7.f}},
@@ -140,7 +140,7 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackOut{{185.690f, 102.100f, Center, "Purple Out R", "", 8.f, 8.f}},
 
         // ── Options (menu-only alt-params), grouped by command ──
-        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "Trigger when recording", ""}},
+        QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", ""}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Red Trig mode", ""}},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Yellow Trig mode", ""}},
@@ -154,6 +154,10 @@ struct LoooopInfo : ModuleInfoBase {
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Yellow Grid exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Blue Grid exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Purple Grid exclude", ""}},
+        // Appended LAST among params (old-patch safety: MetaModule assigns
+        // param IDs by Elements-array position) -- Display stays the trailing
+        // sentinel entry.
+        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", ""}},
 
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
@@ -182,6 +186,9 @@ struct LoooopInfo : ModuleInfoBase {
         TrigMode1Alt, TrigMode2Alt, TrigMode3Alt, TrigMode4Alt,
         SpeedVoct1Alt, SpeedVoct2Alt, SpeedVoct3Alt, SpeedVoct4Alt,
         ExcludeGrid1Alt, ExcludeGrid2Alt, ExcludeGrid3Alt, ExcludeGrid4Alt,
+        // Appended LAST among params (old-patch safety) -- see the Elements
+        // array comment above.
+        RecGateAlt,
         Display,
     };
 
