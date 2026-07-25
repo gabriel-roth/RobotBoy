@@ -66,24 +66,24 @@ Roller params:
 
 Options (roller AltParams under an "Options:" header):
 
-30. When recording ends
-31. Crossfade
-32. Red Trig mode
-33. Yellow Trig mode
-34. Blue Trig mode
-35. Purple Trig mode
-36. Red Speed V/Oct
-37. Yellow Speed V/Oct
-38. Blue Speed V/Oct
-39. Purple Speed V/Oct
-40. Red Grid exclude
-41. Yellow Grid exclude
-42. Blue Grid exclude
-43. Purple Grid exclude
-44. Record jack
+30. Record jack
+31. When recording ends
+32. Crossfade
+33. Red Trig mode
+34. Yellow Trig mode
+35. Blue Trig mode
+36. Purple Trig mode
+37. Red Speed V/Oct
+38. Yellow Speed V/Oct
+39. Blue Speed V/Oct
+40. Purple Speed V/Oct
+41. Red Grid exclude
+42. Yellow Grid exclude
+43. Blue Grid exclude
+44. Purple Grid exclude
 
 VCV context menu (same commands, playheads by colour inside each submenu):
-When recording ends, Record jack, Crossfade, — divider —, One-shot on
+Record jack, When recording ends, Crossfade, — divider —, One-shot on
 trigger, Speed CV = V/Oct, Exclude from Grid.
 
 ## Löp  *(native MM module)*
@@ -102,13 +102,13 @@ Roller params:
 
 Options (roller AltParams under an "Options:" header):
 
-10. When recording ends
-11. Crossfade
-12. Trigger
-13. Speed CV V/Oct
-14. Record jack
+10. Record jack
+11. When recording ends
+12. Crossfade
+13. Trigger
+14. Speed CV V/Oct
 
-VCV context menu: When recording ends, Record jack, Crossfade, — divider —,
+VCV context menu: Record jack, When recording ends, Crossfade, — divider —,
 One-shot on trigger, Speed CV = V/Oct.
 
 ## MF-20  *(VCV-adapter module)*

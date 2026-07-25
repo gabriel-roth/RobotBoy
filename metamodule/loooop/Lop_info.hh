@@ -66,13 +66,14 @@ struct LopInfo : ModuleInfoBase {
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
         QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
         // ── Options (menu-only alt-params), grouped by command ──
+        // Param order deliberately reordered 2026-07-25 (pre-release):
+        // Record jack sits above When recording ends, matching the VCV menu.
+        // Breaks MM patches saved before this commit.
+        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", "", 0.f, 0.f}},
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", "", 0.f, 0.f}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Trigger mode", "", 0.f, 0.f}},
         QlpVoctAlt{{0.f, 0.f, Center, "Speed CV V/Oct", "", 0.f, 0.f}},
-        // Appended LAST among params (old-patch safety) -- Display stays the
-        // trailing sentinel entry.
-        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", "", 0.f, 0.f}},
         QlpDisplay{{1.500f, 10.400f, TopLeft, "Display", "", 57.960f, 22.350f}},
     }};
 
@@ -83,10 +84,8 @@ struct LopInfo : ModuleInfoBase {
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         DryWetCvIn, RecTrigIn, ClearTrigIn,
         OutL, OutR,
-        TrigWhenRecAlt, CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
-        // Appended LAST among params (old-patch safety) -- see the Elements
-        // array comment above.
-        RecGateAlt,
+        // Order matches the Elements array (reordered 2026-07-25 pre-release)
+        RecGateAlt, TrigWhenRecAlt, CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
         Display,
     };
 

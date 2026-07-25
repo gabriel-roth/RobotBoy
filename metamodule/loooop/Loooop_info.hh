@@ -140,6 +140,10 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackOut{{185.690f, 102.100f, Center, "Purple Out R", "", 8.f, 8.f}},
 
         // ── Options (menu-only alt-params), grouped by command ──
+        // Param order deliberately reordered 2026-07-25 (pre-release):
+        // Record jack sits above When recording ends, matching the VCV menu.
+        // Breaks MM patches saved before this commit.
+        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", ""}},
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", ""}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
         QlpTrigModeAlt{{0.f, 0.f, Center, "Red Trig mode", ""}},
@@ -154,10 +158,6 @@ struct LoooopInfo : ModuleInfoBase {
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Yellow Grid exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Blue Grid exclude", ""}},
         QlpExcludeGridAlt{{0.f, 0.f, Center, "Purple Grid exclude", ""}},
-        // Appended LAST among params (old-patch safety: MetaModule assigns
-        // param IDs by Elements-array position) -- Display stays the trailing
-        // sentinel entry.
-        QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", ""}},
 
         QlpDisplay{{76.653f, 10.400f, TopLeft, "Display", "", 39.733f, 22.350f}},
     }};
@@ -180,15 +180,14 @@ struct LoooopInfo : ModuleInfoBase {
         // Head output jacks
         Head1OutL, Head1OutR, Head2OutL, Head2OutR,
         Head3OutL, Head3OutR, Head4OutL, Head4OutR,
-        // Options (menu-only alt-params), grouped by command
+        // Options (menu-only alt-params), grouped by command; order matches
+        // the Elements array (reordered 2026-07-25 pre-release, see above)
+        RecGateAlt,
         TrigWhenRecAlt,
         CrossfadeSwitch,
         TrigMode1Alt, TrigMode2Alt, TrigMode3Alt, TrigMode4Alt,
         SpeedVoct1Alt, SpeedVoct2Alt, SpeedVoct3Alt, SpeedVoct4Alt,
         ExcludeGrid1Alt, ExcludeGrid2Alt, ExcludeGrid3Alt, ExcludeGrid4Alt,
-        // Appended LAST among params (old-patch safety) -- see the Elements
-        // array comment above.
-        RecGateAlt,
         Display,
     };
 
