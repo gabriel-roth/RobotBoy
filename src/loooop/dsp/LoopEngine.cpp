@@ -479,7 +479,7 @@ void LoopEngine::readHead(const PlayHead& h, int headIdx, double winStart, doubl
     outR = go * outR + gi * readRaw(headPos, bufR_);
 }
 
-void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLen) {
+void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLen, bool dispTick) {
     if (h.osRamp < 1.f) {
         h.osRamp += osRampStep_;
         if (h.osRamp > 1.f) h.osRamp = 1.f;
@@ -517,10 +517,17 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
         }
     }
 
-    const float invL = invLoopLen_;   // loopLen_ > 0 whenever heads run
-    dispPos01_[idx].store(static_cast<float>(h.pos) * invL, std::memory_order_relaxed);
-    dispWinStart01_[idx].store(static_cast<float>(winStart) * invL, std::memory_order_relaxed);
-    dispWinEnd01_[idx].store(static_cast<float>(winStart + winLen) * invL, std::memory_order_relaxed);
+    // Position/window mirrors feed only the display; throttled to ~750 Hz at
+    // 48 kHz (Findings §2 M5). dispPlaying_ stays unconditional (below) so a
+    // one-shot pass ending is never delayed behind the throttle; store
+    // ordering is preserved (position/window, then playing) whether or not
+    // this sample is a tick.
+    if (dispTick) {
+        const float invL = invLoopLen_;   // loopLen_ > 0 whenever heads run
+        dispPos01_[idx].store(static_cast<float>(h.pos) * invL, std::memory_order_relaxed);
+        dispWinStart01_[idx].store(static_cast<float>(winStart) * invL, std::memory_order_relaxed);
+        dispWinEnd01_[idx].store(static_cast<float>(winStart + winLen) * invL, std::memory_order_relaxed);
+    }
     dispPlaying_[idx].store(h.playing, std::memory_order_relaxed);   // publishes a one-shot pass ending
 }
 
@@ -529,6 +536,11 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
     // the loop (and summed forever by overdub) until the user hits Clear.
     if (!std::isfinite(inL)) inL = 0.f;
     if (!std::isfinite(inR)) inR = 0.f;
+    // Display-mirror store throttle (Findings §2 M5): gates the per-head
+    // position/window mirrors (advanceHead and the parked-head block below)
+    // to ~750 Hz at 48 kHz, far above any display frame rate. Recording-state
+    // mirrors and dispPlaying_ are untouched -- they publish unconditionally.
+    const bool dispTick = ((dispThrottle_++ & 63) == 0);
     if (recording_) {
         if (loopLen_ == 0) {                 // initial pass: overwrite
             bufL_[writeIdx_] = inL;
@@ -597,14 +609,18 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
                 // Armed / finished one-shot: silent, but keep the displayed
                 // window in sync with Size/Position so the panel tracks the
                 // knob. Park the head marker at the window start (direction-
-                // aware) so it stays inside the window bar.
-                double ws, wl;
-                windowBoundsCached(h, i, 0, h.jitterOff, ws, wl);
-                const float invL = invLoopLen_;
-                const double hp = h.speed < 0.f ? ws + wl - 1.0 : ws;
-                dispPos01_[i].store(static_cast<float>(hp) * invL, std::memory_order_relaxed);
-                dispWinStart01_[i].store(static_cast<float>(ws) * invL, std::memory_order_relaxed);
-                dispWinEnd01_[i].store(static_cast<float>(ws + wl) * invL, std::memory_order_relaxed);
+                // aware) so it stays inside the window bar. Display-only, so
+                // skip the whole block (including the cached windowBounds
+                // call) when this sample isn't a display tick.
+                if (dispTick) {
+                    double ws, wl;
+                    windowBoundsCached(h, i, 0, h.jitterOff, ws, wl);
+                    const float invL = invLoopLen_;
+                    const double hp = h.speed < 0.f ? ws + wl - 1.0 : ws;
+                    dispPos01_[i].store(static_cast<float>(hp) * invL, std::memory_order_relaxed);
+                    dispWinStart01_[i].store(static_cast<float>(ws) * invL, std::memory_order_relaxed);
+                    dispWinEnd01_[i].store(static_cast<float>(ws + wl) * invL, std::memory_order_relaxed);
+                }
                 continue;
             }
             double winStart, winLen;
@@ -614,7 +630,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
             // the mono process() below) via smoothedLevel().
             heads[i].l = l;
             heads[i].r = r;
-            advanceHead(h, i, winStart, winLen);
+            advanceHead(h, i, winStart, winLen, dispTick);
         }
     }
 }

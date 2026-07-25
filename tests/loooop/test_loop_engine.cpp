@@ -293,14 +293,20 @@ static void test_display_snapshot() {
     check(s2.loopLen == 4 && !s2.recording,  "snap: loop frozen at 4");
     check(near(s2.headPos01[0], 0.f),        "snap: head starts at 0");
 
-    e.process(0.f); e.process(0.f);          // head advances to pos 2 of 4
+    // Display mirrors (Task 8) are throttled to every 64th sample; tick past
+    // the throttle boundary before reading a snapshot instead of reading
+    // right after a couple of process() calls. 61 more samples lands on
+    // the 65th process() call since reset() (call #1 landed on a tick too,
+    // but during the still-unfrozen record pass, so it had no effect) --
+    // the head has advanced 61 samples by then, 61 mod 4 == 1.
+    for (int i = 0; i < 61; ++i) e.process(0.f);
     auto s3 = e.displaySnapshot();
-    check(near(s3.headPos01[0], 0.5f),       "snap: head pos 0.5 after 2 samples");
+    check(near(s3.headPos01[0], 0.25f),      "snap: head pos 0.25 after settling past the display tick");
     check(near(s3.winStart01[0], 0.f),       "snap: full window start == 0");
     check(near(s3.winEnd01[0], 1.f),         "snap: full window end == 1");
 
     e.setSize(0, 0.5f); e.setPosition(0, 0.5f);
-    e.process(0.f);                          // one sample so mirrors update
+    for (int i = 0; i < 64; ++i) e.process(0.f);   // settle past the next display-mirror tick
     auto s4 = e.displaySnapshot();
     check(near(s4.winStart01[0], 0.25f),     "snap: half window start == 0.25");
     check(near(s4.winEnd01[0], 0.75f),       "snap: half window end == 0.75");
@@ -337,7 +343,16 @@ static void test_display_snapshot_four_heads() {
     e.toggleRecord();                       // loop of 8, all heads at pos 0
     e.setSpeed(1, 2.f);                     // head 1 double speed
     e.setSize(2, 0.5f); e.setPosition(2, 0.5f);   // head 2 half window [2,6)
-    e.process(0.f);                         // advance all heads once
+    // Display mirrors (Task 8) are throttled to every 64th sample; settle
+    // past the throttle boundary (57 more samples reaches the 65th
+    // process() call since reset(), the next tick after the record pass'
+    // own tick at call #1, which had no effect while the loop was still
+    // unfrozen) instead of reading right after a single process() call.
+    // 64 is a multiple of the 8-sample loop length (and head 1's 4-sample
+    // period, and head 2's 4-sample period once parked in its window), so
+    // every head is back at the exact phase a single-step read would have
+    // shown.
+    for (int i = 0; i < 57; ++i) e.process(0.f);
     auto s = e.displaySnapshot();
     check(near(s.headPos01[0], 1.f/8.f),  "snap4: head0 pos 1/8");
     check(near(s.headPos01[1], 2.f/8.f),  "snap4: head1 pos 2/8 (double speed)");
@@ -648,6 +663,11 @@ static void test_triggers_no_loop() {
 static void test_jitter_off_stable() {
     LoopEngine e; record_ramp(e, 8);
     e.setSize(0, 0.5f);                    // window can move
+    // Display mirrors (Task 8) are throttled to every 64th sample: settle
+    // past one tick here so the measurement loop below starts reading the
+    // post-setSize window, not a stale pre-change value (which would read
+    // as spurious "movement" the first time the throttle catches up).
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     bool moved = false; float first = -1.f;
     for (int i = 0; i < 64; ++i) {
         e.process(0.f);
@@ -1184,6 +1204,10 @@ static void test_grid_size_snaps_to_segments() {
     check(near(e.process(0.f), 11.f), "grid_size: out[2]==11");
     check(near(e.process(0.f), 12.f), "grid_size: out[3]==12");
     check(near(e.process(0.f), 9.f),  "grid_size: out[4]==9 (wrapped)");
+    // Window is static (no jitter); settle a full throttle period (Task 8:
+    // display mirrors tick every 64th sample) so the snapshot below reflects
+    // the current window instead of a stale pre-setSize value.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(s.grid == 4, "grid_size: snapshot reports grid");
     check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 0.75f),
@@ -1206,6 +1230,9 @@ static void test_grid_window_clamped_inside_loop() {
     e.setSize(0, 0.6f);              // 9.6 -> 2 segments (8 samples)
     e.setPosition(0, 1.f);           // start 12 -> k clamped to 2 -> [8,16)
     check(near(e.process(0.f), 9.f), "grid_clamp: window pinned inside loop");
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(near(s.winStart01[0], 0.5f) && near(s.winEnd01[0], 1.f),
           "grid_clamp: snapshot [0.5,1.0]");
@@ -1215,7 +1242,9 @@ static void test_grid_min_one_segment() {
     LoopEngine e; record_ramp(e, 16);
     e.setGrid(4);
     e.setSize(0, 0.01f);             // under one segment -> grows to 1 segment
-    e.process(0.f);
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
     check(near(s.winEnd01[0] - s.winStart01[0], 0.25f),
           "grid_min: window grows to one segment");
@@ -1267,7 +1296,9 @@ static void test_grid_exclude_head() {
     LoopEngine c; record_ramp(c, 16);
     c.setGrid(4); c.setGridExclude(0, true);
     c.setSize(1, 0.3f); c.setPosition(1, 0.37f);   // would snap: 1 segment at [4,8)
-    c.process(0.f);
+    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // sample) before reading the snapshot; the window is static here.
+    for (int i = 0; i < 64; ++i) c.process(0.f);
     const auto s = c.displaySnapshot();
     check(near(s.winStart01[1], 0.25f) && near(s.winEnd01[1], 0.5f),
           "grid_excl: non-excluded head still snaps");
@@ -1275,7 +1306,7 @@ static void test_grid_exclude_head() {
     // Re-including restores snapping.
     c.setGridExclude(0, false);
     c.setSize(0, 0.3f); c.setPosition(0, 0.37f);
-    c.process(0.f);
+    for (int i = 0; i < 64; ++i) c.process(0.f);   // settle past another throttle tick
     const auto s2 = c.displaySnapshot();
     check(near(s2.winStart01[0], 0.25f) && near(s2.winEnd01[0], 0.5f),
           "grid_excl: re-included head snaps again");
@@ -1361,11 +1392,14 @@ static void test_armed_oneshot_window_tracks_size() {
     e.setOneShot(0, true);            // arm: head 0 goes silent
     e.setSize(0, 0.5f);
     e.setPosition(0, 0.5f);
-    e.process(0.f, 0.f, hs);          // one idle sample
+    // The parked-head display block (Task 8) is throttled to every 64th
+    // sample too; settle past a tick instead of reading right after one
+    // idle sample.
+    for (int i = 0; i < 64; ++i) e.process(0.f, 0.f, hs);
     auto s1 = e.displaySnapshot();
     const float halfWin = s1.winEnd01[0] - s1.winStart01[0];
     e.setSize(0, 1.0f);               // grow the window
-    e.process(0.f, 0.f, hs);
+    for (int i = 0; i < 64; ++i) e.process(0.f, 0.f, hs);   // settle past another tick
     auto s2 = e.displaySnapshot();
     const float fullWin = s2.winEnd01[0] - s2.winStart01[0];
     check(fullWin > halfWin + 0.1f, "armed one-shot: window grows with Size");

@@ -170,7 +170,10 @@ private:
     float oneShotFadeGain(const PlayHead& h, double winStart, double winLen, int F) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
-    void advanceHead(PlayHead& h, int idx, double winStart, double winLen);
+    // dispTick gates the position/window display-mirror stores (Findings §2
+    // M5): dispPlaying_ is NOT gated here — one-shot pass endings must
+    // publish immediately regardless of the throttle.
+    void advanceHead(PlayHead& h, int idx, double winStart, double winLen, bool dispTick);
     // Waveform-cache invalidation: bumped (release) after any change to the
     // recorded audio so display hosts re-render the static waveform only when
     // recorded audio actually changed. Only the audio thread writes; the
@@ -233,6 +236,12 @@ private:
     // the display still converges immediately at pass boundaries.
     std::uint32_t revThrottle_ = 0;
     static constexpr std::uint32_t REV_THROTTLE_MASK = 2047;
+    // Display-mirror store throttle (Findings §2 M5): advanceHead's per-head
+    // position/window stores (and the parked-head display block in process())
+    // are gated to ~750 Hz at 48 kHz -- far above any display frame rate.
+    // dispPlaying_ is excluded: state transitions (e.g. a one-shot pass
+    // ending) must publish immediately, not wait for the next tick.
+    std::uint32_t dispThrottle_ = 0;
     std::array<std::atomic<float>, NUM_HEADS> dispPos01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};
