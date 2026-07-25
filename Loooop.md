@@ -114,6 +114,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 - **Random slicer:** clock a sample-and-hold on a random source and feed the stepped CV into **Jump** — each new voltage flings the playhead to a fresh spot in the window. (Jump follows the *voltage*, not trigger edges, so a bare trigger just lands the head back at the window start when the pulse falls; hold the voltage between steps and amplify to the full 0–10V range.)
 - **Wide moving field:** spread the four heads across the stereo image with their **Pan** knobs, or patch slow, phase-offset LFOs into the Pan CVs so they drift around each other.
 - **Rhythmic re-slicer:** record a drum loop and set each head to **One-shot** with a small window. Trigger them from a sequencer to rearrange the beat, and turn on **Grid** so every slice lands exactly on a division.
+- **Self-loading sampler:** patch the 4ms Basic WAV Player's audio outs into **In L / In R** and its **Play Gate** output into **Record trigger**, then set **Record jack** to **Gate** in the context menu. Play the file once and it records itself straight into the buffer, perfectly trimmed — the gate opens recording when playback starts and closes it when the file ends, leaving four heads ready to loooop it.
 - **Separate processing:** take each head's own **Out L/R** into different reverbs, filters, or panners instead of using the combined Mix. Turn **Level** all the way CCW to remove a playhead from the Mix. 
 
 ---
