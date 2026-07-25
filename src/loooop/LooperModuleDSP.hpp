@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cmath>
+#include <cstdint>
 #include "dsp/LoopEngine.hpp"
 
 namespace loooop {
@@ -124,5 +125,84 @@ struct OnePoleSmoother {
 inline float smootherAlpha(float sampleRate, float tauSec) {
     return 1.f - std::exp(-1.f / (tauSec * sampleRate));
 }
+
+// Decides record actions from the Record button + jack per sample, shared by
+// all four Loooop/Löp hosts (VCV + MetaModule). Trigger mode reproduces
+// today's single combined edge byte-for-byte: `bool recEdge = (recPressed ||
+// recTrig) && !recPrev_` -- ONE Toggle per combined rising edge, never one
+// per input, so a button press while the jack is already high does NOT fire
+// (and vice versa). Gate mode reinterprets only the jack: its own rising and
+// falling edges drive Punch/Close/None per the spec's gate-mode table, while
+// the panel button stays an independent press-to-toggle escape hatch (if a
+// button press and a jack edge land on the same sample in Gate mode, the
+// button wins).
+struct RecordGateHelper {
+    enum class Action : uint8_t { None, Toggle, Close, Punch };
+
+    // gateMode: current "Record jack" option (false = Trigger, true = Gate);
+    // jackHigh: the jack comparator's output this sample (already past
+    // whatever threshold/hysteresis the host applies); buttonPressed: the
+    // panel Record button's momentary state this sample; engineRecording:
+    // LoopEngine::isRecording() as of the START of this sample, i.e. before
+    // this call's action (if any) is applied to the engine.
+    Action step(bool gateMode, bool jackHigh, bool buttonPressed, bool engineRecording) {
+        if (!primed_) {
+            // First call ever: adopt the incoming mode as-is, WITHOUT
+            // treating it as a "flip" (there's nothing to flip from yet) --
+            // otherwise a freshly-constructed helper's first Gate-mode call
+            // would stomp whatever syncTo() just primed with this same
+            // sample's jack level, cancelling the very edge being read.
+            prevMode_ = gateMode;
+            primed_ = true;
+        } else if (gateMode != prevMode_) {
+            // Mode just flipped: resync the edge detector to the level it
+            // would already show had the module always been in the new mode,
+            // so the flip itself can never fire a phantom edge (a high gate
+            // at load/mode-flip must fire nothing).
+            prevJack_ = gateMode ? jackHigh : (buttonPressed || jackHigh);
+            prevMode_ = gateMode;
+        }
+
+        const bool buttonRising = buttonPressed && !prevButton_;
+        prevButton_ = buttonPressed;
+
+        if (!gateMode) {
+            // Trigger mode: byte-for-byte today's behavior. prevJack_ here
+            // latches the combined (button||jack) level, not the bare jack
+            // level -- that's what makes the OR'd edge single-fire.
+            const bool combinedHigh = buttonPressed || jackHigh;
+            const bool rising = combinedHigh && !prevJack_;
+            prevJack_ = combinedHigh;
+            return rising ? Action::Toggle : Action::None;
+        }
+
+        const bool jackRising = jackHigh && !prevJack_;
+        const bool jackFalling = !jackHigh && prevJack_;
+        prevJack_ = jackHigh;
+
+        Action action = Action::None;
+        if (jackRising)
+            action = engineRecording ? Action::Punch : Action::Toggle;
+        else if (jackFalling && engineRecording)
+            action = Action::Close;
+
+        if (buttonRising) action = Action::Toggle;   // button always wins
+        return action;
+    }
+
+    // Call on a mode-param change and on patch load / first process: primes
+    // the jack edge detector to the current level so a high gate doesn't
+    // fire a phantom edge. (step() also self-syncs on any mode flip it
+    // observes, so this is a defensive belt-and-suspenders call for the
+    // moment before the very first step() -- e.g. a patch loaded with the
+    // Record jack already high.)
+    void syncTo(bool jackHigh) { prevJack_ = jackHigh; }
+
+private:
+    bool prevButton_ = false;
+    bool prevJack_ = false;
+    bool prevMode_ = false;   // false = Trigger, matching the param default
+    bool primed_ = false;     // true once step() has run at least once
+};
 
 }  // namespace loooop
