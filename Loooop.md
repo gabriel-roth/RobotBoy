@@ -110,6 +110,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 - **Instant harmonizer:** record a sustained note, then set the four heads to different Speeds (e.g. 1, 1.5, 2, and −1) for chords and shimmer.
 - **Granular cloud:** shrink every head's **Size** right down, crank **Jitter**, and slowly sweep **Position**.
 - **Stutter machine:** patch an LFO or sequencer into a head's **Jump** input.
+- **Random slicer:** clock a sample-and-hold on a random source and feed the stepped CV into **Jump** — each new voltage flings the playhead to a fresh spot in the window. (Jump follows the *voltage*, not trigger edges, so a bare trigger just lands the head back at the window start when the pulse falls; hold the voltage between steps and amplify to the full 0–10V range.)
 - **Wide moving field:** spread the four heads across the stereo image with their **Pan** knobs, or patch slow, phase-offset LFOs into the Pan CVs so they drift around each other.
 - **Rhythmic re-slicer:** record a drum loop and set each head to **One-shot** with a small window. Trigger them from a sequencer to rearrange the beat, and turn on **Grid** so every slice lands exactly on a division.
 - **Separate processing:** take each head's own **Out L/R** into different reverbs, filters, or panners instead of using the combined Mix. Turn **Level** all the way CCW to remove a playhead from the Mix. 
