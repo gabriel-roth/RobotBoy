@@ -112,10 +112,24 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 
 - **Karplus-Strong string:** turn Interval a long way from center for an audio-rate delay, set Feedback high, and play notes into **Pitch CV** — each trigger plucks a decaying string. Feed it short bursts of noise for the classic effect.
 - **Spiralling echoes:** set a moderate delay and feedback, then nudge **Pitch** off its center detent. Every repeat climbs (or falls) a step, so a single note becomes an endless ascending shimmer.
-- **Tempo-locked stutter:** clock the **Clock** input from your sequencer, hold **Slice**, and sweep **Time** to jump between chopped slices of a recorded phrase in time.
+- **Tempo-locked stutter:** clock the **Clock** input from your sequencer, hold **Slice**, and sweep **Time** to jump between chopped slices of a recorded phrase in time. (For the full version, see the worked example below.)
 - **Gated rhythmic delay:** clock Retours, then turn up **Shape** to gate each repeat — the echoes become a rhythmic pattern locked to your tempo.
 - **Runaway tape:** choose **Scorched cassette**, push Feedback past unity, and ride Dry/Wet — the loop degrades a little more on every pass into a collapsing wall of lo-fi noise.
 - **Dive-bomb sweeps:** in **Tape** time-change mode, sweep **Interval** by hand or with a slow LFO for pitch-bending delay swoops.
+
+### Worked example: the beat slicer
+
+Retours re-chops a drum loop live, in tempo. The one connection that makes it musical is the clock — once Retours knows your tempo, slice lengths land exactly on beat divisions instead of arbitrary milliseconds.
+
+1. **Play a drum loop into In L / In R** — any steady-tempo source, like a sample player looping a one- or two-bar break. (Mono into just In L doubles the recording buffer.)
+2. **Patch your master clock into Clock** — quarter notes from the same clock your loop follows. No clock handy? Tap the Clock button in time; a tapped tempo holds until you clear it.
+3. **Set the module clean:** Quality on **Bright**, **Feedback** fully counter-clockwise (you're slicing, not echoing), **Pitch** on its center detent, **Shape** fully counter-clockwise, **Dry/Wet** fully wet. Keep **Interval** counter-clockwise of noon so the unsliced signal is a single tap rather than the busier multi-tap pattern.
+4. **Let the loop run a couple of bars** — Retours records continuously whenever Slice is off, so the buffer always holds the freshest audio.
+5. **Engage Slice.** Latch the button to explore by hand, or send gates to the **Slice** input — a sequencer lane that holds Slice high through the last beat of every bar gives automatic end-of-bar fills.
+6. While the slice is held, the two big knobs change jobs: **Interval sets the slice length** (clocked: straight up is one beat, counter-clockwise steps through 1/2, 1/4, 1/8, 1/16 — stutter territory at the short end) and **Time selects which slice plays**. Patch a step sequencer or stepped-random source into **Time CV** and Retours rearranges the drum loop slice by slice, in time.
+7. **Release Slice** and the live loop takes over again, seamlessly — alternate Slice on and off to flip between rearranged and live.
+
+From there: nudge **Pitch** off its detent during a slice for a spiralling stutter, or raise **Shape** into its gate zone for chopped, clock-synced repeats.
 
 ___
 _Retours is inspired by Mutable Instruments Beads, designed by Émilie Gillet. It uses some code from [No Such Texture](https://github.com/thorinside/nosuch_texture) by Neal Sanche._
