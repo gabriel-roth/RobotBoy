@@ -344,3 +344,161 @@ TEST_CASE("GrainEngine: automatic triggers drop against the ramped cap during st
     }
     REQUIRE(max_serial == std::max(serial_a, serial_b));
 }
+
+// ── (f) Manual triggers still steal at a saturated mid-size cap ───────────
+
+TEST_CASE("GrainEngine: a gate rising edge still steals at a saturated mid-size cap",
+          "[engine][longgrain][steal]") {
+    const size_t num_frames = 48000 * 8;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);  // DC: keeps the click-free fade
+                                    // observably pending within the
+                                    // 16-sample block below.
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.size = 0.5f;     // mid-size cap ~15 (see test (c)).
+    params.density = 0.5f;  // silent during the startup-ramp burn.
+
+    std::vector<StereoFrame> block(64);
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+    REQUIRE(engine.ActiveGrainCount() == 0);
+
+    // Saturate the dynamic cap with automatic ticks (they drop once full).
+    params.density = 0.0f;
+    const int kSettleSamples = 30000;
+    for (int i = 0; i < kSettleSamples; ++i) {
+        engine.Process(params, block.data(), 1);
+    }
+    int cap = engine.ActiveGrainCount();
+    REQUIRE(cap > 2);
+    REQUIRE(cap < kMaxGrains);
+
+    uint32_t oldest_serial = 0; int oldest_index = -1;
+    uint32_t max_serial_before = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (!engine.ActiveAt(i)) continue;
+        uint32_t serial = engine.SpawnSerialAt(i);
+        max_serial_before = std::max(max_serial_before, serial);
+        if (oldest_index < 0 || serial < oldest_serial) {
+            oldest_serial = serial;
+            oldest_index = i;
+        }
+    }
+    REQUIRE(oldest_index >= 0);
+
+    // Manual rising edge: never droppable, must steal exactly as before.
+    // 16-sample block (< the 32-sample zero-crossing deadline) catches the
+    // victim mid-fade, same technique as the cap-floor steal test (b).
+    params.trigger_mode = TriggerMode::kGated;
+    params.gate = true;
+    engine.Process(params, block.data(), 16);
+    params.gate = false;
+
+    REQUIRE(engine.ActiveAt(oldest_index));
+    REQUIRE(engine.PendingKillAt(oldest_index));
+    REQUIRE(engine.SpawnSerialAt(oldest_index) == oldest_serial);
+
+    int pending_kill_count = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.PendingKillAt(i)) ++pending_kill_count;
+    }
+    REQUIRE(pending_kill_count == 1);
+
+    int new_grain_index = -1;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.ActiveAt(i) && engine.SpawnSerialAt(i) > max_serial_before) {
+            new_grain_index = i;
+        }
+    }
+    REQUIRE(new_grain_index >= 0);
+
+    // Transient cap+1: victim still active (pending-kill) alongside the
+    // new grain.
+    REQUIRE(engine.ActiveGrainCount() == cap + 1);
+}
+
+// ── (g) Clock ticks are manual too: still steal at a saturated mid cap ────
+
+TEST_CASE("GrainEngine: a clock tick still steals at a saturated mid-size cap",
+          "[engine][longgrain][steal]") {
+    const size_t num_frames = 48000 * 8;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.size = 0.5f;
+    params.density = 0.5f;
+
+    std::vector<StereoFrame> block(64);
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+    REQUIRE(engine.ActiveGrainCount() == 0);
+
+    params.density = 0.0f;
+    const int kSettleSamples = 30000;
+    for (int i = 0; i < kSettleSamples; ++i) {
+        engine.Process(params, block.data(), 1);
+    }
+    int cap = engine.ActiveGrainCount();
+    REQUIRE(cap > 2);
+    REQUIRE(cap < kMaxGrains);
+
+    uint32_t oldest_serial = 0; int oldest_index = -1;
+    uint32_t max_serial_before = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (!engine.ActiveAt(i)) continue;
+        uint32_t serial = engine.SpawnSerialAt(i);
+        max_serial_before = std::max(max_serial_before, serial);
+        if (oldest_index < 0 || serial < oldest_serial) {
+            oldest_serial = serial;
+            oldest_index = i;
+        }
+    }
+    REQUIRE(oldest_index >= 0);
+
+    // kClocked at density 0.0 = /1 division: every clock tick fires, and
+    // clocked ticks are always manual (dropping would skip beats).
+    params.trigger_mode = TriggerMode::kClocked;
+    params.gate = true;
+    engine.Process(params, block.data(), 16);
+    params.gate = false;
+
+    REQUIRE(engine.ActiveAt(oldest_index));
+    REQUIRE(engine.PendingKillAt(oldest_index));
+
+    int new_grain_index = -1;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.ActiveAt(i) && engine.SpawnSerialAt(i) > max_serial_before) {
+            new_grain_index = i;
+        }
+    }
+    REQUIRE(new_grain_index >= 0);
+    REQUIRE(engine.ActiveGrainCount() == cap + 1);
+}
