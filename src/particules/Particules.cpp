@@ -374,12 +374,20 @@ struct Particules : Module {
 		params_.gate           = block_runtime_.ConsumeSeedGateLatch();
 		params_.freeze = frozen;
 
+		// With nothing patched into SEED, both modes free-run on Density
+		// (kLatched) — the SEED CV mode only decides how a *patched* input is
+		// interpreted (Triggers -> kClocked, Gates -> kGated). Before
+		// 2026-07-26, Gates set kGated unconditionally, which silenced the
+		// module when SEED was unpatched (gate permanently low).
+		const bool seed_patched = inputs[SEED_INPUT].isConnected();
 		if (seed_state_ == 0) {
-			params_.trigger_mode = inputs[SEED_INPUT].isConnected()
+			params_.trigger_mode = seed_patched
 				? particules_dsp::TriggerMode::kClocked
 				: particules_dsp::TriggerMode::kLatched;
 		} else {
-			params_.trigger_mode = particules_dsp::TriggerMode::kGated;
+			params_.trigger_mode = seed_patched
+				? particules_dsp::TriggerMode::kGated
+				: particules_dsp::TriggerMode::kLatched;
 		}
 		params_.quality_mode = static_cast<particules_dsp::QualityMode>(quality_state_);
 
