@@ -5,6 +5,11 @@
 `particules-longgrain-drop`; no menu option — replaces the old steal
 behavior outright).
 
+> **Superseded 2026-07-26:** the cap-floor-only condition and its
+> startup-ramp carve-out were generalized — automatic triggers now drop at
+> ANY saturated cap. See
+> `2026-07-26-particules-midrange-saturation-drop-design.md`.
+
 ## Problem
 
 At maximum Size, grain duration approaches the full buffer (\~4 s in Bright)

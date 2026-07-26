@@ -17,11 +17,11 @@ public:
     // with the sample offsets within the block where grains should start.
     // If droppable is non-null, droppable[i] is written for each emitted
     // trigger_samples[i]: true for automatic triggers the engine's spawn
-    // loop is allowed to silently drop at the long-grain cap floor instead
-    // of stealing (kLatched phasor ticks, kGated held-repeat ticks); false
+    // loop silently drops when the grain pool is saturated, instead of
+    // stealing (kLatched phasor ticks, kGated held-repeat ticks); false
     // for manual triggers, which always steal (kGated rising edge, all
     // kClocked ticks, kMidi). See
-    // docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md.
+    // docs/superpowers/specs/2026-07-26-particules-midrange-saturation-drop-design.md.
     int Process(const ParticulesParameters& params, size_t block_size,
                 int* trigger_samples, int max_triggers, bool* droppable = nullptr);
 
