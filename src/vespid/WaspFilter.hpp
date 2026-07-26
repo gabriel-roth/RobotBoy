@@ -159,7 +159,7 @@ public:
         float denom = 1.f - A * (Q + 1.f) * m.invNInv;
         float hp = (F0 - A * vgPrev + A * P * m.invNInv) / std::max(denom, 0.05f);
 
-        // ---- Newton refinement (2 iterations) -----------------------------
+        // ---- Newton refinement (up to 2 iterations, early exit) -----------
         // The fixed-pivot solve alone leaves per-sample error that lands
         // in-band as inharmonic noise — ~10% of audio-band energy on a saw in
         // British mode (its inverter is ~3x curvier relative to its rails,
@@ -169,6 +169,12 @@ public:
         // one step is not enough at high f0. Derivatives use the exact
         // 1 - t*t form; values reuse the v*tanhXdX identity from the commit
         // block, and the diode gets value+slope from one sinhCoshFast call.
+        // The second iteration only matters on samples whose first correction
+        // was large (waveform corners, clip entries): skipping it when
+        // |step| < 0.5 V leaves every purity measurement unchanged — steady
+        // and full-drive/high-res alike — while cutting the average to
+        // ~1.1-1.5 iterations. Three or more iterations measurably HURT
+        // purity (the clamped step bounces on extreme samples); keep max 2.
         for (int it = 0; it < 2; ++it) {
             float uh2 = m.c * hp;
             float rh2 = tanhXdX(uh2);
@@ -206,6 +212,8 @@ public:
             float drdhp = 1.f - An * (dsum + 1.f) * m.invNInv;
             float step = r / std::max(drdhp, 0.25f);
             hp -= std::clamp(step, -2.f, 2.f);
+            if (step > -0.5f && step < 0.5f)
+                break;
         }
 
         // The inverter output physically cannot exceed its rails, so hp is
