@@ -2,14 +2,23 @@
 
 Robot Boy includes three filters, each modeling a famous analog filter with a strong personality: the Korg MS-20, the Soviet Polivoks, and the EDP Wasp. Each is modeled from the behavior of the original circuit — the way it distorts and rings — rather than a clean filter with a distortion stage added.
 
-All three are stereo (the right input is normalled to the left, so a mono patch fills both sides), and all run polyphonically on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Each also has a **Drive** control that pushes the signal into the circuit's own nonlinearities.
+The MS-20 has two filters in series and screams when pushed. The Polivoks has an inverse relationship between drive and resonance — the harder you push the input, the *less* it rings. The Wasp sits right at the edge of self-oscillation and can be nudged over it.
 
-The MS-20 has two filters in series and screams when pushed. The Polivoks has an inverse relationship between drive and resonance — the harder you push the input, the *less* it rings. The Wasp sits right at the edge of self-oscillation and can be nudged over it. The sections below cover each in full.
-
+- [What all three share](#what-all-three-share)
 - [MF-20 — the Korg MS-20 filter](#mf-20--the-korg-ms-20-filter)
 - [Onbetap — the Formanta Polivoks filter](#onbetap--the-formanta-polivoks-filter)
 - [Vespid — the EDP Wasp filter](#vespid--the-edp-wasp-filter)
-- [At a glance](#at-a-glance)
+
+---
+
+## What all three share
+
+All of this holds for MF-20, Onbetap, and Vespid; the sections below cover only what's specific to each.
+
+- **Stereo audio in and out.** The right input is normalled to the left, so patching **In L** alone fills both sides.
+- **Polyphonic** on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule).
+- **Cutoff** spans 20 Hz – 20 kHz, and every cutoff CV input tracks **1 V/octave.**
+- The options listed under each filter below are in the right-click menu in VCV Rack, or under Options on MetaModule.
 
 ---
 
@@ -21,40 +30,36 @@ The MS-20 has two filters in series and screams when pushed. The Polivoks has an
 
 The **Korg MS-20** (1978) is a semi-modular monophonic synth that became one of the most sampled and cloned instruments ever made. Much of its reputation rests on its filter, which is unusually aggressive at high resonance and cuts through a mix.
 
-Korg built that filter two different ways over the instrument's life: Early units (1978–79) used a Korg-made chip, the **Korg-35,** in a Sallen-Key design; later units switched to the more common **LM13600** transconductance amplifier. The Korg-35 version is edgier, with a rawer distortion; the later chip is smoother, especially at maximum resonance. MF-20 emulates both, switchable in the right-click menu.
+Korg built it two ways: early units (1978–79) used a Korg-made chip, the **Korg-35,** in a Sallen-Key design; later units switched to the more common **LM13600** transconductance amplifier. The Korg-35 is edgier and rawer; the later chip is smoother, especially at maximum resonance. MF-20 emulates both, switchable in the right-click menu.
 
 ### How it works
 
-The signal passes through the **high-pass filter first, then the low-pass.** Sweeping them against each other opens a band or a notch, which is where a lot of the MS-20's vocal, wah-like sounds come from. Both filters self-oscillate cleanly at maximum resonance, so either can be played as a raw sine-ish voice. **Drive** overdrives the input for saturation and harmonic color.
+The signal passes through the **high-pass filter first, then the low-pass.** Sweeping them against each other opens a band or a notch, which is where a lot of the MS-20's vocal, wah-like sounds come from. Both filters self-oscillate cleanly at maximum resonance, so either can be played as a raw sine-ish voice.
 
-The two cutoffs have independent knobs. To sweep them together the way the MS-20's shared cutoff modulation does, patch the **Total** cutoff input — it moves both at once, holding the band or notch shape while shifting it up and down the frequency spectrum.
+The two cutoffs have independent knobs. To sweep them together the way the MS-20's shared cutoff modulation does, patch the **Total** cutoff input — it moves both at once, holding the band or notch shape while shifting it up and down.
 
 ### Controls
 
-- **HP Cutoff** — high-pass cutoff, 20 Hz – 20 kHz, default 120 Hz.
-- **HP Peak** — high-pass resonance, 0–100%. Self-oscillates at 100%.
-- **LP Cutoff** — low-pass cutoff, 20 Hz – 20 kHz, default 750 Hz.
-- **LP Peak** — low-pass resonance, 0–100%. Self-oscillates at 100%.
+- **HP Cutoff** — high-pass cutoff, default 120 Hz.
+- **HP Peak** — high-pass resonance. Self-oscillates at 100%.
+- **LP Cutoff** — low-pass cutoff, default 750 Hz.
+- **LP Peak** — low-pass resonance. Self-oscillates at 100%.
 - **Drive** — 1× to 8×. At 1× the OTA filter is clean (in Korg35 mode a full-scale ±5 V signal already grazes the clipper); raising it drives the input into soft clipping.
-
-The two filters are always independent at the knob level; use the **Total** input (below) to move them together.
 
 ### I/O
 
-- **Audio in (L / R)** — patch L only for mono (it feeds both sides).
-- **Audio out (L / R)** — the output from the HP→LP chain.
-- **LP Cutoff CV** and **HP Cutoff CV** — modulate each cutoff independently, each with its own attenuverter (±1×).
-- **Total Cutoff CV** — sweeps **both** cutoffs together, with its own attenuverter. Use this input for filter sweeps that keep the band/notch intact.
+- **LP Cutoff CV** and **HP Cutoff CV** — modulate each cutoff independently.
+- **Total Cutoff CV** — sweeps **both** cutoffs together — the input to use for sweeps that keep the band or notch intact.
+
+Peak and Drive have no CV inputs: the MS-20 had no resonance modulation.
 
 ### Right-click menu
 
 - **Filter revision** — **OTA (revised MS-20)**, based on the later LM13600 design (smoother, more open), or **Korg35 (original MS-20)**, the early chip (edgier, grittier distortion).
 
-MF-20 is polyphonic on both hosts.
-
 ### Under the hood
 
-Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts its main nonlinearity in the forward (input) path with slightly asymmetric clipping — which produces the even-order harmonics that give the original its character — plus a second clipper in the resonance loop that keeps its scream in check.
+Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode models the LM13600 topology with diode saturation in the resonance feedback path; the Korg35 mode puts its main nonlinearity in the forward (input) path with slightly asymmetric clipping — producing the even-order harmonics behind the original's character — plus a second clipper in the resonance loop that keeps its scream in check.
 
 ### Sources
 
@@ -71,27 +76,23 @@ Both revisions use a zero-delay-feedback (TPT) implementation. The OTA mode mode
 
 The **Polivoks** (1982) is the best-known synthesizer to come out of the Soviet Union. It was designed by engineer Vladimir Kuzmin at the Formanta radio factory — its industrial look styled by his wife, Olimpiada, after Soviet military radios — and built in the tens of thousands for the domestic market, almost unknown in the West until long after the USSR was gone. (Kuzmin died in June 2026.)
 
-Its filter is famous for an extreme, slightly unstable resonance and a thick, buzzy distortion. Part of the reason is a genuinely unusual circuit: it's built from Soviet op-amp chips run in an unconventional way, with **no capacitors** in the usual filter positions at all. Onbetap models that circuit's behavior directly.
+Its filter is famous for an extreme, slightly unstable resonance and a thick, buzzy distortion, and the circuit behind it is genuinely unusual: Soviet op-amp chips run in an unconventional way, with **no capacitors** in the usual filter positions. Onbetap models that behavior directly.
 
 ### Behavior worth knowing
 
-A few of Onbetap's behaviors run counter to what most filters do — they're the heart of the Polivoks sound:
+These four behaviors run counter to what most filters do, and they are the heart of the Polivoks sound:
 
-- **Drive fights resonance.** On most filters, pushing the input harder makes the resonance ring louder. Here it's the reverse: a loud signal rings *less* than a quiet one at the same resonance setting. So Drive is effectively a second, inverse control over how much the filter sings — play softly and it howls, push hard and the peak ducks while the tone thickens.
-- **The self-oscillation point moves with cutoff.** Oscillation begins earlier on the resonance knob when the cutoff is high than when it's low, so the filter feels more on-edge in its upper range.
-- **It can turn suddenly harsh at the top of resonance,** dropping into a lower, harsher tone than the resonant frequency .
+- **Drive fights resonance.** On most filters, pushing the input harder makes the resonance ring louder. Here it's the reverse: a loud signal rings *less* than a quiet one at the same resonance setting. Play softly and it howls; push hard and the peak ducks while the tone thickens.
+- **The self-oscillation point moves with cutoff.** Oscillation begins earlier on the resonance knob when the cutoff is high, so the filter feels more on-edge in its upper range.
+- **It can turn suddenly harsh at the top of resonance,** dropping into a lower, harsher tone than the resonant frequency.
 - **No bass loss at high resonance.** The low end stays present under the sound even with resonance pushed hard.
 
 ### Controls
 
-- **Cutoff** — 20 Hz – 20 kHz, default 750 Hz. 1 V/octave CV input, scaled by its attenuverter.
-- **Q** (resonance) — 0–100%. Self-oscillation begins in the top fifth of the knob at typical cutoffs (earlier at high cutoff — see above). Its CV input covers the full range from a 0–5 V envelope at full attenuverter.
-- **Drive** — 0–100%, roughly −12 to +24 dB into the core. Adds asymmetric-clipping grit and, characteristically, suppresses resonance as you push it. CV input with attenuverter.
-- **Mode** — a five-position knob: **Lowpass** (12 dB/oct), **Bandpass** (6 dB/oct — the circuit's two native outputs), **Highpass**, **Notch**, and **Peak**. Lowpass and Bandpass match the original hardware; the other three are new additions from the same core. Mode changes crossfade over 5 ms to avoid clicks (except in Vintage — see below).
-
-### I/O
-
-- **Audio in / out** — stereo. The right input is normalled to the left.
+- **Cutoff** — default 750 Hz.
+- **Q** (resonance) — Self-oscillation begins in the top fifth of the knob at typical cutoffs (earlier at high cutoff — see above). Its CV input covers the full range from a 0–5 V envelope at full attenuverter.
+- **Drive** — 0–100%, roughly −12 to +24 dB into the core. Adds asymmetric-clipping grit and, characteristically, suppresses resonance as you push it.
+- **Mode** — a five-position knob: **Lowpass** (12 dB/oct), **Bandpass** (6 dB/oct — the circuit's two native outputs), **Highpass**, **Notch**, and **Peak**. Lowpass and Bandpass match the original hardware; the other three are new, from the same core. Mode changes crossfade over 5 ms to avoid clicks (except in Vintage — see below), and Mode has no CV input.
 
 ### Right-click menu
 
@@ -99,7 +100,7 @@ A few of Onbetap's behaviors run counter to what most filters do — they're the
 
 ### Under the hood
 
-The model was derived from factory Polivoks schematics, the Erica Synths DIY Polivoks VCF, and the physics of the К140УД12 programmable op-amp (there are no RC time constants in the core — cutoff is set by the op-amps' own bias current), rather than from a generic filter-plus-saturator. It's a nonlinear core, not a linear filter with distortion added.
+The model was derived from factory Polivoks schematics, the Erica Synths DIY Polivoks VCF, and the physics of the К140УД12 programmable op-amp (there are no RC time constants in the core — cutoff is set by the op-amps' own bias current), not from a generic filter-plus-saturator.
 
 ### Sources
 
@@ -116,32 +117,26 @@ The model was derived from factory Polivoks schematics, the Erica Synths DIY Pol
 
 ### The original
 
-The **Wasp** synthesizer (1978) was made by **Electronic Dream Plant,** a small British company run by musician Adrian Wagner and engineer Chris Huggett. It was famously make-do: cheap, light, in a black-and-yellow plastic case (hence the name) with a flat touch-plate keyboard and a built-in speaker. It became a cult favorite and was used by the likes of Devo and the Eurythmics.
+The **Wasp** synthesizer (1978) was made by **Electronic Dream Plant,** a small British company run by musician Adrian Wagner and engineer Chris Huggett. It was famously make-do: cheap, light, in a black-and-yellow plastic case (hence the name) with a flat touch-plate keyboard and a built-in speaker. It became a cult favorite, used by Devo and the Eurythmics.
 
-Its filter is famous for *how* it was built. To save money, EDP used cheap digital logic chips — meant for on/off switching — and ran them as analog amplifiers, well outside their intended use. The result is a filter with a gritty, buzzy character all its own. It's been cloned many times; the best known is **Doepfer's A-124.** Vespid models both the original and the A-124's modification.
+Its filter is famous for *how* it was built: to save money, EDP used cheap digital logic chips — meant for on/off switching — as analog amplifiers, well outside their intended use. The result is a gritty, buzzy character all its own. It's been cloned many times, best known as **Doepfer's A-124;** Vespid models both the original and the A-124's modification.
 
 ### How it works
 
-Vespid is a multimode state-variable filter, giving you **low-pass, band-pass, and high-pass** as a stereo pair each, plus a **Mix** output whose **Blend** knob crossfades from low-pass, through a notch at center, to high-pass. So you can pull three responses from one filter simultaneously, or morph between low and high on a single control (and modulate that morph with CV).
+Vespid is a multimode state-variable filter, giving you **low-pass, band-pass, and high-pass** as a stereo pair each, plus a **Mix** output whose **Blend** knob crossfades from low-pass, through a notch at center, to high-pass. So you can pull three responses at once, or morph between low and high on one control (with CV).
 
-The original Wasp sits right at the verge of self-oscillation — enough to whistle and chirp, but it never quite runs away. Doepfer's clone added a mod that pushes it over into full self-oscillation. Vespid models both, switchable via the context menu. 
+The original Wasp sits right at the verge of self-oscillation — enough to whistle and chirp, but it never quite runs away. Doepfer's clone added a mod that pushes it over. Vespid models both, switchable in the context menu.
 
 ### Controls
 
-- **Freq** — cutoff, 20 Hz – 20 kHz, default 750 Hz. Tracks 1 V/octave through its CV input, scaled by its attenuverter.
-- **Res** — resonance, 0–100%, default 0. CV input with attenuverter.
-- **Drive** — 0–100%, a 30 dB gain sweep into the filter, level-staged per Character mode to match the hardware each mode models. In **German mode**, drive 0 is a hot Eurorack signal into a Doepfer-style circuit — clean, with clipping arriving just up the knob. In **British mode**, drive 0 reproduces the original Wasp's own oscillator level into its +5 V circuit — already lightly overdriven, the classic "dirty Wasp" rasp, thickening from there. Pushing either mode further shifts the clipping from ragged and asymmetric toward a harder, odd-harmonic squareness. CV input with attenuverter.
+- **Freq** — cutoff, default 750 Hz.
+- **Res** — resonance, default 0.
+- **Drive** — a 30 dB gain sweep into the filter, level-staged per Character mode to match the hardware each models. At drive 0, **German** is a hot Eurorack signal into a Doepfer-style circuit — clean, with clipping just up the knob; **British** reproduces the original Wasp's own oscillator level into its +5 V circuit — already lightly overdriven, the classic "dirty Wasp" rasp. Pushing either further shifts the clipping from ragged and asymmetric toward a harder, odd-harmonic squareness.
 - **Blend** — crossfades the **Mix** output: fully counter-clockwise is low-pass, center (default) is a notch, fully clockwise is high-pass. It affects only the Mix output; the dedicated LP/BP/HP outputs are always available unblended.
-
-Each of Freq, Res, and Drive has its own CV input and attenuverter; Blend has a CV input (no attenuverter).
 
 ### I/O
 
-- **In (L / R)** — audio in; patch L only for mono (it feeds both sides).
-- **Freq / Res / Drive CV** — modulate those controls, scaled by their attenuverters.
-- **Blend CV** — modulates the Mix crossfade.
-- **HP / BP / LP outputs** — the three filter responses, each a stereo pair, all live at once.
-- **Mix output** — the LP–notch–HP blend set by the Blend knob, stereo.
+Alone among the three filters, Vespid has four outputs, each a stereo pair and all live at once: **HP**, **BP**, and **LP** carry the three filter responses unblended, and **Mix** carries the LP–notch–HP crossfade set by the Blend knob. **Freq**, **Res**, **Drive**, and **Blend** each have a CV input.
 
 ### Right-click menu
 

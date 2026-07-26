@@ -1,6 +1,6 @@
 # Ondes
 
-**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), inspired by the hidden wavetable mode on Mutable Instruments Beads. A two-dimensional wavetable set — 24 banks of eight waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every knob position between the stored waveforms is a smooth blend rather than a hard switch.
+**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), inspired by the hidden wavetable mode on Mutable Instruments Beads. A two-dimensional wavetable set — 24 banks of eight waveforms each, derived from Mutable Instruments Plaits — is navigated with two knobs: **Bank** sweeps across timbral families, **Position** sweeps through the waveforms inside the current family. Both axes are interpolated, so every position between stored waveforms is a blend, not a hard switch.
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="500">
 
@@ -33,7 +33,4 @@
 - Audio-rate V/Oct plus a second oscillator into Bank/Position for FM-like sidebands.
 
 ---
-_Ondes is inspired by Mutable Instruments Beads, designed by Émilie Gillet. It uses wavetable data derived from Mutable Instruments Plaits by Emilie Gillet, and code from [No Such Texture](https://github.com/thorinside/nosuch_texture) by Neal Sanche._
-
-
-
+_Ondes is inspired by Mutable Instruments Beads, designed by Émilie Gillet. It uses wavetable data derived from Mutable Instruments Plaits by Émilie Gillet, and code from [No Such Texture](https://github.com/thorinside/nosuch_texture) by Neal Sanche._
