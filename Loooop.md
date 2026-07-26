@@ -83,7 +83,7 @@ Nearly every knob has an associated **CV input.** Positive or negative CV is add
 - **Speed / Position / Size / Level / Jitter / Pan CV** — modulate that head's knob. (Pan is bipolar: about −5V pushes hard left, +5V hard right, centered at 0V.)
 - **Out L / Out R** — that head's isolated stereo output.
 - **Trig** — retriggers the head (see below).
-- **Jump** — a control voltage that snaps the playhead to a spot within its window (0V = start of window, 10V = end). Great for stutter and glitch effects driven by an LFO or sequencer.
+- **Jump** — a control voltage that snaps the playhead to a spot within its window (0V = start of window, 10V = end). Great for stutter and glitch effects driven by an LFO or sequencer. (Jump follows the *voltage*, not trigger edges, so a bare trigger just lands the head back at the window start when the pulse falls; hold the voltage between steps and amplify to the full 0–10V range.)
 
 ### Trigger jacks and one-shot mode
 
@@ -111,7 +111,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 - **Instant harmonizer:** record a sustained note, then set the four heads to different Speeds (e.g. 1, 1.5, 2, and −1) for chords and shimmer.
 - **Granular cloud:** shrink every head's **Size** right down, crank **Jitter**, and slowly sweep **Position**.
 - **Stutter machine:** patch an LFO or sequencer into a head's **Jump** input.
-- **Random slicer:** clock a sample-and-hold on a random source and feed the stepped CV into **Jump** — each new voltage flings the playhead to a fresh spot in the window. (Jump follows the *voltage*, not trigger edges, so a bare trigger just lands the head back at the window start when the pulse falls; hold the voltage between steps and amplify to the full 0–10V range.)
+- **Random slicer:** clock a sample-and-hold on a random source and feed the stepped CV into **Jump** — each new voltage flings the playhead to a fresh spot in the window.
 - **Wide moving field:** spread the four heads across the stereo image with their **Pan** knobs, or patch slow, phase-offset LFOs into the Pan CVs so they drift around each other.
 - **Rhythmic re-slicer:** record a drum loop and set each head to **One-shot** with a small window. Trigger them from a sequencer to rearrange the beat, and turn on **Grid** so every slice lands exactly on a division.
 - **Self-loading sampler:** patch the 4ms Basic WAV Player's audio outs into **In L / In R** and its **Play Gate** output into **Record trigger**, then set **Record jack** to **Gate** in the context menu. Play the file once and it records itself straight into the buffer, perfectly trimmed — the gate opens recording when playback starts and closes it when the file ends, leaving four heads ready to loooop it.

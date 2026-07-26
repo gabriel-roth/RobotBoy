@@ -29,7 +29,7 @@ Like Particules, Retours records through one of four **Quality** characters — 
 
 ### Delay time
 
-*Interval:* The base spacing between repeats. **Straight up (12 o'clock) is the longest delay** — the whole recording buffer (up to about 4 seconds in the cleanest Quality mode). Turn **counter-clockwise** to shorten it as a single delay tap; turn **clockwise** to shorten it into a busier, multi-tapped pattern. Go far enough in either direction and the interval drops into audio rates (down to \~2 ms): the repeats fuse into a pitch and Retours becomes a Karplus-Strong-style string you play with **Pitch.** 
+*Interval:* The base spacing between repeats. **Straight up (12 o'clock) is the longest delay** — the whole recording buffer (up to about 4 seconds in the cleanest Quality mode). Turn **counter-clockwise** to shorten it as a single delay tap; turn **clockwise** to shorten it into a busier, multi-tapped pattern. Go far enough in either direction and the interval drops into audio rates (down to \~2 ms): the repeats fuse into a pitch and Retours becomes a Karplus-Strong-style string, playable in volts-per-octave from **Interval CV.**
 
 * When a clock is patched or you set a tap tempo, Interval becomes a **musical divider/multiplier** of the clock tempo: straight up is one repeat per beat, counter-clockwise gives 1/2, 1/4, 1/8, and 1/16, and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer). 
 
@@ -110,7 +110,7 @@ Right-click the panel in VCV Rack, or open Options on MetaModule:
 
 ## Patch ideas
 
-- **Karplus-Strong string:** turn Interval a long way from center for an audio-rate delay, set Feedback high, and play notes into **Pitch CV** — each trigger plucks a decaying string. Feed it short bursts of noise for the classic effect.
+- **Karplus-Strong string:** turn Interval a long way from center for an audio-rate delay, set Feedback high, and send a V/oct pitch sequence into **Interval CV** — the delay length becomes the string's pitch. Feed it short bursts of noise to pluck it: each burst rings out as a decaying string.
 - **Spiralling echoes:** set a moderate delay and feedback, then nudge **Pitch** off its center detent. Every repeat climbs (or falls) a step, so a single note becomes an endless ascending shimmer.
 - **Beat slicer:** play a drum loop in, patch its clock into **Clock**, turn Feedback down and Dry/Wet up, and gate **Slice** from your sequencer. While sliced, **Interval** sets the slice length in beat divisions and **Time** picks which slice plays — sequence **Time CV** with stepped random to rearrange the loop in tempo.
 - **Gated rhythmic delay:** clock Retours, then turn up **Shape** to gate each repeat — the echoes become a rhythmic pattern locked to your tempo.
