@@ -342,11 +342,18 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
 // if you change the timings above -- all three traps produced a test that
 // passed while covering almost nothing):
 //
-//     fade-start dequeues        237   (ReadWet's fade-complete path)
+//     fade starts                237   (236 ReadWet dequeues + 1 SetTargets)
 //     alignment calls            237
 //       bailed at radius guard     1
-//       reached a decision       236   (max radius reached: 96, the cap)
+//       past the radius guard    236   (max radius reached: 96, the cap;
+//                                       224 then bail at best <= 0, i.e. no
+//                                       usable correlation; the full scoring
+//                                       loop ran on all of them)
 //       actually moved a target   12
+//     stale-oversized clamp hit    2   (dequeue-site target_frames_ above the
+//                                       live max_frames; worst overshoot
+//                                       ~26,500 frames -- the state the
+//                                       quality-shrink re-clamps exist for)
 //
 // The SetTargets idle->fade site runs once, at the very first retarget; after
 // that the knob never stops moving, so the engine is permanently mid-fade and

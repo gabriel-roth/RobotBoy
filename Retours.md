@@ -93,7 +93,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 Right-click the panel in VCV Rack, or open Options on MetaModule:
 
 - **Quality** — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
-- **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend.
+- **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend; each jump lands on a waveform-aligned spot near the new time, so even fast Interval sweeps stay clean rather than garbling.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved.
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 

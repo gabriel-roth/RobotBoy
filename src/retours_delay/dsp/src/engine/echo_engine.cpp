@@ -526,8 +526,11 @@ StereoFrame EchoEngine::ReadWet() {
         // clamp(target_frames_, 0, max_frames) and clamp(landed, ...); the
         // dequeue below writes clamp(target_frames_, ...) and
         // clamp(landed, ...); AlignedFadeTarget itself returns a clamped value
-        // or `want` (clamped upstream); and NotifyFreeze's unfreeze branch
-        // writes equiv_delay, a WrapPosition result in [0, size_f). Every one
+        // or `want` (clamped upstream); NotifyFreeze's unfreeze branch
+        // writes equiv_delay, a WrapPosition result in [0, size_f); and
+        // Init's target_frames_ = -1 sentinel cannot reach this read (Init
+        // also sets mode_ = kTape, and SetTargets' first-target snap
+        // overwrites the sentinel before its kCrossfade branch). Every one
         // of those is clamped against the size live at the time it ran -- the
         // clamps in the two fade-start branches exist precisely so a
         // quality-mode shrink can't leave a stale oversized value in here.
