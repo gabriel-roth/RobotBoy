@@ -29,11 +29,11 @@
     <line x1="15.1275" y1="87.1705" x2="17.0025" y2="86.5455" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
     <line x1="17.0025" y1="86.5455" x2="17.0025" y2="87.1705" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
     <polygon points="32.813,84.856 34.626,85.307 34.133,86.178" fill="#ffffff"/>
-    <line x1="22.328" y1="46.3974" x2="22.328" y2="47.3026" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
-    <line x1="24.028" y1="46.3974" x2="24.028" y2="47.3026" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
-    <line x1="31.853" y1="46.3974" x2="31.853" y2="47.3026" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
-    <line x1="33.553" y1="46.3974" x2="33.553" y2="47.3026" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
-    <line x1="32.9036" y1="46.5499" x2="32.9036" y2="47.1501" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
+    <line x1="22.328" y1="46.3974" x2="22.328" y2="47.3026" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+    <line x1="24.028" y1="46.3974" x2="24.028" y2="47.3026" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+    <line x1="31.853" y1="46.3974" x2="31.853" y2="47.3026" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+    <line x1="33.553" y1="46.3974" x2="33.553" y2="47.3026" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+    <line x1="32.9036" y1="46.5499" x2="32.9036" y2="47.1501" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
   </g>
   <g inkscape:label="components" inkscape:groupmode="layer" id="components" style="display:none">
     <circle id="SLICE_INPUT#PJ301MPort" cx="6.94" cy="15.875" r="2" fill="#00ff00"/>
