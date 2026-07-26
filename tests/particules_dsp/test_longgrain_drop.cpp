@@ -10,19 +10,17 @@
 #include "grain/grain.h"
 #include "grain/grain_engine.h"
 
-// Particules: drop automatic triggers at the long-grain cap floor.
-// Spec: docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md
+// Particules: drop automatic triggers at any saturated grain cap.
+// Specs: docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md
+//        (original cap-floor-only rule), generalized by
+//        docs/superpowers/specs/2026-07-26-particules-midrange-saturation-drop-design.md.
 //
-// At SIZE = 1.0 the grain duration is ~the full buffer duration, so
-// GrainEngine::Process's cached_max_active_ = buf_dur/grain_dur * 1.5
-// truncates to 1 and clamps to its floor of 2 (see the existing CPU-cap
-// saturation test in test_grain_kill.cpp). Below this change, every
-// subsequent trigger at that cap steals the oldest grain and starts a new
-// one -- for buffer-length grains this means constant mid-grain truncation
-// churn. The fix: automatic (droppable) triggers -- kLatched phasor ticks,
-// kGated held-repeat ticks -- are silently dropped instead of stealing once
-// cached_max_active_ == 2. Manual triggers (kGated rising edge, all
-// kClocked ticks, kMidi) are untouched and still steal.
+// When a trigger finds the grain pool saturated (dynamic CPU cap, ramped
+// startup cap, or full pool), automatic (droppable) triggers -- kLatched
+// phasor ticks, kGated held-repeat ticks -- are silently dropped instead
+// of stealing, at ANY cap value, so playing grains always finish their
+// envelopes. Manual triggers (kGated rising edge, all kClocked ticks,
+// kMidi) still steal the oldest grain so performed events always sound.
 
 using namespace particules_dsp;
 using Catch::Approx;
@@ -200,11 +198,92 @@ TEST_CASE("GrainEngine: a manual gate rising edge still steals at the long-grain
     REQUIRE(engine.ActiveGrainCount() == 3);
 }
 
-// ── (c) Below the cap floor (mid size), saturation still steals exactly as
-//        before -- no behavior change ─────────────────────────────────────
+// ── (c) Below the cap floor (mid size), saturated automatic ticks drop too ──
 
-TEST_CASE("GrainEngine: automatic triggers still steal when saturated above the cap floor",
+TEST_CASE("GrainEngine: automatic triggers are dropped when saturated above the cap floor",
           "[engine][longgrain][drop]") {
+    const size_t num_frames = 48000 * 8;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);  // DC: a pending kill (if one wrongly
+                                    // occurred) could never resolve via the
+                                    // zero-crossing path, keeping the
+                                    // per-sample PendingKillAt sweep below
+                                    // maximally sensitive.
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.size = 0.5f;     // mid-size: on an 8s buffer the cap settles well
+                             // above the floor of 2 and below kMaxGrains
+                             // (~0.78s grains, cap ~15 -- see the cap
+                             // formula in grain_engine.cpp).
+    params.density = 0.5f;  // silent during the startup-ramp burn.
+
+    std::vector<StereoFrame> block(64);
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+    REQUIRE(engine.ActiveGrainCount() == 0);
+
+    params.density = 0.0f;  // deterministic max-rate latched phasor.
+
+    // Fill the pool to the dynamic cap through the ordinary allocation
+    // path (active_before < max_active). 30000 samples is ~80 trigger
+    // periods at the C3 rate -- far more than the cap -- and still well
+    // short of this size's ~37440-sample grain duration, so nothing has
+    // finished naturally by the end of the assert window below.
+    const int kSettleSamples = 30000;
+    for (int i = 0; i < kSettleSamples; ++i) {
+        engine.Process(params, block.data(), 1);
+    }
+    int cap = engine.ActiveGrainCount();
+    REQUIRE(cap > 2);           // NOT the long-grain cap floor
+    REQUIRE(cap < kMaxGrains);  // the dynamic cap, not the full pool
+
+    uint32_t max_serial_before = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.ActiveAt(i)) {
+            max_serial_before = std::max(max_serial_before, engine.SpawnSerialAt(i));
+        }
+    }
+
+    // A few more trigger periods: every saturated automatic tick must be
+    // dropped -- no pending-kill ever observed (checked after every single
+    // sample, so even a steal fade that resolves within one block would be
+    // caught), no new spawn serial, active count pinned at cap.
+    const int kMoreSamples = 400 * 5;
+    for (int i = 0; i < kMoreSamples; ++i) {
+        engine.Process(params, block.data(), 1);
+        for (int g = 0; g < kMaxGrains; ++g) {
+            REQUIRE_FALSE(engine.PendingKillAt(g));
+        }
+    }
+
+    REQUIRE(engine.ActiveGrainCount() == cap);
+    uint32_t max_serial_after = 0;
+    for (int i = 0; i < kMaxGrains; ++i) {
+        if (engine.ActiveAt(i)) {
+            max_serial_after = std::max(max_serial_after, engine.SpawnSerialAt(i));
+        }
+    }
+    REQUIRE(max_serial_after == max_serial_before);
+}
+
+// ── (e) Startup ramp: saturated automatic ticks drop during the first
+//        second too (the 2026-07-25 ramp carve-out is superseded) ─────────
+
+TEST_CASE("GrainEngine: automatic triggers drop against the ramped cap during startup",
+          "[engine][longgrain][drop][ramp]") {
     const size_t num_frames = 48000 * 8;
     size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
     std::vector<uint8_t> memory(bytes, 0);
@@ -222,56 +301,46 @@ TEST_CASE("GrainEngine: automatic triggers still steal when saturated above the 
     params.time = 0.5f;
     params.shape = 0.5f;
     params.pitch = 0.0f;
-    params.size = 0.5f;     // mid-size: on an 8s buffer this settles
-                             // cached_max_active_ well above the long-grain
-                             // floor of 2 (grain duration well under half
-                             // the buffer -- see grain_engine.cpp's cap
-                             // formula), so the drop guard never engages.
-    params.density = 0.5f;  // silent during the startup-ramp burn.
+    params.size = 0.5f;     // mid-size: the unramped cap is ~15, so during
+                             // the early ramp the RAMPED cap (2 until
+                             // sample ~3692 = 48000/13) is the binding
+                             // limit -- exactly the case the superseded
+                             // 2026-07-25 carve-out kept stealing.
+    params.density = 0.0f;  // max-rate ticks from sample 0 -- no ramp burn.
 
     std::vector<StereoFrame> block(64);
-    for (int i = 0; i < 800; ++i) {
-        engine.Process(params, block.data(), 64);
-    }
-    REQUIRE(engine.ActiveGrainCount() == 0);
 
-    params.density = 0.0f;  // deterministic max-rate latched phasor.
-
-    // Run enough automatic ticks to saturate the dynamic cap. 30000 samples
-    // is ~80 trigger periods at the C3 rate -- comfortably more than any
-    // plausible cap for this size, and far short of this grain size's
-    // duration (well under a second), so nothing finishes naturally yet.
-    const int kSettleSamples = 30000;
-    for (int i = 0; i < kSettleSamples; ++i) {
+    // Ticks arrive every ~367 samples, so the pool saturates at 2 grains
+    // around sample ~734 and ~7 further ticks hit the saturated branch
+    // inside the window. Stop at 3500 (margin below the ramp's first step
+    // to 3 at ~3692). Grain duration ~37440 samples: nothing dies
+    // naturally in the window.
+    const int kWindow = 3500;
+    uint32_t serial_a = 0, serial_b = 0;
+    bool serials_recorded = false;
+    for (int i = 0; i < kWindow; ++i) {
         engine.Process(params, block.data(), 1);
-    }
-    int cap = engine.ActiveGrainCount();
-    REQUIRE(cap > 2);           // NOT at the long-grain cap floor
-    REQUIRE(cap < kMaxGrains);  // the dynamic cap, not the full pool
-
-    uint32_t max_serial_before = 0;
-    for (int i = 0; i < kMaxGrains; ++i) {
-        if (engine.ActiveAt(i)) {
-            max_serial_before = std::max(max_serial_before, engine.SpawnSerialAt(i));
+        for (int g = 0; g < kMaxGrains; ++g) {
+            REQUIRE_FALSE(engine.PendingKillAt(g));  // never a steal
+        }
+        REQUIRE(engine.ActiveGrainCount() <= 2);     // never past the ramped cap
+        if (!serials_recorded && engine.ActiveGrainCount() == 2) {
+            int idx = 0;
+            for (int g = 0; g < kMaxGrains; ++g) {
+                if (engine.ActiveAt(g)) {
+                    if (idx++ == 0) serial_a = engine.SpawnSerialAt(g);
+                    else            serial_b = engine.SpawnSerialAt(g);
+                }
+            }
+            serials_recorded = true;
         }
     }
 
-    // A few more trigger periods: the saturation branch must still steal
-    // (unchanged pre-existing behavior) -- active count stays pinned at
-    // cap, but new, higher spawn serials keep appearing. This is the
-    // opposite of test (a) above, where serials freeze once dropping
-    // engages.
-    const int kMoreSamples = 400 * 5;
-    for (int i = 0; i < kMoreSamples; ++i) {
-        engine.Process(params, block.data(), 1);
+    REQUIRE(serials_recorded);
+    REQUIRE(engine.ActiveGrainCount() == 2);
+    uint32_t max_serial = 0;
+    for (int g = 0; g < kMaxGrains; ++g) {
+        if (engine.ActiveAt(g)) max_serial = std::max(max_serial, engine.SpawnSerialAt(g));
     }
-
-    REQUIRE(engine.ActiveGrainCount() == cap);
-    uint32_t max_serial_after = 0;
-    for (int i = 0; i < kMaxGrains; ++i) {
-        if (engine.ActiveAt(i)) {
-            max_serial_after = std::max(max_serial_after, engine.SpawnSerialAt(i));
-        }
-    }
-    REQUIRE(max_serial_after > max_serial_before);
+    REQUIRE(max_serial == std::max(serial_a, serial_b));
 }

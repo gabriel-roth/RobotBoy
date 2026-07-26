@@ -300,22 +300,25 @@ void GrainEngine::Process(const ParticulesParameters& params,
     int active_before = ActiveGrainCount();
 
     // Start new grains at their trigger points. At saturation (CPU cap or
-    // full pool), steal-and-replace: retire the oldest grain and start the
-    // new one, so the newest events always sound (decided 2026-07-11).
+    // full pool) the policy splits by trigger kind: manual triggers (gate
+    // rising edges, clock ticks) steal-and-replace so performed events
+    // always sound (decided 2026-07-11); automatic density ticks are
+    // dropped so playing grains finish their envelopes instead of
+    // churning (cap floor 2026-07-25, generalized to every cap
+    // 2026-07-26). See docs/superpowers/specs/
+    // 2026-07-26-particules-midrange-saturation-drop-design.md.
     for (int t = 0; t < num_triggers; ++t) {
         Grain* g = nullptr;
         bool reused_active_slot = false;
         if (active_before < max_active) g = AllocateGrain();
         if (!g) {
-            // Long-grain cap floor: at cached_max_active_ == 2 (grain
-            // duration > half the buffer), automatic (droppable) triggers
-            // are dropped instead of stealing, so buffer-length grains play
-            // out undisturbed rather than churning on every density tick.
-            // Uses cached_max_active_, not the startup-ramped max_active,
-            // so the 1-second startup ramp (which pins the effective cap to
-            // 2 even with short grains) keeps today's steal behavior. See
-            // docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md.
-            if (trigger_droppable[t] && cached_max_active_ == 2) continue;
+            // Saturated (dynamic cap, startup-ramped cap, or full pool):
+            // automatic (droppable) triggers are dropped -- no steal, no
+            // spawn -- at ANY cap value. One rule everywhere; the
+            // 2026-07-25 cap-floor-only gate and its startup-ramp
+            // carve-out are deliberately superseded (see the 2026-07-26
+            // spec).
+            if (trigger_droppable[t]) continue;
 
             int victim = FindOldestActiveGrain();
             if (victim < 0) break;   // every active grain is already dying; drop the rest
