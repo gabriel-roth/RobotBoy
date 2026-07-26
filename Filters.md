@@ -96,7 +96,6 @@ A few of Onbetap's behaviors run counter to what most filters do — they're the
 ### Right-click menu
 
 - **Character** — **Tamed** (default), a calibrated, stable version of the circuit; or **Vintage**, which layers in the imperfections of a real, aging unit: a slow drift of cutoff (independent per channel), a fixed mismatch between the two filter stages, a per-unit DC offset that produces a thump on fast cutoff sweeps, and a hard (unfaded) mode switch.
-- **Resonance limiting** — **Soft** (default) or **Hard.** The two behave almost identically at full resonance; the audible difference is mainly in pitch and behavior near the onset of oscillation.
 
 ### Under the hood
 

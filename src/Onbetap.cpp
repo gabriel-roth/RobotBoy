@@ -72,10 +72,10 @@ struct Onbetap : Module {
 	onbetap::DriftWalker driftL { 0x0B617A01u };
 	onbetap::DriftWalker driftR { 0x0B617A02u };
 
-	// Soft (diode-clamp) limiting is the shipped default; Hard stays a menu
-	// option. All tuning constants are baked — see onbetap/drive.hpp and
-	// kOnsetTrim above.
-	OnbetapFilter::Limit limitMode = OnbetapFilter::Limit::Soft;
+	// Resonance limiting is hardwired to Soft (diode clamp) — the Hard
+	// (factory rails) menu option was removed 2026-07-25; the engine still
+	// implements both (exercised by tests). All tuning constants are baked —
+	// see onbetap/drive.hpp and kOnsetTrim above.
 
 	// Oversampling default: 1x on MetaModule, where the Cortex-A7 core needs the
 	// headroom; 2x on desktop. The 1x/2x/4x menu is available on both hosts, and
@@ -220,8 +220,8 @@ struct Onbetap : Module {
 				v.fR.setOffset(0.f);
 				v.fRgRatio = 1.f;
 			}
-			v.fL.setLimit(limitMode);
-			v.fR.setLimit(limitMode);
+			v.fL.setLimit(OnbetapFilter::Limit::Soft);
+			v.fR.setLimit(OnbetapFilter::Limit::Soft);
 			float boost = clamp(OnbetapFilter::kLeakCornerHz / fc,
 			                    1.f, OnbetapFilter::kLeakBoostMax);
 			float leak = kTwoPi * OnbetapFilter::kLeakPoleHz / fsOs * boost;
@@ -367,7 +367,6 @@ struct Onbetap : Module {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "vintageDrift", json_boolean(vintageDrift));
-		json_object_set_new(root, "limitMode", json_integer((int)limitMode));
 		json_object_set_new(root, "oversample", json_integer(oversample));
 		return root;
 	}
@@ -376,10 +375,7 @@ struct Onbetap : Module {
 		json_t* v = json_object_get(root, "vintageDrift");
 		if (v)
 			vintageDrift = json_boolean_value(v);
-		json_t* lm = json_object_get(root, "limitMode");
-		if (lm)
-			limitMode = (json_integer_value(lm) == (int)OnbetapFilter::Limit::Soft)
-			          ? OnbetapFilter::Limit::Soft : OnbetapFilter::Limit::Hard;
+		// "limitMode" from old patches is deliberately ignored (hardwired Soft).
 		json_t* os = json_object_get(root, "oversample");
 		if (os) {
 			int v = (int)json_integer_value(os);
@@ -438,15 +434,6 @@ struct OnbetapWidget : ModuleWidget {
 		menu->addChild(createMenuItem("Vintage (drift)",
 			m->vintageDrift ? "✓" : "",
 			[m]() { m->vintageDrift = true; }));
-
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Resonance limiting"));
-		menu->addChild(createMenuItem("Soft (diode clamp)",
-			m->limitMode == OnbetapFilter::Limit::Soft ? "✓" : "",
-			[m]() { m->limitMode = OnbetapFilter::Limit::Soft; }));
-		menu->addChild(createMenuItem("Hard (factory rails)",
-			m->limitMode == OnbetapFilter::Limit::Hard ? "✓" : "",
-			[m]() { m->limitMode = OnbetapFilter::Limit::Hard; }));
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Oversampling",
