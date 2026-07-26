@@ -17,9 +17,10 @@
 // module's deliberate 1e-4 V dither floor (per-step impact measured in
 // cpu-optimization-2026-07-24.md §9.2).
 //
-// The desktop-only high-accuracy Newton block keeps exact std::sinh/cosh;
-// this is only for the standard-accuracy path (both platforms, so the host
-// test suite exercises what MetaModule ships).
+// Used on both platforms (the desktop-only high-accuracy Newton path that
+// once kept exact std::sinh/cosh was removed — every build now runs this
+// same standard-accuracy path, so the host test suite exercises what
+// MetaModule ships).
 
 #include <cstring>
 #include <cstdint>

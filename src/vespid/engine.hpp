@@ -25,16 +25,16 @@ struct Channel {
     // os: 1, 2 or 4. Returns host-rate Out. g/h1/kC2 are per-host-sample
     // constants (already slewed by the caller) reused for every sub-sample.
     WaspFilter::Out process(float in, int os, float g, const H1Coeffs& h1,
-                             float kC2, bool highAcc) {
+                             float kC2) {
         if (os <= 1)
-            return filt.process(in, g, h1, kC2, highAcc);
+            return filt.process(in, g, h1, kC2);
 
         float buf2[2];
         up.process(in, buf2);
 
         if (os == 2) {
-            WaspFilter::Out o0 = filt.process(buf2[0], g, h1, kC2, highAcc);
-            WaspFilter::Out o1 = filt.process(buf2[1], g, h1, kC2, highAcc);
+            WaspFilter::Out o0 = filt.process(buf2[0], g, h1, kC2);
+            WaspFilter::Out o1 = filt.process(buf2[1], g, h1, kC2);
             return { downLp.process(o0.lp, o1.lp),
                      downBp.process(o0.bp, o1.bp),
                      downHp.process(o0.hp, o1.hp) };
@@ -48,7 +48,7 @@ struct Channel {
 
         WaspFilter::Out o[4];
         for (int i = 0; i < 4; i++)
-            o[i] = filt.process(buf4[i], g, h1, kC2, highAcc);
+            o[i] = filt.process(buf4[i], g, h1, kC2);
 
         float midLp0 = downLp4a.process(o[0].lp, o[1].lp);
         float midLp1 = downLp4a.process(o[2].lp, o[3].lp);

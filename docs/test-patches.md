@@ -179,9 +179,9 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 
 ---
 
-## 9. Vespid — "Singing voice" (self-osc tracking, Accuracy, oversampling)
+## 9. Vespid — "Singing voice" (self-osc tracking, oversampling)
 
-**Tests:** playing the self-oscillation as a voice, **Self-oscillation pitch** (hardware drift vs corrected 1 V/oct), **Accuracy**, **Oversampling**.
+**Tests:** playing the self-oscillation as a voice, **Self-oscillation pitch** (hardware drift vs corrected 1 V/oct), **Oversampling**.
 
 **Modules:** Fundamental SEQ3 (or MIDI-CV) → Vespid Freq CV. No audio input at all.
 
@@ -195,7 +195,6 @@ A/B the revisions repeatedly on the same running sequence — the difference sho
 - **Self-oscillation pitch = corrected 1 V/oct:** the melody should play in tune across 3–4 octaves — a hollow, slightly gritty sine lead. Check octaves against a reference VCO.
 - **Hardware-accurate mode:** the same melody should now drift and detune the way the real circuit does — intervals compress/stretch, especially at the extremes. Musically it should sound "vintage out-of-tune," not broken. This A/B tells us the option is worth its menu space.
 - **Inverter bandwidth:** resolved — the menu slider is gone; the value is baked per character (British 60 kHz, German 50 kHz), chosen exactly so **British just barely doesn't self-oscillate at max Res** and **German sings confidently**. Confirm both halves of that promise here.
-- **Accuracy (Standard vs High):** **High** shipped as the default. A/B against Standard on this patch and on patch 8 at high Drive — if High sounds cleaner at the top of the Res range, that's the default earning its keep. VCV Rack only — MetaModule is locked to Standard and has no Accuracy menu item, so this A/B is a desktop test.
 - **Oversampling:** as with Onbetap — high Drive, high Freq, listen for aliasing birdies at 1×. In VCV Rack (Auto/1×/2×/4×) confirm Auto picks something clean. On MetaModule the menu is 1×/2×/4× with no Auto and 1× is the default, so confirm 1× is tolerable there and that 2×/4× are reachable if a patch needs them.
 
 ---
@@ -335,7 +334,7 @@ Fill these in during patches 8 and 13; they become shipping defaults (several sl
 | Vespid | Input trim | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Output level | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Inverter bandwidth | 60–300 kHz | Resolved — baked per character (British 60 / German 50 kHz), slider removed |
-| Vespid | Accuracy default | Standard/High | Resolved — High shipped as the desktop default; MetaModule is locked to Standard (menu item removed there) |
+| Vespid | Accuracy default | Standard/High | Resolved — the High-accuracy Newton path was removed entirely; every build runs Standard accuracy, no Accuracy menu anywhere |
 | Vespid | Oversampling default | Auto/1×/2×/4× | Resolved — Auto on desktop; MetaModule defaults to 1× with no Auto entry |
 | Retours | Input trim | ±12 dB (0) | Resolved — baked at 0 dB (unity), slider removed |
 | Retours | Doppler slew | 0.01–1 s | Resolved — baked at 0.285 s, slider removed |

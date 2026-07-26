@@ -70,14 +70,14 @@ static Controls makeControls(const wasp::ModeConfig& m, float fc, float rho) {
 
 // ── Small-signal RMS-ratio LP response (matches response_db) ───────────────
 static double smallSignalLpDb(const wasp::ModeConfig& m, float fc, float rho,
-                              float fprobe, float amp, bool highAcc = true) {
+                              float fprobe, float amp) {
     wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(m); w.reset();
     Controls c = makeControls(m, fc, rho);
     const int n = (int)(kFsInt * 0.5f);
     std::vector<float> y(n);
     for (int i = 0; i < n; ++i) {
         float x = amp * std::sin(2.f * kPi * fprobe * (float)i / kFsInt);
-        w.process(x, c.g, c.h1, c.kC2, highAcc);
+        w.process(x, c.g, c.h1, c.kC2);
         y[i] = w.raw().lp;
     }
     // RMS over 2nd half (mean removed like std) vs input RMS
@@ -98,7 +98,7 @@ static double smallSignalDb(const wasp::ModeConfig& m, float fc, float rho,
     std::vector<float> y(n);
     for (int i = 0; i < n; ++i) {
         float x = amp * std::sin(2.f * kPi * fprobe * (float)i / kFsInt);
-        wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2, true);
+        wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2);
         y[i] = which == 0 ? o.lp : (which == 1 ? o.bp : o.hp);
     }
     double sumY = 0, sumY2 = 0; int cnt = 0;
@@ -122,7 +122,7 @@ static SelfOsc selfOsc(const wasp::ModeConfig& m, float fc, float rho, float dur
     bool finite = true;
     for (int i = 0; i < n; ++i) {
         float x = (i < kick) ? 3.f * std::sin(2.f * kPi * fc * (float)i / kFsInt) : 0.f;
-        w.process(x, c.g, c.h1, c.kC2, true);
+        w.process(x, c.g, c.h1, c.kC2);
         bp[i] = w.raw().bp;
         if (!std::isfinite(bp[i])) finite = false;
     }
@@ -229,7 +229,7 @@ static void test_boundedness() {
         float phase = std::fmod(30.f * (float)i / kFsInt, 1.f);
         float sq = (phase < 0.5f) ? 1.f : -1.f;
         float x = 8.f * 10.f * sq;   // 10 V square x8 drive-equivalent
-        wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2, true);
+        wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2);
         wasp::WaspFilter::Out r = w.raw();
         rawPeak = std::max({rawPeak, std::fabs(r.lp), std::fabs(r.bp), std::fabs(r.hp)});
         outPeak = std::max({outPeak, std::fabs(o.lp), std::fabs(o.bp), std::fabs(o.hp)});
@@ -273,22 +273,13 @@ static void test_dc_block() {
     const int n = (int)(kFsInt * 2.f);
     double sum = 0; int cnt = 0;
     for (int i = 0; i < n; ++i) {
-        wasp::WaspFilter::Out o = w.process(2.f, c.g, c.h1, c.kC2, true);
+        wasp::WaspFilter::Out o = w.process(2.f, c.g, c.h1, c.kC2);
         if (i >= n - (int)(kFsInt * 0.5f)) { sum += o.lp; ++cnt; }
     }
     double mean = sum / cnt;
     char buf[96];
     snprintf(buf, sizeof(buf), "LP mean = %.6f V (want < 0.05)", mean);
     report(std::fabs(mean) < 0.05, "DC blocked at LP output", buf);
-}
-
-static void test_highacc_consistency() {
-    printf("\n9. highAcc vs standard: small-signal differs by < 0.5 dB\n");
-    double hi = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 250.f, 0.05f, true);
-    double st = smallSignalLpDb(wasp::kGerman, 1000.f, 0.3f, 250.f, 0.05f, false);
-    char buf[128];
-    snprintf(buf, sizeof(buf), "highAcc=%.3f standard=%.3f dB diff=%.3f", hi, st, hi - st);
-    report(std::fabs(hi - st) < 0.5, "highAcc and standard agree within 0.5 dB", buf);
 }
 
 // THD (h2..h12 vs h1) and fundamental of raw LP for a 5 V, 110 Hz sine
@@ -305,7 +296,7 @@ static Thd thdAtGain(const wasp::ModeConfig& m, float gain, float fc, float rho)
     bool finite = true;
     for (int i = 0; i < nSettle + nMeas; ++i) {
         float x = amp * gain * std::sin(2.f * kPi * f0 * (float)i / kFsInt);
-        w.process(x, c.g, c.h1, c.kC2, true);
+        w.process(x, c.g, c.h1, c.kC2);
         float lp = w.raw().lp;
         if (!std::isfinite(lp)) finite = false;
         if (i >= nSettle) y[i - nSettle] = lp;
@@ -325,7 +316,7 @@ static Thd thdAtGain(const wasp::ModeConfig& m, float gain, float fc, float rho)
 }
 
 static void test_drive_staging() {
-    printf("\n10. Drive staging (5 V input): 2x clean, 64x clipped, level monotone\n");
+    printf("\n9. Drive staging (5 V input): 2x clean, 64x clipped, level monotone\n");
     // Effective gains at the ends of the Vespid drive knob (2*2^(5*d), d=0/1).
     Thd lo = thdAtGain(wasp::kGerman, 2.f, 1000.f, 0.3f);
     Thd hi = thdAtGain(wasp::kGerman, 64.f, 1000.f, 0.3f);
@@ -340,7 +331,7 @@ static void test_drive_staging() {
 }
 
 static void test_mode_input_staging() {
-    printf("\n11. Per-mode input staging (drive-0 operating points)\n");
+    printf("\n10. Per-mode input staging (drive-0 operating points)\n");
     // Effective drive-0 levels from Vespid.cpp: 5 V host signal x 2x floor
     // x mode.inGain -> German 10 V (Euro-hot, clean), British 2.5 V (EDP
     // nominal: the original's light rasp, ~12% THD at fc=1500, rho=0.225).
@@ -369,7 +360,7 @@ static Controls makeControlsFp(const wasp::ModeConfig& m, float fc, float rho,
 }
 
 static void test_selfosc_onset() {
-    printf("\n12. Self-osc onset & baked-fPole guards (1e-4 noise seed, from silence)\n");
+    printf("\n11. Self-osc onset & baked-fPole guards (1e-4 noise seed, from silence)\n");
     // Baked per-mode inverter bandwidth (Vespid.cpp kFPoleGerman/
     // kFPoleBritish): German mode at 50 kHz must start screaming in musical time
     // from the module's noise seed alone; British at 60 kHz must never
@@ -382,7 +373,7 @@ static void test_selfosc_onset() {
         float d = 1e-4f; double onset = -1; float peak = 0.f;
         for (int i = 0; i < n; ++i) {
             d = -d;
-            w.process(d, c.g, c.h1, c.kC2, true);
+            w.process(d, c.g, c.h1, c.kC2);
             float bp = std::fabs(w.raw().bp);
             peak = std::max(peak, bp);
             if (onset < 0 && bp > 1.f) onset = (double)i / kFsInt;
@@ -401,7 +392,7 @@ static void test_selfosc_onset() {
         double sum2 = 0; int cnt = 0; float d = 1e-4f;
         for (int i = 0; i < n; ++i) {
             d = -d;
-            w.process(d, c.g, c.h1, c.kC2, true);
+            w.process(d, c.g, c.h1, c.kC2);
             if (i >= t0) { double v = w.raw().bp; sum2 += v * v; ++cnt; }
         }
         double amp = std::sqrt(2.0 * sum2 / cnt);
@@ -422,7 +413,6 @@ int main() {
     test_boundedness();
     test_hp_bp_sanity();
     test_dc_block();
-    test_highacc_consistency();
     test_drive_staging();
     test_mode_input_staging();
     test_selfosc_onset();

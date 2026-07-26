@@ -191,9 +191,9 @@ Roller params:
 7. Drive CV
 
 Context menu: Character (British / German), Self-oscillation pitch — German
-(Hardware / Corrected), Oversampling (1x / 2x / 4x, default 1x). Accuracy and
-Panel are VCV-only — MetaModule is locked to standard accuracy and the charcoal
-panel — and Oversampling has no Auto entry here, unlike the desktop build.
+(Hardware / Corrected), Oversampling (1x / 2x / 4x, default 1x). Panel is
+VCV-only — MetaModule is locked to the charcoal panel — and Oversampling has
+no Auto entry here, unlike the desktop build.
 
 ## Retours  *(VCV-adapter module)*
 

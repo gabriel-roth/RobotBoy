@@ -75,16 +75,6 @@ struct Vespid : Module {
 	int _osMenu = kDefaultOsMenu;
 	int _osActual = kDefaultOsMenu == 0 ? 4 : kDefaultOsMenu;  // resolved factor currently applied to the pool
 
-	// Accuracy: pivot-only (false) vs pivot + 2 Newton iterations (true).
-	// MetaModule is locked to standard (pivot-only) — the Cortex-A7 core can't
-	// spare the Newton iterations, so there is no Accuracy menu there and
-	// dataFromJson ignores the key.
-#if defined(METAMODULE)
-	bool _highAcc = false;
-#else
-	bool _highAcc = true;
-#endif
-
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
 	// German 50 kHz — eager self-oscillation, onset well under a second
@@ -314,7 +304,7 @@ struct Vespid : Module {
 
 		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
 		wasp::WaspFilter::Out oL =
-			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2, _highAcc);
+			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2);
 
 		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
 		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
@@ -325,7 +315,7 @@ struct Vespid : Module {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
 			wasp::WaspFilter::Out oR =
-				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2, _highAcc);
+				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2);
 			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
 			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
 			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
@@ -370,7 +360,6 @@ struct Vespid : Module {
 		json_t* root = json_object();
 		json_object_set_new(root, "german", json_boolean(german));
 		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
-		json_object_set_new(root, "highAcc", json_boolean(_highAcc));
 		json_object_set_new(root, "osMenu", json_integer(_osMenu));
 		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
@@ -385,15 +374,11 @@ struct Vespid : Module {
 		if (s)
 			german = json_boolean_value(s);
 #if !defined(METAMODULE)
-		// Desktop only: MetaModule is locked to charcoal + standard accuracy,
-		// so a patch carrying either key can't unlock them there — the member
-		// initializers stand.
+		// Desktop only: MetaModule is locked to charcoal, so a patch carrying
+		// the key can't unlock it there — the member initializer stands.
 		json_t* p = json_object_get(root, "panelTheme");
 		if (p)
 			panelTheme = json_integer_value(p);
-		json_t* ha = json_object_get(root, "highAcc");
-		if (ha)
-			_highAcc = json_boolean_value(ha);
 #endif
 		json_t* om = json_object_get(root, "osMenu");
 		if (om)
@@ -411,9 +396,11 @@ struct Vespid : Module {
 			_osMenu = kDefaultOsMenu;
 #endif
 		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
-		// Output level menu sliders, removed — both were unity by default) and
-		// an "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
-		// per mode above); all are ignored.
+		// Output level menu sliders, removed — both were unity by default), an
+		// "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
+		// per mode above), and a "highAcc" key (Accuracy menu / Newton
+		// high-accuracy path, removed — every build now runs standard
+		// accuracy only); all are ignored.
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
@@ -498,19 +485,6 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(createMenuItem("German (self-oscillates)",
 			m->german ? "✓" : "",
 			[m]() { m->german = true; }));
-
-#if !defined(METAMODULE)
-		// MetaModule is locked to standard accuracy (see Vespid::_highAcc), so
-		// this section is desktop-only.
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Accuracy"));
-		menu->addChild(createMenuItem("Standard",
-			!m->_highAcc ? "✓" : "",
-			[m]() { m->_highAcc = false; }));
-		menu->addChild(createMenuItem("High (default)",
-			m->_highAcc ? "✓" : "",
-			[m]() { m->_highAcc = true; }));
-#endif
 
 		menu->addChild(new MenuSeparator);
 #if defined(METAMODULE)

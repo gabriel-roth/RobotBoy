@@ -119,8 +119,7 @@ public:
     Out raw() const { return { rawLp, rawBp, rawHp }; }
 
     // One oversampled sample. g/h1/kC2 as documented at the top of the file.
-    // highAcc = add 2 Newton iterations on top of the fixed-pivot solve.
-    Out process(float inVolts, float g, const H1Coeffs& h1, float kC2, bool highAcc) {
+    Out process(float inVolts, float g, const H1Coeffs& h1, float kC2) {
         const ModeConfig& m = *mode;
 
         // Input HPF (22 Hz at fsInt) — C1/level-pot AC coupling.
@@ -139,7 +138,8 @@ public:
         if (std::fabs(ydPrev) > 0.2f)
             sd = 1.f + diodePrev / ydPrev;
         // Inverter value and slope share one tanhApprox evaluation (§3.2):
-        // F0 = finv(vgPrev), A = finvSlope(vgPrev) = -invA0*(1 - t*t).
+        // F0 = asymmetric-tanh inverter value at vgPrev, A = its slope
+        // = -invA0*(1 - t*t).
         float F0, A;
         if (vgPrev <= 0.f) {
             float t = tanhApprox(-m.a0OverVHi * vgPrev);
@@ -159,53 +159,12 @@ public:
         float denom = 1.f - A * (Q + 1.f) * m.invNInv;
         float hp = (F0 - A * vgPrev + A * P * m.invNInv) / std::max(denom, 0.05f);
 
-        // ---- optional Newton refinement (2 iterations) --------------------
-        // Derivatives use the exact 1 - t*t form for all tanh terms (plan
-        // recommendation); tanhXdX stays confined to the secant pivots above.
-        // Compiled out on MetaModule: _highAcc is locked false there, but as
-        // a runtime bool the block would otherwise stay in the hot function
-        // (measured +263 A7 instructions of register pressure / I-cache —
-        // cpu-optimization-2026-07-24.md §9.1). Keeps exact std::sinh/cosh:
-        // High accuracy mode is the exactness promise.
-#if !defined(METAMODULE)
-        if (highAcc) {
-            for (int it = 0; it < 2; ++it) {
-                float th2 = tanhApprox(m.c * hp);
-                float Sh  = th2 / m.c;
-                float bp  = sBP + g * Sh;
-                float tb2 = tanhApprox(m.c * bp);
-                float Sb  = tb2 / m.c;
-                float lp  = sLP + g * Sb;
-                float yd  = h1.beta0 * bp + z1;
-                float dArg = std::clamp(yd / kVD, -30.f, 30.f);
-                float fd  = yd + kKD * std::sinh(dArg);
-                float sum = hin + fd + m.kR2 * lp + kC2 * Sb;
-                float vg  = (sum + hp) / m.nInv;
-                float r   = hp - finv(vg);
-                // chain rule dr/dhp
-                float dSh = 1.f - th2 * th2;          // d Sh / d hp
-                float dbp = g * dSh;
-                float dSb = (1.f - tb2 * tb2) * dbp;   // d Sb / d hp
-                float dlp = g * dSb;
-                float dyd = h1.beta0 * dbp;
-                float dfd = dyd * (1.f + kKD * std::cosh(dArg) / kVD);
-                float dsum = dfd + m.kR2 * dlp + kC2 * dSb;
-                float drdhp = 1.f - finvSlope(vg) * (dsum + 1.f) / m.nInv;
-                float step = r / std::max(drdhp, 0.25f);
-                step = std::clamp(step, -2.f, 2.f);
-                hp -= step;
-            }
-        }
-#else
-        (void)highAcc;
-#endif
-
         // The inverter output physically cannot exceed its rails, so hp is
-        // bounded to finv's range [-vLo, vHi]. Clamping here is both correct
+        // bounded to the inverter's range [-vLo, vHi]. Clamping here is both correct
         // physics and solver robustness: under extreme overdrive the pivot
-        // linearization can overshoot far past the rails and two clamped
-        // Newton steps cannot recover — this keeps the node bounded without
-        // disturbing the in-range fixed point.
+        // linearization can overshoot far past the rails and the single
+        // fixed-pivot solve cannot recover — this keeps the node bounded
+        // without disturbing the in-range fixed point.
         hp = std::clamp(hp, -m.vLo, m.vHi);
 
         // ---- commit: recompute chain at solved hp, update states ----------
@@ -244,23 +203,6 @@ private:
     static constexpr float kKD = 27e3f * 2.f * 2.52e-9f;   // R3*2*Is = 1.3608e-4
     static constexpr float kVD = 1.752f * 0.025852f;       // eta*VT   = 0.045293
     static constexpr float kInvVD = 1.f / kVD;
-
-    // Inverter saturator: asymmetric tanh (fit_inverter.py). Only the
-    // desktop Newton block calls these now; the standard path evaluates the
-    // fused value+slope form inline (§3.2).
-    float finv(float vg) const {
-        const ModeConfig& m = *mode;
-        if (vg <= 0.f) return  m.vHi * tanhApprox(-m.a0OverVHi * vg);
-        return                -m.vLo * tanhApprox( m.a0OverVLo * vg);
-    }
-    // d finv / d vg (always negative). Exact derivative of a*tanh(b*vg/a) is
-    // b*sech^2 = b*(1 - t^2) with t the tanh value; here b = -invA0.
-    float finvSlope(float vg) const {
-        const ModeConfig& m = *mode;
-        float t = (vg <= 0.f) ? tanhApprox(-m.a0OverVHi * vg)
-                              : tanhApprox( m.a0OverVLo * vg);
-        return -m.invA0 * (1.f - t * t);
-    }
 
     const ModeConfig* mode = &kGerman;
     float fsInt = 192000.f, hinA = 2.f * float(M_PI) * 22.f / 192000.f;
