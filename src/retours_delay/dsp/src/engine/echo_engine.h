@@ -46,6 +46,11 @@ private:
     // crossfade-jump state (kCrossfade mode)
     float fade_from_frames_ = 0.f, fade_pos_ = 1.f, fade_step_ = 0.f;
     float queued_target_ = -1.f;
+    // Last raw (pre-alignment) delay request seen in kCrossfade mode. The
+    // fade trigger compares against this rather than target_frames_, because
+    // splice alignment leaves target_frames_ deliberately a few frames off
+    // the request -- see SetTargets in echo_engine.cpp.
+    float requested_frames_ = -1.f;
     // freeze state
     bool  frozen_ = false;
     float slice_start_ = 0.f, slice_len_frames_ = 1.f, slice_phase_ = 0.f;
