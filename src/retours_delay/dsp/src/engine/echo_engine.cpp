@@ -109,7 +109,8 @@ constexpr float kSeamCrossfadeFrames = 64.f;
 // and the blend is coherent.
 //
 // Measured (inharmonic residual over a 220 Hz burst train, see
-// .superpowers/sdd/crossfade-variants-report.md): 5-8 dB cleaner mean and
+// docs/superpowers/2026-07-26-crossfade-variants-measurements.md): 5-8 dB
+// cleaner mean and
 // 2-10 dB cleaner worst-case (p95) on every single-tap crossfade sweep, at
 // unchanged responsiveness -- the delay still reaches the knob's target within
 // one fade cycle, because this changes only WHERE the fade lands, never how
@@ -169,9 +170,19 @@ inline float AlignedFadeTarget(const particules_dsp::RecordingBuffer* buf,
         ref[k] = particules_dsp::RecordingBuffer::MonoSampleAt(ctx, static_cast<size_t>(idx));
     }
 
-    // Unnormalized cross-correlation is enough here: the search spans only
-    // ~2 ms, over which signal level is essentially flat, so there is no
-    // loud-region bias to divide out (and no per-candidate divide to pay).
+    // Unnormalized cross-correlation, i.e. argmax over sum(ref*cand) with no
+    // division by candidate-window energy. The theoretical objection is real --
+    // an unnormalized score can prefer a louder, worse-matching window over a
+    // quieter, better-matching one -- but it was measured and it does not bite
+    // here: over 400 randomized trials the unnormalized argmax differed from
+    // the normalized one in 0/400 stationary cases and 7/400 percussive cases,
+    // with a worst-case correlation-coefficient loss of 0.37 and a mean loss of
+    // about 0. Substituting the normalized argmax measured no better on the
+    // audio metrics. So this buys back one divide per candidate for nothing
+    // measurable. (The window is kAlignWindowFrames long, an order of magnitude
+    // wider than the +/-kAlignSearchFrames the candidates span, so successive
+    // candidate windows overlap almost entirely and their energies barely
+    // differ -- that, not the search span alone, is why it holds.)
     auto score_at = [&](int delta) {
         int base = base_new - delta;   // +delta = longer delay = earlier frame
         if (base < 0) base += size;
@@ -309,15 +320,23 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
                 // (read_subsample_ is re-synced to it at the end of this
                 // function), and unaffected by the wow/flutter drift that
                 // read_subsample_ accumulates within a block.
+                // Hardening: clamp the alignment REFERENCE to the live range
+                // too, symmetric with the ReadWet dequeue site below.
+                // delay_frames_ is the slewed/latched value, which a tape-mode
+                // buffer shrink can leave larger than the new size for the
+                // whole slew decay (see WrapBounded's comment above for the
+                // mechanism); handing that to the aligner would make it
+                // correlate against a bogus wrapped position.
+                float cur = std::clamp(delay_frames_, 0.f, max_frames);
                 float landed = AlignedFadeTarget(buf_,
                                                  static_cast<float>(buf_->write_head()),
-                                                 delay_frames_, want, max_frames);
-                // Hardening: re-clamp both ends of the fade to the LIVE
-                // buffer range. target_frames_ can be stale-oversized here
-                // (a quality-mode size shrink mid-fade queues the new target
-                // instead of applying it -- see the queued_target_ branch
-                // below -- so the old, larger buffer's magnitude can survive
-                // into this fade), and it becomes this fade's start point.
+                                                 cur, want, max_frames);
+                // Re-clamp both ends of the fade to the LIVE buffer range.
+                // target_frames_ can be stale-oversized here (a quality-mode
+                // size shrink mid-fade queues the new target instead of
+                // applying it -- see the queued_target_ branch below -- so the
+                // old, larger buffer's magnitude can survive into this fade),
+                // and it becomes this fade's start point.
                 fade_from_frames_ = std::clamp(target_frames_, 0.f, max_frames);
                 target_frames_ = std::clamp(landed, 0.f, max_frames);
                 fade_pos_ = 0.f;
@@ -500,9 +519,18 @@ StereoFrame EchoEngine::ReadWet() {
         float g_old = 1.f - t;
         float g_new = t;
 
-        // Same bound as the tape read_pos above: fade_from_frames_ and
-        // target_frames_ are both frames-clamped-to-[0,size_f-1] values
-        // (assigned from SetTargets()'s `frames`, or from each other).
+        // Same bound as the tape read_pos above: both fade endpoints are
+        // values clamped to [0, size_f-1]. Enumerating every assignment that
+        // can reach them: SetTargets' first-target snap and kTape branch write
+        // the already-clamped `frames`; SetTargets' idle->fade branch writes
+        // clamp(target_frames_, 0, max_frames) and clamp(landed, ...); the
+        // dequeue below writes clamp(target_frames_, ...) and
+        // clamp(landed, ...); AlignedFadeTarget itself returns a clamped value
+        // or `want` (clamped upstream); and NotifyFreeze's unfreeze branch
+        // writes equiv_delay, a WrapPosition result in [0, size_f). Every one
+        // of those is clamped against the size live at the time it ran -- the
+        // clamps in the two fade-start branches exist precisely so a
+        // quality-mode shrink can't leave a stale oversized value in here.
         float pos_old = WrapBounded(write_pos_continuous - fade_from_frames_, size_f);
         float pos_new = WrapBounded(write_pos_continuous - target_frames_, size_f);
         float lo, ro, ln, rn;

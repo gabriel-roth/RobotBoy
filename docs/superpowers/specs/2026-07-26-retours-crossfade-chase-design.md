@@ -7,7 +7,9 @@
 > cycles of lag to an instant retarget (CV jump / clock change), violating the
 > one-fade-cycle responsiveness requirement. The problem statement below is
 > still accurate and still the reason the work was done; only the mechanism
-> changed. See `.superpowers/sdd/crossfade-variants-report.md` for the variant
+> changed. See
+> `docs/superpowers/2026-07-26-crossfade-variants-measurements.md` for the
+> variant
 > comparison and `AlignedFadeTarget` in
 > `src/retours_delay/dsp/src/engine/echo_engine.cpp` for what shipped.
 

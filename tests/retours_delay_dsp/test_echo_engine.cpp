@@ -384,8 +384,9 @@ TEST_CASE("crossfade mode: retarget during an in-progress fade queues cleanly") 
 
 // ---------------------------------------------------------------------------
 // Crossfade-mode splice alignment (see AlignedFadeTarget in
-// dsp/src/engine/echo_engine.cpp and .superpowers/sdd/
-// crossfade-variants-report.md). A Crossfade-mode fade blends the tap at the
+// dsp/src/engine/echo_engine.cpp and
+// docs/superpowers/2026-07-26-crossfade-variants-measurements.md). A
+// Crossfade-mode fade blends the tap at the
 // old delay with the tap at the new one; on an Interval sweep those sit
 // hundreds of ms apart in the buffer, so their phase relationship is random
 // and the blend garbles. Each fade's destination is now nudged by up to
@@ -544,13 +545,31 @@ TEST_CASE("crossfade splice alignment: very short delays are left exactly on tar
 }
 
 TEST_CASE("crossfade splice alignment: a small retarget still travels most of the way") {
-    // The best-correlating offset for a move smaller than the search radius is
-    // always the one that cancels the move outright (identical content
-    // correlates perfectly), so kAlignMoveFraction caps the nudge at half the
-    // requested move. A 3 ms nudge on a 1 s delay must therefore still cover at
-    // least half its distance -- the knob can never feel stuck.
-    const float requested = ResolvedDelaySeconds(KnobForSeconds(1.003f));
-    SpliceRun r = RunSplice(1.0f, 1.003f, 466.164f);
+    // Guards kAlignMoveFraction. The best-correlating offset for a move smaller
+    // than the search radius is always the one that cancels the move outright
+    // (identical content correlates perfectly), so without that cap a small
+    // knob nudge lands nowhere and the knob feels dead. The cap bounds the
+    // nudge at half the move, so the delay always covers at least half the
+    // distance asked for.
+    //
+    // OPERATING POINT MATTERS. This must sit inside the region where the cap
+    // actually binds -- moves of roughly 0.5-2 ms, where the uncapped radius
+    // (min(kAlignSearchFrames, kAlignSearchMaxFraction*delay) = 96 frames at a
+    // 1 s delay = 2 ms) exceeds the move itself. Measured travelled/asked
+    // fractions, shipped versus a build with the kAlignMoveFraction line
+    // deleted:
+    //
+    //   move    tone       shipped   cap deleted
+    //   0.5 ms  180 Hz      1.000      -0.042
+    //   1.0 ms  180 Hz      0.583      -0.000     <-- this test
+    //   2.0 ms  180 Hz      0.500       0.000
+    //   3.0 ms  180 Hz      1.472       1.667     <-- cap no longer binds
+    //   3.0 ms  466 Hz      0.715       0.715     <-- identical: guards nothing
+    //
+    // An earlier version of this test used the 3 ms / 466.164 Hz point and was
+    // therefore vacuous: deleting the cap left it green.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(1.001f));
+    SpliceRun r = RunSplice(1.0f, 1.001f, 180.f);
     float asked = requested - r.delay_before;
     float travelled = r.delay_after_fade - r.delay_before;
     REQUIRE(asked > 0.f);
@@ -661,8 +680,9 @@ TEST_CASE("pinning: crossfade mode, delay-time retarget mid-run") {
     proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
 
     // Hash regenerated for splice alignment (AlignedFadeTarget in
-    // dsp/src/engine/echo_engine.cpp; see .superpowers/sdd/
-    // crossfade-variants-report.md). This is the ONLY one of the five pins in
+    // dsp/src/engine/echo_engine.cpp; see docs/superpowers/
+    // 2026-07-26-crossfade-variants-measurements.md). This is the ONLY one of
+    // the five pins in
     // this file whose scenario enters kCrossfade mode -- the other four run in
     // kTape (two set it explicitly, the two frozen ones inherit
     // RetoursParameters' kTape default) and stayed bit-exact, verified by

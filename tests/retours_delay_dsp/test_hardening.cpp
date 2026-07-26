@@ -50,14 +50,23 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
 // BaseTimeControl::Update() recomputes it synchronously from
 // buffer_samples_ every block (no slew), unlike DelayTimeSeconds() which
 // one-pole slews toward its target over ~0.3 s.
-float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
+// Live recording-buffer duration for a quality mode, derived the same way
+// production does (RecordingBuffer::FramesForConfig over the fixed byte pool,
+// times the mode's decimation factor). Quality modes differ by more than 4x
+// here -- kScorchedCassette packs mu-law 8-bit at decimation 2, kBrightDigital
+// float32 at decimation 1 -- which is exactly why a mode change can leave a
+// latched delay value larger than the buffer it now indexes.
+float BufferSecondsFor(QualityMode quality, float sr) {
     auto cfg = particules_dsp::QualityConfigFor(quality);
     size_t capacity_bytes =
         (kBufferFrames + particules_dsp::kInterpolationTail) * 2 * sizeof(float);
     size_t frames = particules_dsp::RecordingBuffer::FramesForConfig(
         capacity_bytes, /*channels=*/2, cfg.format, cfg.max_bytes);
-    float buffer_seconds = static_cast<float>(frames) *
-                           static_cast<float>(cfg.decimation) / sr;
+    return static_cast<float>(frames) * static_cast<float>(cfg.decimation) / sr;
+}
+
+float ExpectedBaseSeconds(float density, QualityMode quality, float sr) {
+    float buffer_seconds = BufferSecondsFor(quality, sr);
     float buffer_samples = sr * buffer_seconds;
     float d = std::clamp(std::fabs(density - 0.5f) * 2.f, 0.f, 1.f);
     float base = buffer_samples * std::exp2(-kManualOctaves * d);
@@ -280,6 +289,183 @@ TEST_CASE("corner stress: extreme params with freeze/quality churn stay finite")
             REQUIRE(actual == Catch::Approx(expected).margin(1e-5));
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// (b2) Quality churn in kCrossfade mode with a large retarget queued on every
+// block. This is the coverage net for the two fade-start re-clamps in
+// EchoEngine (SetTargets' idle->fade branch and ReadWet's fade-complete
+// dequeue), which exist because a quality-mode SIZE SHRINK can land while a
+// fade is in flight: the shrink is queued rather than applied, so
+// target_frames_/delay_frames_ can still hold the OLD, larger buffer's
+// magnitude when they become the next fade's endpoints and the alignment
+// correlation reference. Nothing else in the suite drives that combination --
+// the five pinning scenarios never change quality, and the (b) corner-stress
+// case above runs in kTape mode, where the crossfade fade-start paths are
+// never reached.
+//
+// TWO TRAPS, both found by instrumenting this case with counters rather than
+// trusting that it did what its name said:
+//
+//  1. Do NOT churn FREEZE on a short period here. ReadWet's frozen branch
+//     returns before the crossfade code, so fade_pos_ only advances while
+//     unfrozen, and NotifyFreeze's unfreeze edge resets fade_pos_ to 0. An
+//     earlier version of this test alternated freeze every 4 blocks, which
+//     restarted the fade faster than kJumpCrossfadeFrames could ever elapse:
+//     the whole 5-second run produced exactly ONE fade start and zero
+//     dequeues. Freeze is therefore pulsed for 64 blocks out of every 512
+//     (~12%), leaving long uninterrupted runs for fades to complete in.
+//     Quality transitions still commit freely -- production gates them on the
+//     freeze guard being open, which it is for most of this run.
+//
+//  2. Do NOT retarget between the two EXTREMES of the density mapping. The
+//     aligner's radius is capped at kAlignSearchMaxFraction of
+//     min(cur, want), so if either end of the swing is the ~2 ms minimum
+//     delay, the radius collapses below kAlignMinRadiusFrames and alignment is
+//     skipped on every fade. Density sweeps 0.30..0.50 instead: both ends are
+//     long (buffer/21 up to the whole buffer, a >20x span), so the retargets
+//     stay large AND the aligner actually runs -- including in the decimated
+//     quality modes, which nothing else covers.
+//
+//  3. Do NOT square-wave the knob between two values, either. A fade is
+//     exactly kJumpCrossfadeFrames = 1024 samples = 16 blocks long, so any
+//     alternation whose period divides 16 blocks is sampled at the same phase
+//     by every fade-complete dequeue: `want` comes out equal to `cur`, the
+//     move-relative radius cap collapses to zero, and alignment is skipped.
+//     An earlier version of this test alternated every block and bailed at the
+//     radius guard on 221 of 237 calls for exactly that reason. A continuous
+//     triangle sweep gives every fade a genuinely new target, which is also
+//     what the feature is actually for.
+//
+// COVERAGE ACTUALLY DELIVERED, measured by temporarily instrumenting
+// AlignedFadeTarget and the two fade-start sites with counters (do this again
+// if you change the timings above -- all three traps produced a test that
+// passed while covering almost nothing):
+//
+//     fade-start dequeues        237   (ReadWet's fade-complete path)
+//     alignment calls            237
+//       bailed at radius guard     1
+//       reached a decision       236   (max radius reached: 96, the cap)
+//       actually moved a target   12
+//
+// The SetTargets idle->fade site runs once, at the very first retarget; after
+// that the knob never stops moving, so the engine is permanently mid-fade and
+// every subsequent fade start comes through the dequeue path. That is the
+// realistic split for a sweep, not a gap in the test.
+//
+// What this asserts is robustness, not a tight numeric bound: output stays
+// finite, the reported delay stays finite/non-negative and never exceeds the
+// longest buffer any cycled mode provides, and the delay genuinely swings over
+// the requested range. It deliberately does NOT claim a mutation-proof bound on
+// the clamps themselves -- during a transition the live quality lags the
+// requested one, so the exact live buffer size is not observable from the public
+// API at that instant. Its job is to run these paths under churn, and under
+// ASan/UBSan to prove the reads stay in bounds (verified: the whole 77-case
+// suite is clean under -fsanitize=address,undefined).
+// ---------------------------------------------------------------------------
+TEST_CASE("corner stress: crossfade retargets across quality shrinks stay bounded") {
+    const float sr = 48000.f;
+    const size_t chunk = 64;
+    const size_t steps = static_cast<size_t>(8.0f * sr) / chunk;
+    // ~0.6 s per quality. This has to be comfortably LONGER than a full
+    // transition (fade 2048 + clear ~8192 + fade 2048 samples, ~0.26 s) plus
+    // enough steady-state afterwards for the freshly-cleared buffer to refill
+    // with signal -- otherwise the buffer is perpetually mid-clear, the
+    // correlation windows are all zeros, and the aligner bails at its
+    // `best <= 0` guard on nearly every call (measured: at a 0.1 s period it
+    // reached a decision 13 times in 5 s and never once moved a target).
+    // Fades are only 1024 samples (16 blocks) long, and the knob moves every
+    // block, so shrinks still land mid-fade constantly at this period.
+    const size_t quality_period_steps =
+        std::max<size_t>(1, static_cast<size_t>(0.6f * sr) / chunk);
+
+    QualityMode qualities[4] = {QualityMode::kScorchedCassette, QualityMode::kBrightDigital,
+                                QualityMode::kSunnyTape, QualityMode::kColdDigital};
+    float longest_buffer_s = 0.f;
+    for (auto q : qualities)
+        longest_buffer_s = std::max(longest_buffer_s, BufferSecondsFor(q, sr));
+
+    // Sparse freeze pulses: 64 blocks frozen out of every 512 (see trap 1).
+    auto freeze_at = [](size_t s) { return ((s / 64) % 8) == 7; };
+
+    Proc proc(sr);
+    particules_dsp::Random rng;
+    rng.Init(0xC0FFEE01u);
+
+    RetoursParameters params;
+    params.time = 0.f;
+    params.shape = 1.f;
+    params.feedback = 1.f;
+    params.time_change_mode = TimeChangeMode::kCrossfade;
+
+    bool all_finite = true;
+    bool delay_in_range = true;
+    size_t first_bad_step = SIZE_MAX;
+    float worst_delay = 0.f;
+
+    size_t quality_idx = 0;
+    size_t next_boundary = quality_period_steps;
+    size_t commits = 0;
+
+    std::vector<StereoFrame> in(chunk), out(chunk);
+    for (size_t step = 0; step < steps; ++step) {
+        // Continuous 3 s triangle sweep over 0.30..0.50 density (see traps 2
+        // and 3): the requested delay covers buffer/2^4.4 up to the whole
+        // buffer, moving every block, so every fade lands a real distance from
+        // the last one.
+        float t = static_cast<float>(step * chunk) / sr;
+        float ph = std::fmod(t, 3.0f);
+        float frac = (ph < 1.5f) ? (ph / 1.5f) : ((3.0f - ph) / 1.5f);
+        params.density = 0.30f + 0.20f * frac;
+        params.pitch_semitones = (step % 2 == 0) ? 24.f : -24.f;
+
+        bool cur_frozen = freeze_at(step);
+        bool prev_frozen = (step == 0) ? false : freeze_at(step - 1);
+        bool guard_open = !cur_frozen && !prev_frozen;
+        params.freeze = cur_frozen;
+
+        // Quality transitions are gated on the freeze guard in production, so
+        // only commit when it is genuinely open (same discipline as (b)).
+        if (step >= next_boundary && guard_open) {
+            quality_idx = (quality_idx + 1) % 4;
+            next_boundary += quality_period_steps;
+            ++commits;
+        }
+        params.quality = qualities[quality_idx];
+        proc.p.SetParameters(params);
+
+        for (size_t i = 0; i < chunk; ++i) {
+            float n = rng.NextBipolar();
+            in[i] = {n, n};
+        }
+        proc.p.Process(in.data(), out.data(), chunk);
+
+        for (auto& f : out) {
+            if (!std::isfinite(f.l) || !std::isfinite(f.r)) {
+                all_finite = false;
+                if (first_bad_step == SIZE_MAX) first_bad_step = step;
+            }
+        }
+
+        float d = proc.p.DelayTimeSeconds();
+        worst_delay = std::max(worst_delay, d);
+        if (!std::isfinite(d) || d < 0.f || d > longest_buffer_s * 1.001f) {
+            delay_in_range = false;
+            if (first_bad_step == SIZE_MAX) first_bad_step = step;
+        }
+    }
+
+    INFO("first_bad_step=" << first_bad_step << " worst_delay=" << worst_delay
+                            << " longest_buffer_s=" << longest_buffer_s);
+    REQUIRE(all_finite);
+    REQUIRE(delay_in_range);
+    // Sanity nets, so this case can never silently stop covering what it
+    // exists for. The quality-cycling dimension must be alive, and the delay
+    // must genuinely be swinging over the range the retargets ask for -- a
+    // run that produced one fade and then sat still (the trap-1 failure mode)
+    // fails the latter.
+    REQUIRE(commits >= 4);
+    REQUIRE(worst_delay > 0.5f * BufferSecondsFor(QualityMode::kBrightDigital, sr));
 }
 
 // ---------------------------------------------------------------------------

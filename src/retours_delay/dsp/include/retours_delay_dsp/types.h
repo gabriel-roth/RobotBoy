@@ -20,15 +20,23 @@ static constexpr int    kJumpCrossfadeFrames = 1024;
 // When a Crossfade-mode fade starts, its destination may be nudged by up to
 // +/-kAlignSearchFrames so the two taps being blended line up in phase; see
 // AlignedFadeTarget in engine/echo_engine.cpp for the mechanism and
-// .superpowers/sdd/crossfade-variants-report.md for the measurements that
-// picked these values. All distances are BUFFER frames (host samples divided
-// by the quality mode's decimation factor).
+// docs/superpowers/2026-07-26-crossfade-variants-measurements.md for the
+// measurements that picked these values. All distances are BUFFER frames (host
+// samples divided by the quality mode's decimation factor).
 //
 // The comparison window is kAlignWindowFrames of buffer history sampled every
 // kAlignWindowStride frames, i.e. kAlignWindowTaps points. Cost per fade is
 // kAlignWindowTaps * (coarse candidates + refine candidates) multiply-adds:
-// 64 * (49 + 6) = 3520, at most one fade per kJumpCrossfadeFrames (~47/s at
-// 48 kHz, decimation 1) = ~165k MAC/s worst case.
+// 64 * (49 + 6) = 3520.
+//
+// A fade lasts kJumpCrossfadeFrames HOST samples, not buffer frames -- ReadWet
+// advances fade_pos_ once per host sample regardless of decimation -- so the
+// worst-case cadence is ~47 fades/s at 48 kHz in EVERY quality mode, i.e.
+// ~165k MAC/s. That worst case is not exotic: any patch modulating TIME (CV or
+// the attenurandomizer) changes the requested delay every block, so a fade
+// starts every kJumpCrossfadeFrames continuously and ~165k MAC/s is the steady
+// state, not a transient. It falls to zero only when the requested delay is
+// genuinely static.
 static constexpr int    kAlignWindowFrames = 512;  // ~11 ms of history @48k
 static constexpr int    kAlignWindowStride = 8;    // -> 3 kHz correlation band
 static constexpr int    kAlignWindowTaps = kAlignWindowFrames / kAlignWindowStride;
