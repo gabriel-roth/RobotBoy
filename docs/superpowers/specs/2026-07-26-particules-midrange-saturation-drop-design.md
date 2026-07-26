@@ -96,7 +96,41 @@ exceeds any affordable cap \~10x).
   automatic trigger drops (documents the superseded carve-out).
 - Existing suite stays green.
 
+## Addendum 2026-07-26: upward cap slew (Size-sweep CPU spike)
+
+**Problem (user report, MetaModule listening pass):** moving Size quickly
+spikes CPU. Benchmark (`GrainEngine` driven offline at max Density, Bright
+4 s buffer): fast Size sweeps transiently carry 17–30 active grains into
+knob regions whose steady state is 2–9 grains — grains spawned while the
+knob passes high-cap territory (the \~27-grain steady-state peak near
+Size ≈ 0.29) persist for their full multi-second durations after the cap
+has collapsed. Pre-existing (the pre-change engine measured worse:
+mean 21–23 active during sweeps vs 12–15 after the drop rule); newly
+audible-on-the-meter because the zone is now musically usable.
+
+**Change:** `max_active` becomes a slewed value. The per-block target is
+`cached_max_active_` as before; the effective cap falls to the target
+immediately (shrinking never kills grains — it only tightens the spawn
+gate) but rises toward it at a bounded 28 grains/s. Spawning during and
+after fast sweeps is therefore throttled to the slew line instead of
+refilling instantly to the pool max. Parked-knob steady states are
+unchanged.
+
+The slew **replaces the 1-second startup ramp** (`startup_samples_
+remaining_`): Init seeds the slew at the cap floor of 2, giving the same
+patch-load protection (2 → 30 in \~1 s at the same 28 grains/s), one
+mechanism instead of two. Small intentional difference: low targets are
+now reached sooner (fixed rate, not proportional-over-1 s) — e.g. a
+target of 9 in \~0.25 s instead of 1 s.
+
+**Accepted trade-off:** after a fast Size move (or preset jump), texture
+re-thickens over up to \~1 s instead of instantly — same spirit as the
+startup ramp. Size **CV** modulation is unaffected: the cap has always
+been computed from the raw knob (`params.size`), not the AR/CV-modulated
+per-grain size.
+
 ## Out of scope
 
-Cap formula, envelope shapes, kill fades, scheduler changes, manual/docs
-wording, MetaModule build until after the VCV listening pass.
+Cap formula (steady states), envelope shapes, kill fades, scheduler
+changes, manual/docs wording, MetaModule build until after the VCV
+listening pass.
