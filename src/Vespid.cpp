@@ -398,9 +398,9 @@ struct Vespid : Module {
 		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
 		// Output level menu sliders, removed — both were unity by default), an
 		// "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
-		// per mode above), and a "highAcc" key (Accuracy menu / Newton
-		// high-accuracy path, removed — every build now runs standard
-		// accuracy only); all are ignored.
+		// per mode above), and a "highAcc" key (Accuracy menu, removed — the
+		// Newton refinement is now always on in every build; see
+		// WaspFilter.hpp); all are ignored.
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);

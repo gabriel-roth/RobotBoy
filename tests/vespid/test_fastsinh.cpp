@@ -46,6 +46,20 @@ int main() {
         odd = odd && (wasp::sinhFast(-x) == -wasp::sinhFast(x));
     report(odd, "odd symmetry", "");
 
+    // 5. sinhCoshFast: sinh matches sinhFast bit-exactly (same formulas),
+    // cosh stays within 2e-5 relative of libm over the clamp range.
+    bool shSame = true;
+    double maxRelC = 0; double worstC = 0;
+    for (double x = -30.0; x <= 30.0; x += 1e-4) {
+        wasp::SinhCosh sc = wasp::sinhCoshFast((float)x);
+        shSame = shSame && (sc.sinh == wasp::sinhFast((float)x));
+        double rel = std::fabs((double)sc.cosh - std::cosh(x)) / std::cosh(x);
+        if (rel > maxRelC) { maxRelC = rel; worstC = x; }
+    }
+    report(shSame, "sinhCoshFast.sinh == sinhFast", "");
+    snprintf(buf, sizeof buf, "max rel err %.3e at x=%.4f (limit 2e-5)", maxRelC, worstC);
+    report(maxRelC < 2e-5, "sinhCoshFast.cosh over [-30, 30]", buf);
+
     printf(failures ? "FAILED (%d)\n" : "OK\n", failures);
     return failures ? 1 : 0;
 }

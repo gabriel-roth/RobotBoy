@@ -17,10 +17,11 @@
 // module's deliberate 1e-4 V dither floor (per-step impact measured in
 // cpu-optimization-2026-07-24.md §9.2).
 //
-// Used on both platforms (the desktop-only high-accuracy Newton path that
-// once kept exact std::sinh/cosh was removed — every build now runs this
-// same standard-accuracy path, so the host test suite exercises what
-// MetaModule ships).
+// Used on both platforms and in every solver stage: the fixed-pivot pass
+// takes sinhFast, and the always-on Newton refinement (reinstated 2026-07-26
+// after the British-mode noise regression — see test_wasp_purity.cpp) takes
+// sinhCoshFast below. The host test suite exercises exactly what MetaModule
+// ships.
 
 #include <cstring>
 #include <cstdint>
@@ -51,6 +52,23 @@ inline float sinhFast(float x) {
     }
     float y = x * 1.44269504089f;
     return 0.5f * (exp2Fast(y) - exp2Fast(-y));
+}
+
+// sinh and cosh together, sharing the two exp2Fast evaluations — the Newton
+// refinement needs both (diode value and slope). Same range and accuracy
+// story as sinhFast; cosh has no cancellation, and its small-|x| Taylor
+// (through x^4) matches exp2Fast's ~1.5e-5 relative error at the 0.5 handoff.
+struct SinhCosh { float sinh, cosh; };
+inline SinhCosh sinhCoshFast(float x) {
+    float ax = (x < 0.f) ? -x : x;
+    if (ax < 0.5f) {
+        float x2 = x * x;
+        return { x * (1.f + x2 * (1.f / 6.f + x2 * (1.f / 120.f))),
+                 1.f + x2 * (0.5f + x2 * (1.f / 24.f)) };
+    }
+    float y = x * 1.44269504089f;
+    float e = exp2Fast(y), ei = exp2Fast(-y);
+    return { 0.5f * (e - ei), 0.5f * (e + ei) };
 }
 
 } // namespace wasp

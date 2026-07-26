@@ -334,7 +334,7 @@ Fill these in during patches 8 and 13; they become shipping defaults (several sl
 | Vespid | Input trim | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Output level | ±12 dB | Resolved — baked at 0 dB (unity), menu item removed |
 | Vespid | Inverter bandwidth | 60–300 kHz | Resolved — baked per character (British 60 / German 50 kHz), slider removed |
-| Vespid | Accuracy default | Standard/High | Resolved — the High-accuracy Newton path was removed entirely; every build runs Standard accuracy, no Accuracy menu anywhere |
+| Vespid | Accuracy default | Standard/High | Resolved — no Accuracy menu anywhere; the 2026-07-24 removal of the Newton path caused audible British-mode solver noise (2026-07-26), so a fast-primitive Newton refinement is now always on in every build |
 | Vespid | Oversampling default | Auto/1×/2×/4× | Resolved — Auto on desktop; MetaModule defaults to 1× with no Auto entry |
 | Retours | Input trim | ±12 dB (0) | Resolved — baked at 0 dB (unity), slider removed |
 | Retours | Doppler slew | 0.01–1 s | Resolved — baked at 0.285 s, slider removed |

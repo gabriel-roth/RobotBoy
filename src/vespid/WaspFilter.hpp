@@ -159,11 +159,60 @@ public:
         float denom = 1.f - A * (Q + 1.f) * m.invNInv;
         float hp = (F0 - A * vgPrev + A * P * m.invNInv) / std::max(denom, 0.05f);
 
+        // ---- Newton refinement (2 iterations) -----------------------------
+        // The fixed-pivot solve alone leaves per-sample error that lands
+        // in-band as inharmonic noise — ~10% of audio-band energy on a saw in
+        // British mode (its inverter is ~3x curvier relative to its rails,
+        // its summing divider hotter at nInv=4, its g larger via wcComp), vs
+        // ~0.2% in German. Two Newton steps bring British to the exact
+        // solver's floor (tests/vespid/test_wasp_purity.cpp guards this);
+        // one step is not enough at high f0. Derivatives use the exact
+        // 1 - t*t form; values reuse the v*tanhXdX identity from the commit
+        // block, and the diode gets value+slope from one sinhCoshFast call.
+        for (int it = 0; it < 2; ++it) {
+            float uh2 = m.c * hp;
+            float rh2 = tanhXdX(uh2);
+            float Sh2 = hp * rh2;             // tanh(c*hp)/c
+            float th2 = uh2 * rh2;            // tanh(c*hp)
+            float bp2 = sBP + g * Sh2;
+            float ub2 = m.c * bp2;
+            float rb2 = tanhXdX(ub2);
+            float Sb2 = bp2 * rb2;
+            float tb2 = ub2 * rb2;
+            float lp2 = sLP + g * Sb2;
+            float yd2 = h1.beta0 * bp2 + z1;
+            float dArg2 = std::clamp(yd2 * kInvVD, -30.f, 30.f);
+            SinhCosh sc = sinhCoshFast(dArg2);
+            float fd2 = yd2 + kKD * sc.sinh;
+            float vg2 = (hin + fd2 + m.kR2 * lp2 + kC2 * Sb2 + hp) * m.invNInv;
+            float F0n, An;
+            if (vg2 <= 0.f) {
+                float t2 = tanhApprox(-m.a0OverVHi * vg2);
+                F0n =  m.vHi * t2;
+                An  = -m.invA0 * (1.f - t2 * t2);
+            } else {
+                float t2 = tanhApprox(m.a0OverVLo * vg2);
+                F0n = -m.vLo * t2;
+                An  = -m.invA0 * (1.f - t2 * t2);
+            }
+            float r = hp - F0n;
+            float dSh = 1.f - th2 * th2;
+            float dbp = g * dSh;
+            float dSb = (1.f - tb2 * tb2) * dbp;
+            float dlp = g * dSb;
+            float dyd = h1.beta0 * dbp;
+            float dfd = dyd * (1.f + kKD * sc.cosh * kInvVD);
+            float dsum = dfd + m.kR2 * dlp + kC2 * dSb;
+            float drdhp = 1.f - An * (dsum + 1.f) * m.invNInv;
+            float step = r / std::max(drdhp, 0.25f);
+            hp -= std::clamp(step, -2.f, 2.f);
+        }
+
         // The inverter output physically cannot exceed its rails, so hp is
         // bounded to the inverter's range [-vLo, vHi]. Clamping here is both correct
         // physics and solver robustness: under extreme overdrive the pivot
-        // linearization can overshoot far past the rails and the single
-        // fixed-pivot solve cannot recover — this keeps the node bounded
+        // linearization can overshoot far past the rails and two clamped
+        // Newton steps cannot recover — this keeps the node bounded
         // without disturbing the in-range fixed point.
         hp = std::clamp(hp, -m.vLo, m.vHi);
 
