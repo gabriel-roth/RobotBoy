@@ -270,3 +270,13 @@ glyphs:
   # rotation param); its viewBox center is the arrow's axis midpoint, placed
   # at knob r 4.8 + 0.8 gap + 0.9 half-length = 6.5mm out along the radial.
   - {src: glyphs/retours/feedback-90-arrow.svg, at: [33.596, 85.299]}
+  # Tap-count legend flanking the INTERVAL knob (27.94, 42.088): turning CCW
+  # shortens the interval as a single delay tap, turning CW shortens it into a
+  # busier multi-tapped pattern, so the left glyph shows one tap per period and
+  # the right the same period with an extra tap inside it. Placed on the same
+  # 45deg diagonal the SHAPE legend uses (4.7625mm out, 4.762mm down -> 6.73mm
+  # from the knob center, 1.93mm clear of a RoundBlackKnob's 4.8mm edge); the
+  # SHAPE icons' own -4.800/+4.725 asymmetry is a hand-built artefact and is
+  # not reproduced here.
+  - {src: glyphs/retours/interval-single-tap.svg, at: [23.178, 46.850]}
+  - {src: glyphs/retours/interval-extra-tap.svg,  at: [32.703, 46.850]}

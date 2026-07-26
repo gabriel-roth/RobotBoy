@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.0500 -0.6526 2.1000 1.3052">
+  <!-- INTERVAL, counter-clockwise: a single delay tap per period. Two ticks
+       1.7mm apart bound one repeat period; nothing falls between them. Pairs
+       with interval-extra-tap.svg, which is this glyph plus one inserted
+       tick; the outer ticks are identical in both, so the eye compares only
+       what happens in the gap. Tick height 0.9052mm (25% above the 0.7242mm
+       Particules density ticks, for legibility at 1x). -->
+  <line x1="-0.8500" y1="-0.4526" x2="-0.8500" y2="0.4526" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
+  <line x1="0.8500" y1="-0.4526" x2="0.8500" y2="0.4526" stroke="#ffffff" stroke-width="0.1" stroke-linecap="round"/>
+</svg>
