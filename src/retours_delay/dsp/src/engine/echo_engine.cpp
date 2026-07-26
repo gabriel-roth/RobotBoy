@@ -99,6 +99,24 @@ inline float WrapBounded(float p, float size_f) {
 // the sample at the slice's start, so the loop-point wrap doesn't click.
 constexpr float kSeamCrossfadeFrames = 64.f;
 
+// Crossfade-mode retarget chase (see docs/superpowers/specs/2026-07-26-
+// retours-crossfade-chase-design.md): bounds a fade's destination to within
+// kCrossfadeMaxStepOctaves of `cur` (the delay effective right now, in
+// frames) so a large retarget chases `want` over several successive fades
+// instead of blending two wildly different buffer regions in a single
+// kJumpCrossfadeFrames-long fade. Shared by both fade-start call sites in
+// SetTargets (idle->fade) and ReadWet (fade-complete dequeue).
+//
+// `cur <= 0` or non-finite means the caller is at the first-target sentinel
+// or an unfreeze-equivalent snap -- those don't chase, so `want` passes
+// through unmodified (same NaN-safe idiom as SetTargets' own sentinel check:
+// `cur <= 0.f` is false for NaN, so the explicit isfinite() catches it too).
+inline float BoundedFadeTarget(float cur, float want) {
+    if (cur <= 0.f || !std::isfinite(cur)) return want;
+    float max_ratio = std::exp2f(kCrossfadeMaxStepOctaves);
+    return std::clamp(want, cur / max_ratio, cur * max_ratio);
+}
+
 }  // namespace
 
 void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate) {
@@ -190,9 +208,18 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
         bool fading = fade_pos_ < 1.f;
         if (!fading) {
             if (frames != target_frames_) {
+                // Bound this fade's destination to the current effective
+                // delay (delay_frames_) so a large retarget chases the raw
+                // `frames` target over several fades rather than jumping
+                // straight there in one 1024-frame blend. If the cap bites,
+                // re-queue the raw target so the chase continues once this
+                // fade completes (see ReadWet's dequeue below).
+                float want = frames;
+                float bounded = BoundedFadeTarget(delay_frames_, want);
                 fade_from_frames_ = target_frames_;
-                target_frames_ = frames;
+                target_frames_ = bounded;
                 fade_pos_ = 0.f;
+                queued_target_ = (bounded != want) ? want : -1.f;
             }
         } else if (frames != target_frames_) {
             // Retarget mid-fade: queue it, current fade runs to completion.
@@ -387,9 +414,17 @@ StereoFrame EchoEngine::ReadWet() {
         delay_used = delay_frames_;
 
         if (fade_pos_ >= 1.f && queued_target_ >= 0.f) {
-            fade_from_frames_ = target_frames_;
-            target_frames_ = queued_target_;
-            queued_target_ = -1.f;
+            // Same bounded-chase step as SetTargets' idle->fade path above:
+            // `target_frames_` here is the just-completed fade's
+            // destination, i.e. the current effective delay at this dequeue
+            // instant (delay_frames_ also equals it exactly at fade_pos_==1,
+            // see ReadWet's fade math below).
+            float cur = target_frames_;
+            float want = queued_target_;
+            float bounded = BoundedFadeTarget(cur, want);
+            fade_from_frames_ = cur;
+            target_frames_ = bounded;
+            queued_target_ = (bounded != want) ? want : -1.f;
             fade_pos_ = 0.f;
         }
     }

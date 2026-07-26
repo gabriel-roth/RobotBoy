@@ -16,6 +16,13 @@ static constexpr float  kMinDelaySeconds = 0.002f;
 static constexpr float  kSlewSecondsDefault = 0.285f;  // baked Doppler slew (no UI)
 static constexpr float  kRandomLfoHz = 0.1f;
 static constexpr int    kJumpCrossfadeFrames = 1024;
+// Crossfade-mode retarget chase (prototype value; tune by ear -- see
+// docs/superpowers/specs/2026-07-26-retours-crossfade-chase-design.md).
+// Per-fade destination is capped to exp2f(kCrossfadeMaxStepOctaves)x the
+// current effective delay so a large retarget chases the raw target over
+// several fades instead of blending two wildly different buffer regions in
+// one 1024-frame fade.
+static constexpr float  kCrossfadeMaxStepOctaves = 0.75f;
 static constexpr float  kTap2Ratio = 0.61803f;
 static constexpr float  kTap2Gain = 0.7f;
 static constexpr float  kShifterBypassSemitones = 0.25f;

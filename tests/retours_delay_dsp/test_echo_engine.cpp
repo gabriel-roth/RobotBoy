@@ -382,6 +382,125 @@ TEST_CASE("crossfade mode: retarget during an in-progress fade queues cleanly") 
     REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(0.6f).margin(0.03f));
 }
 
+// ---------------------------------------------------------------------------
+// Crossfade-mode retarget chase (docs/superpowers/specs/2026-07-26-retours-
+// crossfade-chase-design.md): a large TIME retarget in kCrossfade mode used
+// to blend two wildly different buffer regions in a single 1024-frame fade.
+// Now each fade's destination is capped to within kCrossfadeMaxStepOctaves
+// of the delay effective when that fade starts, and the raw target keeps
+// getting chased over successive fades (each aligned to a kJumpCrossfadeFrames
+// boundary) until it's reached.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("crossfade chase: per-fade step never exceeds the ratio cap") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kCrossfade;
+    params.density = KnobForSeconds(0.002f);   // near-minimum delay
+    proc.p.SetParameters(params);
+
+    // First-ever target snaps (no fade), so this settles at A directly.
+    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    // Large retarget: ~11 octaves, out toward the buffer's full ~4 s duration.
+    params.density = KnobForSeconds(3.9f);
+    proc.p.SetParameters(params);
+
+    const float max_ratio = std::exp2(kCrossfadeMaxStepOctaves);
+    const float kTolerance = 1.005f;  // float-precision slack on the cap check
+
+    // Each kJumpCrossfadeFrames-sized chunk lines up exactly with one fade
+    // (the retarget above starts the first fade at this loop's first sample;
+    // every subsequent fade-completion dequeue in ReadWet lands exactly at a
+    // chunk boundary too -- see EchoEngine::ReadWet/SetTargets), so sampling
+    // DelayTimeSeconds() once per chunk reads exactly the sequence of bounded
+    // per-fade targets.
+    std::vector<StereoFrame> chunk_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> chunk_out(chunk_in.size());
+    float prev = proc.p.DelayTimeSeconds();
+    bool saw_step = false;
+    for (int i = 0; i < 20; ++i) {
+        proc.p.Process(chunk_in.data(), chunk_out.data(), chunk_in.size());
+        float cur = proc.p.DelayTimeSeconds();
+        REQUIRE(cur > 0.f);
+        float ratio = (cur > prev) ? (cur / prev) : (prev / cur);
+        if (ratio > 1.001f) saw_step = true;
+        REQUIRE(ratio <= max_ratio * kTolerance);
+        prev = cur;
+    }
+    // Sanity: the chase actually took multiple bounded steps (not one jump
+    // followed by 19 no-ops) -- otherwise the cap never engaged and this test
+    // wouldn't be exercising the chase at all.
+    REQUIRE(saw_step);
+}
+
+TEST_CASE("crossfade chase: converges to the raw target within the expected fade count") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kCrossfade;
+    params.density = KnobForSeconds(0.002f);
+    proc.p.SetParameters(params);
+
+    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    const float target_seconds = 3.9f;
+    params.density = KnobForSeconds(target_seconds);
+    proc.p.SetParameters(params);
+
+    // ceil(kManualOctaves / kCrossfadeMaxStepOctaves) fades to traverse the
+    // full 11-octave range, plus 2 fades of slack (per the spec's estimate).
+    int max_fades = static_cast<int>(
+        std::ceil(kManualOctaves / kCrossfadeMaxStepOctaves)) + 2;
+    std::vector<StereoFrame> chunk_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> chunk_out(chunk_in.size());
+    for (int i = 0; i < max_fades; ++i) {
+        proc.p.Process(chunk_in.data(), chunk_out.data(), chunk_in.size());
+    }
+
+    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(target_seconds).margin(0.05f));
+}
+
+TEST_CASE("crossfade chase: retarget within the cap completes in a single fade (unchanged behavior)") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.f;
+    params.time_change_mode = TimeChangeMode::kCrossfade;
+    params.density = KnobForSeconds(0.1f);   // A
+    proc.p.SetParameters(params);
+
+    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> settle_out(settle.size());
+    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+
+    // B is within the cap: 0.1s -> 0.15s is a 1.5x step (log2(1.5) ~= 0.585 <
+    // kCrossfadeMaxStepOctaves = 0.75), so the chase must not engage -- a
+    // single kJumpCrossfadeFrames fade reaches B directly, same as pre-change
+    // behavior (see pin_crossfade_retarget below, whose own retarget ratio is
+    // also under the cap and stays bit-exact).
+    params.density = KnobForSeconds(0.15f);
+    proc.p.SetParameters(params);
+
+    std::vector<StereoFrame> fade_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
+    std::vector<StereoFrame> fade_out(fade_in.size());
+    proc.p.Process(fade_in.data(), fade_out.data(), fade_in.size());
+
+    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(0.15f).margin(0.01f));
+
+    // One more fade-length of silence: no target was queued (the cap never
+    // bit), so the delay must stay put rather than continuing to chase.
+    proc.p.Process(fade_in.data(), fade_out.data(), fade_in.size());
+    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(0.15f).margin(0.01f));
+}
+
 TEST_CASE("NaN input does not poison the buffer") {
     Proc proc;
     RetoursParameters params; params.dry_wet = 1.f; params.feedback = 0.9f;
