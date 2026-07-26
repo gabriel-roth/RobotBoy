@@ -69,8 +69,9 @@ void GrainEngine::Init(float sample_rate, RecordingBuffer* buffer) {
     cached_overlap_num_frames_ = 0;
     cached_block_coefficient_ = 0.0f;
 
-    // Startup ramp: ~1 second grace period
-    startup_samples_remaining_ = static_cast<int>(sample_rate_);
+    // Cap slew starts at the floor; rising at kCapSlewPerSecond gives the
+    // same ~1-second patch-load grace period as the old startup ramp.
+    max_active_slew_ = 2.0f;
 }
 
 int GrainEngine::ActiveGrainCount() const {
@@ -285,17 +286,23 @@ void GrainEngine::Process(const ParticulesParameters& params,
         cached_max_active_ = std::max(cached_max_active_, 2);
         cached_max_active_ = std::min(cached_max_active_, kMaxGrains);
     }
-    int max_active = cached_max_active_;
-
-    // Startup ramp: gradually increase grain limit over first second
-    // to avoid CPU spike when loading a patch with high density.
-    if (startup_samples_remaining_ > 0) {
-        startup_samples_remaining_ -= static_cast<int>(num_frames);
-        // Ramp from 2 to max_active over 1 second
-        float progress = 1.0f - static_cast<float>(startup_samples_remaining_) / sample_rate_;
-        int ramped = 2 + static_cast<int>(progress * static_cast<float>(max_active - 2));
-        max_active = std::min(max_active, std::max(ramped, 2));
+    // Upward cap slew: fall to the target immediately (shrinking only
+    // tightens the spawn gate; it never kills grains) but rise at a
+    // bounded rate. Without this, a fast SIZE sweep refills the pool to
+    // the new cap instantly with multi-second grains that then persist --
+    // measured as a 2-10x transient CPU spike over the local steady state
+    // (see the 2026-07-26 spec addendum). Init seeds the slew at the
+    // floor of 2, which also provides the old startup ramp's patch-load
+    // protection (2 -> kMaxGrains in ~1 s).
+    float cap_target = static_cast<float>(cached_max_active_);
+    if (max_active_slew_ > cap_target) {
+        max_active_slew_ = cap_target;
+    } else {
+        max_active_slew_ += kCapSlewPerSecond * static_cast<float>(num_frames)
+                            * inv_sample_rate_;
+        if (max_active_slew_ > cap_target) max_active_slew_ = cap_target;
     }
+    int max_active = static_cast<int>(max_active_slew_);
 
     int active_before = ActiveGrainCount();
 
@@ -312,7 +319,7 @@ void GrainEngine::Process(const ParticulesParameters& params,
         bool reused_active_slot = false;
         if (active_before < max_active) g = AllocateGrain();
         if (!g) {
-            // Saturated (dynamic cap, startup-ramped cap, or full pool):
+            // Saturated (dynamic cap, slewed cap, or full pool):
             // automatic (droppable) triggers are dropped -- no steal, no
             // spawn -- at ANY cap value. One rule everywhere; the
             // 2026-07-25 cap-floor-only gate and its startup-ramp

@@ -113,9 +113,14 @@ private:
     size_t cached_overlap_num_frames_ = 0;
     float cached_block_coefficient_ = 0.0f;
 
-    // Startup ramp: limit grain count for the first second to avoid
-    // CPU spike when loading a patch with high density settings.
-    int startup_samples_remaining_ = 0;
+    // Upward cap slew: the effective max-active cap falls to
+    // cached_max_active_ immediately but rises toward it at
+    // kCapSlewPerSecond, so fast SIZE moves (and patch loads -- Init seeds
+    // the slew at the floor of 2, subsuming the old 1-second startup ramp)
+    // can't refill the pool with long grains all at once. See the
+    // 2026-07-26 spec addendum.
+    static constexpr float kCapSlewPerSecond = 28.0f;
+    float max_active_slew_ = 2.0f;
 
     // Allocate a free grain slot from the pool (returns nullptr if none free).
     Grain* AllocateGrain();

@@ -301,21 +301,22 @@ TEST_CASE("GrainEngine: automatic triggers drop against the ramped cap during st
     params.time = 0.5f;
     params.shape = 0.5f;
     params.pitch = 0.0f;
-    params.size = 0.5f;     // mid-size: the unramped cap is ~15, so during
-                             // the early ramp the RAMPED cap (2 until
-                             // sample ~3692 = 48000/13) is the binding
-                             // limit -- exactly the case the superseded
-                             // 2026-07-25 carve-out kept stealing.
-    params.density = 0.0f;  // max-rate ticks from sample 0 -- no ramp burn.
+    params.size = 0.5f;     // mid-size: the settled cap is ~15, so right
+                             // after Init the SLEWED cap (seeded at 2,
+                             // rising 28 grains/s -- int value 2 until
+                             // sample ~1714) is the binding limit --
+                             // exactly the case the superseded 2026-07-25
+                             // carve-out kept stealing.
+    params.density = 0.0f;  // max-rate ticks from sample 0 -- no slew burn.
 
     std::vector<StereoFrame> block(64);
 
     // Ticks arrive every ~367 samples, so the pool saturates at 2 grains
-    // around sample ~734 and ~7 further ticks hit the saturated branch
-    // inside the window. Stop at 3500 (margin below the ramp's first step
-    // to 3 at ~3692). Grain duration ~37440 samples: nothing dies
-    // naturally in the window.
-    const int kWindow = 3500;
+    // around sample ~734 and a couple more ticks hit the saturated branch
+    // inside the window. Stop at 1500 (margin below the slew's first step
+    // to 3 at ~1714 = 48000/28). Grain duration ~37440 samples: nothing
+    // dies naturally in the window.
+    const int kWindow = 1500;
     uint32_t serial_a = 0, serial_b = 0;
     bool serials_recorded = false;
     for (int i = 0; i < kWindow; ++i) {
@@ -343,6 +344,57 @@ TEST_CASE("GrainEngine: automatic triggers drop against the ramped cap during st
         if (engine.ActiveAt(g)) max_serial = std::max(max_serial, engine.SpawnSerialAt(g));
     }
     REQUIRE(max_serial == std::max(serial_a, serial_b));
+}
+
+// ── (h) Upward cap slew: a fast Size drop refills the pool at ~28
+//        grains/s, not instantly (2026-07-26 spec addendum) ──────────────
+
+TEST_CASE("GrainEngine: cap slew bounds grain refill after a fast Size drop",
+          "[engine][longgrain][slew]") {
+    const size_t num_frames = 48000 * 8;
+    size_t bytes = (num_frames + kInterpolationTail) * 2 * sizeof(float);
+    std::vector<uint8_t> memory(bytes, 0);
+    RecordingBuffer buffer;
+    buffer.Init(reinterpret_cast<float*>(memory.data()), num_frames, 2);
+    for (size_t i = 0; i < num_frames; ++i) {
+        buffer.Write(0.5f, 0.5f);
+    }
+
+    GrainEngine engine;
+    engine.Init(kSampleRate, &buffer);
+
+    ParticulesParameters params;
+    params.trigger_mode = TriggerMode::kLatched;
+    params.time = 0.5f;
+    params.shape = 0.5f;
+    params.pitch = 0.0f;
+    params.size = 1.0f;     // cap floor: slew target (and value) settle at 2.
+    params.density = 0.5f;  // silent while any startup transient passes.
+
+    std::vector<StereoFrame> block(64);
+    for (int i = 0; i < 800; ++i) {
+        engine.Process(params, block.data(), 64);
+    }
+    REQUIRE(engine.ActiveGrainCount() == 0);
+
+    // Snap the knob from the cap floor to mid-size (settled cap ~15 on an
+    // 8s buffer) with max-rate ticks. The slew starts at 2 and rises 28/s,
+    // so 0.25s after the snap the effective cap is ~2 + 7 = 9; without the
+    // slew the pool refills to ~15 within ~5500 samples.
+    params.size = 0.5f;
+    params.density = 0.0f;
+    for (int i = 0; i < 12000; ++i) {
+        engine.Process(params, block.data(), 1);
+    }
+    REQUIRE(engine.ActiveGrainCount() <= 10);
+
+    // After 1.5s total the slew has long since reached the ~15 target and
+    // the pool sits at the settled cap (14 tolerates a just-died grain
+    // awaiting its next refill tick).
+    for (int i = 0; i < 60000; ++i) {
+        engine.Process(params, block.data(), 1);
+    }
+    REQUIRE(engine.ActiveGrainCount() >= 14);
 }
 
 // ── (f) Manual triggers still steal at a saturated mid-size cap ───────────
