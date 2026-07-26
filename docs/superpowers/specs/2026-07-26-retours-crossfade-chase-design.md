@@ -1,3 +1,16 @@
+> **SUPERSEDED 2026-07-26** by correlation-aligned splices. The bounded
+> per-fade ratio chase described below was built (commit 238616d), measured,
+> and removed. It never engaged at any sweep speed a hand can produce (the
+> 0.75-octave cap needs a sub-0.2 s full-travel twist), so it left the sweep
+> garble in the "Problem" section completely untouched — the metrics came out
+> bit-identical to main on every 2 s and 0.4 s sweep — while adding ~12 fade
+> cycles of lag to an instant retarget (CV jump / clock change), violating the
+> one-fade-cycle responsiveness requirement. The problem statement below is
+> still accurate and still the reason the work was done; only the mechanism
+> changed. See `.superpowers/sdd/crossfade-variants-report.md` for the variant
+> comparison and `AlignedFadeTarget` in
+> `src/retours_delay/dsp/src/engine/echo_engine.cpp` for what shipped.
+
 # Retours: bounded per-fade target chase in Crossfade mode
 
 **Date:** 2026-07-26. **Status:** approved design, prototype-first (worktree

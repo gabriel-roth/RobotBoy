@@ -207,6 +207,24 @@ public:
         ReadHermiteStereoFrac(MakeReadContext(), i0, frac, out_l, out_r);
     }
 
+    // Nearest-frame, non-interpolated read of the LEFT channel (the mono
+    // sample in mono configs) through a resolved ReadContext. Purely
+    // additive: no existing reader routes through it, so it cannot perturb
+    // any interpolated output. Exists for cheap analysis passes that compare
+    // buffer content rather than render it -- today Retours' crossfade
+    // splice aligner (echo_engine.cpp), which needs a few hundred raw frames
+    // per fade and must not pay Hermite cost per sample. Precondition:
+    // frame < ctx.size.
+    static inline float MonoSampleAt(const ReadContext& ctx, size_t frame) {
+        size_t idx = (ctx.channels == 2) ? frame * 2 : frame;
+        switch (ctx.format) {
+            case StorageFormat::kFloat32: return ctx.f32[idx];
+            case StorageFormat::kInt12:   return ctx.i16[idx] * (1.0f / 2047.0f);
+            case StorageFormat::kMuLaw8:  return ctx.mulaw_lut[ctx.u8[idx]];
+        }
+        return 0.0f;
+    }
+
     // Float-position variant (Retours' EchoEngine; positions re-sync per
     // block there, so float precision suffices). Precondition unchanged:
     // position finite and in [0, size_).

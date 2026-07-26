@@ -16,13 +16,33 @@ static constexpr float  kMinDelaySeconds = 0.002f;
 static constexpr float  kSlewSecondsDefault = 0.285f;  // baked Doppler slew (no UI)
 static constexpr float  kRandomLfoHz = 0.1f;
 static constexpr int    kJumpCrossfadeFrames = 1024;
-// Crossfade-mode retarget chase (prototype value; tune by ear -- see
-// docs/superpowers/specs/2026-07-26-retours-crossfade-chase-design.md).
-// Per-fade destination is capped to exp2f(kCrossfadeMaxStepOctaves)x the
-// current effective delay so a large retarget chases the raw target over
-// several fades instead of blending two wildly different buffer regions in
-// one 1024-frame fade.
-static constexpr float  kCrossfadeMaxStepOctaves = 0.75f;
+// --- Crossfade-mode splice alignment ---
+// When a Crossfade-mode fade starts, its destination may be nudged by up to
+// +/-kAlignSearchFrames so the two taps being blended line up in phase; see
+// AlignedFadeTarget in engine/echo_engine.cpp for the mechanism and
+// .superpowers/sdd/crossfade-variants-report.md for the measurements that
+// picked these values. All distances are BUFFER frames (host samples divided
+// by the quality mode's decimation factor).
+//
+// The comparison window is kAlignWindowFrames of buffer history sampled every
+// kAlignWindowStride frames, i.e. kAlignWindowTaps points. Cost per fade is
+// kAlignWindowTaps * (coarse candidates + refine candidates) multiply-adds:
+// 64 * (49 + 6) = 3520, at most one fade per kJumpCrossfadeFrames (~47/s at
+// 48 kHz, decimation 1) = ~165k MAC/s worst case.
+static constexpr int    kAlignWindowFrames = 512;  // ~11 ms of history @48k
+static constexpr int    kAlignWindowStride = 8;    // -> 3 kHz correlation band
+static constexpr int    kAlignWindowTaps = kAlignWindowFrames / kAlignWindowStride;
+static constexpr int    kAlignSearchFrames = 96;   // +/- ~2 ms @48k, dec 1
+static constexpr int    kAlignSearchStride = 4;    // coarse lag step
+static constexpr int    kAlignRefineRadius = 3;    // whole-frame refine window
+// Search radius is also capped relative to the delay itself (a short delay is
+// a tuned comb that a fixed 2 ms would detune) and relative to the size of the
+// requested move (so the delay always travels at least half the distance
+// asked for), and alignment is skipped entirely below kAlignMinRadiusFrames of
+// usable slack.
+static constexpr float  kAlignSearchMaxFraction = 0.05f;
+static constexpr float  kAlignMoveFraction = 0.5f;
+static constexpr int    kAlignMinRadiusFrames = 16;
 static constexpr float  kTap2Ratio = 0.61803f;
 static constexpr float  kTap2Gain = 0.7f;
 static constexpr float  kShifterBypassSemitones = 0.25f;

@@ -383,122 +383,178 @@ TEST_CASE("crossfade mode: retarget during an in-progress fade queues cleanly") 
 }
 
 // ---------------------------------------------------------------------------
-// Crossfade-mode retarget chase (docs/superpowers/specs/2026-07-26-retours-
-// crossfade-chase-design.md): a large TIME retarget in kCrossfade mode used
-// to blend two wildly different buffer regions in a single 1024-frame fade.
-// Now each fade's destination is capped to within kCrossfadeMaxStepOctaves
-// of the delay effective when that fade starts, and the raw target keeps
-// getting chased over successive fades (each aligned to a kJumpCrossfadeFrames
-// boundary) until it's reached.
+// Crossfade-mode splice alignment (see AlignedFadeTarget in
+// dsp/src/engine/echo_engine.cpp and .superpowers/sdd/
+// crossfade-variants-report.md). A Crossfade-mode fade blends the tap at the
+// old delay with the tap at the new one; on an Interval sweep those sit
+// hundreds of ms apart in the buffer, so their phase relationship is random
+// and the blend garbles. Each fade's destination is now nudged by up to
+// +/-kAlignSearchFrames (~2 ms, inaudible as a delay-time error) onto the
+// best cross-correlating offset, subject to three radius caps. Nothing about
+// the fade CADENCE changed, so the delay still lands within one fade of the
+// knob's target -- the tests below assert both halves of that.
+//
+// These replace the earlier bounded-per-fade ratio-chase tests: measurement
+// (see the report) showed that mechanism never engaged at human sweep speeds,
+// left the sweep garble untouched, and added ~12 fade cycles of lag to an
+// instant retarget, so it was removed rather than tuned.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("crossfade chase: per-fade step never exceeds the ratio cap") {
-    Proc proc;
-    RetoursParameters params;
-    params.dry_wet = 1.f;
-    params.feedback = 0.f;
-    params.time_change_mode = TimeChangeMode::kCrossfade;
-    params.density = KnobForSeconds(0.002f);   // near-minimum delay
-    proc.p.SetParameters(params);
-
-    // First-ever target snaps (no fade), so this settles at A directly.
-    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> settle_out(settle.size());
-    proc.p.Process(settle.data(), settle_out.data(), settle.size());
-
-    // Large retarget: ~11 octaves, out toward the buffer's full ~4 s duration.
-    params.density = KnobForSeconds(3.9f);
-    proc.p.SetParameters(params);
-
-    const float max_ratio = std::exp2(kCrossfadeMaxStepOctaves);
-    const float kTolerance = 1.005f;  // float-precision slack on the cap check
-
-    // Each kJumpCrossfadeFrames-sized chunk lines up exactly with one fade
-    // (the retarget above starts the first fade at this loop's first sample;
-    // every subsequent fade-completion dequeue in ReadWet lands exactly at a
-    // chunk boundary too -- see EchoEngine::ReadWet/SetTargets), so sampling
-    // DelayTimeSeconds() once per chunk reads exactly the sequence of bounded
-    // per-fade targets.
-    std::vector<StereoFrame> chunk_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> chunk_out(chunk_in.size());
-    float prev = proc.p.DelayTimeSeconds();
-    bool saw_step = false;
-    for (int i = 0; i < 20; ++i) {
-        proc.p.Process(chunk_in.data(), chunk_out.data(), chunk_in.size());
-        float cur = proc.p.DelayTimeSeconds();
-        REQUIRE(cur > 0.f);
-        float ratio = (cur > prev) ? (cur / prev) : (prev / cur);
-        if (ratio > 1.001f) saw_step = true;
-        REQUIRE(ratio <= max_ratio * kTolerance);
-        prev = cur;
-    }
-    // Sanity: the chase actually took multiple bounded steps (not one jump
-    // followed by 19 no-ops) -- otherwise the cap never engaged and this test
-    // wouldn't be exercising the chase at all.
-    REQUIRE(saw_step);
+namespace {
+// The exact delay (seconds) the engine resolves for a given density knob, with
+// no fade or slew in the way: a fresh engine's FIRST target always snaps (the
+// first-target sentinel in EchoEngine::SetTargets), so one block is enough.
+float ResolvedDelaySeconds(float density) {
+    Proc ref;
+    RetoursParameters p;
+    p.dry_wet = 1.f;
+    p.feedback = 0.f;
+    p.time_change_mode = TimeChangeMode::kCrossfade;
+    p.density = density;
+    ref.p.SetParameters(p);
+    std::vector<StereoFrame> in(64, StereoFrame{0.f, 0.f}), out(64);
+    ref.p.Process(in.data(), out.data(), in.size());
+    return ref.p.DelayTimeSeconds();
 }
 
-TEST_CASE("crossfade chase: converges to the raw target within the expected fade count") {
+// Drives a Crossfade-mode retarget from `a_seconds` to `b_seconds` with a
+// steady sine feeding the buffer, and reports what happened. `tone_hz` should
+// NOT divide evenly into either delay, otherwise both taps are phase-coherent
+// by luck and alignment has nothing to fix.
+struct SpliceRun {
+    float delay_before = 0.f;      // settled delay at A (seconds)
+    float delay_after_fade = 0.f;  // delay one fade after the retarget
+    float delay_settled = 0.f;     // delay a further fade later
+    float dip_ratio = 0.f;         // min RMS during the fade / steady RMS
+};
+
+SpliceRun RunSplice(float a_seconds, float b_seconds, float tone_hz,
+                    bool silent_buffer = false) {
     Proc proc;
     RetoursParameters params;
     params.dry_wet = 1.f;
     params.feedback = 0.f;
     params.time_change_mode = TimeChangeMode::kCrossfade;
-    params.density = KnobForSeconds(0.002f);
-    proc.p.SetParameters(params);
+    params.density = KnobForSeconds(a_seconds);
 
-    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> settle_out(settle.size());
-    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+    size_t phase = 0;
+    auto run = [&](size_t n, std::vector<StereoFrame>* capture) {
+        std::vector<StereoFrame> in(n), out(n);
+        for (size_t i = 0; i < n; ++i) {
+            float v = silent_buffer
+                ? 0.f
+                : std::sin(2.f * static_cast<float>(M_PI) * tone_hz *
+                           static_cast<float>(phase + i) / 48000.f);
+            in[i] = StereoFrame{v, v};
+        }
+        phase += n;
+        proc.p.SetParameters(params);
+        proc.p.Process(in.data(), out.data(), n);
+        if (capture) *capture = out;
+    };
 
-    const float target_seconds = 3.9f;
-    params.density = KnobForSeconds(target_seconds);
-    proc.p.SetParameters(params);
+    // Fill the whole 4 s buffer, settled at A, before touching the knob.
+    for (int i = 0; i < 100; ++i) run(2400, nullptr);
+    std::vector<StereoFrame> steady;
+    run(2048, &steady);
 
-    // ceil(kManualOctaves / kCrossfadeMaxStepOctaves) fades to traverse the
-    // full 11-octave range, plus 2 fades of slack (per the spec's estimate).
-    int max_fades = static_cast<int>(
-        std::ceil(kManualOctaves / kCrossfadeMaxStepOctaves)) + 2;
-    std::vector<StereoFrame> chunk_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> chunk_out(chunk_in.size());
-    for (int i = 0; i < max_fades; ++i) {
-        proc.p.Process(chunk_in.data(), chunk_out.data(), chunk_in.size());
-    }
+    SpliceRun r;
+    r.delay_before = proc.p.DelayTimeSeconds();
 
-    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(target_seconds).margin(0.05f));
+    params.density = KnobForSeconds(b_seconds);
+    std::vector<StereoFrame> fade;
+    run(kJumpCrossfadeFrames, &fade);
+    r.delay_after_fade = proc.p.DelayTimeSeconds();
+
+    std::vector<StereoFrame> after;
+    run(kJumpCrossfadeFrames, &after);
+    r.delay_settled = proc.p.DelayTimeSeconds();
+
+    auto rms = [](const std::vector<StereoFrame>& v, size_t from, size_t n) {
+        float e = 0.f;
+        for (size_t i = from; i < from + n && i < v.size(); ++i) e += v[i].l * v[i].l;
+        return std::sqrt(e / static_cast<float>(n));
+    };
+    float ref = rms(steady, 1024, 1024);
+    float worst = 1e30f;
+    const size_t sub = 256;
+    for (size_t s = 0; s + sub <= fade.size(); s += sub / 2)
+        worst = std::min(worst, rms(fade, s, sub));
+    r.dip_ratio = (ref > 0.f) ? worst / ref : 0.f;
+    return r;
+}
+}  // namespace
+
+TEST_CASE("crossfade splice alignment: a phase-cancelling retarget keeps its level") {
+    // 0.1 s -> 0.8 s at 466.164 Hz (A#4). Neither delay is a whole number of
+    // tone periods, so the raw target lands the new tap roughly antiphase with
+    // the old one and the blend partially cancels. Measured through the fade
+    // (min RMS over 256-sample sub-windows, relative to the steady level
+    // before the retarget): 0.557 without alignment, 0.997 with it -- i.e. the
+    // 5 dB cancellation notch that the splice used to punch is gone. The 0.9
+    // bar sits well clear of both.
+    SpliceRun r = RunSplice(0.1f, 0.8f, 466.164f);
+    REQUIRE(r.dip_ratio > 0.9f);
 }
 
-TEST_CASE("crossfade chase: retarget within the cap completes in a single fade (unchanged behavior)") {
-    Proc proc;
-    RetoursParameters params;
-    params.dry_wet = 1.f;
-    params.feedback = 0.f;
-    params.time_change_mode = TimeChangeMode::kCrossfade;
-    params.density = KnobForSeconds(0.1f);   // A
-    proc.p.SetParameters(params);
+TEST_CASE("crossfade splice alignment: landed delay stays inside the search budget") {
+    // The nudge must be inaudible as a delay-time error: at most
+    // kAlignSearchFrames of buffer frames away from what the knob asked for.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(0.8f));
+    // decimation is 1 in kBrightDigital (the default quality), so one buffer
+    // frame is one host sample; +1 frame of slack for float rounding.
+    const float budget = (kAlignSearchFrames + 1) / 48000.f;
 
-    std::vector<StereoFrame> settle(4096, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> settle_out(settle.size());
-    proc.p.Process(settle.data(), settle_out.data(), settle.size());
+    SpliceRun r = RunSplice(0.1f, 0.8f, 466.164f);
+    REQUIRE(std::fabs(r.delay_after_fade - requested) <= budget);
+    // Non-vacuous: this scenario really does exercise the aligner rather than
+    // passing `want` straight through (see the "silence" case below for the
+    // pass-through path).
+    REQUIRE(r.delay_after_fade != requested);
+}
 
-    // B is within the cap: 0.1s -> 0.15s is a 1.5x step (log2(1.5) ~= 0.585 <
-    // kCrossfadeMaxStepOctaves = 0.75), so the chase must not engage -- a
-    // single kJumpCrossfadeFrames fade reaches B directly, same as pre-change
-    // behavior (see pin_crossfade_retarget below, whose own retarget ratio is
-    // also under the cap and stays bit-exact).
-    params.density = KnobForSeconds(0.15f);
-    proc.p.SetParameters(params);
+TEST_CASE("crossfade splice alignment: no added lag, one fade reaches the target") {
+    // The whole point of aligning instead of chasing: a retarget still
+    // completes in exactly one kJumpCrossfadeFrames fade, and the delay then
+    // HOLDS -- no residual chase, no second fade, nothing left queued.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(0.8f));
+    const float budget = (kAlignSearchFrames + 1) / 48000.f;
 
-    std::vector<StereoFrame> fade_in(kJumpCrossfadeFrames, StereoFrame{0.f, 0.f});
-    std::vector<StereoFrame> fade_out(fade_in.size());
-    proc.p.Process(fade_in.data(), fade_out.data(), fade_in.size());
+    SpliceRun r = RunSplice(0.1f, 0.8f, 466.164f);
+    REQUIRE(std::fabs(r.delay_after_fade - requested) <= budget);
+    REQUIRE(r.delay_settled == r.delay_after_fade);
+}
 
-    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(0.15f).margin(0.01f));
+TEST_CASE("crossfade splice alignment: silence in the buffer leaves the target exact") {
+    // No positive correlation anywhere (every candidate scores 0), so the
+    // aligner declines to nudge and the delay lands exactly on the request.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(0.8f));
+    SpliceRun r = RunSplice(0.1f, 0.8f, 466.164f, /*silent_buffer=*/true);
+    REQUIRE(r.delay_after_fade == Catch::Approx(requested).epsilon(1e-6f));
+}
 
-    // One more fade-length of silence: no target was queued (the cap never
-    // bit), so the delay must stay put rather than continuing to chase.
-    proc.p.Process(fade_in.data(), fade_out.data(), fade_in.size());
-    REQUIRE(proc.p.DelayTimeSeconds() == Catch::Approx(0.15f).margin(0.01f));
+TEST_CASE("crossfade splice alignment: very short delays are left exactly on target") {
+    // kAlignSearchMaxFraction of a 4 ms delay is under kAlignMinRadiusFrames,
+    // so alignment is skipped outright: a few ms of delay is a tuned comb and
+    // even a fraction of a millisecond of slack would detune it audibly. The
+    // delay must land exactly where asked.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(0.006f));
+    SpliceRun r = RunSplice(0.004f, 0.006f, 466.164f);
+    REQUIRE(r.delay_after_fade == Catch::Approx(requested).epsilon(1e-6f));
+}
+
+TEST_CASE("crossfade splice alignment: a small retarget still travels most of the way") {
+    // The best-correlating offset for a move smaller than the search radius is
+    // always the one that cancels the move outright (identical content
+    // correlates perfectly), so kAlignMoveFraction caps the nudge at half the
+    // requested move. A 3 ms nudge on a 1 s delay must therefore still cover at
+    // least half its distance -- the knob can never feel stuck.
+    const float requested = ResolvedDelaySeconds(KnobForSeconds(1.003f));
+    SpliceRun r = RunSplice(1.0f, 1.003f, 466.164f);
+    float asked = requested - r.delay_before;
+    float travelled = r.delay_after_fade - r.delay_before;
+    REQUIRE(asked > 0.f);
+    REQUIRE(travelled >= (1.f - kAlignMoveFraction) * asked * 0.999f);
 }
 
 TEST_CASE("NaN input does not poison the buffer") {
@@ -604,8 +660,25 @@ TEST_CASE("pinning: crossfade mode, delay-time retarget mid-run") {
     proc.p.SetParameters(params);
     proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
 
+    // Hash regenerated for splice alignment (AlignedFadeTarget in
+    // dsp/src/engine/echo_engine.cpp; see .superpowers/sdd/
+    // crossfade-variants-report.md). This is the ONLY one of the five pins in
+    // this file whose scenario enters kCrossfade mode -- the other four run in
+    // kTape (two set it explicitly, the two frozen ones inherit
+    // RetoursParameters' kTape default) and stayed bit-exact, verified by
+    // running the suite before regenerating this value.
+    //
+    // Why it legitimately moves: the retarget is 720 -> 480 buffer frames on a
+    // noise-filled buffer, so the aligner's radius is
+    // min(kAlignSearchFrames=96, kAlignSearchMaxFraction*480=24,
+    // kAlignMoveFraction*240=120) = 24 frames, above kAlignMinRadiusFrames, so
+    // the fade now lands on the best-correlating offset within +/-24 frames of
+    // 480 instead of exactly on 480. Every sample of the fade and everything
+    // after it therefore reads a slightly different buffer position -- a
+    // deliberate behaviour change, not a regression.
+    // Previous value (pre-alignment): 0xb0f74744c671a30c.
     std::uint64_t got = Fnv1aStereo(out);
-    CheckPinHash("pin_crossfade_retarget", got, 0xb0f74744c671a30cull);
+    CheckPinHash("pin_crossfade_retarget", got, 0x363c09549efdc497ull);
 }
 
 TEST_CASE("pinning: multi-tap active") {

@@ -99,24 +99,110 @@ inline float WrapBounded(float p, float size_f) {
 // the sample at the slice's start, so the loop-point wrap doesn't click.
 constexpr float kSeamCrossfadeFrames = 64.f;
 
-// Crossfade-mode retarget chase (see docs/superpowers/specs/2026-07-26-
-// retours-crossfade-chase-design.md): bounds a fade's destination to within
-// kCrossfadeMaxStepOctaves of `cur` (the delay effective right now, in
-// frames) so a large retarget chases `want` over several successive fades
-// instead of blending two wildly different buffer regions in a single
-// kJumpCrossfadeFrames-long fade. Shared by both fade-start call sites in
-// SetTargets (idle->fade) and ReadWet (fade-complete dequeue).
+// Correlation-aligned splice -- the fix for garbled Interval sweeps in
+// Crossfade mode. A fade blends the tap at `cur` with the tap at `want`; on a
+// knob sweep those are hundreds of milliseconds apart in the buffer, so their
+// phase relationship is random and the blend comes out as a chirpy, partly
+// cancelling mess. This nudges `want` by up to +/-kAlignSearchFrames (~2 ms,
+// inaudible as a delay-time error) to the offset whose recent buffer history
+// best cross-correlates with the old tap's, so the two copies line up in phase
+// and the blend is coherent.
 //
-// `cur <= 0` or non-finite means the caller is at the first-target sentinel
-// or an unfreeze-equivalent snap -- those don't chase, so `want` passes
-// through unmodified (same NaN-safe idiom as SetTargets' own sentinel check:
-// `cur <= 0.f` is false for NaN, so the explicit isfinite() catches it too).
-inline float BoundedFadeTarget(float cur, float want) {
-    if (cur <= 0.f || !std::isfinite(cur)) return want;
-    float max_ratio = std::exp2f(kCrossfadeMaxStepOctaves);
-    return std::clamp(want, cur / max_ratio, cur * max_ratio);
-}
+// Measured (inharmonic residual over a 220 Hz burst train, see
+// .superpowers/sdd/crossfade-variants-report.md): 5-8 dB cleaner mean and
+// 2-10 dB cleaner worst-case (p95) on every single-tap crossfade sweep, at
+// unchanged responsiveness -- the delay still reaches the knob's target within
+// one fade cycle, because this changes only WHERE the fade lands, never how
+// many fades it takes to get there.
+//
+// `write_pos` is the continuous write position; `cur`/`want` are delays in
+// frames. Returns the nudged delay, clamped to [0, max_frames].
+inline float AlignedFadeTarget(const particules_dsp::RecordingBuffer* buf,
+                               float write_pos, float cur, float want,
+                               float max_frames) {
+    if (!buf) return want;
+    float size_f = static_cast<float>(buf->size());
+    if (size_f <= static_cast<float>(kAlignWindowFrames + kAlignSearchFrames + 4)) return want;
+    if (!std::isfinite(cur) || cur <= 0.f || !std::isfinite(want) || !std::isfinite(write_pos)) {
+        return want;
+    }
 
+    // Search radius, the smallest of three caps:
+    //  * absolute (kAlignSearchFrames ~ 2 ms at 48 kHz, decimation 1) -- the
+    //    inaudibility budget for landing off the requested delay;
+    //  * relative to the SHORTER of the two delays being blended
+    //    (kAlignSearchMaxFraction) -- a 4 ms delay is a tuned comb that a
+    //    fixed 2 ms of slack would detune audibly, while 2 ms out of 1.8 s is
+    //    nothing. Keyed on min(cur, want) because the nudge has to be
+    //    inaudible against BOTH taps in the blend, and because measurement
+    //    preferred it: keying on `want` alone let the aligner engage on jumps
+    //    up out of very short delays, which came out 0.8-3.5 dB dirtier;
+    //  * relative to the MOVE (kAlignMoveFraction * |want - cur|) -- the best
+    //    correlation for a move smaller than the radius is always the one that
+    //    cancels the move outright (identical content correlates perfectly),
+    //    so without this cap small knob nudges would land nowhere. Capping the
+    //    nudge at a fraction of the move guarantees the delay always travels
+    //    at least (1 - kAlignMoveFraction) of the distance asked for.
+    float radius_f = std::min(static_cast<float>(kAlignSearchFrames),
+                              kAlignSearchMaxFraction * std::min(cur, want));
+    radius_f = std::min(radius_f, kAlignMoveFraction * std::fabs(want - cur));
+    int radius = static_cast<int>(radius_f);
+    radius -= radius % kAlignSearchStride;
+    // Too little slack to find a real match: don't perturb the delay at all.
+    if (radius < kAlignMinRadiusFrames) return want;
+
+    auto ctx = buf->MakeReadContext();
+    int size = static_cast<int>(ctx.size);
+    int base_old = static_cast<int>(WrapPosition(write_pos - cur, size_f));
+    int base_new = static_cast<int>(WrapPosition(write_pos - want, size_f));
+    if (base_old < 0 || base_old >= size || base_new < 0 || base_new >= size) return want;
+
+    // One conditional is enough to wrap every window index: the guard above
+    // established size_f > kAlignWindowFrames + kAlignSearchFrames + 4, and
+    // the furthest an index reaches back is (kAlignWindowTaps - 1) *
+    // kAlignWindowStride + radius < kAlignWindowFrames + kAlignSearchFrames,
+    // so base - k*stride can never fall below -size.
+    float ref[kAlignWindowTaps];
+    for (int k = 0; k < kAlignWindowTaps; ++k) {
+        int idx = base_old - k * kAlignWindowStride;
+        if (idx < 0) idx += size;
+        ref[k] = particules_dsp::RecordingBuffer::MonoSampleAt(ctx, static_cast<size_t>(idx));
+    }
+
+    // Unnormalized cross-correlation is enough here: the search spans only
+    // ~2 ms, over which signal level is essentially flat, so there is no
+    // loud-region bias to divide out (and no per-candidate divide to pay).
+    auto score_at = [&](int delta) {
+        int base = base_new - delta;   // +delta = longer delay = earlier frame
+        if (base < 0) base += size;
+        else if (base >= size) base -= size;
+        float sum = 0.f;
+        for (int k = 0; k < kAlignWindowTaps; ++k) {
+            int idx = base - k * kAlignWindowStride;
+            if (idx < 0) idx += size;
+            sum += ref[k] * particules_dsp::RecordingBuffer::MonoSampleAt(
+                                ctx, static_cast<size_t>(idx));
+        }
+        return sum;
+    };
+
+    int best_delta = 0;
+    float best = -1e30f;
+    for (int delta = -radius; delta <= radius; delta += kAlignSearchStride) {
+        float s = score_at(delta);
+        if (s > best) { best = s; best_delta = delta; }
+    }
+    // Refine to whole-frame resolution around the coarse winner.
+    for (int delta = best_delta - kAlignRefineRadius;
+         delta <= best_delta + kAlignRefineRadius; ++delta) {
+        if (delta < -radius || delta > radius || delta == best_delta) continue;
+        float s = score_at(delta);
+        if (s > best) { best = s; best_delta = delta; }
+    }
+    if (best <= 0.f) return want;   // no positive-correlation match: don't nudge
+
+    return std::clamp(want + static_cast<float>(best_delta), 0.f, max_frames);
+}
 }  // namespace
 
 void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate) {
@@ -135,6 +221,7 @@ void EchoEngine::Init(particules_dsp::RecordingBuffer* buffer, float sample_rate
     fade_pos_ = 1.f;  // no fade in progress
     fade_step_ = 1.f / static_cast<float>(kJumpCrossfadeFrames);
     queued_target_ = -1.f;
+    requested_frames_ = -1.f;
     frozen_ = false;
     slice_start_ = 0.f;
     slice_len_frames_ = 1.f;
@@ -196,32 +283,46 @@ void EchoEngine::SetTargets(float delay_samples, bool multi_tap,
         // already be finite in practice.
         delay_frames_ = frames;
         target_frames_ = frames;
+        requested_frames_ = frames;
     }
 
     if (mode_ == TimeChangeMode::kTape) {
         target_frames_ = frames;
+        requested_frames_ = frames;
         // Crossfade state stays "settled" so a later switch into kCrossfade
         // mode starts clean (no stale fade-in-progress).
         fade_pos_ = 1.f;
         queued_target_ = -1.f;
     } else {  // kCrossfade
         bool fading = fade_pos_ < 1.f;
+        // Trigger off the RAW request rather than target_frames_: splice
+        // alignment leaves target_frames_ up to kAlignSearchFrames away from
+        // what was asked for, and comparing against that would restart a fade
+        // every block even with a perfectly static knob.
+        bool changed = (frames != requested_frames_);
+        requested_frames_ = frames;
         if (!fading) {
-            if (frames != target_frames_) {
-                // Bound this fade's destination to the current effective
-                // delay (delay_frames_) so a large retarget chases the raw
-                // `frames` target over several fades rather than jumping
-                // straight there in one 1024-frame blend. If the cap bites,
-                // re-queue the raw target so the chase continues once this
-                // fade completes (see ReadWet's dequeue below).
+            if (changed) {
                 float want = frames;
-                float bounded = BoundedFadeTarget(delay_frames_, want);
-                fade_from_frames_ = target_frames_;
-                target_frames_ = bounded;
+                // write_head() is the write position at this block boundary --
+                // the same reference ReadWet's read positions are taken from
+                // (read_subsample_ is re-synced to it at the end of this
+                // function), and unaffected by the wow/flutter drift that
+                // read_subsample_ accumulates within a block.
+                float landed = AlignedFadeTarget(buf_,
+                                                 static_cast<float>(buf_->write_head()),
+                                                 delay_frames_, want, max_frames);
+                // Hardening: re-clamp both ends of the fade to the LIVE
+                // buffer range. target_frames_ can be stale-oversized here
+                // (a quality-mode size shrink mid-fade queues the new target
+                // instead of applying it -- see the queued_target_ branch
+                // below -- so the old, larger buffer's magnitude can survive
+                // into this fade), and it becomes this fade's start point.
+                fade_from_frames_ = std::clamp(target_frames_, 0.f, max_frames);
+                target_frames_ = std::clamp(landed, 0.f, max_frames);
                 fade_pos_ = 0.f;
-                queued_target_ = (bounded != want) ? want : -1.f;
             }
-        } else if (frames != target_frames_) {
+        } else if (changed) {
             // Retarget mid-fade: queue it, current fade runs to completion.
             queued_target_ = frames;
         }
@@ -414,17 +515,23 @@ StereoFrame EchoEngine::ReadWet() {
         delay_used = delay_frames_;
 
         if (fade_pos_ >= 1.f && queued_target_ >= 0.f) {
-            // Same bounded-chase step as SetTargets' idle->fade path above:
-            // `target_frames_` here is the just-completed fade's
-            // destination, i.e. the current effective delay at this dequeue
-            // instant (delay_frames_ also equals it exactly at fade_pos_==1,
-            // see ReadWet's fade math below).
-            float cur = target_frames_;
+            // Same fade-start step as SetTargets' idle->fade path above:
+            // `target_frames_` here is the just-completed fade's destination,
+            // i.e. the current effective delay at this dequeue instant
+            // (delay_frames_ also equals it exactly at fade_pos_ == 1, see the
+            // fade math above).
+            //
+            // Hardening, same reason as the SetTargets site: re-clamp against
+            // the LIVE buffer size, which a quality-mode shrink can have
+            // reduced under a stale target_frames_.
+            float max_frames = (size_f > 1.f) ? size_f - 1.f : 0.f;
+            float cur = std::clamp(target_frames_, 0.f, max_frames);
             float want = queued_target_;
-            float bounded = BoundedFadeTarget(cur, want);
+            float landed = AlignedFadeTarget(buf_, write_pos_continuous,
+                                             cur, want, max_frames);
             fade_from_frames_ = cur;
-            target_frames_ = bounded;
-            queued_target_ = (bounded != want) ? want : -1.f;
+            target_frames_ = std::clamp(landed, 0.f, max_frames);
+            queued_target_ = -1.f;
             fade_pos_ = 0.f;
         }
     }
