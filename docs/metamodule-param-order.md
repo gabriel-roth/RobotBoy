@@ -138,8 +138,8 @@ Roller params:
 6. Resonance CV
 7. Drive CV
 
-Context menu: Character (Vintage / Tamed), Resonance limiting (Hard / Soft),
-Oversampling (1x / 2x / 4x, default 1x on MetaModule and 2x on desktop).
+Context menu: Character (Vintage / Tamed), Oversampling (1x / 2x / 4x,
+default 1x on MetaModule and 2x on desktop).
 
 ## Particules  *(VCV-adapter module)*
 
