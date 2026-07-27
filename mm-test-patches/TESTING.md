@@ -305,7 +305,7 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 1. Play a rising line (keyboard/sequencer into In 4) over 2-3 octaves in RB-Onbetap-1 with its knobs matched to this patch (C 80%, A 70%) — **Expect:** at 1×, inharmonic aliasing "birdies" under the distortion — faint whistles that sweep DOWN as you play UP.
 2. Play the same rising line in THIS patch, knobs untouched — **Expect:** clean at 4× — no counter-sweeping birdies; the distortion harmonics all move up with the notes.
 3. Push it harder: C to max, sweep A through the top of its range while holding a high note — **Expect:** still no birdies; the harshest available setting stays harmonically well-behaved.
-4. Watch the device CPU meter while this patch runs with knobs at their loaded positions — **Expect:** headroom stays acceptable at 4×; note the CPU figure for comparison against RB-Onbetap-1.
+4. Watch the device CPU meter while this patch runs with knobs at their loaded positions — **Expect:** headroom stays acceptable at 4×. **Write down the exact CPU figure here and the figure for RB-Onbetap-1 at 1×** — we're considering locking Onbetap to 4× the way Vespid is, and this pair of numbers is the deciding data point. While you're at it, wiggle A and B and modulate In 1 to catch the worst case, not just the idle figure.
 
 ## RB-Vespid-1 — British: the CMOS rasp (Vespid, dirty-Wasp character + Blend morph + output taps)
 
