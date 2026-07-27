@@ -1,0 +1,83 @@
+PatchData:
+  patch_name: RB-Lop-1
+  description: 'Single head parity: drum loop into Lop, full head feature set'
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Lop'
+    2: '4msCompany:BWAVP'
+    3: 'CountModula:StartupDelay'
+  int_cables:
+    - out: {module_id: 2, jack_id: 0}
+      ins:
+        - {module_id: 1, jack_id: 0}
+    - out: {module_id: 2, jack_id: 1}
+      ins:
+        - {module_id: 1, jack_id: 1}
+    - out: {module_id: 3, jack_id: 2}
+      ins:
+        - {module_id: 2, jack_id: 0}
+  mapped_ins:
+    - panel_jack_id: 6
+      alias_name: Record trig
+      ins:
+        - {module_id: 1, jack_id: 9}
+    - panel_jack_id: 7
+      alias_name: Retrig head
+      ins:
+        - {module_id: 1, jack_id: 6}
+    - panel_jack_id: 0
+      alias_name: Jump (0-10V)
+      ins:
+        - {module_id: 1, jack_id: 7}
+    - panel_jack_id: 1
+      alias_name: Speed CV
+      ins:
+        - {module_id: 1, jack_id: 4}
+  mapped_outs:
+    - panel_jack_id: 0
+      alias_name: Out L
+      out: {module_id: 1, jack_id: 0}
+    - panel_jack_id: 1
+      alias_name: Out R
+      out: {module_id: 1, jack_id: 1}
+  static_knobs:
+    - {module_id: 1, param_id: 0, value: 1.0}
+    - {module_id: 1, param_id: 1, value: 0.5}
+    - {module_id: 1, param_id: 2, value: 0.75}
+    - {module_id: 1, param_id: 3, value: 0.0}
+    - {module_id: 1, param_id: 4, value: 0.6}
+    - {module_id: 1, param_id: 5, value: 0.0}
+    - {module_id: 1, param_id: 6, value: 0.0}
+    - {module_id: 1, param_id: 7, value: 0.0}
+    - {module_id: 1, param_id: 8, value: 0.0}
+    - {module_id: 1, param_id: 9, value: 0.0}
+    - {module_id: 1, param_id: 10, value: 0.0}
+    - {module_id: 1, param_id: 11, value: 0.0}
+    - {module_id: 1, param_id: 12, value: 0.0}
+    - {module_id: 1, param_id: 13, value: 0.0}
+    - {module_id: 2, param_id: 0, value: 0.0}
+    - {module_id: 2, param_id: 1, value: 1.0}
+    - {module_id: 2, param_id: 2, value: 0.0}
+    - {module_id: 2, param_id: 3, value: 0.1015625}
+    - {module_id: 2, param_id: 4, value: 0.25}
+    - {module_id: 2, param_id: 5, value: 0.272727}
+    - {module_id: 2, param_id: 6, value: 0.0}
+    - {module_id: 2, param_id: 7, value: 0.0}
+    - {module_id: 3, param_id: 0, value: 0.034483}
+  mapped_knobs:
+    - name: Knob Set 1
+      set:
+        - {panel_knob_id: 0, module_id: 1, param_id: 0, curve_type: 0, min: 0, max: 1, alias_name: Size}
+        - {panel_knob_id: 1, module_id: 1, param_id: 1, curve_type: 0, min: 0, max: 1, alias_name: Position}
+        - {panel_knob_id: 2, module_id: 1, param_id: 2, curve_type: 0, min: 0, max: 1, alias_name: Speed}
+        - {panel_knob_id: 3, module_id: 1, param_id: 3, curve_type: 0, min: 0, max: 1, alias_name: Jitter}
+        - {panel_knob_id: 4, module_id: 1, param_id: 8, curve_type: 0, min: 0, max: 1, alias_name: Grid}
+        - {panel_knob_id: 5, module_id: 1, param_id: 4, curve_type: 0, min: 0, max: 1, alias_name: Dry/Wet}
+        - {panel_knob_id: 6, module_id: 1, param_id: 5, curve_type: 0, min: 0, max: 1, alias_name: Record (twist up)}
+        - {panel_knob_id: 7, module_id: 1, param_id: 6, curve_type: 0, min: 0, max: 1, alias_name: Clear (twist up)}
+        - {panel_knob_id: 8, module_id: 1, param_id: 7, curve_type: 0, min: 0, max: 1, alias_name: Overdub mode}
+        - {panel_knob_id: 11, module_id: 2, param_id: 0, curve_type: 0, min: 0, max: 1, alias_name: Loop restart}
+  vcvModuleStates:
+    - module_id: 2
+      data: |-
+        drum-loop.wav

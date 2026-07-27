@@ -1,0 +1,50 @@
+PatchData:
+  patch_name: RB-Retours-3
+  description: 'Karplus-Strong string: audio-rate Interval, high feedback, pluck it with clicks'
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Retours'
+  int_cables: []
+  mapped_ins:
+    - panel_jack_id: 0
+      alias_name: Pluck in (bursts/clicks)
+      ins:
+        - {module_id: 1, jack_id: 0}
+    - panel_jack_id: 1
+      alias_name: Interval CV (V/oct)
+      ins:
+        - {module_id: 1, jack_id: 5}
+  mapped_outs:
+    - panel_jack_id: 0
+      alias_name: Out L
+      out: {module_id: 1, jack_id: 0}
+    - panel_jack_id: 1
+      alias_name: Out R
+      out: {module_id: 1, jack_id: 1}
+  static_knobs:
+    - {module_id: 1, param_id: 0, value: 0}
+    - {module_id: 1, param_id: 1, value: 0}
+    - {module_id: 1, param_id: 2, value: 0}
+    - {module_id: 1, param_id: 3, value: 0}
+    - {module_id: 1, param_id: 4, value: 0.05}
+    - {module_id: 1, param_id: 5, value: 0.5}
+    - {module_id: 1, param_id: 6, value: 0}
+    - {module_id: 1, param_id: 7, value: 0.85}
+    - {module_id: 1, param_id: 8, value: 0.8}
+    - {module_id: 1, param_id: 9, value: 0.5}
+    - {module_id: 1, param_id: 10, value: 0.5}
+    - {module_id: 1, param_id: 11, value: 0.5}
+    - {module_id: 1, param_id: 12, value: 0.5}
+    - {module_id: 1, param_id: 13, value: 0.5}
+  mapped_knobs:
+    - name: Knob Set 1
+      set:
+        - {panel_knob_id: 0, module_id: 1, param_id: 4, curve_type: 0, min: 0, max: 1, alias_name: Interval}
+        - {panel_knob_id: 1, module_id: 1, param_id: 7, curve_type: 0, min: 0, max: 1, alias_name: Feedback}
+        - {panel_knob_id: 2, module_id: 1, param_id: 8, curve_type: 0, min: 0, max: 1, alias_name: Dry/Wet}
+        - {panel_knob_id: 3, module_id: 1, param_id: 5, curve_type: 0, min: 0, max: 1, alias_name: Pitch}
+        - {panel_knob_id: 7, module_id: 1, param_id: 1, curve_type: 0, min: 0, max: 1, alias_name: Quality}
+  vcvModuleStates:
+    - module_id: 1
+      data: |-
+        {"qualityState":0,"timeChangeMode":0}

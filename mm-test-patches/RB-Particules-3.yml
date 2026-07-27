@@ -1,0 +1,68 @@
+PatchData:
+  patch_name: RB-Particules-3
+  description: 'Gates seed mode: saw drone in, gate into Gate In 1 spawns grain bursts only while high; free-runs when unpatched'
+  module_slugs:
+    0: '4msCompany:HubMedium'
+    1: 'RobotBoy:Particules'
+    2: 'Fundamental:VCO'
+  int_cables:
+    - out: {module_id: 2, jack_id: 2}
+      ins:
+        - {module_id: 1, jack_id: 0}
+  mapped_ins:
+    - panel_jack_id: 6
+      alias_name: Seed gate
+      ins:
+        - {module_id: 1, jack_id: 3}
+    - panel_jack_id: 0
+      alias_name: Time CV
+      ins:
+        - {module_id: 1, jack_id: 4}
+    - panel_jack_id: 1
+      alias_name: Pitch CV
+      ins:
+        - {module_id: 1, jack_id: 6}
+  mapped_outs:
+    - panel_jack_id: 0
+      alias_name: Out L
+      out: {module_id: 1, jack_id: 0}
+    - panel_jack_id: 1
+      alias_name: Out R
+      out: {module_id: 1, jack_id: 1}
+  static_knobs:
+    - {module_id: 1, param_id: 0, value: 0}
+    - {module_id: 1, param_id: 1, value: 0}
+    - {module_id: 1, param_id: 2, value: 0.1}
+    - {module_id: 1, param_id: 3, value: 0.5}
+    - {module_id: 1, param_id: 4, value: 0.5}
+    - {module_id: 1, param_id: 5, value: 0.5}
+    - {module_id: 1, param_id: 6, value: 0.3}
+    - {module_id: 1, param_id: 7, value: 0}
+    - {module_id: 1, param_id: 8, value: 0.15}
+    - {module_id: 1, param_id: 9, value: 1.0}
+    - {module_id: 1, param_id: 10, value: 0.5}
+    - {module_id: 1, param_id: 11, value: 0.5}
+    - {module_id: 1, param_id: 12, value: 0.5}
+    - {module_id: 1, param_id: 13, value: 0.5}
+    - {module_id: 1, param_id: 14, value: 0.5}
+    - {module_id: 1, param_id: 15, value: 0.5}
+    - {module_id: 1, param_id: 16, value: 0.5}
+    - {module_id: 2, param_id: 1, value: 1.0}
+    - {module_id: 2, param_id: 2, value: 0.38889}
+    - {module_id: 2, param_id: 4, value: 0.5}
+    - {module_id: 2, param_id: 5, value: 0.5}
+    - {module_id: 2, param_id: 6, value: 0.5}
+    - {module_id: 2, param_id: 7, value: 0}
+  mapped_knobs:
+    - name: Knob Set 1
+      set:
+        - {panel_knob_id: 0, module_id: 1, param_id: 3, curve_type: 0, min: 0, max: 1, alias_name: Density}
+        - {panel_knob_id: 1, module_id: 1, param_id: 5, curve_type: 0, min: 0, max: 1, alias_name: Size}
+        - {panel_knob_id: 2, module_id: 1, param_id: 6, curve_type: 0, min: 0, max: 1, alias_name: Shape}
+        - {panel_knob_id: 3, module_id: 1, param_id: 2, curve_type: 0, min: 0, max: 1, alias_name: Time}
+        - {panel_knob_id: 4, module_id: 1, param_id: 9, curve_type: 0, min: 0, max: 1, alias_name: Dry/Wet}
+        - {panel_knob_id: 5, module_id: 1, param_id: 1, curve_type: 0, min: 0, max: 1, alias_name: Quality}
+  vcvModuleStates:
+    - module_id: 1
+      data: |-
+        {"qualityState":0,"seedState":1,"autoGain":true,"manualGainDb":0.0,"pitchScale":0,"pitchRoot":0,"grainTriggerOut":false}
