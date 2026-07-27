@@ -61,19 +61,10 @@ struct Vespid : Module {
 
 	float _sampleRate = 44100.f;   // host rate; mirrors the engine rate for modulate-rate math
 
-	// Oversampling: 0 = auto (4x <=48k, 2x <=96k, 1x above), else 1/2/4 forced.
-	// MetaModule has no Auto entry (see appendContextMenu) and defaults to 1x:
-	// headless-simulator timing (tests/vespid/mm-sim-notes.md) showed 4x costing
-	// ~7x what 1x costs on the Cortex-A7 core — halfband resampler overhead, not
-	// just the 4x extra WaspFilter::process() calls — and true-stereo patches pay
-	// double a mono/normalled-R patch. 2x and 4x stay available from the menu.
-#if defined(METAMODULE)
-	static constexpr int kDefaultOsMenu = 1;
-#else
-	static constexpr int kDefaultOsMenu = 0;   // Auto
-#endif
-	int _osMenu = kDefaultOsMenu;
-	int _osActual = kDefaultOsMenu == 0 ? 4 : kDefaultOsMenu;  // resolved factor currently applied to the pool
+	// Oversampling is fixed at 4x on both platforms: 2x and 1x leave audible
+	// aliasing from the nonlinear feedback loop (the 2026-07 Newton-regression
+	// listening notes), so the former Auto/1x/2x/4x menu is gone.
+	static constexpr int kOversample = 4;
 
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
 	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
@@ -139,23 +130,10 @@ struct Vespid : Module {
 			configBypass(AUDIO_INPUT_R, out);
 	}
 
-	// Recompute the oversampling factor and push it (plus the current host
-	// rate) down into the pool. Called on sample-rate change and whenever the
-	// Oversampling menu selection changes.
+	// Push the host rate (and the 4x internal rate) down into the pool.
+	// Called on sample-rate change.
 	void updateOversampling() {
-		int os = _osMenu;
-		if (os == 0) {
-#if defined(METAMODULE)
-			// No Auto entry on MetaModule, so a 0 can only reach here from a
-			// desktop patch; it lands on the MM default of 1x (see kDefaultOsMenu).
-			os = 1;
-#else
-			os = (_sampleRate <= 48000.f) ? 4 : (_sampleRate <= 96000.f) ? 2 : 1;
-#endif
-		}
-		_osActual = os;
-
-		float fsInt = _sampleRate * (float)os;
+		float fsInt = _sampleRate * (float)kOversample;
 		_pool.setSampleRates(_sampleRate, fsInt);
 
 		float alpha = smootherAlpha(_sampleRate, 0.005f);  // 5 ms, at host rate
@@ -174,8 +152,8 @@ struct Vespid : Module {
 		_blendSlew.setAlpha(alpha);
 
 		// Force the next process() to re-run modulate() immediately: the
-		// g/kC2/H1 targets all depend on the internal rate, so a menu-driven
-		// os change must not run on stale-rate coefficients for ~2.5 ms.
+		// g/kC2/H1 targets all depend on the internal rate, so a rate change
+		// must not run on stale-rate coefficients for ~2.5 ms.
 		_steps = _modulationSteps;
 	}
 
@@ -195,7 +173,7 @@ struct Vespid : Module {
 	// in the audio path.
 	void modulate() {
 		const wasp::ModeConfig& mode = german ? wasp::kGerman : wasp::kBritish;
-		float fsInt = _sampleRate * (float)_osActual;
+		float fsInt = _sampleRate * (float)kOversample;
 
 		float fPole = german ? kFPoleGerman : kFPoleBritish;
 
@@ -306,7 +284,7 @@ struct Vespid : Module {
 
 		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
 		wasp::Channel::Out oL =
-			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2,
+			eng.l.process(inL * drive + _dither, kOversample, g, h1, kC2,
 			              maskL, m, makeup);
 
 		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
@@ -318,7 +296,7 @@ struct Vespid : Module {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
 			wasp::Channel::Out oR =
-				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2,
+				eng.r.process(inR * drive + _dither, kOversample, g, h1, kC2,
 				              maskR, m, makeup);
 			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
 			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
@@ -382,7 +360,6 @@ struct Vespid : Module {
 		json_t* root = json_object();
 		json_object_set_new(root, "german", json_boolean(german));
 		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
-		json_object_set_new(root, "osMenu", json_integer(_osMenu));
 		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
 		return root;
 	}
@@ -402,34 +379,16 @@ struct Vespid : Module {
 		if (p)
 			panelTheme = json_integer_value(p);
 #endif
-		json_t* om = json_object_get(root, "osMenu");
-		if (om)
-			_osMenu = json_integer_value(om);
-		// Validate loaded values that feed DSP invariants (a hand-edited or
-		// corrupted patch must not desync the internal rate from the cascade
-		// or invert clamp bounds). Mirrors the menu Quantity setters' ranges.
-#if defined(METAMODULE)
-		// 0 (Auto) is not a legal selection on MetaModule — a desktop patch
-		// carrying it, like any corrupt value, lands on the 1x default.
-		if (_osMenu != 1 && _osMenu != 2 && _osMenu != 4)
-			_osMenu = kDefaultOsMenu;
-#else
-		if (_osMenu != 0 && _osMenu != 1 && _osMenu != 2 && _osMenu != 4)
-			_osMenu = kDefaultOsMenu;
-#endif
 		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
 		// Output level menu sliders, removed — both were unity by default), an
 		// "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
-		// per mode above), and a "highAcc" key (Accuracy menu, removed — the
+		// per mode above), a "highAcc" key (Accuracy menu, removed — the
 		// Newton refinement is now always on in every build; see
-		// WaspFilter.hpp); all are ignored.
+		// WaspFilter.hpp), and an "osMenu" key (Oversampling menu, removed
+		// 2026-07-26 — fixed at 4x, see kOversample); all are ignored.
 		json_t* pc = json_object_get(root, "oscPitchCorrected");
 		if (pc)
 			_oscPitchCorrected = json_boolean_value(pc);
-		// Missing keys already default correctly via member initializers
-		// above; re-derive the oversampling factor in case osMenu changed
-		// (onSampleRateChange may or may not have run yet at this point).
-		updateOversampling();
 	}
 };
 
@@ -507,42 +466,6 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(createMenuItem("German (self-oscillates)",
 			m->german ? "✓" : "",
 			[m]() { m->german = true; }));
-
-		menu->addChild(new MenuSeparator);
-#if defined(METAMODULE)
-		// No Auto on MetaModule: it would only ever resolve to the 1x default
-		// there, so the menu is the three explicit factors (matching Onbetap).
-		menu->addChild(createIndexSubmenuItem("Oversampling",
-			{"1x", "2x", "4x"},
-			[m]() -> size_t {
-				switch (m->_osMenu) {
-					case 2: return 1;
-					case 4: return 2;
-					default: return 0;
-				}
-			},
-			[m](size_t i) {
-				static const int kValues[3] = {1, 2, 4};
-				m->_osMenu = kValues[i];
-				m->updateOversampling();
-			}));
-#else
-		menu->addChild(createIndexSubmenuItem("Oversampling",
-			{"Auto", "1x", "2x", "4x"},
-			[m]() -> size_t {
-				switch (m->_osMenu) {
-					case 1: return 1;
-					case 2: return 2;
-					case 4: return 3;
-					default: return 0;
-				}
-			},
-			[m](size_t i) {
-				static const int kValues[4] = {0, 1, 2, 4};
-				m->_osMenu = kValues[i];
-				m->updateOversampling();
-			}));
-#endif
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuLabel("Self-oscillation pitch (German)"));

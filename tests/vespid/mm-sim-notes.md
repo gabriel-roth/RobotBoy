@@ -223,6 +223,12 @@ Note that the two fixtures with no `osMenu` key (`vespid_default.yml`,
 `vespid_res_screaming.yml`) therefore exercise 1x on MM now, not 2x — re-running
 §4's table against them measures the new default, not the old one.
 
+**Superseded again 2026-07-26 — oversampling is fixed at 4x on both platforms
+and the Oversampling menu is gone.** The Newton-regression listening work showed
+the 2x/1x residual is true loop aliasing, so `src/Vespid.cpp` now hardcodes
+`kOversample = 4`; `osMenu` is written no longer and ignored on load. All
+fixtures exercise 4x everywhere.
+
 ## 6. MM discrete menu fallbacks (Input trim / Inverter bandwidth)
 
 MM users previously had **no menu access at all** to Input trim or Inverter
