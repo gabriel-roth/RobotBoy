@@ -63,6 +63,13 @@ target_include_directories(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
+# The headless simulator builds us as a built-in like the GUI simulator does,
+# but (unlike the GUI build) does not define SIMULATOR globally. register.cc
+# relies on SIMULATOR to suppress its init()/pluginInstance definitions, which
+# would otherwise collide with the simulator's generated init_RobotBoy.
+if(METAMODULE_HEADLESS)
+    target_compile_definitions(RobotBoy PRIVATE SIMULATOR)
+endif()
 # -funsafe-math-optimizations matches the VCV build (vcv/Makefile), so both
 # platforms run the same numerics — and on Cortex-A7 it is what lets GCC
 # auto-vectorize float loops with NEON at all (NEON is not IEEE-strict, so
