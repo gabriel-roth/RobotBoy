@@ -20,6 +20,7 @@
  */
 
 #include "../../src/vespid/WaspFilter.hpp"
+#include "../../src/vespid/engine.hpp"
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -90,16 +91,20 @@ static double smallSignalLpDb(const wasp::ModeConfig& m, float fc, float rho,
 }
 
 // Same, but returns the makeup'd + DC-blocked output (for HP passband/makeup).
+// The core returns raw states since 2026-07-26 (makeup/DC live in Channel at
+// host rate), so this helper applies them itself, as the old core did.
 static double smallSignalDb(const wasp::ModeConfig& m, float fc, float rho,
                             float fprobe, float amp, int which /*0=lp,1=bp,2=hp*/) {
     wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(m); w.reset();
+    wasp::DcBlocker dc; dc.setSampleRate(kFsInt);
     Controls c = makeControls(m, fc, rho);
     const int n = (int)(kFsInt * 0.5f);
     std::vector<float> y(n);
     for (int i = 0; i < n; ++i) {
         float x = amp * std::sin(2.f * kPi * fprobe * (float)i / kFsInt);
         wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2);
-        y[i] = which == 0 ? o.lp : (which == 1 ? o.bp : o.hp);
+        float raw = which == 0 ? o.lp : (which == 1 ? o.bp : o.hp);
+        y[i] = dc.process(raw) * m.makeup;
     }
     double sumY = 0, sumY2 = 0; int cnt = 0;
     for (int i = n / 2; i < n; ++i) { sumY += y[i]; sumY2 += (double)y[i]*y[i]; ++cnt; }
@@ -222,6 +227,8 @@ static void test_boundedness() {
     // expected, not a divergence. We therefore assert: makeup'd outputs FINITE
     // (the stability guarantee) and raw states bounded < 15 V (rail-bounded).
     wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kGerman); w.reset();
+    wasp::DcBlocker dcL, dcB, dcH;
+    dcL.setSampleRate(kFsInt); dcB.setSampleRate(kFsInt); dcH.setSampleRate(kFsInt);
     Controls c = makeControls(wasp::kGerman, 20000.f, 1.0f);
     const int n = (int)(kFsInt * 2.f);
     bool finite = true; float rawPeak = 0.f, outPeak = 0.f;
@@ -229,8 +236,11 @@ static void test_boundedness() {
         float phase = std::fmod(30.f * (float)i / kFsInt, 1.f);
         float sq = (phase < 0.5f) ? 1.f : -1.f;
         float x = 8.f * 10.f * sq;   // 10 V square x8 drive-equivalent
-        wasp::WaspFilter::Out o = w.process(x, c.g, c.h1, c.kC2);
-        wasp::WaspFilter::Out r = w.raw();
+        wasp::WaspFilter::Out r = w.process(x, c.g, c.h1, c.kC2);
+        // makeup'd + DC-blocked, as the Channel output stage produces
+        wasp::WaspFilter::Out o = { dcL.process(r.lp) * wasp::kGerman.makeup,
+                                    dcB.process(r.bp) * wasp::kGerman.makeup,
+                                    dcH.process(r.hp) * wasp::kGerman.makeup };
         rawPeak = std::max({rawPeak, std::fabs(r.lp), std::fabs(r.bp), std::fabs(r.hp)});
         outPeak = std::max({outPeak, std::fabs(o.lp), std::fabs(o.bp), std::fabs(o.hp)});
         if (!std::isfinite(o.lp) || !std::isfinite(o.bp) || !std::isfinite(o.hp)) finite = false;
@@ -268,12 +278,18 @@ static void test_hp_bp_sanity() {
 
 static void test_dc_block() {
     printf("\n8. DC block: 2 V DC in, LP output mean over last 0.5 s < 0.05 V\n");
-    wasp::WaspFilter w; w.setSampleRate(kFsInt); w.setMode(wasp::kGerman); w.reset();
+    // The DC blockers live in Channel's host-rate output stage since
+    // 2026-07-26, so this exercises Channel (os=1, LP masked) rather than
+    // the bare core.
+    wasp::Channel ch;
+    ch.filt.setSampleRate(kFsInt); ch.setHostSampleRate(kFsInt);
+    ch.reset(); ch.filt.setMode(wasp::kGerman);
     Controls c = makeControls(wasp::kGerman, 1000.f, 0.3f);
     const int n = (int)(kFsInt * 2.f);
     double sum = 0; int cnt = 0;
     for (int i = 0; i < n; ++i) {
-        wasp::WaspFilter::Out o = w.process(2.f, c.g, c.h1, c.kC2);
+        wasp::Channel::Out o = ch.process(2.f, 1, c.g, c.h1, c.kC2,
+                                          wasp::kOutLp, 0.f, wasp::kGerman.makeup);
         if (i >= n - (int)(kFsInt * 0.5f)) { sum += o.lp; ++cnt; }
     }
     double mean = sum / cnt;

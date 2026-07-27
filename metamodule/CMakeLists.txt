@@ -63,7 +63,15 @@ target_include_directories(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
-target_compile_options(RobotBoy PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-std=c++20>)
+# -funsafe-math-optimizations matches the VCV build (vcv/Makefile), so both
+# platforms run the same numerics — and on Cortex-A7 it is what lets GCC
+# auto-vectorize float loops with NEON at all (NEON is not IEEE-strict, so
+# without it the resampler FIRs stay scalar). It does NOT imply
+# -ffinite-math-only: isfinite()-based NaN recovery (engine sanitize paths)
+# keeps working.
+target_compile_options(RobotBoy PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-std=c++20>
+    -funsafe-math-optimizations)
 
 create_plugin(
     SOURCE_LIB    RobotBoy

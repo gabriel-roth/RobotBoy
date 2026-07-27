@@ -106,6 +106,29 @@ static void test_tanh_approx() {
     }
 }
 
+// ── tanhApproxFast / tanhXdXFast (divide-free solver-path variants) ─────────
+// The polynomial must track the rational forms within its documented 7.3e-4
+// fit error everywhere on |x| <= 3, and agree exactly with the clamp/1-over
+// branches beyond. (Monotonicity is deliberately NOT asserted here — the
+// poly wiggles near the flat top, which is why railClamp keeps the rational.)
+static void test_tanh_fast_variants() {
+    printf("\n1b. tanhApproxFast/tanhXdXFast track the rational forms\n");
+    double maxA = 0, maxX = 0;
+    bool clampOk = true;
+    for (int i = -4000; i <= 4000; ++i) {
+        float x = (float)i * 1e-3f;   // -4..4
+        maxA = std::max(maxA, (double)std::fabs(wasp::tanhApproxFast(x) - wasp::tanhApprox(x)));
+        maxX = std::max(maxX, (double)std::fabs(wasp::tanhXdXFast(x) - wasp::tanhXdX(x)));
+        if (std::fabs(x) > 3.f &&
+            (wasp::tanhApproxFast(x) != wasp::tanhApprox(x) ||
+             wasp::tanhXdXFast(x) != wasp::tanhXdX(x))) clampOk = false;
+    }
+    char buf[96];
+    snprintf(buf, sizeof(buf), "max |diff| tanhApprox=%.2e tanhXdX=%.2e (want < 2.5e-3)", maxA, maxX);
+    report(maxA < 2.5e-3 && maxX < 2.5e-3, "Fast variants within fit error of rationals", buf);
+    report(clampOk, "Fast variants match exactly beyond |x|=3");
+}
+
 // ── tanhXdX ─────────────────────────────────────────────────────────────────
 
 static void test_tanh_x_dx() {
@@ -249,6 +272,70 @@ static void test_halfband_roundtrip() {
     char buf[96];
     snprintf(buf, sizeof(buf), "rmsIn=%.6f rmsOut=%.6f dB=%.4f (want within 0.3 dB of 0)", rmsIn, rmsOut, dB);
     report(std::fabs(dB) < 0.3f, "Halfband round trip RMS within 0.3 dB", buf);
+}
+
+// ── Inner (15-tap) halfband: structure, response, round trip ────────────────
+// The 4x cascade's inner stages use kHalfbandTapsInner (2026-07-26 CPU pass).
+// Verifies the halfband structure the templates rely on, the design targets
+// (passband ripple, >= 70 dB stopband above 0.375*fs — the only region whose
+// aliases/images can reach the audio band through the outer stage), and a
+// round trip through the Inner pair.
+static void test_inner_halfband() {
+    printf("\n5b. Inner 15-tap halfband\n");
+    const float kPi = 3.14159265358979f;
+    const int N = wasp::kHbInnerN;
+    const float* t = wasp::kHalfbandTapsInner;
+
+    bool structureOk = t[N / 2] == 0.5f;
+    for (int i = 0; i < N; ++i) {
+        int d = i - N / 2;
+        if (d != 0 && d % 2 == 0 && t[i] != 0.f) structureOk = false;
+        if (t[i] != t[N - 1 - i]) structureOk = false;   // linear phase
+    }
+    report(structureOk, "inner taps have exact halfband structure");
+
+    // Direct DFT of the taps: |H| over the passband and stopband.
+    double maxPbErr = 0.0, maxSb = 0.0;
+    for (int k = 0; k <= 512; ++k) {
+        double f = 0.5 * k / 512.0;              // normalized 0..0.5
+        double re = 0, im = 0;
+        for (int i = 0; i < N; ++i) {
+            re += t[i] * std::cos(2.0 * kPi * f * i);
+            im -= t[i] * std::sin(2.0 * kPi * f * i);
+        }
+        double mag = std::sqrt(re * re + im * im);
+        if (f <= 0.125) maxPbErr = std::max(maxPbErr, std::fabs(mag - 1.0));
+        if (f >= 0.375) maxSb = std::max(maxSb, mag);
+    }
+    char buf[128];
+    snprintf(buf, sizeof(buf), "passband ripple %.4f dB (want < 0.01)",
+             20.0 * std::log10(1.0 + maxPbErr));
+    report(20.0 * std::log10(1.0 + maxPbErr) < 0.01, "inner passband flat", buf);
+    snprintf(buf, sizeof(buf), "stopband max %.1f dB (want <= -70)",
+             20.0 * std::log10(maxSb));
+    report(20.0 * std::log10(maxSb) <= -70.0, "inner stopband >= 70 dB above 0.375*fs", buf);
+
+    // Round trip through the Inner pair (mirrors test 5 for the outer pair).
+    wasp::HalfbandUpInner up;
+    wasp::HalfbandDownInner down;
+    const float fs = 96000.f, freq = 2000.f;
+    int n = (int)fs;
+    float sumInSq = 0.f, sumOutSq = 0.f;
+    int measureStart = n / 4, measureCount = 0;
+    bool anyNaN = false;
+    for (int i = 0; i < n; ++i) {
+        float in = std::sin(2.f * kPi * freq * (float)i / fs);
+        float up2[2];
+        up.process(in, up2);
+        float out = down.process(up2[0], up2[1]);
+        if (std::isnan(up2[0]) || std::isnan(up2[1]) || std::isnan(out)) anyNaN = true;
+        if (i >= measureStart) { sumInSq += in * in; sumOutSq += out * out; ++measureCount; }
+    }
+    report(!anyNaN, "inner round trip produces no NaN");
+    float dB = 20.f * std::log10(std::sqrt(sumOutSq / measureCount)
+                               / std::sqrt(sumInSq / measureCount));
+    snprintf(buf, sizeof(buf), "round trip %.4f dB (want within 0.3 dB of 0)", dB);
+    report(std::fabs(dB) < 0.3f, "inner round trip RMS within 0.3 dB", buf);
 }
 
 // ── Halfband optimized-vs-reference equivalence (Task 5b) ──────────────────
@@ -505,10 +592,12 @@ int main() {
     printf("=======================\n");
 
     test_tanh_approx();
+    test_tanh_fast_variants();
     test_tanh_x_dx();
     test_compute_h1();
     test_dc_blocker();
     test_halfband_roundtrip();
+    test_inner_halfband();
     test_halfband_matches_reference();
     bench_halfband();
     test_rail_clamp();

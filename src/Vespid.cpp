@@ -156,7 +156,7 @@ struct Vespid : Module {
 		_osActual = os;
 
 		float fsInt = _sampleRate * (float)os;
-		_pool.setSampleRate(fsInt);
+		_pool.setSampleRates(_sampleRate, fsInt);
 
 		float alpha = smootherAlpha(_sampleRate, 0.005f);  // 5 ms, at host rate
 		for (auto& eng : _pool.engines) {
@@ -285,8 +285,10 @@ struct Vespid : Module {
 	// audio cascade for L, and for R unless it's normalled to L. The shared
 	// module-level Blend smoother is advanced once per sample in process() —
 	// not here — so every voice sees the same value and the slew time
-	// constant doesn't shrink with the voice count.
-	void processChannel(int c, float m, bool rConnected) {
+	// constant doesn't shrink with the voice count. maskL/maskR select which
+	// signals each Channel decimates (built once per sample in process()).
+	void processChannel(int c, float m, bool rConnected, int maskL, int maskR,
+	                    float makeup) {
 		wasp::VoiceEngine& eng = _pool.engines[c];
 
 		float g     = eng.gSlew.process(eng.gTarget);
@@ -303,30 +305,33 @@ struct Vespid : Module {
 		};
 
 		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
-		wasp::WaspFilter::Out oL =
-			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2);
+		wasp::Channel::Out oL =
+			eng.l.process(inL * drive + _dither, _osActual, g, h1, kC2,
+			              maskL, m, makeup);
 
 		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
 		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
 		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
-		outputs[MIX_OUTPUT].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+		outputs[MIX_OUTPUT].setVoltage(oL.mix, c);
 
 		if (rConnected) {
 			// True stereo: process R through its own filter/resampler chain.
 			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
-			wasp::WaspFilter::Out oR =
-				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2);
+			wasp::Channel::Out oR =
+				eng.r.process(inR * drive + _dither, _osActual, g, h1, kC2,
+				              maskR, m, makeup);
 			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
 			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
 			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oR.lp + m * oR.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage(oR.mix, c);
 		} else {
 			// R normalled to L: mirror L's outputs, skip the R compute
-			// entirely (matches the MF-20 mono-patch optimization).
+			// entirely (matches the MF-20 mono-patch optimization). maskL
+			// already includes the R jacks' needs in this case.
 			outputs[LP_OUTPUT_R].setVoltage(oL.lp, c);
 			outputs[BP_OUTPUT_R].setVoltage(oL.bp, c);
 			outputs[HP_OUTPUT_R].setVoltage(oL.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage((1.f - m) * oL.lp + m * oL.hp, c);
+			outputs[MIX_OUTPUT_R].setVoltage(oL.mix, c);
 		}
 	}
 
@@ -348,12 +353,29 @@ struct Vespid : Module {
 
 		_dither = -_dither;
 		// Blend smoother advances once per sample (MF-20 pattern), not per
-		// voice — see processChannel's comment. The stereo check is hoisted
-		// out of the voice loop (Onbetap already does this).
+		// voice — see processChannel's comment. The stereo check and the
+		// output-select masks are hoisted out of the voice loop (Onbetap
+		// already hoists its stereo check).
 		float m = _blendSlew.process(_blendTarget);
 		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
+		// Only connected outputs pay for decimation/DC blocking. When R is
+		// normalled to L, the R jacks are fed from the L channel's outputs,
+		// so their needs fold into maskL.
+		int maskL = (outputs[LP_OUTPUT].isConnected()  ? wasp::kOutLp  : 0)
+		          | (outputs[BP_OUTPUT].isConnected()  ? wasp::kOutBp  : 0)
+		          | (outputs[HP_OUTPUT].isConnected()  ? wasp::kOutHp  : 0)
+		          | (outputs[MIX_OUTPUT].isConnected() ? wasp::kOutMix : 0);
+		int maskR = (outputs[LP_OUTPUT_R].isConnected()  ? wasp::kOutLp  : 0)
+		          | (outputs[BP_OUTPUT_R].isConnected()  ? wasp::kOutBp  : 0)
+		          | (outputs[HP_OUTPUT_R].isConnected()  ? wasp::kOutHp  : 0)
+		          | (outputs[MIX_OUTPUT_R].isConnected() ? wasp::kOutMix : 0);
+		if (!rConnected) {
+			maskL |= maskR;
+			maskR = 0;
+		}
+		float makeup = (german ? wasp::kGerman : wasp::kBritish).makeup;
 		for (int c = 0; c < channels; c++)
-			processChannel(c, m, rConnected);
+			processChannel(c, m, rConnected, maskL, maskR, makeup);
 	}
 
 	json_t* dataToJson() override {

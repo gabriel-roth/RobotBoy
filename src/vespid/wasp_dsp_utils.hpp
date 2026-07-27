@@ -7,7 +7,11 @@
 namespace wasp {
 
 // tanh approximant x*(27+x^2)/(27+9x^2), exact-valued and slope-continuous
-// at the |x|=3 handoff to +/-1 (tanh(3)=0.995).
+// at the |x|=3 handoff to +/-1 (tanh(3)=0.995). This rational form is
+// exactly monotone, which railClamp's knee requires — a polynomial fit
+// cannot be (tanh's flat top means any equioscillating fit wiggles where
+// the true slope reaches 0), so railClamp stays on this while the solver
+// hot path uses the divide-free *Fast variants below.
 inline float tanhApprox(float x) {
     if (x >  3.f) return 1.f;
     if (x < -3.f) return -1.f;
@@ -20,6 +24,34 @@ inline float tanhXdX(float x) {
     if (ax > 3.f) return 1.f/ax;
     float x2 = x*x;
     return (27.f + x2)/(27.f + 9.f*x2);
+}
+
+// Divide-free solver-path variants (2026-07-26 CPU pass): tanh(x)/x on
+// |x| <= 3 as a degree-6 polynomial in u = x^2, fit to the rational
+// (27+u)/(27+9u) with p(0)=1 and p(9)=1/3 pinned (Lawson-weighted LSQ).
+// Max |err| vs the rational is 7.3e-4 — an order below the rational's own
+// 1.7e-2 deviation from true tanh(x)/x, so the model's accuracy envelope is
+// unchanged; the fit's ~1e-2-scale slope wiggle near the flat top is why
+// railClamp does NOT use it (see above). What it buys: the rational's
+// data-dependent division is a real VDIV.F32 (~15 unpipelined cycles) on
+// the Cortex-A7, and WaspFilter evaluates a tanh form ~5-9 times per
+// sample; 6 MACs replace each. The |x| > 3 branches keep their exact
+// values (and tanhXdXFast its division, but that branch is cold: the SVF
+// states are rail-bounded well inside |c*v| < 3 in both modes).
+inline float tanhXdXPoly(float u) {
+    return 1.f + u * (-2.904068241e-01f + u * (8.330604482e-02f
+             + u * (-1.755631983e-02f + u * (2.332610259e-03f
+             + u * (-1.692783618e-04f + u * 5.060250050e-06f)))));
+}
+inline float tanhApproxFast(float x) {
+    if (x >  3.f) return 1.f;
+    if (x < -3.f) return -1.f;
+    return x * tanhXdXPoly(x*x);
+}
+inline float tanhXdXFast(float x) {
+    float ax = std::fabs(x);
+    if (ax > 3.f) return 1.f/ax;
+    return tanhXdXPoly(x*x);
 }
 
 // H1(s) resonance-network pole-zero, Delta-Y closed form (research notes),
@@ -65,11 +97,29 @@ inline constexpr float kHalfbandTaps[kHbN] = {
     8.44199816e-04f, 0.00000000e+00f, -3.43387434e-04f
 };
 
+// Short inner halfband for the 4x cascade's inner stages (host*2 <-> host*4).
+// Same 70 dB stopband class as the 47-tap pair, but the inner stages only
+// need it above 0.375*fs: after the outer stage, inner aliases/images can
+// reach the audio band only from the top quarter of the spectrum (fold to
+// < 24 kHz <=> f > 72 kHz at 192k). The huge 24k..72k transition band lets
+// 15 taps do it (measured -72.4 dB stopband, +/-0.002 dB passband ripple) —
+// 8 MACs per phase-0 output instead of 24. Designed by
+// tests/vespid_ref/inner_halfband.py.
+inline constexpr int kHbInnerN = 15;
+inline constexpr float kHalfbandTapsInner[kHbInnerN] = {
+    -3.73765573e-03f, 0.00000000e+00f, 2.05698949e-02f, 0.00000000e+00f,
+    -7.23219047e-02f, 0.00000000e+00f, 3.05370474e-01f, 5.00000000e-01f,
+    3.05370474e-01f, 0.00000000e+00f, -7.23219047e-02f, 0.00000000e+00f,
+    2.05698949e-02f, 0.00000000e+00f, -3.73765573e-03f
+};
+
 // Halfband polyphase structure: in kHalfbandTaps, every tap at an even index
 // is nonzero, and every tap at an odd index is exactly 0.0 *except* the
 // center tap (index kHbN/2 = 23, the largest coefficient, ~0.5). Concretely:
 // taps[0,2,4,...,46] are nonzero (24 taps) and taps[23] is nonzero; the
 // other 22 odd-indexed taps are all 0.0 (see the array above).
+// kHalfbandTapsInner shares the exact same structure at N=15 (center 7),
+// so both tap sets drive the same templates below.
 //
 // HalfbandUp zero-stuffs the input (in, 0) before filtering each of the two
 // output phases. Zero-stuffing means the "0" half of the interleaved history
@@ -96,9 +146,14 @@ inline constexpr int kHbCenter = kHbN / 2;           // 23: index of the sole no
 inline constexpr int kHbHalf = (kHbN + 1) / 2;        // 24: count of nonzero even-indexed taps
 inline constexpr int kHbCenterDelay = kHbCenter / 2;  // 11: history lag reaching the center tap
 
-struct HalfbandUp {
-    // ring[j samples back from the most recent input] for j in [0, kHbHalf).
-    float ring[kHbHalf] = {};
+template <int N, const float (&TAPS)[N]>
+struct HalfbandUpT {
+    static constexpr int kCenter = N / 2;            // index of the sole nonzero odd tap
+    static constexpr int kHalf = (N + 1) / 2;        // count of nonzero even-indexed taps
+    static constexpr int kCenterDelay = kCenter / 2; // history lag reaching the center tap
+
+    // ring[j samples back from the most recent input] for j in [0, kHalf).
+    float ring[kHalf] = {};
     int head = 0; // index in `ring` holding the most-recently-written sample
 
     void reset() { for (float& v : ring) v = 0.f; head = 0; }
@@ -106,7 +161,7 @@ struct HalfbandUp {
     // Zero-stuff (in, 0) then filter each phase; 2x tap gain restores the
     // amplitude halved by zero-stuffing (unity-gain halfband filter).
     void process(float in, float* out2) {
-        head = (head + 1 == kHbHalf) ? 0 : head + 1;
+        head = (head + 1 == kHalf) ? 0 : head + 1;
         ring[head] = in;
 
         // acc0 = sum over even tap indices 2*j of taps[2*j] * (input j
@@ -114,21 +169,25 @@ struct HalfbandUp {
         // into two contiguous runs (no per-iteration modulo).
         float acc0 = 0.f;
         int j = 0;
-        for (int idx = head; idx >= 0 && j < kHbHalf; --idx, ++j)
-            acc0 += kHalfbandTaps[2 * j] * ring[idx];
-        for (int idx = kHbHalf - 1; j < kHbHalf; --idx, ++j)
-            acc0 += kHalfbandTaps[2 * j] * ring[idx];
+        for (int idx = head; idx >= 0 && j < kHalf; --idx, ++j)
+            acc0 += TAPS[2 * j] * ring[idx];
+        for (int idx = kHalf - 1; j < kHalf; --idx, ++j)
+            acc0 += TAPS[2 * j] * ring[idx];
         out2[0] = 2.f * acc0;
 
-        int centerIdx = head - kHbCenterDelay;
-        if (centerIdx < 0) centerIdx += kHbHalf;
-        out2[1] = 2.f * kHalfbandTaps[kHbCenter] * ring[centerIdx];
+        int centerIdx = head - kCenterDelay;
+        if (centerIdx < 0) centerIdx += kHalf;
+        out2[1] = 2.f * TAPS[kCenter] * ring[centerIdx];
     }
 };
 
-struct HalfbandDown {
-    static constexpr int kN1 = kHbHalf;             // history depth for the in1 stream
-    static constexpr int kN0 = kHbCenterDelay + 1;  // history depth for the in0 stream
+template <int N, const float (&TAPS)[N]>
+struct HalfbandDownT {
+    static constexpr int kCenter = N / 2;
+    static constexpr int kHalf = (N + 1) / 2;
+    static constexpr int kCenterDelay = kCenter / 2;
+    static constexpr int kN1 = kHalf;             // history depth for the in1 stream
+    static constexpr int kN0 = kCenterDelay + 1;  // history depth for the in0 stream
     float ring1[kN1] = {};
     float ring0[kN0] = {};
     int head1 = 0, head0 = 0;
@@ -150,17 +209,25 @@ struct HalfbandDown {
         float acc = 0.f;
         int j = 0;
         for (int idx = head1; idx >= 0 && j < kN1; --idx, ++j)
-            acc += kHalfbandTaps[2 * j] * ring1[idx];
+            acc += TAPS[2 * j] * ring1[idx];
         for (int idx = kN1 - 1; j < kN1; --idx, ++j)
-            acc += kHalfbandTaps[2 * j] * ring1[idx];
+            acc += TAPS[2 * j] * ring1[idx];
 
-        int centerIdx = head0 - kHbCenterDelay;
+        int centerIdx = head0 - kCenterDelay;
         if (centerIdx < 0) centerIdx += kN0;
-        acc += kHalfbandTaps[kHbCenter] * ring0[centerIdx];
+        acc += TAPS[kCenter] * ring0[centerIdx];
 
         return acc;
     }
 };
+
+// Outer stages (host <-> host*2) keep the 47-tap pair; the 4x cascade's
+// inner stages (host*2 <-> host*4) use the 15-tap pair — see the note above
+// kHalfbandTapsInner.
+using HalfbandUp        = HalfbandUpT<kHbN, kHalfbandTaps>;
+using HalfbandDown      = HalfbandDownT<kHbN, kHalfbandTaps>;
+using HalfbandUpInner   = HalfbandUpT<kHbInnerN, kHalfbandTapsInner>;
+using HalfbandDownInner = HalfbandDownT<kHbInnerN, kHalfbandTapsInner>;
 
 // Soft rail clamp: identity until within 0.3 V of a rail, tanh knee beyond.
 inline float railClamp(float v, float vHi, float vLo) {

@@ -83,9 +83,6 @@ public:
     void setSampleRate(float fsInternal) {
         fsInt = fsInternal;
         hinA  = 2.f * float(M_PI) * 22.f / fsInt;   // 22 Hz input HPF coeff
-        dcLp.setSampleRate(fsInt);
-        dcBp.setSampleRate(fsInt);
-        dcHp.setSampleRate(fsInt);
     }
 
     // Switching mode carries all state (no reset) — matches spec. The cached
@@ -94,17 +91,16 @@ public:
     void setMode(const ModeConfig& m) {
         if (mode == &m) return;
         mode = &m;
-        th = tanhXdX(m.c * hpPrev);
-        tb = tanhXdX(m.c * bpPrev);
+        th = tanhXdXFast(m.c * hpPrev);
+        tb = tanhXdXFast(m.c * bpPrev);
     }
 
     void reset() {
         sBP = sLP = z1 = hinState = 0.f;
         hpPrev = bpPrev = ydPrev = vgPrev = 0.f;
-        th = tb = 1.f;        // tanhXdX(0)
+        th = tb = 1.f;        // tanhXdXFast(0)
         diodePrev = 0.f;      // kKD*sinh(0)
         rawLp = rawBp = rawHp = 0.f;
-        dcLp.reset(); dcBp.reset(); dcHp.reset();
     }
 
     bool stateFinite() const {
@@ -113,12 +109,16 @@ public:
                std::isfinite(bpPrev) && std::isfinite(ydPrev) && std::isfinite(vgPrev);
     }
 
-    // Raw states from the last process() call: pre-makeup, pre-DC-blocker.
-    // Golden numbers are raw (small-signal on raw LP, self-osc on raw BP), so
-    // tests measure these directly.
+    // Raw states from the last process() call. Since 2026-07-26 process()
+    // itself returns these raw values — output makeup and DC blocking are
+    // LTI, so they moved to Channel (engine.hpp) at HOST rate instead of
+    // paying 3 blocker evals per oversampled subsample. Golden numbers are
+    // raw (small-signal on raw LP, self-osc on raw BP); tests measure either.
     Out raw() const { return { rawLp, rawBp, rawHp }; }
 
-    // One oversampled sample. g/h1/kC2 as documented at the top of the file.
+    // One oversampled sample, returning RAW states (pre-makeup,
+    // pre-DC-blocker — the caller owns both). g/h1/kC2 as documented at the
+    // top of the file.
     Out process(float inVolts, float g, const H1Coeffs& h1, float kC2) {
         const ModeConfig& m = *mode;
 
@@ -127,9 +127,9 @@ public:
         hinState += hinA * hin;
 
         // ---- fixed-pivot (mystran) linear pass ----------------------------
-        // S(v) = tanh(c*v)/c ~= tanhXdX(c*vPivot)*v (secant through last arg).
+        // S(v) = tanh(c*v)/c ~= tanhXdXFast(c*vPivot)*v (secant through last arg).
         // th/tb are the cached pivots from the previous commit block (they
-        // equal tanhXdX(c*hpPrev)/tanhXdX(c*bpPrev) by construction), and
+        // equal tanhXdXFast(c*hpPrev)/tanhXdXFast(c*bpPrev) by construction), and
         // diodePrev is the previous commit's kKD*sinh(dArg) — dArg was built
         // from the same yd that became ydPrev, so reusing it here is exact.
         // See cpu-optimization-2026-07-24.md §3.1/§3.3.
@@ -142,11 +142,11 @@ public:
         // = -invA0*(1 - t*t).
         float F0, A;
         if (vgPrev <= 0.f) {
-            float t = tanhApprox(-m.a0OverVHi * vgPrev);
+            float t = tanhApproxFast(-m.a0OverVHi * vgPrev);
             F0 =  m.vHi * t;
             A  = -m.invA0 * (1.f - t * t);
         } else {
-            float t = tanhApprox(m.a0OverVLo * vgPrev);
+            float t = tanhApproxFast(m.a0OverVLo * vgPrev);
             F0 = -m.vLo * t;
             A  = -m.invA0 * (1.f - t * t);
         }
@@ -177,12 +177,12 @@ public:
         // purity (the clamped step bounces on extreme samples); keep max 2.
         for (int it = 0; it < 2; ++it) {
             float uh2 = m.c * hp;
-            float rh2 = tanhXdX(uh2);
+            float rh2 = tanhXdXFast(uh2);
             float Sh2 = hp * rh2;             // tanh(c*hp)/c
             float th2 = uh2 * rh2;            // tanh(c*hp)
             float bp2 = sBP + g * Sh2;
             float ub2 = m.c * bp2;
-            float rb2 = tanhXdX(ub2);
+            float rb2 = tanhXdXFast(ub2);
             float Sb2 = bp2 * rb2;
             float tb2 = ub2 * rb2;
             float lp2 = sLP + g * Sb2;
@@ -193,11 +193,11 @@ public:
             float vg2 = (hin + fd2 + m.kR2 * lp2 + kC2 * Sb2 + hp) * m.invNInv;
             float F0n, An;
             if (vg2 <= 0.f) {
-                float t2 = tanhApprox(-m.a0OverVHi * vg2);
+                float t2 = tanhApproxFast(-m.a0OverVHi * vg2);
                 F0n =  m.vHi * t2;
                 An  = -m.invA0 * (1.f - t2 * t2);
             } else {
-                float t2 = tanhApprox(m.a0OverVLo * vg2);
+                float t2 = tanhApproxFast(m.a0OverVLo * vg2);
                 F0n = -m.vLo * t2;
                 An  = -m.invA0 * (1.f - t2 * t2);
             }
@@ -225,16 +225,16 @@ public:
         hp = std::clamp(hp, -m.vLo, m.vHi);
 
         // ---- commit: recompute chain at solved hp, update states ----------
-        // S(v) = tanh(c*v)/c is formed as v*tanhXdX(c*v): algebraically the
+        // S(v) = tanh(c*v)/c is formed as v*tanhXdXFast(c*v): algebraically the
         // same in both tanhXdX regions (|u| > 3: v/|u| = sign(v)/c, the ±1
         // clamp), and the ratio IS next sample's secant pivot, so the two
         // /m.c divides and both pivot recomputes disappear (§3.3).
         float uh = m.c * hp;
-        float rh = tanhXdX(uh);
+        float rh = tanhXdXFast(uh);
         float Sh = hp * rh;
         float bp = sBP + g * Sh;
         float ub = m.c * bp;
-        float rb = tanhXdX(ub);
+        float rb = tanhXdXFast(ub);
         float Sb = bp * rb;
         float lp = sLP + g * Sb;
         float yd = h1.beta0 * bp + z1;
@@ -250,9 +250,7 @@ public:
         th = rh; tb = rb; diodePrev = dio;
 
         rawLp = lp; rawBp = bp; rawHp = hp;
-        return { dcLp.process(lp) * m.makeup,
-                 dcBp.process(bp) * m.makeup,
-                 dcHp.process(hp) * m.makeup };
+        return { lp, bp, hp };
     }
 
 private:
@@ -266,11 +264,10 @@ private:
     float sBP = 0.f, sLP = 0.f, z1 = 0.f, hinState = 0.f;
     float hpPrev = 0.f, bpPrev = 0.f, ydPrev = 0.f, vgPrev = 0.f;
     // Commit-block caches reused as next sample's secant pivots (§3.1/§3.3):
-    // th = tanhXdX(c*hpPrev), tb = tanhXdX(c*bpPrev), diodePrev =
+    // th = tanhXdXFast(c*hpPrev), tb = tanhXdXFast(c*bpPrev), diodePrev =
     // kKD*sinh(clamp(ydPrev/kVD)). Seeded by reset(); refreshed by setMode().
     float th = 1.f, tb = 1.f, diodePrev = 0.f;
     float rawLp = 0.f, rawBp = 0.f, rawHp = 0.f;
-    DcBlocker dcLp, dcBp, dcHp;
 };
 
 } // namespace wasp
