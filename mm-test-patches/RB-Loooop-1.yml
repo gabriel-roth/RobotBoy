@@ -114,6 +114,13 @@ PatchData:
         - {panel_knob_id: 9, module_id: 1, param_id: 28, curve_type: 0, min: 0, max: 1, alias_name: Purple Level}
         - {panel_knob_id: 10, module_id: 1, param_id: 8, curve_type: 0, min: 0, max: 1, alias_name: Red Jitter}
         - {panel_knob_id: 11, module_id: 2, param_id: 0, curve_type: 0, min: 0, max: 1, alias_name: Loop restart}
+    - name: Head Levels
+      set:
+        - {panel_knob_id: 0, module_id: 1, param_id: 10, curve_type: 0, min: 0, max: 1, alias_name: Red Level}
+        - {panel_knob_id: 1, module_id: 1, param_id: 16, curve_type: 0, min: 0, max: 1, alias_name: Yellow Level}
+        - {panel_knob_id: 2, module_id: 1, param_id: 22, curve_type: 0, min: 0, max: 1, alias_name: Blue Level}
+        - {panel_knob_id: 3, module_id: 1, param_id: 28, curve_type: 0, min: 0, max: 1, alias_name: Purple Level}
+        - {panel_knob_id: 4, module_id: 1, param_id: 4, curve_type: 0, min: 0, max: 1, alias_name: Dry/Wet}
   vcvModuleStates:
     - module_id: 2
       data: |-

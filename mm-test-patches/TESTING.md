@@ -9,7 +9,8 @@ Nineteen patches covering every feature of the eight Robot Boy modules on MetaMo
 - **Buttons live on knobs.** The Hub has no mappable buttons, so button params (Record, Clear, Freeze, Slice, Tap tempo, WAV restart) are mapped to small knobs: **twist up past center = press, twist back down = release.** One press = one full up-down twist. Latching params (Freeze, Slice) simply hold while the knob is up.
 - **Drum-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z).
 - **Never open a module's menu.** Every alternate context-menu setting under test is baked into its own patch via saved module state (that's what the -2/-3 patches are). If a test seems to need a menu, that's a bug in the patch, not the procedure.
-- **Bring four external signals** across the session: an LFO (any shape, slow to audio-rate), a pitch CV source (keyboard/sequencer, 1 V/oct), a clock/gate/trigger source, and an audio-rate oscillator. Panel jack assignments are aliased in each patch (visible on the jack roller).
+- **Bring four external signals** across the session: an LFO (any shape, slow to audio-rate), a pitch CV source (keyboard/sequencer, 1 V/oct), a clock/gate/trigger source, and an audio-rate oscillator. Also bring a **passive mult or stackcable** — a couple of tracking tests feed the same pitch CV into two panel inputs at once. Panel jack assignments are aliased in each patch (visible on the jack roller).
+- **Some patches have a second knob set** (extra mix/utility controls that didn't fit on the twelve knobs). A step that needs it says so by name, e.g. "switch to Knob Set 2 (*Head Levels*)". Knobs not in the active set hold their last value, so switch back to Knob Set 1 when the step is done.
 - **Main audio is always Out 1 / Out 2.** Extra taps (individual playheads, filter responses) sit on Outs 3-5 where noted.
 - A few behaviors key off whether a **physical cable** is present in a mapped input (Particules/Retours attenurandomizers switch between randomizer and CV-attenuator; Particules auto-gain recalibrates on patch/unpatch; Seed/Clock detection). Steps that depend on this say so — if something behaves as if a cable were patched when the jack is empty, note it as a finding.
 
@@ -40,19 +41,31 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Gate In 1 | Record trig |
 | Gate In 2 | Clear trig |
 
+**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Level |
+| Knob B | Yellow Level |
+| Knob C | Blue Level |
+| Knob D | Purple Level |
+| Knob E | Dry/Wet (same param as D in Set 1) |
+
+All four Levels load at 25%; after soloing a head, return them there and switch back to Knob Set 1.
+
 **Try:**
 1. Wait ~2 s after load until the drum loop is audible, then twist u fully up to start recording; after 4-8 bars twist u back down — **Expect:** loop plays back immediately through all four heads; twisting u up = button press, down = release.
 2. Instead of u, send a trigger into Gate In 1 to start, another to stop — **Expect:** identical record start/stop behavior from the jack.
-3. Listen to the ensemble with all heads up — **Expect:** four simultaneous voices: Red at unison, Yellow an octave up panned left, Blue playing in reverse panned right, Purple at 1.5× in the center.
-4. Sit on the loop for a minute and listen to Purple — **Expect:** Purple's voice drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other heads stay put.
-5. Turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward.
+3. Listen to the ensemble with all heads up — **Expect:** four simultaneous voices: Red at unison, Yellow an octave up panned left, Blue playing in reverse panned right, Purple at 1.5× in the center. To check any single voice, switch to Knob Set 2 (*Head Levels*), pull the other three Levels to 0 and push E toward full wet, then restore (Levels 25%, E noon) and switch back.
+4. Sit on the loop for a minute and listen to Purple — **Expect:** Purple's voice drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other heads stay put. If the drift is hard to pick out of the ensemble, solo Purple on Knob Set 2 first.
+5. Solo Yellow on Knob Set 2 (Red/Blue/Purple Levels to 0), switch back to Knob Set 1, then turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward. Restore the levels when done.
 6. Loop seam check: with the loop playing, listen across the wrap point several times — **Expect:** no click or tick at the seam (crossfade is ON by default in this patch; contrast with RB-Loooop-3, which has it off).
-7. Overdub modes on F, full CCW = Layer: while the loop plays, twist u up, play new input for a pass, twist down; repeat several passes — **Expect:** each pass ducks the older material by roughly 1 dB; old layers slowly recede but never dull.
+7. Overdub modes on F, full CCW = Layer: while the loop plays, twist u up for a pass, then down (the still-running drum loop re-records over itself at a new offset — that IS the new material); repeat several passes — **Expect:** each pass ducks the older material by roughly 1 dB; old layers slowly recede but never dull.
 8. F at \~10 o'clock = Decay: overdub several passes — **Expect:** old material both loses level AND loses high end, getting duller each pass.
 9. F at noon = Add: overdub several hot passes — **Expect:** layers pile up at full level and eventually clip/distort — that is the mode working, not a bug.
 10. F at \~2 o'clock = Replace: twist u up mid-loop, then down after a beat — **Expect:** a clean punch-in — new audio replaces the old only where you held record.
 11. F full CW = Lock: twist u up and try to record — **Expect:** nothing records; the loop is protected and Record is ignored.
-12. Turn A (Red Size) down to \~25%, then sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop; at full Size (A max), B and y do nothing — that's by design.
+12. Turn A (Red Size) down to \~25%, then sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop; at full Size (A max), B and y do nothing — that's by design. (If the other heads mask the scrubbing, solo Red on Knob Set 2 for steps 12-14.)
 13. With A partway down, raise y (Red Jitter) — **Expect:** Red's window hops to random positions, from subtle shuffle (low y) to full scatter (high y).
 14. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) while scrubbing A and B — **Expect:** Red's Size and Position snap to grid divisions; changes land musically on the beat instead of free-sliding.
 15. Sweep D (Dry/Wet) full CCW then full CW — **Expect:** CCW = only the live drum-loop input, CW = only the heads; noon = the baked-in 50/50 blend.
@@ -84,10 +97,22 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Gate In 1 | Red one-shot trig |
 | Gate In 2 | Yellow one-shot trig |
 
+**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Level |
+| Knob B | Yellow Level |
+| Knob C | Blue Level |
+| Knob D | Purple Level (same param as v in Set 1) |
+| Knob E | Dry/Wet (same param as F in Set 1) |
+
+Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there after soloing.
+
 **Try:**
 1. Load the patch and touch nothing — **Expect:** ~2 s of silence, then the drum file plays once while recording itself; when it ends, Blue (full loop) and Purple (jittery fragments) start playing back on their own.
 2. Check the display lanes for Red and Yellow — **Expect:** both lanes dim/inactive: one-shot heads stay silent until triggered.
-3. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click.
+3. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click. (Blue and Purple keep playing underneath; for a clean listen, pull their Levels to 0 on Knob Set 2 (*Head Levels*) for steps 3-7, then restore.)
 4. Same into Gate In 2 — **Expect:** Yellow fires its own one-shot slice from a different part of the loop (Position 60% vs Red's 20%).
 5. While triggering Red, step B (Red Position) to different positions, then A (Red Size) — **Expect:** every slice start and length snaps to 1/16 divisions of the loop; the knobs move in audible whole-segment jumps, never landing mid-segment.
 6. Do the same with C/D for Yellow — **Expect:** identical grid-snapped behavior on the second slice head.
@@ -97,7 +122,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 10. Patch a square LFO (\~1-4 Hz, 0-10 V) into In 1 — **Expect:** Blue hard-stutters, jumping between two loop points in time with the square; a beat-repeat chop, no glide between them.
 11. Patch a slow LFO or sequencer CV into In 2 — **Expect:** Red's slice position moves under CV, still snapping to the 16-grid.
 12. Compare Out 3 against Out 1/2 — **Expect:** Out 3 carries only Red's slices (left channel), isolated from the mix.
-13. Turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1×.
+13. Turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1× (solo Blue on Knob Set 2 if Purple's fragments get in the way).
 14. Twist z up then down — **Expect:** the drum file plays through once more and re-records itself (Play Gate drives Record again), replacing the loop content.
 15. Twist x up — **Expect:** the loop clears; then twist z to reload it as in step 14.
 
@@ -177,7 +202,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 
 ## RB-MF20-1 — OTA acid & vocal band (MF-20, series HP→LP character test)
 
-**Setup:** A saw VCO at C2 runs into the MF-20 in OTA mode (baked state). LP starts \~150 Hz with Peak at 70%, HP is parked at the bottom of its range, all CV amounts full. Filter output on Out 1/Out 2.
+**Setup:** A saw VCO at C2 runs into the MF-20 in OTA mode (baked state) through a unity-gain VCA (knob w = Input level, loaded at full). LP starts \~150 Hz with Peak at 70%, HP is parked at the bottom of its range, all CV amounts full. Filter output on Out 1/Out 2.
 **Panel:**
 
 | Control | Maps to |
@@ -190,6 +215,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Knob F | LP CV Amt |
 | Knob u | Total CV Amt |
 | Knob v | HP CV Amt |
+| Knob w | Input level (saw into the filter; 0 = silence) |
 | In 1 | LP Cutoff CV |
 | In 2 | Total Cutoff CV |
 | In 3 | VCO Pitch (1V/oct) |
@@ -198,27 +224,27 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 **Try:**
 1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; knob F attenuverts it, and below center the sweep inverts (closes on attack).
 2. Sweep Drive E from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms up rather than turning buzzy.
-3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note; both filters self-oscillate cleanly at full Peak (repeat with C/D for the HP). Alternatively sequence In 3 to a silent/rest step to hear the whistle alone.
+3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note; both filters self-oscillate cleanly at full Peak (repeat with C/D for the HP). To judge the whistle's purity, turn w (Input level) to 0 — the whistle alone should remain, saw gone; restore w to full afterwards.
 4. Set C (HP) near \~300 Hz (about 10-11 o'clock) and A (LP) near \~1.5 kHz (about 2 o'clock), then patch a slow LFO into In 2 (Total) — **Expect:** the whole HP→LP passband slides as ONE unit — a vowel-like formant sweep, band width constant.
 5. Swap the band: set C above A (HP cutoff higher than LP cutoff) — **Expect:** the sound thins into a notch/phaser-like residue instead of a band; still audible, not silence.
-6. V/Oct check: with the LP self-oscillating (step 3), patch the same pitch CV into In 1 (F full CW) and In 3 — **Expect:** the whistle tracks the VCO exactly; a 1 V step moves the whistle precisely one octave, staying in tune with the saw.
+6. V/Oct check: with the LP self-oscillating (step 3), patch the same pitch CV into In 1 (F full CW) and In 3 — use the mult/stackcable — **Expect:** the whistle tracks the VCO exactly; a 1 V step moves the whistle precisely one octave, staying in tune with the saw.
 7. Trim u (Total CV Amt) toward 0 while the In 2 LFO runs — **Expect:** the formant sweep from step 4 shrinks to nothing; u scales only the Total CV input.
 
 ## RB-MF20-2 — Korg35 mode (MF-20, direct A/B against RB-MF20-1)
 
 **Setup:** Byte-for-byte the same patch as RB-MF20-1 — saw VCO at C2, LP \~150 Hz, Peak 70%, HP parked low, CV amounts full — except the filter core is Korg35 instead of OTA. Output on Out 1/Out 2. Load the two patches back to back with the SAME knob positions for every test.
-**Panel:** identical to RB-MF20-1 (A LP Cutoff · B LP Peak · C HP Cutoff · D HP Peak · E Drive · F LP CV Amt · u Total CV Amt · v HP CV Amt · In 1 LP CV · In 2 Total CV · In 3 VCO Pitch · In 4 HP CV).
+**Panel:** identical to RB-MF20-1 (A LP Cutoff · B LP Peak · C HP Cutoff · D HP Peak · E Drive · F LP CV Amt · u Total CV Amt · v HP CV Amt · w Input level · In 1 LP CV · In 2 Total CV · In 3 VCO Pitch · In 4 HP CV).
 
 **Try:**
 1. With knobs untouched (loaded defaults), just listen and flip between the two patches — **Expect:** Korg35 resonance is edgier and raspier than the OTA's smooth ring at the same Peak setting.
 2. Push Drive E past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics; the OTA patch at the same settings stays creamier.
 3. Set Drive E to minimum and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper — a faint hair of grit; RB-MF20-1 at the same setting stays clean.
-4. Turn B to 100% with A low — **Expect:** self-oscillation is still a clean whistle; both cores self-osc cleanly at full Peak, the difference lives in the driven/resonant midrange, not the pure tone.
+4. Turn B to 100% with A low — **Expect:** self-oscillation is still a clean whistle (turn w to 0 to hear it without the saw, then restore); both cores self-osc cleanly at full Peak, the difference lives in the driven/resonant midrange, not the pure tone.
 5. Overall A/B under drive — **Expect:** the two patches are clearly distinguishable once Drive is up; if they sound identical under drive, that is a bug — report it.
 
 ## RB-Onbetap-1 — Tamed: the Polivoks behaviors (Onbetap, signature-behavior tour)
 
-**Setup:** Saw VCO at C2 into the Onbetap, Tamed mode at 1× oversampling (baked state). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
+**Setup:** Saw VCO at C2 into the Onbetap through a unity-gain VCA (knob v = Input level, loaded at full), Tamed mode at 1× oversampling (baked state). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
 **Panel:**
 
 | Control | Maps to |
@@ -230,6 +256,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Knob E | Cutoff CV Amt |
 | Knob F | Q CV Amt |
 | Knob u | Drive CV Amt |
+| Knob v | Input level (saw into the filter; 0 = silence) |
 | In 1 | Cutoff CV |
 | In 2 | Q CV |
 | In 3 | Drive CV |
@@ -237,7 +264,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 
 **Try:**
 1. Drive fights resonance: hold B (Q) around 70%, then sweep C (Drive) slowly from 20% to 80% — **Expect:** the sound gets louder and dirtier but RINGS LESS — the resonant peak audibly recedes as drive rises.
-2. Self-osc onset moves with cutoff: with A low (\~9 o'clock), creep B up until oscillation just barely starts (should be in the top fifth of the knob). Now raise A without touching B — **Expect:** the filter sings earlier/is already singing at higher cutoffs; the oscillation threshold depends on cutoff.
+2. Self-osc onset moves with cutoff: turn v (Input level) to 0 so the saw doesn't mask the onset. With A low (\~9 o'clock), creep B up until oscillation just barely starts (should be in the top fifth of the knob). Now raise A without touching B — **Expect:** the filter sings earlier/is already singing at higher cutoffs; the oscillation threshold depends on cutoff. Restore v to full before moving on.
 3. Relaxation harshness: B at max, C past 70%, A in the low-mid range (\~10 o'clock) — **Expect:** the tone drops into a LOWER, buzzier relaxation-oscillation growl — alarming but bounded; back off any one knob and it returns to normal.
 4. No bass loss: LP mode (D full CCW), B at 85%, play the C2 bass — **Expect:** the low end stays planted at high resonance; no classic thinning of the fundamental.
 5. Step D through all five positions (LP, BP at \~10 o'clock, HP at noon, Notch at \~2 o'clock, Peak full CW) — **Expect:** five distinct responses; BP is audibly WIDE (gentle 6 dB skirts, not a narrow chirp); each mode change is click-free (\~5 ms fade, this is the Tamed behavior).
@@ -272,7 +299,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 ## RB-Onbetap-3 — 4× oversampling (Onbetap, aliasing A/B against RB-Onbetap-1)
 
 **Setup:** Same layout as RB-Onbetap-1 (saw VCO at C2, Tamed mode) but baked at 4× oversampling with Drive at 80% and Cutoff high (\~70%, several kHz) — a deliberately hot, bright setting. RB-Onbetap-1 runs the MetaModule default 1×; to A/B, set patch 1's knobs C to 80% and A to 70% to match. Output on Out 1/Out 2.
-**Panel:** identical to RB-Onbetap-1 (A Cutoff · B Q · C Drive · D Mode · E Cutoff CV Amt · F Q CV Amt · u Drive CV Amt · In 1 Cutoff CV · In 2 Q CV · In 3 Drive CV · In 4 VCO Pitch).
+**Panel:** identical to RB-Onbetap-1 (A Cutoff · B Q · C Drive · D Mode · E Cutoff CV Amt · F Q CV Amt · u Drive CV Amt · v Input level · In 1 Cutoff CV · In 2 Q CV · In 3 Drive CV · In 4 VCO Pitch).
 
 **Try:**
 1. Play a rising line (keyboard/sequencer into In 4) over 2-3 octaves in RB-Onbetap-1 with its knobs matched to this patch (C 80%, A 70%) — **Expect:** at 1×, inharmonic aliasing "birdies" under the distortion — faint whistles that sweep DOWN as you play UP.
@@ -339,7 +366,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 1. Load the patch and just listen, nothing patched — **Expect:** the filter sings on its own: a hollow, slightly gritty sine voice. Loud but stable — bounded by the rails, never a runaway blast.
 2. Sweep A across its range — **Expect:** the sung pitch follows the knob smoothly across the audible range, tone staying sine-like with a touch of grit.
 3. Sequence a melody into In 1 (keyboard or sequencer, E fully CW) — **Expect:** the melody plays IN TUNE over 3-4 octaves. Corrected tracking: octaves are real octaves.
-4. Check tuning against a reference: send the same pitch CV to a reference oscillator and to In 1, compare by ear at 1, 2, and 3 octaves up — **Expect:** unisons/octaves beat slowly or not at all across the range; no progressive flattening as you go up (that flattening lives in RB-Vespid-3).
+4. Check tuning against a reference: send the same pitch CV (via the mult/stackcable) to a reference oscillator and to In 1, compare by ear at 1, 2, and 3 octaves up — **Expect:** unisons/octaves beat slowly or not at all across the range; no progressive flattening as you go up (that flattening lives in RB-Vespid-3).
 5. Slowly back off B from max and find the point where oscillation stops; nudge back up — **Expect:** a clear, repeatable threshold where the voice dies/restarts; near threshold it may chirp before locking into steady tone.
 6. Restore B to max and feed audio (any oscillator or a drum loop) into In 3 — **Expect:** filter and oscillation interact — the input pulls, beats against, and colors the sung tone; combined output stays loud-but-bounded, no runaway.
 7. Patch an LFO into In 2 with B around the threshold from step 5 — **Expect:** oscillation gates on and off with the LFO — a crude but playable tremolo/chirp effect, no instability.
@@ -371,7 +398,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 
 ## RB-Particules-1 — Free-running texture & qualities (Particules, granular texture from a baked-in drum loop)
 
-**Setup:** A drum loop (drum-loop.wav, looping) auto-starts about 2 s after the patch loads and feeds Particules. Particules output on Out 1 (L) / Out 2 (R). Baked state: Triggers seed mode, auto-gain on, pitch quantizer off, grain trigger out off. Starting texture: Density 65%, Time 30%, Size 55%, Shape 45%, Reverb 25%, Dry/Wet 85%, Time attenuverter fixed at +75%. Seed input is deliberately unmapped — Density free-runs.
+**Setup:** A drum loop (drum-loop.wav, looping) auto-starts about 2 s after the patch loads and feeds Particules. All twelve knobs are spoken for, so the loop-restart control lives on Knob Set 2 (*Utility*): if the loop isn't playing, switch there, twist z up then down, and switch back. Particules output on Out 1 (L) / Out 2 (R). Baked state: Triggers seed mode, auto-gain on, pitch quantizer off, grain trigger out off. Starting texture: Density 65%, Time 30%, Size 55%, Shape 45%, Reverb 25%, Dry/Wet 85%, Time attenuverter fixed at +75%. Seed input is deliberately unmapped — Density free-runs.
 
 **Panel:**
 
@@ -389,6 +416,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Knob x | Reverb | Reverb amount |
 | Knob y | Size AR | Size attenurandomizer |
 | Knob z | Pitch AR | Pitch attenurandomizer |
+| Knob z (Set 2: *Utility*) | Loop restart | BWAVP Play (twist up then down) |
 | In 1 | Time CV | Time CV (attenuverted +75%) |
 | Gate In 1 | Freeze gate | Freeze while high |
 
