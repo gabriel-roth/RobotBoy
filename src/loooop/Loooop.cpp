@@ -22,9 +22,9 @@ struct Loooop : Module {
     // Global params come FIRST, then the panel KNOBS grouped PER HEAD (a
     // contiguous block of HEAD_PARAMS knobs each — index with
     // `X1_PARAM + HEAD_PARAMS * h`), then a trailing "Options" block of the
-    // menu-only params grouped by command (Trigger-when-recording, Crossfade,
-    // then per-head Trig-mode, Speed-V/Oct, Grid-exclude — each a contiguous
-    // run indexed `X1_PARAM + h`).
+    // menu-only params grouped by command (Record-jack mode,
+    // Trigger-when-recording, Crossfade, then per-head Trig-mode, Speed-V/Oct,
+    // Grid-exclude — each a contiguous run indexed `X1_PARAM + h`).
     // This ParamId order is IDENTICAL to the MetaModule Elem order
     // (metamodule/loooop/Loooop_info.hh): MetaModule assigns param IDs by
     // Elements-array position, and VCV↔MM patch conversion maps by ID, so the
@@ -35,13 +35,10 @@ struct Loooop : Module {
                    SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM,
                    SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM,
                    SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM,
-                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM,
+                   REC_GATE_MODE_PARAM, TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM,
                    TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
                    SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
                    EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
-                   // Appended at the END (old-patch safety -- see the enum's
-                   // header comment): "Record jack" Trigger/Gate mode.
-                   REC_GATE_MODE_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
                    SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,

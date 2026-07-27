@@ -31,8 +31,8 @@ struct LopInfo : ModuleInfoBase {
     // 5-position FlipSwitch with a per-mode colour button, Grid a stepped knob). Trig-mode, Speed V/Oct, and
     // Crossfade are menu-only (AltParamChoiceLabeled, position fields unused);
     // they sit in ONE contiguous block AFTER all the jacks and BEFORE the
-    // display, grouped by command (When recording ends, Crossfade, Trigger,
-    // Speed CV V/Oct, Record jack) so the
+    // display, grouped by command (Record jack, When recording ends, Crossfade,
+    // Trigger, Speed CV V/Oct) so the
     // MetaModule roller headers this block as an "Options:" section (a param
     // group that FOLLOWS the jacks), matching VCV's command-first menu layout
     // instead of interleaving with the panel knobs.

@@ -14,14 +14,12 @@ struct Lop : Module {
     // VCV↔MM patch conversion maps by ID, so the two must line up
     // element-for-element or a patch's knob values land on the wrong control
     // when it crosses hosts. Order: panel knobs, then globals, then the
-    // menu-only "Options" (Trigger-when-recording, Crossfade, Trigger,
-    // Speed-V/Oct). Keep in lockstep.
+    // menu-only "Options" (Record-jack mode, Trigger-when-recording, Crossfade,
+    // Trigger, Speed-V/Oct). Keep in lockstep.
     enum ParamId { SIZE_PARAM, POSITION_PARAM, SPEED_PARAM, JITTER_PARAM,
                    DRYWET_PARAM, RECORD_PARAM, CLEAR_PARAM, OVERDUB_PARAM, GRID_PARAM,
-                   TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM, TRIG_MODE_PARAM, SPEED_VOCT_PARAM,
-                   // Appended at the END (old-patch safety -- see the enum's
-                   // header comment): "Record jack" Trigger/Gate mode.
-                   REC_GATE_MODE_PARAM,
+                   REC_GATE_MODE_PARAM, TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM, TRIG_MODE_PARAM,
+                   SPEED_VOCT_PARAM,
                    PARAMS_LEN };
     enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT,
                    SIZE_CV_INPUT, POSITION_CV_INPUT, SPEED_CV_INPUT, JITTER_CV_INPUT, TRIG_INPUT, JUMP_INPUT,
