@@ -282,7 +282,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 
 ## RB-Vespid-1 — British: the CMOS rasp (Vespid, dirty-Wasp character + Blend morph + output taps)
 
-**Setup:** Fundamental VCO square (C2) → VCA → Vespid audio in L. Vespid in British mode, 1× oversampling, uncorrected tracking. Freq \~300 Hz, Res 0.6, Drive 0.4, Blend centered (notch). Mix out on Out 1/2; individual taps: BP on Out 3, HP on Out 4, LP on Out 5.
+**Setup:** Fundamental VCO square (C2) → VCA → Vespid audio in L. Vespid in British mode (oversampling is fixed at 4× in all Vespid builds). Freq \~300 Hz, Res 0.6, Drive 0.4, Blend centered (notch). Mix out on Out 1/2; individual taps: BP on Out 3, HP on Out 4, LP on Out 5.
 
 **Panel:**
 
@@ -319,7 +319,7 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 
 ## RB-Vespid-2 — German corrected: playable self-oscillation (Vespid, self-osc voice with in-tune 1V/oct tracking)
 
-**Setup:** Vespid alone, German mode (+12 V rails), Corrected pitch tracking, 1× oversampling. Res pinned at 1.0, Freq \~mid, Drive 0.2, Blend fully LP. No source module — the filter itself is the voice. Audio out on Out 1/2. It should be singing the moment the patch loads.
+**Setup:** Vespid alone, German mode (+12 V rails), Corrected pitch tracking. Res pinned at 1.0, Freq \~mid, Drive 0.2, Blend fully LP. No source module — the filter itself is the voice. Audio out on Out 1/2. It should be singing the moment the patch loads.
 
 **Panel:**
 
@@ -344,9 +344,9 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 6. Restore B to max and feed audio (any oscillator or a drum loop) into In 3 — **Expect:** filter and oscillation interact — the input pulls, beats against, and colors the sung tone; combined output stays loud-but-bounded, no runaway.
 7. Patch an LFO into In 2 with B around the threshold from step 5 — **Expect:** oscillation gates on and off with the LFO — a crude but playable tremolo/chirp effect, no instability.
 
-## RB-Vespid-3 — German hardware drift + 4× oversampling (Vespid, uncorrected vintage tuning sag, alias-free at 4×)
+## RB-Vespid-3 — German hardware drift (Vespid, uncorrected vintage tuning sag)
 
-**Setup:** Same layout as RB-Vespid-2 (Vespid alone, German mode, Res 1.0, Blend LP, Out 1/2), but tracking is UNCORRECTED (authentic circuit sag) and oversampling is 4×. Drive is higher (0.6). Note: after load the drone may take a couple of seconds to bloom to full level — that's the uncorrected oscillator settling, not a fault.
+**Setup:** Same layout as RB-Vespid-2 (Vespid alone, German mode, Res 1.0, Blend LP, Out 1/2), but tracking is UNCORRECTED (authentic circuit sag). Drive is higher (0.6). Note: after load the drone may take a couple of seconds to bloom to full level — that's the uncorrected oscillator settling, not a fault.
 
 **Panel:**
 
@@ -366,9 +366,8 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 1. Play the SAME melody you used in RB-Vespid-2 step 3 into In 1 — **Expect:** it now drifts FLAT the way the real circuit sags at high resonance: intervals compress/stretch, "vintage out-of-tune." Musical, not broken.
 2. Push the melody to the extremes (very low and very high notes) — **Expect:** the sag is worst at the extremes of the range; the middle stays closest to true.
 3. A/B the same two-octave jump in RB-Vespid-2 and here — **Expect:** patch 2 lands a true octave; this patch lands audibly flat of it.
-4. Oversampling check: drive a bright, hot audio-rate signal (raw saw or square, high pitch) into In 3 with C high and A high — **Expect:** clean here at 4×: no inharmonic "birdies" sweeping the wrong way as you play up.
-5. Make the exact same move (same source, same knob positions) in RB-Vespid-1 or RB-Vespid-2, which run the 1× MetaModule default — **Expect:** at 1× you can hear aliasing birdies under the distortion — tones sweeping DOWN as you play UP. If patch 3 sounds identical to 1×, the oversampling isn't engaging.
-6. While patch 3 is running, check the device CPU meter — **Expect:** 4× costs noticeably more than patches 1/2 but leaves acceptable headroom on the device (no audio dropouts while turning knobs).
+4. Aliasing check: drive a bright, hot audio-rate signal (raw saw or square, high pitch) into In 3 with C high and A high — **Expect:** clean: Vespid is fixed at 4× oversampling in every build, so no inharmonic "birdies" sweeping the wrong way as you play up.
+5. While the patch runs, check the device CPU meter — **Expect:** acceptable headroom (no audio dropouts while turning knobs); Vespid always pays the 4× cost, so this is its worst-case CPU figure.
 
 ## RB-Particules-1 — Free-running texture & qualities (Particules, granular texture from a baked-in drum loop)
 

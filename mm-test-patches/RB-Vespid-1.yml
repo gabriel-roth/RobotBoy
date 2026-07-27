@@ -76,4 +76,4 @@ PatchData:
   vcvModuleStates:
     - module_id: 1
       data: |-
-        {"german":false,"panelTheme":0,"osMenu":1,"oscPitchCorrected":false}
+        {"german":false,"panelTheme":0,"oscPitchCorrected":false}

@@ -37,7 +37,7 @@ PatchData:
   vcvModuleStates:                 # adapter-module menu options (omit if all defaults)
     - module_id: 1
       data: |-
-        {"german":true,"panelTheme":0,"osMenu":1,"oscPitchCorrected":true}
+        {"german":true,"panelTheme":0,"oscPitchCorrected":true}
 ```
 
 Rules:
@@ -102,7 +102,7 @@ No vcvModuleStates.
 ### RobotBoy:Vespid
 Params: 0 Freq (log2 scale as MF-20; def .524678 = 750 Hz; 300 Hz ≈ .392) · 1 Res (def 0) · 2 Drive (def 0) · 3 Blend (0 LP, .5 notch, 1 HP; def .5) · 4 Freq CV amt (def **1.0**) · 5 Res CV amt (def **1.0**) · 6 Drive CV amt (def **1.0**).
 Inputs: 0 Audio L · 1 Audio R · 2 Freq CV · 3 Res CV · 4 Drive CV · 5 Blend CV. Outputs: 0 Mix L · 1 Mix R · 2 HP L · 3 HP R · 4 BP L · 5 BP R · 6 LP L · 7 LP R.
-State template (all 4 keys): `{"german":false,"panelTheme":0,"osMenu":1,"oscPitchCorrected":false}` — german true = German (self-osc); osMenu 1/2/4; oscPitchCorrected true = Corrected tracking.
+State template (all 3 keys): `{"german":false,"panelTheme":0,"oscPitchCorrected":false}` — german true = German (self-osc); oscPitchCorrected true = Corrected tracking. (`osMenu` removed 2026-07-26 — oversampling is fixed at 4× in every build; the key is read-and-ignored in old states.)
 
 ### RobotBoy:Retours
 Params: 0 Slice (0/1 latch, def 0) · 1 Quality (Bright 0, Cold .333333, Sunny .666667, Scorched 1; def 0) · 2 Tap tempo (momentary button, def 0) · 3 Time (def 0 = 1×) · 4 Interval (def .35; 12 o'clock = .5 = longest delay; far CCW/CW = audio rate) · 5 Pitch (def .5 = 0 st; +12 ≈ .758) · 6 Shape (def 0 = off) · 7 Feedback (def 0; unity at .9) · 8 Dry/Wet (def .5) · 9 Time AR (def .5) · 10 Pitch AR (.5) · 11 Shape AR (.5) · 12 Feedback CV amt (.5) · 13 Dry/wet CV amt (.5).

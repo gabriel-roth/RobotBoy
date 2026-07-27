@@ -1,6 +1,6 @@
 PatchData:
   patch_name: RB-Vespid-3
-  description: 'German Wasp, uncorrected drift + 4x oversampling: self-oscillating voice that sags flat like the real circuit'
+  description: 'German Wasp, uncorrected drift: self-oscillating voice that sags flat like the real circuit'
   module_slugs:
     0: '4msCompany:HubMedium'
     1: 'RobotBoy:Vespid'
@@ -44,4 +44,4 @@ PatchData:
   vcvModuleStates:
     - module_id: 1
       data: |-
-        {"german":true,"panelTheme":0,"osMenu":4,"oscPitchCorrected":false}
+        {"german":true,"panelTheme":0,"oscPitchCorrected":false}
