@@ -10,266 +10,14 @@ Nineteen patches covering every feature of the eight Robot Boy modules on MetaMo
 - **Drum-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z).
 - **Never open a module's menu.** Every alternate context-menu setting under test is baked into its own patch via saved module state (that's what the -2/-3 patches are). If a test seems to need a menu, that's a bug in the patch, not the procedure.
 - **Bring four external signals** across the session: an LFO (any shape, slow to audio-rate), a pitch CV source (keyboard/sequencer, 1 V/oct), a clock/gate/trigger source, and an audio-rate oscillator. Also bring a **passive mult or stackcable** — a couple of tracking tests feed the same pitch CV into two panel inputs at once. Panel jack assignments are aliased in each patch (visible on the jack roller).
-- **Some patches have a second knob set** (extra mix/utility controls that didn't fit on the twelve knobs). A step that needs it says so by name, e.g. "switch to Knob Set 2 (*Head Levels*)". Knobs not in the active set hold their last value, so switch back to Knob Set 1 when the step is done.
+- **Some patches have a second knob set** (extra mix/utility controls that didn't fit on the twelve knobs). A step that needs it says so by name, e.g. "switch to Knob Set 2 (*Head Levels*)". Switching sets never changes a param by itself — the set you leave holds its values.
+- **Before you start, set knob catchup to "Track when equal."** It's in the device preferences (not a module menu). The factory default is "Track if knob moves," which means the first nudge of a physical knob *snaps* its param to wherever that knob is physically sitting. Because both knob sets share the same twelve physical knobs, that default turns every set switch into a trap: zero the head Levels on Knob Set 2, come back to Set 1, touch knob C, and Yellow Speed jumps to full CCW instead of resuming where the patch left it. "Track when equal" makes the knob pick up its param only when the two match, so switching sets is safe. If you'd rather leave the default alone, treat every knob you touched on Set 2 as scrambled on Set 1 and re-set it deliberately.
 - **Main audio is always Out 1 / Out 2.** Extra taps (individual playheads, filter responses) sit on Outs 3-5 where noted.
 - A few behaviors key off whether a **physical cable** is present in a mapped input (Particules/Retours attenurandomizers switch between randomizer and CV-attenuator; Particules auto-gain recalibrates on patch/unpatch; Seed/Clock detection). Steps that depend on this say so — if something behaves as if a cable were patched when the jack is empty, note it as a finding.
 
 All 19 patches load clean in the MetaModule headless simulator with the current Robot Boy build (module counts verified, states applied); patches that make sound without external input were additionally verified non-silent (Ondes drone, Vespid German self-oscillation — note the German *hardware-pitch* build-up takes a few seconds to bloom).
 
 ---
-## RB-Loooop-1 — Ensemble & overdub modes (Loooop, four-head playback + overdub mode tour)
-
-**Setup:** A drum loop WAV player feeds Loooop's stereo input and auto-starts ~2 s after the patch loads (you still have to record it into Loooop yourself). A slow sine LFO (0.1 Hz, ±2.5 V) is wired to Purple's Pan CV. Baked in: Dry/Wet 50%, Yellow at 2× speed panned left, Blue at −1× (reverse) panned right, Purple at 1.5× center, all head Levels at default, all options at defaults (crossfade ON, trigger record mode). Listen on Out 1/2.
-
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | Red Size |
-| Knob B | Red Position |
-| Knob C | Yellow Speed |
-| Knob D | Dry/Wet |
-| Knob E | Grid |
-| Knob F | Overdub |
-| Knob u | Record (twist up) |
-| Knob v | Clear |
-| Knob w | Red Level |
-| Knob x | Purple Level |
-| Knob y | Red Jitter |
-| Knob z | Loop restart (WAV player Play) |
-| In 1 | Red Pos CV |
-| Gate In 1 | Record trig |
-| Gate In 2 | Clear trig |
-
-**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
-
-| Control | Maps to |
-|---|---|
-| Knob A | Red Level |
-| Knob B | Yellow Level |
-| Knob C | Blue Level |
-| Knob D | Purple Level |
-| Knob E | Dry/Wet (same param as D in Set 1) |
-
-All four Levels load at 25%; after soloing a head, return them there and switch back to Knob Set 1.
-
-**Try:**
-1. Wait ~2 s after load until the drum loop is audible, then twist u fully up to start recording; after 4-8 bars twist u back down — **Expect:** loop plays back immediately through all four heads; twisting u up = button press, down = release.
-2. Instead of u, send a trigger into Gate In 1 to start, another to stop — **Expect:** identical record start/stop behavior from the jack.
-3. Listen to the ensemble with all heads up — **Expect:** four simultaneous voices: Red at unison, Yellow an octave up panned left, Blue playing in reverse panned right, Purple at 1.5× in the center. To check any single voice, switch to Knob Set 2 (*Head Levels*), pull the other three Levels to 0 and push E toward full wet, then restore (Levels 25%, E noon) and switch back.
-4. Sit on the loop for a minute and listen to Purple — **Expect:** Purple's voice drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other heads stay put. If the drift is hard to pick out of the ensemble, solo Purple on Knob Set 2 first.
-5. Solo Yellow on Knob Set 2 (Red/Blue/Purple Levels to 0), switch back to Knob Set 1, then turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward. Restore the levels when done.
-6. Loop seam check: with the loop playing, listen across the wrap point several times — **Expect:** no click or tick at the seam (crossfade is ON by default in this patch; contrast with RB-Loooop-3, which has it off).
-7. Overdub modes on F, full CCW = Layer: while the loop plays, twist u up for a pass, then down (the still-running drum loop re-records over itself at a new offset — that IS the new material); repeat several passes — **Expect:** each pass ducks the older material by roughly 1 dB; old layers slowly recede but never dull.
-8. F at \~10 o'clock = Decay: overdub several passes — **Expect:** old material both loses level AND loses high end, getting duller each pass.
-9. F at noon = Add: overdub several hot passes — **Expect:** layers pile up at full level and eventually clip/distort — that is the mode working, not a bug.
-10. F at \~2 o'clock = Replace: twist u up mid-loop, then down after a beat — **Expect:** a clean punch-in — new audio replaces the old only where you held record.
-11. F full CW = Lock: twist u up and try to record — **Expect:** nothing records; the loop is protected and Record is ignored.
-12. Turn A (Red Size) down to \~25%, then sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop; at full Size (A max), B and y do nothing — that's by design. (If the other heads mask the scrubbing, solo Red on Knob Set 2 for steps 12-14.)
-13. With A partway down, raise y (Red Jitter) — **Expect:** Red's window hops to random positions, from subtle shuffle (low y) to full scatter (high y).
-14. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) while scrubbing A and B — **Expect:** Red's Size and Position snap to grid divisions; changes land musically on the beat instead of free-sliding.
-15. Sweep D (Dry/Wet) full CCW then full CW — **Expect:** CCW = only the live drum-loop input, CW = only the heads; noon = the baked-in 50/50 blend.
-16. Twist v up (or send a trigger into Gate In 2) — **Expect:** the loop erases; heads go silent until you record again.
-17. If the source WAV ever stops (it shouldn't with Loop on), twist z up then down — **Expect:** the drum loop restarts from the top.
-
-## RB-Loooop-2 — Self-loading gate record + grid slicer (Loooop, one-shot slice heads on a 16-grid)
-
-**Setup:** The WAV player is set to play the drum file ONCE; its Play Gate is cabled to Loooop's Record jack, and Loooop's Record jack is in Gate mode — so ~2 s after the patch loads, the file plays through once and records itself into Loooop with no help from you. Baked in: Grid = 16, Red and Yellow are one-shot slice heads (Size 10%, Levels 40%, Positions 20%/60%), Blue plays the whole loop at full Size, Purple is grid-excluded with Jitter 50% at Level 20%, Dry/Wet 100%. Mix on Out 1/2, Red's own left output on Out 3.
-
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | Red Size |
-| Knob B | Red Position |
-| Knob C | Yellow Size |
-| Knob D | Yellow Position |
-| Knob E | Grid |
-| Knob F | Dry/Wet |
-| Knob u | Purple Jitter |
-| Knob v | Purple Level |
-| Knob w | Record |
-| Knob x | Clear |
-| Knob y | Blue Speed |
-| Knob z | Reload loop (WAV player Play) |
-| In 1 | Blue Jump (0-10V) |
-| In 2 | Red Pos CV |
-| Gate In 1 | Red one-shot trig |
-| Gate In 2 | Yellow one-shot trig |
-
-**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
-
-| Control | Maps to |
-|---|---|
-| Knob A | Red Level |
-| Knob B | Yellow Level |
-| Knob C | Blue Level |
-| Knob D | Purple Level (same param as v in Set 1) |
-| Knob E | Dry/Wet (same param as F in Set 1) |
-
-Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there after soloing.
-
-**Try:**
-1. Load the patch and touch nothing — **Expect:** ~2 s of silence, then the drum file plays once while recording itself; when it ends, Blue (full loop) and Purple (jittery fragments) start playing back on their own.
-2. Check the display lanes for Red and Yellow — **Expect:** both lanes dim/inactive: one-shot heads stay silent until triggered.
-3. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click. (Blue and Purple keep playing underneath; for a clean listen, pull their Levels to 0 on Knob Set 2 (*Head Levels*) for steps 3-7, then restore.)
-4. Same into Gate In 2 — **Expect:** Yellow fires its own one-shot slice from a different part of the loop (Position 60% vs Red's 20%).
-5. While triggering Red, step B (Red Position) to different positions, then A (Red Size) — **Expect:** every slice start and length snaps to 1/16 divisions of the loop; the knobs move in audible whole-segment jumps, never landing mid-segment.
-6. Do the same with C/D for Yellow — **Expect:** identical grid-snapped behavior on the second slice head.
-7. Turn E (Grid) down to Off, retrigger Red while moving B — **Expect:** slices now start anywhere (free, un-snapped); return E to \~3 o'clock (16) to restore snapping.
-8. Listen to Purple while the grid is on — **Expect:** Purple ignores the grid entirely (grid-exclude option): its fragments wander to un-quantized positions.
-9. Sweep u (Purple Jitter) from 0 to max — **Expect:** at 0 Purple sits still; up high it scatters across the whole loop. Set v to taste or 0 to mute it.
-10. Patch a square LFO (\~1-4 Hz, 0-10 V) into In 1 — **Expect:** Blue hard-stutters, jumping between two loop points in time with the square; a beat-repeat chop, no glide between them.
-11. Patch a slow LFO or sequencer CV into In 2 — **Expect:** Red's slice position moves under CV, still snapping to the 16-grid.
-12. Compare Out 3 against Out 1/2 — **Expect:** Out 3 carries only Red's slices (left channel), isolated from the mix.
-13. Turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1× (solo Blue on Knob Set 2 if Purple's fragments get in the way).
-14. Twist z up then down — **Expect:** the drum file plays through once more and re-records itself (Play Gate drives Record again), replacing the loop content.
-15. Twist x up — **Expect:** the loop clears; then twist z to reload it as in step 14.
-
-## RB-Loooop-3 — Speed V/Oct + raw seams + keeps-overdubbing (Loooop, chromatic loop transposition)
-
-**Setup:** A triangle VCO at C3 is Loooop's only input; you play it from a keyboard via In 1. Baked in: Red Speed is in V/Oct mode (In 2 transposes chromatically), Crossfade is OFF (raw seams), "when recording ends" = Keeps overdubbing, only Red is audible (Yellow/Blue/Purple Levels = 0, Red Level 50%), Dry/Wet 50%. Listen on Out 1/2.
-
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | Red Speed |
-| Knob B | Red Size |
-| Knob C | Dry/Wet |
-| Knob D | Overdub |
-| Knob u | Record (twist up) |
-| Knob v | Clear |
-| Knob w | Red Position |
-| In 1 | VCO pitch (V/Oct) |
-| In 2 | Red Speed V/Oct |
-| Gate In 1 | Record trig |
-
-**Try:**
-1. Plug a keyboard into In 1 and play — **Expect:** you hear the triangle VCO live (Dry/Wet is at 50%, so dry input passes).
-2. Twist u up and play a short phrase, then twist u down — **Expect:** recording starts on the FIRST upward twist (the button and the Gate In 1 jack fire independently — don't double-arm with both or you'll toggle it twice); the phrase loops on Red.
-3. Keep listening after you stop playing, without touching u — **Expect:** the loop KEEPS OVERDUBBING (option baked in): anything you play on the keyboard keeps stacking into the loop until you twist u up/down again to stop recording.
-4. Twist u again to close recording, then patch the keyboard (or a sequencer) into In 2 instead — **Expect:** the whole loop transposes CHROMATICALLY with the CV — semitone steps, in tune like an oscillator.
-5. Play In 2 across at least 2 octaves against a reference pitch — **Expect:** octaves are exact (V/Oct tracking on Red Speed); +1 V doubles playback speed/pitch, −1 V halves it.
-6. While In 2 holds a note, turn A (Red Speed) — **Expect:** the knob still works ON TOP of the CV, shifting the transposed pitch further.
-7. Let the loop wrap several times and listen closely to the seam — **Expect:** a hard tick/click at every wrap — Crossfade is OFF here on purpose; compare with RB-Loooop-1, where the same seam is silent.
-8. Confirm only one voice sounds — **Expect:** only Red is audible; Yellow, Blue, and Purple levels are baked to zero.
-9. Turn B (Red Size) down and sweep w (Red Position) — **Expect:** Red scrubs a shorter window of the recorded phrase; each wrap of the short window also seams with a raw tick.
-10. Set D to \~2 o'clock (Replace) and punch in a new note with u — **Expect:** the new note replaces that stretch of the phrase cleanly; return D full CCW (Layer) for normal stacking.
-11. Use a trigger into Gate In 1 instead of u for one record cycle — **Expect:** same start/stop behavior from the jack.
-12. Twist v up — **Expect:** loop erases; you're back to the live VCO only.
-
-## RB-Lop-1 — Single head parity (Löp, one Loooop head's full feature set)
-
-**Setup:** BWAVP loops `drum-loop.wav` (keep the wav next to the .yml) into Löp; a StartupDelay auto-starts the player \~2 s after load. Löp output on Out 1/2. Baked state: Dry/Wet .6, Size full, Position center, Speed 1×, Jitter 0, Grid Off, all option switches at defaults (Record jack = Trigger, Crossfade On, loop-start trig mode, linear Speed CV). Nothing is recorded yet — you'll hear the dry drum loop until you record.
-
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | Size |
-| Knob B | Position |
-| Knob C | Speed |
-| Knob D | Jitter |
-| Knob E | Grid |
-| Knob F | Dry/Wet |
-| Knob u | Record (twist up) |
-| Knob v | Clear (twist up) |
-| Knob w | Overdub mode |
-| Knob z | Loop restart (BWAVP Play) |
-| In 1 | Jump (0-10V) |
-| In 2 | Speed CV |
-| Gate In 1 | Record trig |
-| Gate In 2 | Retrig head |
-
-**Try:**
-1. Wait \~2 s after load — **Expect:** the drum loop plays on Out 1/2.
-2. Twist u up past mid to start recording, wait one pass of the loop (\~14 s of file, record as much as you like), twist u back down — **Expect:** recording stops and the head plays back your loop seamlessly; F at .6 mixes it over the still-running dry loop.
-3. Clear (twist v up/down), then record again but fire a trigger into Gate In 1 to start and again to stop — **Expect:** identical record behavior to the knob (Trigger mode), start/stop on each pulse.
-4. Turn A (Size) down to around 9 o'clock — **Expect:** the head plays a short chunk of the loop, repeating faster.
-5. With A still low, sweep B (Position) — **Expect:** the chunk scrubs to different spots in the recording. Then return A to max and move B — **Expect:** no audible change (Position does nothing at full Size — that's correct).
-6. Sweep C (Speed): from its default \~3-o'clock (1×) up to max — **Expect:** double speed, octave up. Down through mid — **Expect:** slows, momentarily stops at 12 o'clock, then plays backward below it; fully CCW is −2× (reverse, octave up).
-7. With A partway down, raise D (Jitter) — **Expect:** the playback point scatters randomly around Position; at 0 it locks steady again. (Like Position, Jitter does nothing at full Size.)
-8. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) with A and B moving — **Expect:** Size and Position snap to clean rhythmic divisions of the loop; Off restores continuous control.
-9. Send a clock or button gate into Gate In 2 — **Expect:** each pulse retrigs the head from its loop start — rhythmic restarts in time with your clock.
-10. Send a stepped 0-10 V sequence (or square LFO) into In 1 (Jump) — **Expect:** playback jumps hard between points in the recording — a stutter effect keyed to the voltage.
-11. Patch a slow LFO into In 2 (Speed CV) — **Expect:** speed glides up and down around the C knob's setting — linear varispeed (this patch has V/Oct off), pitch bending smoothly through the LFO cycle.
-12. Set w (Overdub) fully CCW (Layer) and record several passes over an existing loop — **Expect:** old material ducks about 1 dB per pass — level fades slowly, tone stays bright.
-13. Now set w to the second position (\~10 o'clock, Decay) and overdub several passes — **Expect:** old layers lose level AND high end — each pass audibly duller than Layer mode at the same pass count. Spend time here; this is the key A/B.
-14. Try the remaining w positions: center (Add) — layers stack at full level and eventually clip/saturate; \~2 o'clock (Replace) — new audio punches out the old where you play; full CW (Lock) — twisting u does nothing, loop is protected.
-15. Listen across the loop seam with default settings — **Expect:** no click at the wrap (Crossfade is On).
-16. Twist z up/down anytime — **Expect:** the source drum loop restarts from the top.
-
-## RB-MF20-1 — OTA acid & vocal band (MF-20, series HP→LP character test)
-
-**Setup:** A saw VCO at C2 runs into the MF-20 in OTA mode (baked state) through a unity-gain VCA (knob w = Input level, loaded at full). LP starts \~150 Hz with Peak at 70%, HP is parked at the bottom of its range, all CV amounts full. Filter output on Out 1/Out 2.
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | LP Cutoff |
-| Knob B | LP Peak |
-| Knob C | HP Cutoff |
-| Knob D | HP Peak |
-| Knob E | Drive |
-| Knob F | LP CV Amt |
-| Knob u | Total CV Amt |
-| Knob v | HP CV Amt |
-| Knob w | Input level (saw into the filter; 0 = silence) |
-| In 1 | LP Cutoff CV |
-| In 2 | Total Cutoff CV |
-| In 3 | VCO Pitch (1V/oct) |
-| In 4 | HP Cutoff CV |
-
-**Try:**
-1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; knob F attenuverts it, and below center the sweep inverts (closes on attack).
-2. Sweep Drive E from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms up rather than turning buzzy.
-3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note; both filters self-oscillate cleanly at full Peak (repeat with C/D for the HP). To judge the whistle's purity, turn w (Input level) to 0 — the whistle alone should remain, saw gone; restore w to full afterwards.
-4. Set C (HP) near \~300 Hz (about 10-11 o'clock) and A (LP) near \~1.5 kHz (about 2 o'clock), then patch a slow LFO into In 2 (Total) — **Expect:** the whole HP→LP passband slides as ONE unit — a vowel-like formant sweep, band width constant.
-5. Swap the band: set C above A (HP cutoff higher than LP cutoff) — **Expect:** the sound thins into a notch/phaser-like residue instead of a band; still audible, not silence.
-6. V/Oct check: with the LP self-oscillating (step 3), patch the same pitch CV into In 1 (F full CW) and In 3 — use the mult/stackcable — **Expect:** the whistle tracks the VCO exactly; a 1 V step moves the whistle precisely one octave, staying in tune with the saw.
-7. Trim u (Total CV Amt) toward 0 while the In 2 LFO runs — **Expect:** the formant sweep from step 4 shrinks to nothing; u scales only the Total CV input.
-
-## RB-MF20-2 — Korg35 mode (MF-20, direct A/B against RB-MF20-1)
-
-**Setup:** Byte-for-byte the same patch as RB-MF20-1 — saw VCO at C2, LP \~150 Hz, Peak 70%, HP parked low, CV amounts full — except the filter core is Korg35 instead of OTA. Output on Out 1/Out 2. Load the two patches back to back with the SAME knob positions for every test.
-**Panel:** identical to RB-MF20-1 (A LP Cutoff · B LP Peak · C HP Cutoff · D HP Peak · E Drive · F LP CV Amt · u Total CV Amt · v HP CV Amt · w Input level · In 1 LP CV · In 2 Total CV · In 3 VCO Pitch · In 4 HP CV).
-
-**Try:**
-1. With knobs untouched (loaded defaults), just listen and flip between the two patches — **Expect:** Korg35 resonance is edgier and raspier than the OTA's smooth ring at the same Peak setting.
-2. Push Drive E past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics; the OTA patch at the same settings stays creamier.
-3. Set Drive E to minimum and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper — a faint hair of grit; RB-MF20-1 at the same setting stays clean.
-4. Turn B to 100% with A low — **Expect:** self-oscillation is still a clean whistle (turn w to 0 to hear it without the saw, then restore); both cores self-osc cleanly at full Peak, the difference lives in the driven/resonant midrange, not the pure tone.
-5. Overall A/B under drive — **Expect:** the two patches are clearly distinguishable once Drive is up; if they sound identical under drive, that is a bug — report it.
-
-## RB-Onbetap-1 — Tamed: the Polivoks behaviors (Onbetap, signature-behavior tour)
-
-**Setup:** Saw VCO at C2 into the Onbetap through a unity-gain VCA (knob v = Input level, loaded at full), Tamed mode at 1× oversampling (baked state). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
-**Panel:**
-
-| Control | Maps to |
-|---|---|
-| Knob A | Cutoff |
-| Knob B | Q |
-| Knob C | Drive |
-| Knob D | Mode (LP/BP/HP/Notch/Peak) |
-| Knob E | Cutoff CV Amt |
-| Knob F | Q CV Amt |
-| Knob u | Drive CV Amt |
-| Knob v | Input level (saw into the filter; 0 = silence) |
-| In 1 | Cutoff CV |
-| In 2 | Q CV |
-| In 3 | Drive CV |
-| In 4 | VCO Pitch (1V/oct) |
-
-**Try:**
-1. Drive fights resonance: hold B (Q) around 70%, then sweep C (Drive) slowly from 20% to 80% — **Expect:** the sound gets louder and dirtier but RINGS LESS — the resonant peak audibly recedes as drive rises.
-2. Self-osc onset moves with cutoff: turn v (Input level) to 0 so the saw doesn't mask the onset. With A low (\~9 o'clock), creep B up until oscillation just barely starts (should be in the top fifth of the knob). Now raise A without touching B — **Expect:** the filter sings earlier/is already singing at higher cutoffs; the oscillation threshold depends on cutoff. Restore v to full before moving on.
-3. Relaxation harshness: B at max, C past 70%, A in the low-mid range (\~10 o'clock) — **Expect:** the tone drops into a LOWER, buzzier relaxation-oscillation growl — alarming but bounded; back off any one knob and it returns to normal.
-4. No bass loss: LP mode (D full CCW), B at 85%, play the C2 bass — **Expect:** the low end stays planted at high resonance; no classic thinning of the fundamental.
-5. Step D through all five positions (LP, BP at \~10 o'clock, HP at noon, Notch at \~2 o'clock, Peak full CW) — **Expect:** five distinct responses; BP is audibly WIDE (gentle 6 dB skirts, not a narrow chirp); each mode change is click-free (\~5 ms fade, this is the Tamed behavior).
-6. Patch an envelope into In 2 and play notes — **Expect:** resonance blooms per note — each hit rings up and settles as the envelope falls; F attenuverts the depth.
-7. Envelope or LFO into In 1 — **Expect:** normal cutoff sweeps, depth set by E; 1 V into In 1 with E full moves cutoff one octave.
 
 ## RB-Onbetap-2 — Vintage stereo pad (Onbetap, Vintage drift + hard mode switching)
 
@@ -616,4 +364,261 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 3. Turn B up toward max while plucking — **Expect:** notes sustain longer and longer but stay bounded — no runaway blow-up even near the top.
 4. Grab A and turn it by hand while a note rings — **Expect:** a tape-doppler glissando between pitches, a continuous swoop rather than a step.
 5. Move D off-center and pluck — **Expect:** each ring spirals upward or downward in pitch as it decays — strange, metallic, but pitched and controllable; back at the center notch the spiral stops dead.
+
+
+
+== DONE ==
+## RB-Loooop-1 — Ensemble & overdub modes (Loooop, four-head playback + overdub mode tour)
+
+**Setup:** A drum loop WAV player feeds Loooop's stereo input and auto-starts ~2 s after the patch loads (you still have to record it into Loooop yourself). A slow sine LFO (0.1 Hz, ±2.5 V) is wired to Purple's Pan CV. Baked in: Dry/Wet 50%, Yellow at 2× speed panned left, Blue at −1× (reverse) panned right, Purple at 1.5× center, all head Levels at default, all options at defaults (crossfade ON, trigger record mode). Listen on Out 1/2.
+
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Size |
+| Knob B | Red Position |
+| Knob C | Yellow Speed |
+| Knob D | Dry/Wet |
+| Knob E | Grid |
+| Knob F | Overdub |
+| Knob u | Record (twist up) |
+| Knob v | Clear |
+| Knob w | Red Level |
+| Knob x | Purple Level |
+| Knob y | Red Jitter |
+| Knob z | Loop restart (WAV player Play) |
+| In 1 | Red Pos CV |
+| Gate In 1 | Record trig |
+| Gate In 2 | Clear trig |
+
+**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Level |
+| Knob B | Yellow Level |
+| Knob C | Blue Level |
+| Knob D | Purple Level |
+| Knob E | Dry/Wet (same param as D in Set 1) |
+
+All four Levels load at 25%; after soloing a head, return them there and switch back to Knob Set 1.
+
+**Try:**
+1. Wait ~2 s after load until the drum loop is audible, then twist u fully up to start recording; after 4-8 bars twist u back down — **Expect:** loop plays back immediately through all four heads; twisting u up = button press, down = release.
+2. Instead of u, send a trigger into Gate In 1 to start, another to stop — **Expect:** identical record start/stop behavior from the jack.
+3. Listen to the ensemble with all heads up — **Expect:** four simultaneous voices: Red at unison, Yellow an octave up panned left, Blue playing in reverse panned right, Purple at 1.5× in the center. To check any single voice, switch to Knob Set 2 (*Head Levels*), pull the other three Levels to 0 and push E toward full wet, then restore (Levels 25%, E noon) and switch back.
+4. Sit on the loop for a minute and listen to Purple — **Expect:** Purple's voice drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other heads stay put. If the drift is hard to pick out of the ensemble, solo Purple on Knob Set 2 first.
+5. Solo Yellow on Knob Set 2 (Red/Blue/Purple Levels to 0), switch back to Knob Set 1, then turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward. Restore the levels when done. (This is the step that punishes the factory catchup setting: knob C is Blue Level on Set 2 and Yellow Speed on Set 1. With "Track when equal" set as advised above, Yellow Speed stays put until the knob reaches it.)
+6. Loop seam check: with the loop playing, listen across the wrap point several times — **Expect:** no click or tick at the seam (crossfade is ON by default in this patch; contrast with RB-Loooop-3, which has it off).
+7. Overdub modes on F, full CCW = Layer: while the loop plays, twist u up for a pass, then down (the still-running drum loop re-records over itself at a new offset — that IS the new material); repeat several passes — **Expect:** each pass ducks the older material by roughly 1 dB; old layers slowly recede but never dull.
+8. F at \~10 o'clock = Decay: overdub several passes — **Expect:** old material both loses level AND loses high end, getting duller each pass.
+9. F at noon = Add: overdub several hot passes — **Expect:** layers pile up at full level and eventually clip/distort — that is the mode working, not a bug.
+10. F at \~2 o'clock = Replace: twist u up mid-loop, then down after a beat — **Expect:** a clean punch-in — new audio replaces the old only where you held record.
+11. F full CW = Lock: twist u up and try to record — **Expect:** nothing records; the loop is protected and Record is ignored.
+12. Turn A (Red Size) down to \~25%, then sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop; at full Size (A max), B and y do nothing — that's by design. (If the other heads mask the scrubbing, solo Red on Knob Set 2 for steps 12-14.)
+13. With A partway down, raise y (Red Jitter) — **Expect:** Red's window hops to random positions, from subtle shuffle (low y) to full scatter (high y).
+14. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) while scrubbing A and B — **Expect:** Red's Size and Position snap to grid divisions; changes land musically on the beat instead of free-sliding.
+15. Sweep D (Dry/Wet) full CCW then full CW — **Expect:** CCW = only the live drum-loop input, CW = only the heads; noon = the baked-in 50/50 blend.
+16. Twist v up (or send a trigger into Gate In 2) — **Expect:** the loop erases; heads go silent until you record again.
+17. If the source WAV ever stops (it shouldn't with Loop on), twist z up then down — **Expect:** the drum loop restarts from the top.
+
+## RB-Loooop-2 — Self-loading gate record + grid slicer (Loooop, one-shot slice heads on a 16-grid)
+
+**Setup:** The WAV player is set to play the drum file ONCE; its Play Gate is cabled to Loooop's Record jack, and Loooop's Record jack is in Gate mode — so ~2 s after the patch loads, the file plays through once and records itself into Loooop with no help from you. Baked in: Grid = 16, Red and Yellow are one-shot slice heads (Size 10%, Levels 40%, Positions 20%/60%), Blue plays the whole loop at full Size, Purple is grid-excluded with Jitter 50% at Level 20%, Dry/Wet 100%. Mix on Out 1/2, Red's own left output on Out 3.
+
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Size |
+| Knob B | Red Position |
+| Knob C | Yellow Size |
+| Knob D | Yellow Position |
+| Knob E | Grid |
+| Knob F | Dry/Wet |
+| Knob u | Purple Jitter |
+| Knob v | Purple Level |
+| Knob w | Record |
+| Knob x | Clear |
+| Knob y | Blue Speed |
+| Knob z | Reload loop (WAV player Play) |
+| In 1 | Blue Jump (0-10V) |
+| In 2 | Red Pos CV |
+| Gate In 1 | Red one-shot trig |
+| Gate In 2 | Yellow one-shot trig |
+
+**Knob Set 2 (*Head Levels*)** — for isolating one head at a time:
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Level |
+| Knob B | Yellow Level |
+| Knob C | Blue Level |
+| Knob D | Purple Level (same param as v in Set 1) |
+| Knob E | Dry/Wet (same param as F in Set 1) |
+
+Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there after soloing.
+
+**Try:**
+1. Load the patch and touch nothing — **Expect:** ~2 s of silence, then the drum file plays once while recording itself; when it ends, Blue (full loop) and Purple (jittery fragments) start playing back on their own.
+2. Check the display lanes for Red and Yellow — **Expect:** both lanes dim/inactive: one-shot heads stay silent until triggered.
+3. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click. (Blue and Purple keep playing underneath; for a clean listen, pull their Levels to 0 on Knob Set 2 (*Head Levels*) for steps 3-7, then restore.)
+4. Same into Gate In 2 — **Expect:** Yellow fires its own one-shot slice from a different part of the loop (Position 60% vs Red's 20%).
+5. While triggering Red, step B (Red Position) to different positions, then A (Red Size) — **Expect:** every slice start and length snaps to 1/16 divisions of the loop; the knobs move in audible whole-segment jumps, never landing mid-segment.
+6. Do the same with C/D for Yellow — **Expect:** identical grid-snapped behavior on the second slice head.
+7. Turn E (Grid) down to Off, retrigger Red while moving B — **Expect:** slices now start anywhere (free, un-snapped); return E to \~3 o'clock (16) to restore snapping.
+8. Listen to Purple while the grid is on — **Expect:** Purple ignores the grid entirely (grid-exclude option): its fragments wander to un-quantized positions.
+9. Sweep u (Purple Jitter) from 0 to max — **Expect:** at 0 Purple sits still; up high it scatters across the whole loop. Set v to taste or 0 to mute it.
+10. Patch a square LFO (\~1-4 Hz, 0-10 V) into In 1 — **Expect:** Blue hard-stutters, jumping between two loop points in time with the square; a beat-repeat chop, no glide between them.
+11. Patch a slow LFO or sequencer CV into In 2 — **Expect:** Red's slice position moves under CV, still snapping to the 16-grid.
+12. Compare Out 3 against Out 1/2 — **Expect:** Out 3 carries only Red's slices (left channel), isolated from the mix.
+13. Turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1× (solo Blue on Knob Set 2 if Purple's fragments get in the way).
+14. Twist z up then down — **Expect:** the drum file plays through once more and re-records itself (Play Gate drives Record again), replacing the loop content.
+15. Twist x up — **Expect:** the loop clears; then twist z to reload it as in step 14.
+
+## RB-Loooop-3 — Speed V/Oct + raw seams + keeps-overdubbing (Loooop, chromatic loop transposition)
+
+**Setup:** A triangle VCO at C3 is Loooop's only input; you play it from a keyboard via In 1. Baked in: Red Speed is in V/Oct mode (In 2 transposes chromatically), Crossfade is OFF (raw seams), "when recording ends" = Keeps overdubbing, only Red is audible (Yellow/Blue/Purple Levels = 0, Red Level 50%), Dry/Wet 50%. Listen on Out 1/2.
+
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | Red Speed |
+| Knob B | Red Size |
+| Knob C | Dry/Wet |
+| Knob D | Overdub |
+| Knob u | Record (twist up) |
+| Knob v | Clear |
+| Knob w | Red Position |
+| In 1 | VCO pitch (V/Oct) |
+| In 2 | Red Speed V/Oct |
+| Gate In 1 | Record trig |
+
+**Try:**
+1. Plug a keyboard into In 1 and play — **Expect:** you hear the triangle VCO live (Dry/Wet is at 50%, so dry input passes).
+2. Twist u up and play a short phrase, then twist u down — **Expect:** recording starts on the FIRST upward twist (the button and the Gate In 1 jack fire independently — don't double-arm with both or you'll toggle it twice); the phrase loops on Red.
+3. Keep listening after you stop playing, without touching u — **Expect:** the loop KEEPS OVERDUBBING (option baked in): anything you play on the keyboard keeps stacking into the loop until you twist u up/down again to stop recording.
+4. Twist u again to close recording, then patch the keyboard (or a sequencer) into In 2 instead — **Expect:** the whole loop transposes CHROMATICALLY with the CV — semitone steps, in tune like an oscillator.
+5. Play In 2 across at least 2 octaves against a reference pitch — **Expect:** octaves are exact (V/Oct tracking on Red Speed); +1 V doubles playback speed/pitch, −1 V halves it.
+6. While In 2 holds a note, turn A (Red Speed) — **Expect:** the knob still works ON TOP of the CV, shifting the transposed pitch further.
+7. Let the loop wrap several times and listen closely to the seam — **Expect:** a hard tick/click at every wrap — Crossfade is OFF here on purpose; compare with RB-Loooop-1, where the same seam is silent.
+8. Confirm only one voice sounds — **Expect:** only Red is audible; Yellow, Blue, and Purple levels are baked to zero.
+9. Turn B (Red Size) down and sweep w (Red Position) — **Expect:** Red scrubs a shorter window of the recorded phrase; each wrap of the short window also seams with a raw tick.
+10. Set D to \~2 o'clock (Replace) and punch in a new note with u — **Expect:** the new note replaces that stretch of the phrase cleanly; return D full CCW (Layer) for normal stacking.
+11. Use a trigger into Gate In 1 instead of u for one record cycle — **Expect:** same start/stop behavior from the jack.
+12. Twist v up — **Expect:** loop erases; you're back to the live VCO only.
+
+## RB-Lop-1 — Single head parity (Löp, one Loooop head's full feature set)
+
+**Setup:** BWAVP loops `drum-loop.wav` (keep the wav next to the .yml) into Löp; a StartupDelay auto-starts the player \~2 s after load. Löp output on Out 1/2. Baked state: Dry/Wet .6, Size full, Position center, Speed 1×, Jitter 0, Grid Off, all option switches at defaults (Record jack = Trigger, Crossfade On, loop-start trig mode, linear Speed CV). Nothing is recorded yet — you'll hear the dry drum loop until you record.
+
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | Size |
+| Knob B | Position |
+| Knob C | Speed |
+| Knob D | Jitter |
+| Knob E | Grid |
+| Knob F | Dry/Wet |
+| Knob u | Record (twist up) |
+| Knob v | Clear (twist up) |
+| Knob w | Overdub mode |
+| Knob z | Loop restart (BWAVP Play) |
+| In 1 | Jump (0-10V) |
+| In 2 | Speed CV |
+| Gate In 1 | Record trig |
+| Gate In 2 | Retrig head |
+
+**Try:**
+1. Wait \~2 s after load — **Expect:** the drum loop plays on Out 1/2.
+2. Twist u up past mid to start recording, wait one pass of the loop (\~14 s of file, record as much as you like), twist u back down — **Expect:** recording stops and the head plays back your loop seamlessly; F at .6 mixes it over the still-running dry loop.
+3. Clear (twist v up/down), then record again but fire a trigger into Gate In 1 to start and again to stop — **Expect:** identical record behavior to the knob (Trigger mode), start/stop on each pulse.
+4. Turn A (Size) down to around 9 o'clock — **Expect:** the head plays a short chunk of the loop, repeating faster.
+5. With A still low, sweep B (Position) — **Expect:** the chunk scrubs to different spots in the recording. Then return A to max and move B — **Expect:** no audible change (Position does nothing at full Size — that's correct).
+6. Sweep C (Speed): from its default \~3-o'clock (1×) up to max — **Expect:** double speed, octave up. Down through mid — **Expect:** slows, momentarily stops at 12 o'clock, then plays backward below it; fully CCW is −2× (reverse, octave up).
+7. With A partway down, raise D (Jitter) — **Expect:** the playback point scatters randomly around Position; at 0 it locks steady again. (Like Position, Jitter does nothing at full Size.)
+8. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) with A and B moving — **Expect:** Size and Position snap to clean rhythmic divisions of the loop; Off restores continuous control.
+9. Send a clock or button gate into Gate In 2 — **Expect:** each pulse retrigs the head from its loop start — rhythmic restarts in time with your clock.
+10. Send a stepped 0-10 V sequence (or square LFO) into In 1 (Jump) — **Expect:** playback jumps hard between points in the recording — a stutter effect keyed to the voltage.
+11. Patch a slow LFO into In 2 (Speed CV) — **Expect:** speed glides up and down around the C knob's setting — linear varispeed (this patch has V/Oct off), pitch bending smoothly through the LFO cycle.
+12. Set w (Overdub) fully CCW (Layer) and record several passes over an existing loop — **Expect:** old material ducks about 1 dB per pass — level fades slowly, tone stays bright.
+13. Now set w to the second position (\~10 o'clock, Decay) and overdub several passes — **Expect:** old layers lose level AND high end — each pass audibly duller than Layer mode at the same pass count. Spend time here; this is the key A/B.
+14. Try the remaining w positions: center (Add) — layers stack at full level and eventually clip/saturate; \~2 o'clock (Replace) — new audio punches out the old where you play; full CW (Lock) — twisting u does nothing, loop is protected.
+15. Listen across the loop seam with default settings — **Expect:** no click at the wrap (Crossfade is On).
+16. Twist z up/down anytime — **Expect:** the source drum loop restarts from the top.
+
+## RB-MF20-1 — OTA acid & vocal band (MF-20, series HP→LP character test)
+
+**Setup:** A saw VCO at C2 runs into the MF-20 in OTA mode (baked state) through a unity-gain VCA (knob w = Input level, loaded at full). LP starts \~150 Hz with Peak at 70%, HP is parked at the bottom of its range, all CV amounts full. Filter output on Out 1/Out 2.
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | LP Cutoff |
+| Knob B | LP Peak |
+| Knob C | HP Cutoff |
+| Knob D | HP Peak |
+| Knob E | Drive |
+| Knob F | LP CV Amt |
+| Knob u | Total CV Amt |
+| Knob v | HP CV Amt |
+| Knob w | Input level (saw into the filter; 0 = silence) |
+| In 1 | LP Cutoff CV |
+| In 2 | Total Cutoff CV |
+| In 3 | VCO Pitch (1V/oct) |
+| In 4 | HP Cutoff CV |
+
+**Try:**
+1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; knob F attenuverts it, and below center the sweep inverts (closes on attack).
+2. Sweep Drive E from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms up rather than turning buzzy.
+3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note; both filters self-oscillate cleanly at full Peak (repeat with C/D for the HP). To judge the whistle's purity, turn w (Input level) to 0 — the whistle alone should remain, saw gone; restore w to full afterwards.
+4. Set C (HP) near \~300 Hz (about 10-11 o'clock) and A (LP) near \~1.5 kHz (about 2 o'clock), then patch a slow LFO into In 2 (Total) — **Expect:** the whole HP→LP passband slides as ONE unit — a vowel-like formant sweep, band width constant.
+5. Swap the band: set C above A (HP cutoff higher than LP cutoff) — **Expect:** the sound thins into a notch/phaser-like residue instead of a band; still audible, not silence.
+6. V/Oct check: with the LP self-oscillating (step 3), patch the same pitch CV into In 1 (F full CW) and In 3 — use the mult/stackcable — **Expect:** the whistle tracks the VCO exactly; a 1 V step moves the whistle precisely one octave, staying in tune with the saw.
+7. Trim u (Total CV Amt) toward 0 while the In 2 LFO runs — **Expect:** the formant sweep from step 4 shrinks to nothing; u scales only the Total CV input.
+
+## RB-MF20-2 — Korg35 mode (MF-20, direct A/B against RB-MF20-1)
+
+**Setup:** Byte-for-byte the same patch as RB-MF20-1 — saw VCO at C2, LP \~150 Hz, Peak 70%, HP parked low, CV amounts full — except the filter core is Korg35 instead of OTA. Output on Out 1/Out 2. Load the two patches back to back with the SAME knob positions for every test.
+**Panel:** identical to RB-MF20-1 (A LP Cutoff · B LP Peak · C HP Cutoff · D HP Peak · E Drive · F LP CV Amt · u Total CV Amt · v HP CV Amt · w Input level · In 1 LP CV · In 2 Total CV · In 3 VCO Pitch · In 4 HP CV).
+
+**Try:**
+1. With knobs untouched (loaded defaults), just listen and flip between the two patches — **Expect:** Korg35 resonance is edgier and raspier than the OTA's smooth ring at the same Peak setting.
+2. Push Drive E past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics; the OTA patch at the same settings stays creamier.
+3. Set Drive E to minimum and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper — a faint hair of grit; RB-MF20-1 at the same setting stays clean.
+4. Turn B to 100% with A low — **Expect:** self-oscillation is still a clean whistle (turn w to 0 to hear it without the saw, then restore); both cores self-osc cleanly at full Peak, the difference lives in the driven/resonant midrange, not the pure tone.
+5. Overall A/B under drive — **Expect:** the two patches are clearly distinguishable once Drive is up; if they sound identical under drive, that is a bug — report it.
+
+## RB-Onbetap-1 — Tamed: the Polivoks behaviors (Onbetap, signature-behavior tour)
+
+**Setup:** Saw VCO at C2 into the Onbetap through a unity-gain VCA (knob v = Input level, loaded at full), Tamed mode at 1× oversampling (baked state). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
+**Panel:**
+
+| Control | Maps to |
+|---|---|
+| Knob A | Cutoff |
+| Knob B | Q |
+| Knob C | Drive |
+| Knob D | Mode (LP/BP/HP/Notch/Peak) |
+| Knob E | Cutoff CV Amt |
+| Knob F | Q CV Amt |
+| Knob u | Drive CV Amt |
+| Knob v | Input level (saw into the filter; 0 = silence) |
+| In 1 | Cutoff CV |
+| In 2 | Q CV |
+| In 3 | Drive CV |
+| In 4 | VCO Pitch (1V/oct) |
+
+**Try:**
+1. Drive fights resonance: hold B (Q) around 70%, then sweep C (Drive) slowly from 20% to 80% — **Expect:** the sound gets louder and dirtier but RINGS LESS — the resonant peak audibly recedes as drive rises.
+2. Self-osc onset moves with cutoff: turn v (Input level) to 0 so the saw doesn't mask the onset. With A low (\~9 o'clock), creep B up until oscillation just barely starts (should be in the top fifth of the knob). Now raise A without touching B — **Expect:** the filter sings earlier/is already singing at higher cutoffs; the oscillation threshold depends on cutoff. Restore v to full before moving on.
+3. Relaxation harshness: B at max, C past 70%, A in the low-mid range (\~10 o'clock) — **Expect:** the tone drops into a LOWER, buzzier relaxation-oscillation growl — alarming but bounded; back off any one knob and it returns to normal.
+4. No bass loss: LP mode (D full CCW), B at 85%, play the C2 bass — **Expect:** the low end stays planted at high resonance; no classic thinning of the fundamental.
+5. Step D through all five positions (LP, BP at \~10 o'clock, HP at noon, Notch at \~2 o'clock, Peak full CW) — **Expect:** five distinct responses; BP is audibly WIDE (gentle 6 dB skirts, not a narrow chirp); each mode change is click-free (\~5 ms fade, this is the Tamed behavior).
+6. Patch an envelope into In 2 and play notes — **Expect:** resonance blooms per note — each hit rings up and settles as the envelope falls; F attenuverts the depth.
+7. Envelope or LFO into In 1 — **Expect:** normal cutoff sweeps, depth set by E; 1 V into In 1 with E full moves cutoff one octave.
 
