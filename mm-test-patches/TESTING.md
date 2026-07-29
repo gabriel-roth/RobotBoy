@@ -141,24 +141,55 @@ All four Levels load at 25%.
 | Knob D | Purple Level (same param as v in Set 1) |
 | Knob E | Dry/Wet (same param as F in Set 1) |
 
-Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there after soloing.
+Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20%.
+
+This patch self-loads: every block below starts from a fresh reload and needs no manual recording — just wait \~2 s for the file to play through and record itself.
 
 **Try:**
-1. Load the patch and touch nothing — **Expect:** ~2 s of silence, then the drum file plays once while recording itself; when it ends, Blue (full loop) and Purple (jittery fragments) start playing back on their own.
-2. Check the display lanes for Red and Yellow — **Expect:** both lanes dim/inactive: one-shot heads stay silent until triggered.
-3. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click. (Blue and Purple keep playing underneath; for a clean listen, pull their Levels to 0 on Knob Set 2 (*Head Levels*) for steps 3-7, then restore.)
-4. Same into Gate In 2 — **Expect:** Yellow fires its own one-shot slice from a different part of the loop (Position 60% vs Red's 20%).
-5. While triggering Red, step B (Red Position) to different positions, then A (Red Size) — **Expect:** every slice start and length snaps to 1/16 divisions of the loop; the knobs move in audible whole-segment jumps, never landing mid-segment.
-6. Do the same with C/D for Yellow — **Expect:** identical grid-snapped behavior on the second slice head.
-7. Turn E (Grid) down to Off, retrigger Red while moving B — **Expect:** slices now start anywhere (free, un-snapped); return E to \~3 o'clock (16) to restore snapping.
-8. Listen to Purple while the grid is on — **Expect:** Purple ignores the grid entirely (grid-exclude option): its fragments wander to un-quantized positions.
-9. Sweep u (Purple Jitter) from 0 to max — **Expect:** at 0 Purple sits still; up high it scatters across the whole loop. Set v to taste or 0 to mute it.
-10. Patch a square LFO (\~1-4 Hz, 0-10 V) into In 1 — **Expect:** Blue hard-stutters, jumping between two loop points in time with the square; a beat-repeat chop, no glide between them.
-11. Patch a slow LFO or sequencer CV into In 2 — **Expect:** Red's slice position moves under CV, still snapping to the 16-grid.
-12. Compare Out 3 against Out 1/2 — **Expect:** Out 3 carries only Red's slices (left channel), isolated from the mix.
-13. Turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1× (solo Blue on Knob Set 2 if Purple's fragments get in the way).
-14. Twist z up then down — **Expect:** the drum file plays through once more and re-records itself (Play Gate drives Record again), replacing the loop content.
-15. Twist x up — **Expect:** the loop clears; then twist z to reload it as in step 14.
+
+*Block 1 — the self-loading trick · from a freshly loaded patch*
+
+1. Load the patch and touch nothing — **Expect:** \~2 s of silence, then the drum file plays once while recording itself; when it ends, Blue (full loop) and Purple (jittery fragments) play back on their own. If you have to touch anything to get audio, that's a finding.
+2. Check the display lanes for Red and Yellow — **Expect:** both dim/inactive; one-shot heads stay silent until triggered.
+
+**Reset:** none needed — nothing has been changed. Continue straight into Block 2.
+
+*Block 2 — the two one-shot slice heads · continues from Block 1*
+
+3. Solo the slice heads: switch to Knob Set 2 and pull Blue and Purple Levels to 0, then return to Knob Set 1 — **Expect:** silence between triggers, since Red and Yellow only sound when fired.
+4. Send a trigger into Gate In 1 — **Expect:** Red fires one clean slice and stops; each trigger = exactly one slice, ending with a short fade, not a click.
+5. Same into Gate In 2 — **Expect:** Yellow fires its own slice from a different part of the loop (Position 60% vs Red's 20%).
+6. While triggering Red, step B (Red Position) around, then A (Red Size) — **Expect:** every slice start and length snaps to 1/16 divisions; the knobs move in audible whole-segment jumps, never landing mid-segment.
+7. Do the same with C/D for Yellow — **Expect:** identical grid-snapped behavior on the second slice head.
+8. Turn E (Grid) down to Off and retrigger Red while moving B — **Expect:** slices now start anywhere, free and un-snapped.
+9. Compare Out 3 against Out 1/2 — **Expect:** Out 3 carries only Red's slices (left channel), isolated from the mix.
+
+**Reset:** reload the patch and let it re-record itself. Don't try to put Grid and the Levels back by hand.
+
+*Block 3 — Purple's grid exclusion and jitter · from a freshly loaded patch (self-records)*
+
+10. Listen to Purple with the grid on — **Expect:** Purple ignores the grid entirely (grid-exclude is baked in): its fragments land on un-quantized positions while Red and Yellow snap.
+11. Sweep u (Purple Jitter) from 0 to max — **Expect:** at 0 Purple sits still; high up it scatters across the whole loop.
+
+**Reset:** reload the patch.
+
+*Block 4 — Blue: jump stutter and reverse · from a freshly loaded patch (self-records)*
+
+12. Optionally solo Blue on Knob Set 2 (Red/Yellow/Purple to 0), then return to Set 1. Patch a square LFO (\~1-4 Hz, 0-10 V) into In 1 — **Expect:** Blue hard-stutters between two loop points in time with the square; a beat-repeat chop, no glide between them.
+13. Unpatch In 1 and turn y (Blue Speed) to 9 o'clock — **Expect:** Blue plays the whole loop in reverse; 3 o'clock returns it to 1×.
+
+**Reset:** reload the patch.
+
+*Block 5 — CV on the slice position · from a freshly loaded patch (self-records)*
+
+14. Patch a slow LFO or sequencer CV into In 2 and trigger Red repeatedly — **Expect:** Red's slice position moves under CV, still snapping to the 16-grid.
+
+**Reset:** reload the patch.
+
+*Block 6 — reload and clear · from a freshly loaded patch (self-records). Runs in order; step 16 depends on step 15.*
+
+15. Twist z up then down — **Expect:** the drum file plays through once more and re-records itself (Play Gate drives Record again), replacing the loop content.
+16. Twist x up to clear — **Expect:** the loop erases and the heads go silent. Twist z again to reload it as in step 15 — **Expect:** the file re-records and playback returns.
 
 ## RB-Loooop-3 — Speed V/Oct + raw seams + keeps-overdubbing (Loooop, chromatic loop transposition)
 
@@ -179,19 +210,40 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | In 2 | Red Speed V/Oct |
 | Gate In 1 | Record trig |
 
+**Recording a phrase** — most blocks below open with this. *Record a phrase:* twist u up, play a short phrase on the keyboard into In 1, twist u down. Recording starts on the FIRST upward twist; the knob and the Gate In 1 jack fire independently, so don't arm with both or you'll toggle it twice.
+
 **Try:**
-1. Plug a keyboard into In 1 and play — **Expect:** you hear the triangle VCO live (Dry/Wet is at 50%, so dry input passes).
-2. Twist u up and play a short phrase, then twist u down — **Expect:** recording starts on the FIRST upward twist (the button and the Gate In 1 jack fire independently — don't double-arm with both or you'll toggle it twice); the phrase loops on Red.
-3. Keep listening after you stop playing, without touching u — **Expect:** the loop KEEPS OVERDUBBING (option baked in): anything you play on the keyboard keeps stacking into the loop until you twist u up/down again to stop recording.
-4. Twist u again to close recording, then patch the keyboard (or a sequencer) into In 2 instead — **Expect:** the whole loop transposes CHROMATICALLY with the CV — semitone steps, in tune like an oscillator.
-5. Play In 2 across at least 2 octaves against a reference pitch — **Expect:** octaves are exact (V/Oct tracking on Red Speed); +1 V doubles playback speed/pitch, −1 V halves it.
-6. While In 2 holds a note, turn A (Red Speed) — **Expect:** the knob still works ON TOP of the CV, shifting the transposed pitch further.
-7. Let the loop wrap several times and listen closely to the seam — **Expect:** a hard tick/click at every wrap — Crossfade is OFF here on purpose; compare with RB-Loooop-1, where the same seam is silent.
-8. Confirm only one voice sounds — **Expect:** only Red is audible; Yellow, Blue, and Purple levels are baked to zero.
-9. Turn B (Red Size) down and sweep w (Red Position) — **Expect:** Red scrubs a shorter window of the recorded phrase; each wrap of the short window also seams with a raw tick.
-10. Set D to \~2 o'clock (Replace) and punch in a new note with u — **Expect:** the new note replaces that stretch of the phrase cleanly; return D full CCW (Layer) for normal stacking.
-11. Use a trigger into Gate In 1 instead of u for one record cycle — **Expect:** same start/stop behavior from the jack.
-12. Twist v up — **Expect:** loop erases; you're back to the live VCO only.
+
+*Block 1 — recording and keeps-overdubbing · from a freshly loaded patch*
+
+1. Plug a keyboard into In 1 and play — **Expect:** you hear the triangle VCO live (Dry/Wet is 50%, so dry input passes).
+2. Record a phrase as described above — **Expect:** the phrase loops on Red.
+3. Now play more notes WITHOUT touching u — **Expect:** the loop KEEPS OVERDUBBING (baked-in option): anything you play keeps stacking in. This is the whole point of the block, so give it several passes.
+4. Twist u up/down to close recording, then play again — **Expect:** the new notes no longer stack; the loop is fixed.
+
+**Reset:** reload the patch.
+
+*Block 2 — chromatic transposition on Red Speed · from a freshly loaded patch, then record a phrase and close recording with u*
+
+5. Move the keyboard (or a sequencer) from In 1 to In 2 and play — **Expect:** the whole loop transposes CHROMATICALLY with the CV — semitone steps, in tune like an oscillator.
+6. Play In 2 across at least 2 octaves against a reference pitch — **Expect:** octaves are exact (V/Oct tracking on Red Speed); +1 V doubles playback speed and pitch, −1 V halves it.
+7. While In 2 holds a note, turn A (Red Speed) — **Expect:** the knob works ON TOP of the CV, shifting the transposed pitch further. Leave A wherever you like; the next step doesn't care.
+
+**Reset:** reload the patch.
+
+*Block 3 — raw seams and the single voice · from a freshly loaded patch, then record a phrase and close recording*
+
+8. Let the loop wrap several times and listen closely to the seam — **Expect:** a hard tick/click at every wrap. Crossfade is OFF here on purpose; compare against RB-Loooop-1, where the same seam is silent.
+9. Confirm only one voice sounds — **Expect:** only Red; Yellow, Blue and Purple Levels are baked to zero. (Nothing to do here but listen — this patch has no Head Levels set.)
+10. Turn B (Red Size) down and sweep w (Red Position) — **Expect:** Red scrubs a shorter window of the phrase, and each wrap of that short window seams with its own raw tick.
+
+**Reset:** reload the patch.
+
+*Block 4 — Replace punch-in and the record jack · from a freshly loaded patch, then record a phrase and close recording*
+
+11. Set D to \~2 o'clock (Replace) and punch in a new note with u — **Expect:** the new note replaces that stretch of the phrase cleanly, leaving the rest intact.
+12. Return D full CCW (Layer), then run one record cycle using a trigger into Gate In 1 instead of u — **Expect:** same start/stop behavior from the jack as from the knob.
+13. Twist v up — **Expect:** the loop erases; you're back to the live VCO only.
 
 ## RB-Lop-1 — Single head parity (Löp, one Loooop head's full feature set)
 
@@ -216,23 +268,45 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | Gate In 1 | Record trig |
 | Gate In 2 | Retrig head |
 
+**Recording the loop** — most blocks below open with this. *Record the loop:* wait \~2 s after load until the drum loop is audible, twist u up past mid, let it run one pass (\~14 s of file, or as much as you like), twist u back down. F at .6 then mixes your recording over the still-running dry loop.
+
 **Try:**
+
+*Block 1 — recording, from knob and from jack · from a freshly loaded patch*
+
 1. Wait \~2 s after load — **Expect:** the drum loop plays on Out 1/2.
-2. Twist u up past mid to start recording, wait one pass of the loop (\~14 s of file, record as much as you like), twist u back down — **Expect:** recording stops and the head plays back your loop seamlessly; F at .6 mixes it over the still-running dry loop.
-3. Clear (twist v up/down), then record again but fire a trigger into Gate In 1 to start and again to stop — **Expect:** identical record behavior to the knob (Trigger mode), start/stop on each pulse.
-4. Turn A (Size) down to around 9 o'clock — **Expect:** the head plays a short chunk of the loop, repeating faster.
-5. With A still low, sweep B (Position) — **Expect:** the chunk scrubs to different spots in the recording. Then return A to max and move B — **Expect:** no audible change (Position does nothing at full Size — that's correct).
-6. Sweep C (Speed): from its default \~3-o'clock (1×) up to max — **Expect:** double speed, octave up. Down through mid — **Expect:** slows, momentarily stops at 12 o'clock, then plays backward below it; fully CCW is −2× (reverse, octave up).
-7. With A partway down, raise D (Jitter) — **Expect:** the playback point scatters randomly around Position; at 0 it locks steady again. (Like Position, Jitter does nothing at full Size.)
-8. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) with A and B moving — **Expect:** Size and Position snap to clean rhythmic divisions of the loop; Off restores continuous control.
-9. Send a clock or button gate into Gate In 2 — **Expect:** each pulse retrigs the head from its loop start — rhythmic restarts in time with your clock.
-10. Send a stepped 0-10 V sequence (or square LFO) into In 1 (Jump) — **Expect:** playback jumps hard between points in the recording — a stutter effect keyed to the voltage.
-11. Patch a slow LFO into In 2 (Speed CV) — **Expect:** speed glides up and down around the C knob's setting — linear varispeed (this patch has V/Oct off), pitch bending smoothly through the LFO cycle.
-12. Set w (Overdub) fully CCW (Layer) and record several passes over an existing loop — **Expect:** old material ducks about 1 dB per pass — level fades slowly, tone stays bright.
-13. Now set w to the second position (\~10 o'clock, Decay) and overdub several passes — **Expect:** old layers lose level AND high end — each pass audibly duller than Layer mode at the same pass count. Spend time here; this is the key A/B.
-14. Try the remaining w positions: center (Add) — layers stack at full level and eventually clip/saturate; \~2 o'clock (Replace) — new audio punches out the old where you play; full CW (Lock) — twisting u does nothing, loop is protected.
-15. Listen across the loop seam with default settings — **Expect:** no click at the wrap (Crossfade is On).
-16. Twist z up/down anytime — **Expect:** the source drum loop restarts from the top.
+2. Record the loop as described above — **Expect:** recording stops on the downward twist and the head plays your loop back seamlessly.
+3. Clear (twist v up then down), then record again using a trigger into Gate In 1 to start and a second trigger to stop — **Expect:** identical behavior to the knob (Record jack is in Trigger mode), start/stop on each pulse.
+
+**Reset:** reload the patch.
+
+*Block 2 — Size, Position, Jitter · from a freshly loaded patch, then record the loop. Runs continuously — each step leaves the state the next wants.*
+
+4. Turn A (Size) down to around 9 o'clock — **Expect:** the head plays a short chunk of the recording, repeating faster.
+5. With A still low, sweep B (Position) — **Expect:** the chunk scrubs to different spots in the recording.
+6. Return A to max and move B again — **Expect:** no audible change; Position does nothing at full Size, and that's correct. Put A back to \~9 o'clock before continuing.
+7. With A still low, raise D (Jitter) — **Expect:** the playback point scatters randomly around Position; back at 0 it locks steady. (Jitter is also inert at full Size, for the same reason as Position.)
+8. Leaving A low, turn E (Grid) up one step at a time (Off/4/8/16/32/64) while moving A and B — **Expect:** Size and Position snap to clean rhythmic divisions; Off restores continuous control.
+
+**Reset:** reload the patch.
+
+*Block 3 — Speed and the CV inputs · from a freshly loaded patch, then record the loop*
+
+9. Sweep C (Speed) from its default \~3 o'clock (1×) up to max — **Expect:** double speed, octave up. Down through mid — **Expect:** slows, stops momentarily at 12 o'clock, then plays backward below it; fully CCW is −2× (reverse, octave up). Return C to \~3 o'clock.
+10. Patch a slow LFO into In 2 (Speed CV) — **Expect:** speed glides up and down around C's setting — linear varispeed (V/Oct is off in this patch), pitch bending smoothly through the LFO cycle. Unpatch it.
+11. Send a stepped 0-10 V sequence (or square LFO) into In 1 (Jump) — **Expect:** playback jumps hard between points in the recording, a stutter keyed to the voltage. Unpatch it.
+12. Send a clock or button gate into Gate In 2 — **Expect:** each pulse retrigs the head from its loop start, rhythmic restarts in time with your clock.
+13. Listen across the loop seam — **Expect:** no click at the wrap (Crossfade is On here).
+
+**Reset:** reload the patch.
+
+*Block 4 — overdub modes · from a freshly loaded patch, then record the loop. Cumulative within each mode — do NOT reload between passes, or you restart the effect under test. DO reload between modes; the Layer-vs-Decay A/B is only meaningful at matched pass counts.*
+
+14. w fully CCW (Layer). Overdub four or five passes — **Expect:** old material ducks about 1 dB per pass; level fades slowly, tone stays bright. **Then reload and re-record.**
+15. w to the second position (\~10 o'clock, Decay). Same number of passes — **Expect:** old layers lose level AND high end, audibly duller than Layer at the same pass count. This is the key A/B; spend time here. **Then reload and re-record.**
+16. Work through the remaining w positions, reloading and re-recording between each: center (Add) — layers stack at full level and eventually clip/saturate; \~2 o'clock (Replace) — new audio punches out the old only where you play; full CW (Lock) — twisting u does nothing and the loop is protected.
+
+*Utility, any time:* twist z up/down to restart the source drum loop from the top. Needs no reset — it's a convenience, not a test.
 
 ## RB-MF20-1 — OTA acid & vocal band (MF-20, series HP→LP character test)
 
@@ -256,25 +330,56 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | In 4 | HP Cutoff CV |
 
 **Try:**
-1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; knob F attenuverts it, and below center the sweep inverts (closes on attack).
-2. Sweep Drive E from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms up rather than turning buzzy.
-3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note; both filters self-oscillate cleanly at full Peak (repeat with C/D for the HP). To judge the whistle's purity, turn w (Input level) to 0 — the whistle alone should remain, saw gone; restore w to full afterwards.
-4. Set C (HP) near \~300 Hz (about 10-11 o'clock) and A (LP) near \~1.5 kHz (about 2 o'clock), then patch a slow LFO into In 2 (Total) — **Expect:** the whole HP→LP passband slides as ONE unit — a vowel-like formant sweep, band width constant.
-5. Swap the band: set C above A (HP cutoff higher than LP cutoff) — **Expect:** the sound thins into a notch/phaser-like residue instead of a band; still audible, not silence.
-6. V/Oct check: with the LP self-oscillating (step 3), patch the same pitch CV into In 1 (F full CW) and In 3 — use the mult/stackcable — **Expect:** the whistle tracks the VCO exactly; a 1 V step moves the whistle precisely one octave, staying in tune with the saw.
-7. Trim u (Total CV Amt) toward 0 while the In 2 LFO runs — **Expect:** the formant sweep from step 4 shrinks to nothing; u scales only the Total CV input.
+
+*Block 1 — acid squelch and OTA drive · from a freshly loaded patch*
+
+1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; F attenuverts it, and below center the sweep inverts (closes on attack). Unpatch In 1.
+2. Sweep E (Drive) from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms rather than turning buzzy. Note how this sounds — RB-MF20-2 step 2 is the same move on the other core.
+
+**Reset:** reload the patch.
+
+*Block 2 — self-oscillation and V/Oct tracking · from a freshly loaded patch. Runs in order; step 5 needs the filter singing from step 3.*
+
+3. Turn B (LP Peak) to 100%, then A (LP Cutoff) well below the bass note — **Expect:** a clean sine whistle rides above the bass note.
+4. Turn w (Input level) to 0 — **Expect:** the whistle remains, saw gone, and it's a clean tone rather than a buzz. Leave w at 0 for the next step.
+5. V/Oct check: send the same pitch CV to In 1 and In 3 using the mult or stackcable, with F full CW — **Expect:** the whistle tracks exactly; a 1 V step moves it precisely one octave. Bring w back up to hear it against the saw — **Expect:** whistle and saw stay in tune with each other.
+6. Repeat steps 3-4 for the HP using C and D — **Expect:** the HP self-oscillates just as cleanly at full Peak.
+
+**Reset:** reload the patch.
+
+*Block 3 — the HP→LP band · from a freshly loaded patch. Runs in order; step 8 needs the band set up in step 7.*
+
+7. Set C (HP) near \~300 Hz (about 10-11 o'clock) and A (LP) near \~1.5 kHz (about 2 o'clock) — **Expect:** a vocal-sounding midrange band.
+8. Patch a slow LFO into In 2 (Total) — **Expect:** the whole HP→LP passband slides as ONE unit, a vowel-like formant sweep with the band width constant.
+9. With the LFO still running, trim u (Total CV Amt) toward 0 — **Expect:** the sweep shrinks to nothing; u scales only the Total CV input. Return u to full.
+10. Unpatch the LFO and swap the band: set C above A (HP cutoff higher than LP cutoff) — **Expect:** the sound thins into a notch/phaser-like residue instead of a band — still audible, not silence.
 
 ## RB-MF20-2 — Korg35 mode (MF-20, direct A/B against RB-MF20-1)
 
 **Setup:** Byte-for-byte the same patch as RB-MF20-1 — saw VCO at C2, LP \~150 Hz, Peak 70%, HP parked low, CV amounts full — except the filter core is Korg35 instead of OTA. Output on Out 1/Out 2. Load the two patches back to back with the SAME knob positions for every test.
 **Panel:** identical to RB-MF20-1 (A LP Cutoff · B LP Peak · C HP Cutoff · D HP Peak · E Drive · F LP CV Amt · u Total CV Amt · v HP CV Amt · w Input level · In 1 LP CV · In 2 Total CV · In 3 VCO Pitch · In 4 HP CV).
 
+**This patch is one long A/B.** Every step compares against the same move in RB-MF20-1, so *both* patches must be at their loaded defaults when you switch between them — a knob left somewhere in one patch invalidates the comparison. Reload each patch as you switch to it, and the two are guaranteed to match.
+
 **Try:**
-1. With knobs untouched (loaded defaults), just listen and flip between the two patches — **Expect:** Korg35 resonance is edgier and raspier than the OTA's smooth ring at the same Peak setting.
-2. Push Drive E past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics; the OTA patch at the same settings stays creamier.
-3. Set Drive E to minimum and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper — a faint hair of grit; RB-MF20-1 at the same setting stays clean.
-4. Turn B to 100% with A low — **Expect:** self-oscillation is still a clean whistle (turn w to 0 to hear it without the saw, then restore); both cores self-osc cleanly at full Peak, the difference lives in the driven/resonant midrange, not the pure tone.
-5. Overall A/B under drive — **Expect:** the two patches are clearly distinguishable once Drive is up; if they sound identical under drive, that is a bug — report it.
+
+*Block 1 — the resonance A/B · both patches freshly loaded, knobs untouched*
+
+1. Listen to this patch, then reload RB-MF20-1 and listen, and flip back and forth — **Expect:** Korg35 resonance is edgier and raspier than the OTA's smooth ring at the same Peak setting.
+
+**Reset:** reload this patch.
+
+*Block 2 — the drive A/B · from a freshly loaded patch. Make the same move in both patches, reloading each as you switch.*
+
+2. Push E (Drive) past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics. The same move in RB-MF20-1 (its Block 1 step 2) stays creamier.
+3. **Reset both patches**, then set E to minimum in each and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper, a faint hair of grit; RB-MF20-1 at the same setting stays clean.
+4. Overall: with Drive up in both — **Expect:** the two are clearly distinguishable. If they sound identical under drive, that's a bug worth reporting.
+
+**Reset:** reload the patch.
+
+*Block 3 — self-oscillation purity · from a freshly loaded patch*
+
+5. Turn B to 100% with A low, then w (Input level) to 0 — **Expect:** a clean whistle, not a buzz. Both cores self-oscillate cleanly at full Peak; the difference between them lives in the driven and resonant midrange, not in the pure tone. If this whistle is dirtier than RB-MF20-1's, that's a finding.
 
 ## RB-Onbetap-1 — Tamed: the Polivoks behaviors (Onbetap, signature-behavior tour)
 
@@ -297,13 +402,35 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | In 4 | VCO Pitch (1V/oct) |
 
 **Try:**
-1. Drive fights resonance: hold B (Q) around 70%, then sweep C (Drive) slowly from 20% to 80% — **Expect:** the sound gets louder and dirtier but RINGS LESS — the resonant peak audibly recedes as drive rises.
-2. Self-osc onset moves with cutoff: turn v (Input level) to 0 so the saw doesn't mask the onset. With A low (\~9 o'clock), creep B up until oscillation just barely starts (should be in the top fifth of the knob). Now raise A without touching B — **Expect:** the filter sings earlier/is already singing at higher cutoffs; the oscillation threshold depends on cutoff. Restore v to full before moving on.
-3. Relaxation harshness: B at max, C past 70%, A in the low-mid range (\~10 o'clock) — **Expect:** the tone drops into a LOWER, buzzier relaxation-oscillation growl — alarming but bounded; back off any one knob and it returns to normal.
-4. No bass loss: LP mode (D full CCW), B at 85%, play the C2 bass — **Expect:** the low end stays planted at high resonance; no classic thinning of the fundamental.
-5. Step D through all five positions (LP, BP at \~10 o'clock, HP at noon, Notch at \~2 o'clock, Peak full CW) — **Expect:** five distinct responses; BP is audibly WIDE (gentle 6 dB skirts, not a narrow chirp); each mode change is click-free (\~5 ms fade, this is the Tamed behavior).
-6. Patch an envelope into In 2 and play notes — **Expect:** resonance blooms per note — each hit rings up and settles as the envelope falls; F attenuverts the depth.
-7. Envelope or LFO into In 1 — **Expect:** normal cutoff sweeps, depth set by E; 1 V into In 1 with E full moves cutoff one octave.
+
+*Block 1 — drive fights resonance · from a freshly loaded patch*
+
+1. Hold B (Q) around 70%, then sweep C (Drive) slowly from 20% to 80% — **Expect:** the sound gets louder and dirtier but RINGS LESS; the resonant peak audibly recedes as drive rises. This is the signature Polivoks behavior, so take your time. If resonance grows with drive, that's a bug.
+
+**Reset:** reload the patch.
+
+*Block 2 — self-oscillation onset · from a freshly loaded patch. Runs in order; the saw stays muted throughout.*
+
+2. Turn v (Input level) to 0 so the saw can't mask the onset — **Expect:** silence.
+3. With A low (\~9 o'clock), creep B up until oscillation just barely starts — **Expect:** onset lands in the top fifth of the knob.
+4. Leave B exactly there and raise A — **Expect:** the filter is already singing, or starts singing earlier, at higher cutoffs; the threshold depends on cutoff.
+5. Still with v at 0: B to max, C past 70%, A in the low-mid range (\~10 o'clock) — **Expect:** the tone drops into a LOWER, buzzier relaxation-oscillation growl — alarming but bounded. Back off any one knob and it returns to normal.
+
+**Reset:** reload the patch (this restores v to full along with everything else).
+
+*Block 3 — bass retention and the five modes · from a freshly loaded patch*
+
+6. LP mode (D full CCW), B to 85%, listen to the C2 bass — **Expect:** the low end stays planted at high resonance; no classic thinning of the fundamental.
+7. Leaving B at 85%, step D through all five positions (LP, BP \~10 o'clock, HP noon, Notch \~2 o'clock, Peak full CW) — **Expect:** five distinct responses; BP is audibly WIDE (gentle 6 dB skirts, not a narrow chirp); every mode change is click-free (\~5 ms fade — the Tamed behavior, and the thing RB-Onbetap-2 deliberately does not do).
+
+**Reset:** reload the patch.
+
+*Block 4 — CV inputs · from a freshly loaded patch*
+
+8. Patch an envelope into In 2 and play notes — **Expect:** resonance blooms per note, each hit ringing up and settling as the envelope falls; F attenuverts the depth. Unpatch In 2.
+9. Patch an envelope or LFO into In 1 — **Expect:** normal cutoff sweeps, depth set by E; 1 V in with E full moves cutoff one octave.
+
+*If you are also running RB-Onbetap-3:* its CPU comparison wants this patch at C 80% and A 70%. Do that as a separate pass from a fresh reload, not tacked onto Block 4.
 
 ## RB-Onbetap-2 — Vintage stereo pad (Onbetap, Vintage drift + hard mode switching)
 
@@ -322,24 +449,48 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | In 2 | Q CV |
 
 **Try:**
-1. Load the patch and just listen in stereo for \~30 s — **Expect:** the image comes alive: L and R cutoffs drift independently (Vintage drift), a seasick color-detune on top of the 7-cent oscillator beat. On top rides the slow internal LFO sweep (\~10 s period, subtle at +30%).
-2. Step D between modes while audio plays — **Expect:** mode changes CLICK hard — unfaded, authentic panel-switch behavior (contrast with RB-Onbetap-1, where the same move is smooth).
-3. Yank A fast across a wide arc — **Expect:** a DC thump, like slamming the real hardware's cutoff — Vintage mode does not soften it.
-4. Reload the patch (re-open it from the patch list) and listen to the first \~30 s again — **Expect:** the drift evolves IDENTICALLY to the first load — it is seeded, not random per boot.
-5. Raise B to 85% in LP mode — **Expect:** bass stays planted even at high Q (Polivoks trait carries into Vintage mode).
-6. Sequence In 1 — **Expect:** both saws transpose together in tune (one CV, two VCOs); the detune interval and stereo drift character hold at every pitch.
-7. Flag for surprises: In 2 (Q CV) is mapped but may be empty — **Expect:** with nothing patched it behaves exactly as if unmapped; note anything odd here.
+
+*Block 1 — the drift, and proving it's seeded · from a freshly loaded patch, twice. Touch nothing during either listen — the whole test is that two identical loads evolve identically.*
+
+1. Load the patch and just listen in stereo for \~30 s — **Expect:** the image comes alive: L and R cutoffs drift independently (Vintage drift), a seasick colour-detune over the 7-cent oscillator beat, with the slow internal LFO sweep riding on top (\~10 s period, subtle at +30%).
+2. Reload the patch and listen to the first \~30 s again — **Expect:** the drift evolves IDENTICALLY to step 1. It's seeded, not random per boot. If the two listens differ, that's a finding.
+
+**Reset:** reload the patch.
+
+*Block 2 — Vintage's rough edges · from a freshly loaded patch. These are the deliberately un-smoothed behaviors; each is an A/B against RB-Onbetap-1, which fades them.*
+
+3. Step D between modes while audio plays — **Expect:** mode changes CLICK hard — unfaded, authentic panel-switch behavior. RB-Onbetap-1's Block 3 step 7 is the same move, click-free.
+4. Yank A fast across a wide arc — **Expect:** a DC thump, like slamming the real hardware's cutoff. Vintage does not soften it.
+
+**Reset:** reload the patch.
+
+*Block 3 — pitch and resonance · from a freshly loaded patch*
+
+5. Raise B to 85% in LP mode — **Expect:** bass stays planted even at high Q; the Polivoks trait carries into Vintage mode. Return B to its loaded 50%.
+6. Sequence In 1 — **Expect:** both saws transpose together in tune (one CV, two VCOs); the detune interval and the stereo drift character hold at every pitch.
+7. In 2 (Q CV) is mapped but you may leave it empty — **Expect:** with nothing patched it behaves exactly as if unmapped. Note anything odd; this is one of the cable-detection cases from the conventions.
 
 ## RB-Onbetap-3 — 4× oversampling (Onbetap, aliasing A/B against RB-Onbetap-1)
 
 **Setup:** Same layout as RB-Onbetap-1 (saw VCO at C2, Tamed mode) but baked at 4× oversampling with Drive at 80% and Cutoff high (\~70%, several kHz) — a deliberately hot, bright setting. RB-Onbetap-1 runs the MetaModule default 1×; to A/B, set patch 1's knobs C to 80% and A to 70% to match. Output on Out 1/Out 2.
 **Panel:** identical to RB-Onbetap-1 (A Cutoff · B Q · C Drive · D Mode · E Cutoff CV Amt · F Q CV Amt · u Drive CV Amt · v Input level · In 1 Cutoff CV · In 2 Q CV · In 3 Drive CV · In 4 VCO Pitch).
 
+**This patch is an A/B against RB-Onbetap-1**, which needs its knobs moved to match (C 80%, A 70%) since it loads at gentler settings. Do that from a fresh reload of patch 1 each time, so the only difference between the two is oversampling.
+
 **Try:**
-1. Play a rising line (keyboard/sequencer into In 4) over 2-3 octaves in RB-Onbetap-1 with its knobs matched to this patch (C 80%, A 70%) — **Expect:** at 1×, inharmonic aliasing "birdies" under the distortion — faint whistles that sweep DOWN as you play UP.
-2. Play the same rising line in THIS patch, knobs untouched — **Expect:** clean at 4× — no counter-sweeping birdies; the distortion harmonics all move up with the notes.
-3. Push it harder: C to max, sweep A through the top of its range while holding a high note — **Expect:** still no birdies; the harshest available setting stays harmonically well-behaved.
-4. Watch the device CPU meter while this patch runs with knobs at their loaded positions — **Expect:** headroom stays acceptable at 4×. **Write down the exact CPU figure here and the figure for RB-Onbetap-1 at 1×** — we're considering locking Onbetap to 4× the way Vespid is, and this pair of numbers is the deciding data point. While you're at it, wiggle A and B and modulate In 1 to catch the worst case, not just the idle figure.
+
+*Block 1 — the aliasing A/B · this patch freshly loaded and untouched; RB-Onbetap-1 freshly loaded with C to 80% and A to 70%*
+
+1. In RB-Onbetap-1 (1×, knobs matched as above), play a rising line into In 4 over 2-3 octaves — **Expect:** inharmonic aliasing "birdies" under the distortion, faint whistles that sweep DOWN as you play UP.
+2. Reload THIS patch and play the same rising line, knobs untouched — **Expect:** clean at 4×, no counter-sweeping birdies; the distortion harmonics all move up with the notes.
+3. Push it harder here: C to max, sweep A through the top of its range while holding a high note — **Expect:** still no birdies; the harshest setting available stays harmonically well-behaved.
+
+**Reset:** reload the patch — the CPU figures below must come from the loaded settings, not from step 3's maxed Drive.
+
+*Block 2 — the CPU numbers · from a freshly loaded patch, and a freshly loaded RB-Onbetap-1 with C 80% / A 70%*
+
+4. Watch the device CPU meter with this patch at its loaded positions, then do the same in RB-Onbetap-1 — **Expect:** headroom acceptable at 4×. **Write down both figures.** We're considering locking Onbetap to 4× the way Vespid is, and this pair of numbers is the deciding data point.
+5. For each patch, catch the worst case rather than the idle figure: wiggle A and B and modulate In 1 while watching the meter — **Expect:** the peak reading is higher than the resting one; record the peak.
 
 ## RB-Vespid-1 — British: the CMOS rasp (Vespid, dirty-Wasp character + Blend morph + output taps)
 
@@ -367,16 +518,34 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | Out 5 | LP L | Lowpass tap |
 
 **Try:**
-1. Listen to Out 3 (BP) at the loaded settings, sweeping A slowly through the mids — **Expect:** the Wasp fingerprint: buzzy, nasal, fizzy CMOS tone even at these moderate settings, not a polite clean bandpass.
-2. Turn C (Drive) fully down and keep listening — **Expect:** the sound is STILL lightly overdriven — the classic dirty-Wasp rasp is present at Drive 0, not clean.
-3. Sweep C from 0 toward max — **Expect:** the grit shifts from ragged/asymmetric fuzz toward a harder, more square, odd-harmonic distortion; louder and nastier but continuous, no dropouts.
-4. Patch a slow LFO (\~0.2 Hz, ±5 V) into In 2 and listen to Out 1 — **Expect:** the Mix output morphs LP → notch → HP and back. At the notch point (center) you hear a hollow mid-scoop, NOT silence.
-5. With no LFO, park D at noon, then fully CCW, then fully CW — **Expect:** noon = hollow notch, CCW = lowpass (dull), CW = highpass (thin); Outs 3/4/5 keep their own characters the whole time.
-6. Compare Outs 1, 3, 4, 5 (move one cable, same knob settings) — **Expect:** all four responses are live simultaneously: BP nasal, HP thin/fizzy, LP round, Mix = whatever D says.
-7. Turn B (Res) to max and play notes on In 4 (keyboard/sequencer into VCO pitch) — **Expect:** British verge-of-self-osc: whistles and chirps riding along WITH the notes, but it never runs away into a standalone scream.
-8. Still at Res max, turn v (Input level) to 0 — **Expect:** the whistle DIES with the input. British mode cannot self-oscillate without signal; if it keeps ringing, that's a bug.
-9. Patch a snappy envelope into In 1 and use E to set depth (try full CW, then partially CCW to invert) — **Expect:** classic percussive filter sweeps; E at CCW flips the sweep direction.
-10. Patch an LFO into In 3 and attenuvert with F — **Expect:** resonance animates from smooth to chirpy in time with the LFO; no clicks at the modulation extremes.
+
+*Block 1 — the CMOS rasp · from a freshly loaded patch, listening on Out 3 (BP). Runs in order.*
+
+1. Sweep A slowly through the mids — **Expect:** the Wasp fingerprint: buzzy, nasal, fizzy CMOS tone even at these moderate settings, not a polite clean bandpass.
+2. Turn C (Drive) fully down and keep listening — **Expect:** the sound is STILL lightly overdriven. The dirty-Wasp rasp is present at Drive 0, not clean. If it goes clean, that's a finding.
+3. Sweep C back up from 0 toward max — **Expect:** the grit shifts from ragged asymmetric fuzz toward a harder, more square, odd-harmonic distortion; louder and nastier but continuous, no dropouts.
+
+**Reset:** reload the patch.
+
+*Block 2 — Blend and the four simultaneous outputs · from a freshly loaded patch*
+
+4. Park D at noon, then fully CCW, then fully CW, listening on Out 1 — **Expect:** noon = hollow notch, CCW = lowpass (dull), CW = highpass (thin). The notch is a mid-scoop, NOT silence.
+5. Leave D at noon and move your cable across Outs 1, 3, 4 and 5 — **Expect:** all four responses live simultaneously: BP nasal, HP thin and fizzy, LP round, Mix = whatever D says.
+6. Back on Out 1, patch a slow LFO (\~0.2 Hz, ±5 V) into In 2 — **Expect:** the Mix output morphs LP → notch → HP and back, passing through the hollow scoop rather than a gap. Unpatch the LFO.
+
+**Reset:** reload the patch.
+
+*Block 3 — the resonance limit · from a freshly loaded patch. Runs in order; step 8 is the payoff and needs step 7's state.*
+
+7. Turn B (Res) to max and play notes into In 4 — **Expect:** British verge-of-self-osc: whistles and chirps riding along WITH the notes, never running away into a standalone scream.
+8. Leaving B at max, turn v (Input level) to 0 — **Expect:** the whistle DIES with the input. British mode cannot self-oscillate without signal; if it keeps ringing, that's a bug. (RB-Vespid-2 is the same knob in German mode, where it *should* keep ringing.)
+
+**Reset:** reload the patch.
+
+*Block 4 — CV inputs · from a freshly loaded patch*
+
+9. Patch a snappy envelope into In 1 and set depth with E — full CW, then partially CCW to invert — **Expect:** classic percussive filter sweeps; E below centre flips the sweep direction. Unpatch In 1.
+10. Patch an LFO into In 3 and attenuvert with F — **Expect:** resonance animates from smooth to chirpy in time with the LFO, no clicks at the modulation extremes.
 
 ## RB-Vespid-2 — German corrected: playable self-oscillation (Vespid, self-osc voice with in-tune 1V/oct tracking)
 
@@ -397,13 +566,26 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | Out 1/2 | Mix L/R | Output |
 
 **Try:**
-1. Load the patch and just listen, nothing patched — **Expect:** the filter sings on its own: a hollow, slightly gritty sine voice. Loud but stable — bounded by the rails, never a runaway blast.
-2. Sweep A across its range — **Expect:** the sung pitch follows the knob smoothly across the audible range, tone staying sine-like with a touch of grit.
-3. Sequence a melody into In 1 (keyboard or sequencer, E fully CW) — **Expect:** the melody plays IN TUNE over 3-4 octaves. Corrected tracking: octaves are real octaves.
-4. Check tuning against a reference: send the same pitch CV (via the mult/stackcable) to a reference oscillator and to In 1, compare by ear at 1, 2, and 3 octaves up — **Expect:** unisons/octaves beat slowly or not at all across the range; no progressive flattening as you go up (that flattening lives in RB-Vespid-3).
-5. Slowly back off B from max and find the point where oscillation stops; nudge back up — **Expect:** a clear, repeatable threshold where the voice dies/restarts; near threshold it may chirp before locking into steady tone.
-6. Restore B to max and feed audio (any oscillator or a drum loop) into In 3 — **Expect:** filter and oscillation interact — the input pulls, beats against, and colors the sung tone; combined output stays loud-but-bounded, no runaway.
-7. Patch an LFO into In 2 with B around the threshold from step 5 — **Expect:** oscillation gates on and off with the LFO — a crude but playable tremolo/chirp effect, no instability.
+
+*Block 1 — the voice, and its tuning · from a freshly loaded patch. Steps 3-4 are the reference melody for RB-Vespid-3, so settle on a melody you can play again there.*
+
+1. Load the patch and just listen, nothing patched — **Expect:** the filter sings on its own: a hollow, slightly gritty sine voice, loud but stable, bounded by the rails and never a runaway blast.
+2. Sweep A across its range — **Expect:** the sung pitch follows the knob smoothly across the audible range, tone staying sine-like with a touch of grit. Return A to its loaded mid position.
+3. Sequence a melody into In 1 with E fully CW — **Expect:** the melody plays IN TUNE over 3-4 octaves; octaves are real octaves (Corrected tracking). **Write down which melody you used** — RB-Vespid-3 replays it.
+4. Send that same pitch CV through the mult or stackcable to both In 1 and a reference oscillator, and compare by ear at 1, 2 and 3 octaves up — **Expect:** unisons and octaves beat slowly or not at all across the range, with no progressive flattening as you climb. (That flattening is exactly what RB-Vespid-3 should show.)
+
+**Reset:** reload the patch.
+
+*Block 2 — the oscillation threshold · from a freshly loaded patch. Runs in order; step 6 uses the threshold you find in step 5.*
+
+5. Slowly back B off from max until oscillation stops, then nudge it back up — **Expect:** a clear, repeatable threshold where the voice dies and restarts; right near it the filter may chirp before locking into steady tone. **Note where the threshold sits** on the knob.
+6. Leave B just at that threshold and patch an LFO into In 2 — **Expect:** oscillation gates on and off with the LFO, a crude but playable tremolo/chirp, with no instability. Unpatch the LFO.
+
+**Reset:** reload the patch.
+
+*Block 3 — filter and oscillator interacting · from a freshly loaded patch*
+
+7. With B at its loaded max, feed audio (any oscillator, or the drum loop) into In 3 — **Expect:** the input pulls at, beats against and colors the sung tone; combined output stays loud-but-bounded with no runaway. If it takes off or drops out, that's a finding.
 
 ## RB-Vespid-3 — German hardware drift (Vespid, uncorrected vintage tuning sag)
 
@@ -424,11 +606,19 @@ Loaded Levels: Red 40%, Yellow 40%, Blue 25%, Purple 20% — return them there a
 | Out 1/2 | Mix L/R | Output |
 
 **Try:**
-1. Play the SAME melody you used in RB-Vespid-2 step 3 into In 1 — **Expect:** it now drifts FLAT the way the real circuit sags at high resonance: intervals compress/stretch, "vintage out-of-tune." Musical, not broken.
-2. Push the melody to the extremes (very low and very high notes) — **Expect:** the sag is worst at the extremes of the range; the middle stays closest to true.
-3. A/B the same two-octave jump in RB-Vespid-2 and here — **Expect:** patch 2 lands a true octave; this patch lands audibly flat of it.
-4. Aliasing check: drive a bright, hot audio-rate signal (raw saw or square, high pitch) into In 3 with C high and A high — **Expect:** clean: Vespid is fixed at 4× oversampling in every build, so no inharmonic "birdies" sweeping the wrong way as you play up.
-5. While the patch runs, check the device CPU meter — **Expect:** acceptable headroom (no audio dropouts while turning knobs); Vespid always pays the 4× cost, so this is its worst-case CPU figure.
+
+*Block 1 — the tuning sag · from a freshly loaded patch. This is a direct A/B against RB-Vespid-2, so use the melody you noted there and reload each patch as you switch.*
+
+1. Play the SAME melody you used in RB-Vespid-2 (its Block 1 step 3) into In 1 — **Expect:** it now drifts FLAT the way the real circuit sags at high resonance: intervals compress and stretch, "vintage out-of-tune." Musical, not broken.
+2. Push the melody to the extremes, very low and very high — **Expect:** the sag is worst at the ends of the range; the middle stays closest to true.
+3. A/B one two-octave jump: play it here, reload RB-Vespid-2 and play it there — **Expect:** patch 2 lands a true octave, this patch lands audibly flat of it. If they match, the uncorrected mode isn't engaging.
+
+**Reset:** reload the patch.
+
+*Block 2 — aliasing and CPU at the fixed 4× · from a freshly loaded patch*
+
+4. Drive a bright, hot audio-rate signal (raw saw or square, high pitch) into In 3, with C high and A high — **Expect:** clean. Vespid is fixed at 4× oversampling in every build, so no inharmonic "birdies" sweeping the wrong way as you play up.
+5. Leaving those hot settings from step 4 in place, watch the device CPU meter and turn knobs — **Expect:** acceptable headroom, no audio dropouts. Vespid always pays the 4× cost, so this is its worst-case figure; note it alongside the Onbetap numbers from RB-Onbetap-3.
 
 ## RB-Particules-1 — Free-running texture & qualities (Particules, granular texture from a baked-in drum loop)
 
