@@ -334,7 +334,7 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 *Block 1 — acid squelch and OTA drive · from a freshly loaded patch*
 
 1. Patch an envelope (or decaying LFO) into In 1 and play notes — **Expect:** classic acid squelch, cutoff riding the envelope; F attenuverts it, and below center the sweep inverts (closes on attack). Unpatch In 1.
-2. Sweep E (Drive) from 0 to max with A around 10 o'clock — **Expect:** smooth, creamy OTA thickening; it warms rather than turning buzzy. Note how this sounds — RB-MF20-2 step 2 is the same move on the other core.
+2. Leaving B (LP Peak) at its loaded 70%, sweep E (Drive) from 0 up past noon to max — **Expect:** smooth, creamy OTA thickening; it warms rather than turning buzzy. Fix this in your ear: RB-MF20-2's Block 2 step 2 is this exact move on the Korg35 core, and the comparison only works if both patches are at the same settings.
 
 **Reset:** reload the patch.
 
@@ -371,7 +371,7 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 2 — the drive A/B · from a freshly loaded patch. Make the same move in both patches, reloading each as you switch.*
 
-2. Push E (Drive) past noon with B (LP Peak) above 70% — **Expect:** a harder, buzzier, slightly hollow/gravelly bite — asymmetric clipping with audible even harmonics. The same move in RB-MF20-1 (its Block 1 step 2) stays creamier.
+2. Leaving B (LP Peak) at its loaded 70%, sweep E (Drive) from 0 up past noon to max — **Expect:** a harder, buzzier, slightly hollow and gravelly bite: asymmetric clipping with audible even harmonics. The identical move in RB-MF20-1 (its Block 1 step 2) stays creamier.
 3. **Reset both patches**, then set E to minimum in each and play the bass at full level — **Expect:** even at zero Drive the full-scale input already grazes the Korg35 clipper, a faint hair of grit; RB-MF20-1 at the same setting stays clean.
 4. Overall: with Drive up in both — **Expect:** the two are clearly distinguishable. If they sound identical under drive, that's a bug worth reporting.
 
@@ -645,18 +645,51 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | Gate In 1 | Freeze gate | Freeze while high |
 
 **Try:**
-1. Sweep A (Density) through its whole range — **Expect:** exactly 12 o'clock is silence; clockwise gives random grain clouds that thicken as you go; counter-clockwise gives a metronomic pulse, denser the further you turn.
-2. Twist u up past mid (Freeze on), then sweep B (Time) — **Expect:** you scrub through the frozen snapshot of the loop; new incoming audio is ignored until u comes back down. A gate into Gate In 1 should do the same freeze.
-3. Sweep C (Size) from about 9 o'clock to full — **Expect:** grains lengthen from short ticks to long overlapping swells; take C counter-clockwise of center and grains play reversed.
-4. Sweep D (Shape) — **Expect:** grain attacks go from clicky/percussive at one end to soft swells at the other.
-5. Turn E (Pitch) — **Expect:** grain pitch steps through semitone notches; center = original pitch, roughly 3 o'clock = +12 st.
-6. With NOTHING patched into any CV jack, move y (Size AR) and z (Pitch AR): center = every grain identical; counter-clockwise = values spread with a peak near the knob setting; clockwise = uniform random spread — **Expect:** a touch of both makes the texture breathe; back to center makes it static again. (These jacks are unmapped, so this is the pure randomize behavior.)
-7. Patch a slow LFO into In 1 — **Expect:** the read position scrubs back and forth through the recorded loop (Time attenuverter is fixed at +75%, so the sweep is wide but not full-range). With the cable removed, In 1 should have no effect; flag it if the empty jack changes anything.
-8. Step v (Quality) through its four positions — **Expect:** Bright = clean; Cold = 12-bit Clouds-style grit; Sunny = darker with a GENTLE cassette waver (not seasick); Scorched = 8-bit crunch plus obvious warble. Each change re-formats the buffer: brief mute and the recorded audio clears, then the loop refills.
-9. Freeze with u, then try to move v — **Expect:** quality does NOT change while Freeze is engaged; release u and the change takes.
-10. Set w (Feedback) to about 60% on Scorched, let it run — **Expect:** repeats degrade into tape mush. Same w on Bright — **Expect:** stays clean and just builds, held in check by the per-quality limiter.
-11. Turn x (Reverb) up past noon — **Expect:** a smooth reverb tail blooms around the grains; back to 0 kills it.
-12. Turn F (Dry/Wet) down — **Expect:** the untouched drum loop fades in under the grains.
+
+*Block 1 — Density, and the shape of a grain · from a freshly loaded patch. Runs in order; each step leaves the state the next wants.*
+
+1. Sweep A (Density) through its whole range — **Expect:** exactly 12 o'clock is silence; clockwise gives random grain clouds thickening as you go; counter-clockwise gives a metronomic pulse, denser the further you turn. Leave A somewhere clockwise with a comfortable cloud.
+2. Sweep C (Size) from about 9 o'clock to full — **Expect:** grains lengthen from short ticks to long overlapping swells. Take C counter-clockwise of centre — **Expect:** grains play reversed. Return C to \~55%.
+3. Sweep D (Shape) — **Expect:** grain attacks move from clicky and percussive at one end to soft swells at the other.
+4. Turn E (Pitch) — **Expect:** grain pitch steps through semitone notches; centre = original pitch, roughly 3 o'clock = +12 st.
+
+**Reset:** reload the patch.
+
+*Block 2 — Freeze · from a freshly loaded patch. Runs in order; step 7 needs Freeze still engaged from step 5.*
+
+5. Twist u up past mid (Freeze on), then sweep B (Time) — **Expect:** you scrub through a frozen snapshot of the loop; new incoming audio is ignored.
+6. Release u, then do the same with a gate into Gate In 1 — **Expect:** identical freeze behavior from the jack.
+7. With Freeze still engaged, try to move v (Quality) — **Expect:** quality does NOT change while frozen. Release the freeze — **Expect:** the pending change now takes.
+
+**Reset:** reload the patch.
+
+*Block 3 — the attenurandomizers · from a freshly loaded patch, with NOTHING patched into any CV jack (that's the condition under test)*
+
+8. Move y (Size AR) and z (Pitch AR) away from centre: counter-clockwise spreads values with a peak near the knob setting, clockwise gives a uniform random spread — **Expect:** centre = every grain identical; a touch of either makes the texture breathe; back to centre makes it static. These jacks are unmapped, so this is the pure randomize behavior.
+
+**Reset:** reload the patch.
+
+*Block 4 — Time CV and cable detection · from a freshly loaded patch*
+
+9. Patch a slow LFO into In 1 — **Expect:** the read position scrubs back and forth through the loop (the Time attenuverter is fixed at +75%, so the sweep is wide but not full-range).
+10. Remove the cable from In 1 — **Expect:** no effect at all from the empty jack. Flag anything that behaves as if a cable were still present.
+
+**Reset:** reload the patch.
+
+*Block 5 — the four Qualities · from a freshly loaded patch. Each Quality change re-formats the buffer, so expect a brief mute and a refill each time; that's normal, not a dropout.*
+
+11. Step v (Quality) through its four positions, giving the buffer a couple of seconds to refill at each — **Expect:** Bright = clean; Cold = 12-bit Clouds-style grit; Sunny = darker with a GENTLE cassette waver, not seasick; Scorched = 8-bit crunch plus obvious warble.
+12. Park v on Scorched and set w (Feedback) to about 60%, then let it run — **Expect:** repeats degrade into tape mush.
+13. Leaving w where it is, step v back to Bright — **Expect:** the same feedback setting stays clean and simply builds, held in check by the per-quality limiter. That contrast is the point of the block.
+
+**Reset:** reload the patch.
+
+*Block 6 — reverb and mix · from a freshly loaded patch*
+
+14. Turn x (Reverb) up past noon — **Expect:** a smooth reverb tail blooms around the grains; back at 0 it's gone.
+15. Turn F (Dry/Wet) down — **Expect:** the untouched drum loop fades in under the grains.
+
+*Utility, any time:* if the drum loop stops, switch to Knob Set 2 (*Utility*), twist z up then down, and switch back.
 
 ## RB-Particules-2 — Clocked melodic grains + grain trigger out (Particules, Seed-clocked quantized grain voice)
 
@@ -679,14 +712,32 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | In 2 | Density CV | Density CV |
 
 **Try:**
-1. Patch a steady clock (e.g. 4-8 Hz) into Gate In 1 with A (Density) at exactly 12 o'clock — **Expect:** SILENCE — probability is 0 at center when clocked.
-2. Turn A clockwise from center — **Expect:** grains start appearing on clock ticks, more of the ticks spawning grains the further you turn, until nearly every tick fires; everything stays locked to the clock, never between ticks.
-3. Turn A counter-clockwise from center — **Expect:** clean clock divisions (every 2nd tick, every 4th, ...) — a regular sub-rhythm, not random thinning.
-4. Sequence In 1 with a melody (1 V/oct) — **Expect:** the grains play the melody, with every pitch snapped to A minor. Detune the sequence slightly — the quantizer pulls notes back to the scale.
-5. Turn u (Pitch AR) from full clockwise back toward center — **Expect:** at full CW the CV tracks cleanly 1 V/oct; toward center and below, the pitch CV increasingly becomes per-grain randomization instead of tracking.
-6. Listen to Out 2 (or scope it) — **Expect:** a 1 ms trigger per grain — audible as clicks; on the rig, drive an envelope/voice from it for a lockstep second voice, with distinct triggers even for back-to-back grains.
-7. Confirm Out 1 alone carries the full audio — **Expect:** mono sum (both stereo sides mixed) while grain triggers are enabled.
-8. Unplug the clock from Gate In 1 — **Expect:** Particules free-runs on Density again (clock detection follows the physical cable). Flag it if the empty mapped jack still acts clocked.
+
+*Block 1 — Density against the clock · from a freshly loaded patch, with a steady 4-8 Hz clock in Gate In 1 throughout. Runs in order.*
+
+1. With the clock running and A (Density) at exactly 12 o'clock — **Expect:** SILENCE. Probability is 0 at centre when clocked.
+2. Turn A clockwise from centre — **Expect:** grains appear on clock ticks, more ticks spawning grains the further you turn until nearly every tick fires. Everything stays locked to the clock, never landing between ticks.
+3. Turn A counter-clockwise from centre — **Expect:** clean clock divisions (every 2nd tick, every 4th, …) — a regular sub-rhythm, not random thinning.
+
+**Reset:** reload the patch (leave the clock patched; the next block needs it).
+
+*Block 2 — the quantized melody · from a freshly loaded patch, clock still in Gate In 1, A turned clockwise so grains are firing*
+
+4. Sequence In 1 with a melody (1 V/oct) — **Expect:** the grains play the melody with every pitch snapped to A minor. Detune the sequence slightly — **Expect:** the quantizer pulls the notes back into the scale.
+5. Turn u (Pitch AR) from full clockwise back toward centre — **Expect:** at full CW the CV tracks cleanly at 1 V/oct; as you approach centre the pitch CV increasingly becomes per-grain randomization instead of tracking.
+
+**Reset:** reload the patch.
+
+*Block 3 — the grain trigger output · from a freshly loaded patch, clock in Gate In 1, A clockwise so grains are firing*
+
+6. Listen to (or scope) Out 2 — **Expect:** a 1 ms trigger per grain, audible as clicks. Drive an envelope or voice from it — **Expect:** a second voice locked to the grains, with distinct triggers even for back-to-back grains.
+7. Confirm Out 1 alone carries the full audio — **Expect:** a mono sum of both stereo sides, since enabling grain triggers costs you the right channel.
+
+**Reset:** reload the patch.
+
+*Block 4 — clock cable detection · from a freshly loaded patch*
+
+8. Start with the clock patched into Gate In 1 and grains firing, then unplug it — **Expect:** Particules free-runs on Density again (silent at 12 o'clock, clouds CW, pulse CCW). Clock detection follows the physical cable, so flag it if the empty mapped jack still behaves as if clocked.
 
 ## RB-Particules-3 — Gates seed mode (Particules, grains gated by an external gate)
 
@@ -707,11 +758,19 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | In 2 | Pitch CV | Pitch CV (V/oct) |
 
 **Try:**
-1. Patch a slow gate (long steps, e.g. 1 s high / 1 s low) into Gate In 1 — **Expect:** grains fire ONLY while the gate is high — rhythmic puffs of texture that stop dead when the gate falls, not a continuous stream.
-2. With the gate running, turn A (Density) clockwise from center — **Expect:** the repetition rate INSIDE each gate rises — each puff gets busier; counter-clockwise thins it out.
-3. Set A to exactly 12 o'clock — **Expect:** exactly one grain per gate — a single hit on each rising edge.
-4. Unplug the cable from Gate In 1 — **Expect:** behaves identically to Triggers mode: free-runs on Density (silent at 12 o'clock, clouds CW, pulse CCW). Gate detection follows the physical cable, so the empty mapped jack should read as unpatched — flag any surprise here.
-5. While gated puffs play, shape them with B (Size) and C (Shape) — **Expect:** longer grains overlap into small swells; Shape moves attacks from clicky to soft.
+
+*Block 1 — gated grain bursts · from a freshly loaded patch, with a slow gate (e.g. 1 s high / 1 s low) in Gate In 1 throughout. Runs in order.*
+
+1. With the gate running — **Expect:** grains fire ONLY while the gate is high: rhythmic puffs of texture that stop dead when the gate falls, not a continuous stream.
+2. Turn A (Density) clockwise from centre — **Expect:** the repetition rate INSIDE each gate rises and each puff gets busier; counter-clockwise thins it out.
+3. Set A to exactly 12 o'clock — **Expect:** exactly one grain per gate, a single hit on each rising edge. (Note the contrast with RB-Particules-2, where centre means silence — Gates mode reads the centre position differently.)
+4. Leaving the gate running, shape the puffs with B (Size) and C (Shape) — **Expect:** longer grains overlap into small swells; Shape moves attacks from clicky to soft.
+
+**Reset:** reload the patch.
+
+*Block 2 — gate cable detection · from a freshly loaded patch*
+
+5. Patch the gate into Gate In 1 and confirm puffs, then unplug it — **Expect:** behavior identical to Triggers mode: free-runs on Density, silent at 12 o'clock, clouds CW, pulse CCW. Gate detection follows the physical cable, so an empty mapped jack should read as unpatched — flag any surprise here.
 
 ## RB-Ondes-1 — Morphing wavetable voice (Ondes, drone/bank/position tour)
 
@@ -731,14 +790,27 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | In 3 | Bank CV |
 
 **Try:**
+
+*Block 1 — the wavetable by hand · from a freshly loaded patch. Runs in order.*
+
 1. Load the patch — **Expect:** a steady drone on Out 1 immediately, no input needed.
-2. Sweep B (Bank) slowly from 0 to max — **Expect:** three families in order: soft sines/triangles/drawbar organ tones (low third), buzzy vocal formants (middle), then the Braids imports — choir/metal/drone flavors (top). Every in-between position should be a usable hybrid, not garbage.
-3. Sweep C (Position) slowly at several Bank settings — **Expect:** continuous timbre blends — no steps, zipper noise, or clicks anywhere in the travel.
-4. Patch a slow LFO (\~0.1-0.5 Hz) into In 2 — **Expect:** the timbre breathes smoothly through the table; D scales the sweep depth (at 12 o'clock the LFO does nothing; the baked \~.75 gives a moderate positive sweep).
-5. Turn A (Pitch) slowly across its range — **Expect:** the knob settles into notches at musical intervals — octaves, fifths, unison — rather than free-gliding, over a ±24 st span.
-6. Play a keyboard or sequencer into In 1 — **Expect:** accurate V/oct tracking; octaves on the keyboard are octaves out, over at least 2-3 octaves.
-7. Patch an audio-rate oscillator into In 2 and set D to about 2 o'clock (\~.65) — **Expect:** an FM-like clangorous growl — pitched and playable, not noise hash. Back D toward 12 o'clock — **Expect:** the growl cleans up smoothly back to the plain wavetable tone.
-8. Patch an LFO or sequencer into In 3 and raise E (Bank CV amt) above center — **Expect:** the CV walks the drone through the bank families, same character as turning B by hand; at E center the input does nothing.
+2. Sweep B (Bank) slowly from 0 to max — **Expect:** three families in order: soft sines, triangles and drawbar-organ tones in the low third; buzzy vocal formants in the middle; the Braids imports — choir, metal, drone flavors — up top. Every in-between position should be a usable hybrid, not garbage.
+3. Pick three or four Bank settings across that range and sweep C (Position) slowly at each — **Expect:** continuous timbre blends, with no steps, zipper noise or clicks anywhere in the travel.
+4. Turn A (Pitch) slowly across its range — **Expect:** the knob settles into notches at musical intervals — octaves, fifths, unison — rather than free-gliding, across a ±24 st span.
+
+**Reset:** reload the patch.
+
+*Block 2 — Position CV, from slow to audio rate · from a freshly loaded patch. Runs in order; step 6 is the same jack as step 5 at a different rate.*
+
+5. Patch a slow LFO (\~0.1-0.5 Hz) into In 2 — **Expect:** the timbre breathes smoothly through the table. Move D — **Expect:** it scales the sweep depth, doing nothing at 12 o'clock and giving a moderate positive sweep at the baked \~.75. Return D to \~.75.
+6. Swap the LFO for an audio-rate oscillator in the same jack and set D to about 2 o'clock (\~.65) — **Expect:** an FM-like clangorous growl, pitched and playable rather than noise hash. Back D toward 12 o'clock — **Expect:** the growl cleans up smoothly to the plain wavetable tone. Unpatch In 2.
+
+**Reset:** reload the patch.
+
+*Block 3 — pitch and bank CV · from a freshly loaded patch*
+
+7. Play a keyboard or sequencer into In 1 — **Expect:** accurate V/oct tracking; octaves on the keyboard are octaves out, over at least 2-3 octaves.
+8. Patch an LFO or sequencer into In 3 and raise E (Bank CV amt) above centre — **Expect:** the CV walks the drone through the bank families with the same character as turning B by hand. At E centre — **Expect:** the input does nothing.
 
 ## RB-Retours-1 — Tape delay, slicer, shimmer (Retours, full feature tour in Tape/doppler time-change mode)
 
@@ -767,42 +839,56 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 **Try:**
 
-*Manual time & doppler*
+*Block 1 — manual time and the doppler swoop · from a freshly loaded patch, nothing patched. Runs in order.*
 
-1. With nothing patched, sweep A from 12 o'clock toward CCW — **Expect:** a single clean echo tap whose delay shortens as you turn; 12 o'clock is the longest delay.
-2. Sweep A to the CW side — **Expect:** a second, uneven tap joins in: a galloping two-tap pattern, not an even doubling.
-3. Set A near 12 o'clock, then turn B up through its range — **Expect:** the delay time multiplies 1-16×; repeats get much longer.
-4. While repeats are audibly regenerating (C \~60%), grab A or B and turn — **Expect:** the echoes pitch-bend like varispeed tape: swooping DOWN while you lengthen, UP while you shorten, with no clicks.
-5. Patch a small slow sine LFO into In 1 (Time CV) — **Expect:** a tape-warble chorus on the repeats, gentle cyclic detune.
-6. Unpatch In 1 and turn x (Time AR) toward CCW — **Expect:** a slow tape-mechanism wander creeps into the repeat timing — irregular drift, not a regular vibrato. (This relies on the jack sensing no cable; flag anything odd if a mapped-but-empty jack misbehaves.)
+1. Sweep A from 12 o'clock toward CCW — **Expect:** a single clean echo tap whose delay shortens as you turn; 12 o'clock is the longest delay.
+2. Sweep A to the CW side — **Expect:** a second, uneven tap joins: a galloping two-tap pattern, not an even doubling.
+3. Set A near 12 o'clock, then turn B up through its range — **Expect:** the delay time multiplies 1-16× and repeats get much longer.
+4. Raise C to \~60% so repeats are audibly regenerating, then grab A or B and turn — **Expect:** the echoes pitch-bend like varispeed tape, swooping DOWN as you lengthen and UP as you shorten, with no clicks. This is the behavior RB-Retours-2 replaces, so fix it in your ear before moving on.
 
-*Clocked mode*
+**Reset:** reload the patch.
 
-7. Patch a steady clock into Gate In 1 — **Expect:** Interval (A) becomes a divider: CCW side steps 1/2, 1/4, 1/8, 1/16; CW side gives triplet divisions. Repeats lock to the clock.
-8. Nudge the clock tempo up and down while it runs — **Expect:** repeats stay locked to the new tempo, no free-run drift.
-9. With the clock still patched, turn B — **Expect:** Time snaps to musical multiples instead of a continuous 1-16× sweep.
-10. Unpatch the clock, then twist w up/down four times in rhythm — **Expect:** tap tempo takes over; the light blinks the tapped beat and the tempo holds. To change it, just re-tap (clearing a saved tempo is menu-only, so it persists otherwise).
-11. Turn E (Shape) up in stages while clocked — **Expect:** repeat envelope steps flat → gated → swell → slow ramp, phase-locked to the beat.
+*Block 2 — Time CV and the tape wander · from a freshly loaded patch. Step 6 requires In 1 to be EMPTY, so the order matters.*
 
-*Slice / beat-repeat*
+5. Patch a small slow sine LFO into In 1 (Time CV) — **Expect:** a tape-warble chorus on the repeats, a gentle cyclic detune.
+6. Unpatch In 1, then turn x (Time AR) toward CCW — **Expect:** a slow tape-mechanism wander creeps into the repeat timing: irregular drift, not a regular vibrato. This depends on the jack sensing no cable, so flag anything odd if the mapped-but-empty jack misbehaves.
 
-12. Twist u up (Slice latch) while the drum loop plays — **Expect:** recording stops instantly and a slice repeats — an immediate beat-repeat hold.
-13. While sliced, turn B — **Expect:** B chooses WHICH slice of the held audio repeats.
-14. While sliced, turn A — **Expect:** A sets the slice length. Twist u back down to release.
-15. Send a gate into Gate In 2 instead — **Expect:** same slice behavior, held only while the gate is high.
+**Reset:** reload the patch.
 
-*Shimmer / pitch*
+*Block 3 — clocked mode · from a freshly loaded patch, with a steady clock in Gate In 1. Runs in order; step 10 needs the clock REMOVED, so do it last.*
 
-16. Turn D to the +12 st notch and set C \~65% — **Expect:** each repeat climbs an octave — a rising shimmer ladder.
-17. Return D exactly to center — **Expect:** the shifter is truly bypassed: repeats are clean copies, no chorus blur or detune haze.
-18. With nothing in a Pitch CV jack, turn y (Pitch AR) off-center — **Expect:** random per-repeat pitch spread; back to center = exact.
+7. Patch the clock into Gate In 1 — **Expect:** Interval (A) becomes a divider: the CCW side steps 1/2, 1/4, 1/8, 1/16 and the CW side gives triplet divisions. Repeats lock to the clock.
+8. Nudge the clock tempo up and down while it runs — **Expect:** repeats stay locked to the new tempo with no free-run drift.
+9. Still clocked, turn B — **Expect:** Time snaps to musical multiples instead of sweeping continuously. Then turn E (Shape) up in stages — **Expect:** the repeat envelope steps flat → gated → swell → slow ramp, phase-locked to the beat.
+10. Unpatch the clock, then twist w up/down four times in rhythm — **Expect:** tap tempo takes over, the light blinks the tapped beat, and the tempo holds. Re-tap to change it. **Note:** a tapped tempo persists — clearing it is menu-only — so reload the patch before the next block rather than leaving a tempo saved.
 
-*Quality & feedback*
+**Reset:** reload the patch.
 
-19. Set C just below the 90% arrow — **Expect:** repeats decay away. At the arrow: they hold at unity. Above it: they grow each pass.
-20. With C above unity on Bright (v at 0) — **Expect:** the stack builds clean and eventually brickwall-limits without distortion of tone.
-21. Step v to Sunny, then Scorched, and repeat the over-unity build — **Expect:** each pass gets darker and more saturated; Scorched adds obvious warble on top. Each Quality limits differently — none should run away into harsh digital clipping.
-22. Step v through all four positions while repeats sound — **Expect:** a brief mute/re-format at each change is acceptable; character steps Bright (clean) → Cold → Sunny → Scorched.
+*Block 4 — slice / beat-repeat · from a freshly loaded patch. Runs in order; steps 12-13 need the slice still latched from step 11.*
+
+11. Twist u up (Slice latch) while the drum loop plays — **Expect:** capture stops instantly and a slice repeats: an immediate beat-repeat hold.
+12. While still sliced, turn B — **Expect:** B chooses WHICH slice of the held audio repeats.
+13. While still sliced, turn A — **Expect:** A sets the slice length. Twist u back down to release.
+14. Send a gate into Gate In 2 instead — **Expect:** the same slice behavior, held only while the gate is high.
+
+**Reset:** reload the patch. Slice leaves Interval and Time somewhere unpredictable, and the shimmer block below needs them at their loaded values.
+
+*Block 5 — shimmer and pitch · from a freshly loaded patch. Step 17 needs the Pitch CV jack EMPTY.*
+
+15. Turn D to the +12 st notch and set C to \~65% — **Expect:** each repeat climbs an octave, a rising shimmer ladder.
+16. Return D exactly to centre — **Expect:** the shifter is truly bypassed: repeats are clean copies with no chorus blur or detune haze. If centre still smears, that's a finding.
+17. With nothing patched to a Pitch CV jack, turn y (Pitch AR) off-centre — **Expect:** a random per-repeat pitch spread; back at centre, exact repeats.
+
+**Reset:** reload the patch.
+
+*Block 6 — feedback and the four Qualities · from a freshly loaded patch. Deliberately cumulative: each over-unity build needs to run for a while, so don't reload mid-build. DO reload between Qualities so each starts from the same place.*
+
+18. Set C just below the 90% arrow — **Expect:** repeats decay away. At the arrow — **Expect:** they hold at unity. Above it — **Expect:** they grow each pass.
+19. With C above unity on Bright (v at 0), let the stack build — **Expect:** it builds clean and eventually brickwall-limits without distorting the tone. **Then reload.**
+20. Repeat the over-unity build on Sunny, then again on Scorched, reloading between each — **Expect:** each is darker and more saturated than Bright; Scorched adds obvious warble. Each Quality limits differently, and none should run away into harsh digital clipping.
+21. Finally, with repeats sounding, step v through all four positions in one pass — **Expect:** a brief mute and re-format at each change is acceptable; character steps Bright (clean) → Cold → Sunny → Scorched.
+
+*Utility, any time:* if the drum loop stops, twist z up then down to restart it.
 
 ## RB-Retours-2 — Crossfade time-change (Retours, same rig as RB-Retours-1 with digital-clean time jumps)
 
@@ -810,12 +896,30 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 **Panel:** Same as RB-Retours-1: A=Interval, B=Time, C=Feedback, D=Pitch, E=Shape, F=Dry/Wet, u=Slice (up=hold), v=Quality, w=Tap (twist up), x=Time AR, y=Pitch AR, z=Loop restart; In 1=Time CV, In 2=Interval CV, Gate In 1=Clock, Gate In 2=Slice gate.
 
+**This patch exists to be compared with RB-Retours-1**, so the two must be in matching states when you switch. Reload whichever patch you're moving to, then make the same move in both.
+
 **Try:**
 
-1. With repeats regenerating (C \~60%), grab A or B and turn — **Expect:** the delay JUMPS cleanly to the new time: pitch-neutral, click-free, no tape swoop. Each jump should land waveform-aligned (no tick at the splice).
-2. Sweep A fast across a wide range — **Expect:** the repeats stay clean and intelligible rather than garbling or smearing.
-3. Do the same moves back-to-back against RB-Retours-1 — **Expect:** the two patches feel like a tape machine (1, pitch-bending) vs a digital delay (2, stepping cleanly); if they sound alike, that's a bug.
-4. Spot-check the rest: clock into Gate In 1 (divider mode + locked repeats), slice via u or Gate In 2, shimmer with D at +12 and C \~65% — **Expect:** all behave exactly as in RB-Retours-1; only manual/CV time changes differ.
+*Block 1 — clean time jumps · from a freshly loaded patch. Runs in order.*
+
+1. Raise C to \~60% so repeats are audibly regenerating, then grab A or B and turn — **Expect:** the delay JUMPS cleanly to the new time: pitch-neutral, click-free, no tape swoop, each jump landing waveform-aligned with no tick at the splice.
+2. Sweep A fast across a wide range — **Expect:** repeats stay clean and intelligible rather than garbling or smearing.
+
+**Reset:** reload this patch, and reload RB-Retours-1 before switching to it.
+
+*Block 2 — the A/B against Tape mode · both patches freshly loaded, same move in each*
+
+3. Make the step 1 move here, then reload RB-Retours-1 and make it there — **Expect:** this patch steps cleanly like a digital delay; patch 1 pitch-bends like a tape machine. If they sound alike, that's a bug worth reporting.
+
+**Reset:** reload the patch.
+
+*Block 3 — spot-check the shared features · from a freshly loaded patch, reloading between each item below*
+
+4. Clock into Gate In 1 — **Expect:** divider mode and locked repeats, exactly as in RB-Retours-1. **Reload.**
+5. Slice via u or Gate In 2 — **Expect:** identical beat-repeat hold behavior. **Reload.**
+6. Shimmer with D at the +12 notch and C \~65% — **Expect:** the rising octave ladder, same as patch 1. Only manual and CV time changes should differ between the two patches; anything else that diverges is a finding.
+
+*Utility, any time:* if the drum loop stops, twist z up then down to restart it.
 
 ## RB-Retours-3 — Karplus-Strong string (Retours, audio-rate delay as a plucked-string voice)
 
@@ -833,10 +937,25 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | In 1 | Pluck in (bursts/clicks) | Excitation input |
 | In 2 | Interval CV (V/oct) | Pitch CV |
 
+**Plucking it** — every block needs an excitation source. *Pluck it:* feed short clicks, gates, or noise bursts into In 1. Nothing sounds until you do.
+
 **Try:**
 
-1. Feed short clicks, gates, or noise bursts into In 1 — **Expect:** each one rings out as a plucked string with a clear pitch, not a discrete echo.
-2. Sequence In 2 with V/oct pitches while plucking — **Expect:** a playable Karplus voice; tuning stays stable and in tune over roughly 2 octaves.
-3. Turn B up toward max while plucking — **Expect:** notes sustain longer and longer but stay bounded — no runaway blow-up even near the top.
-4. Grab A and turn it by hand while a note rings — **Expect:** a tape-doppler glissando between pitches, a continuous swoop rather than a step.
-5. Move D off-center and pluck — **Expect:** each ring spirals upward or downward in pitch as it decays — strange, metallic, but pitched and controllable; back at the center notch the spiral stops dead.
+*Block 1 — the string voice · from a freshly loaded patch. Runs in order.*
+
+1. Pluck it — **Expect:** each burst rings out as a plucked string with a clear pitch, not a discrete echo. If you hear separate echoes rather than a pitched ring, Interval isn't in its audio-rate range.
+2. Sequence In 2 with V/oct pitches while plucking — **Expect:** a playable Karplus voice, tuning stable and in tune over roughly 2 octaves.
+3. Turn B (Feedback) up toward max while plucking — **Expect:** notes sustain longer and longer but stay bounded, with no runaway blow-up even near the top.
+
+**Reset:** reload the patch — step 3 leaves Feedback high, and the glissando below is easier to hear at the loaded 85%.
+
+*Block 2 — doppler glissando and the pitch spiral · from a freshly loaded patch, plucking throughout*
+
+4. Grab A and turn it by hand while a note rings — **Expect:** a tape-doppler glissando between pitches, a continuous swoop rather than a step (this patch is in Tape mode, like RB-Retours-1).
+5. Move D off-centre and pluck again — **Expect:** each ring spirals upward or downward in pitch as it decays: strange and metallic, but pitched and controllable. Back at the centre notch — **Expect:** the spiral stops dead.
+
+**Reset:** reload the patch.
+
+*Block 3 — Quality on a resonant voice · from a freshly loaded patch, reloading between each Quality so the string starts identical each time*
+
+6. Step v through Bright, Cold, Sunny and Scorched, plucking at each and reloading in between — **Expect:** the string's decay character changes with each — brighter and cleaner at Bright, progressively grittier and more filtered toward Scorched — while the pitch stays put. Feedback is high here, so listen for any Quality that lets the ring run away rather than decay.
