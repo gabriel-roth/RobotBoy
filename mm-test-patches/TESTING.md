@@ -402,26 +402,58 @@ All 19 patches load clean in the MetaModule headless simulator with the current 
 | Knob D | Purple Level |
 | Knob E | Dry/Wet (same param as D in Set 1) |
 
-All four Levels load at 25%; after soloing a head, return them there and switch back to Knob Set 1.
+All four Levels load at 25%.
+
+**Recording the loop** — several blocks below open with this, so it gets a name. *Record the loop:* wait \~2 s after load until the drum loop is audible, twist u fully up, wait 4-8 bars, twist u back down. Loooop now has \~4-8 bars of drums in it and all four heads are playing.
 
 **Try:**
-1. Wait ~2 s after load until the drum loop is audible, then twist u fully up to start recording; after 4-8 bars twist u back down — **Expect:** loop plays back immediately through all four heads; twisting u up = button press, down = release.
-2. Instead of u, send a trigger into Gate In 1 to start, another to stop — **Expect:** identical record start/stop behavior from the jack.
-3. Listen to the ensemble with all heads up — **Expect:** four simultaneous voices: Red at unison, Yellow an octave up panned left, Blue playing in reverse panned right, Purple at 1.5× in the center. To check any single voice, switch to Knob Set 2 (*Head Levels*), pull the other three Levels to 0 and push E toward full wet, then restore (Levels 25%, E noon) and switch back.
-4. Sit on the loop for a minute and listen to Purple — **Expect:** Purple's voice drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other heads stay put. If the drift is hard to pick out of the ensemble, solo Purple on Knob Set 2 first.
-5. Solo Yellow on Knob Set 2 (Red/Blue/Purple Levels to 0), switch back to Knob Set 1, then turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward. Restore the levels when done. (This is the step that punishes the factory catchup setting: knob C is Blue Level on Set 2 and Yellow Speed on Set 1. With "Track when equal" set as advised above, Yellow Speed stays put until the knob reaches it.)
-6. Loop seam check: with the loop playing, listen across the wrap point several times — **Expect:** no click or tick at the seam (crossfade is ON by default in this patch; contrast with RB-Loooop-3, which has it off).
-7. Overdub modes on F, full CCW = Layer: while the loop plays, twist u up for a pass, then down (the still-running drum loop re-records over itself at a new offset — that IS the new material); repeat several passes — **Expect:** each pass ducks the older material by roughly 1 dB; old layers slowly recede but never dull.
-8. F at \~10 o'clock = Decay: overdub several passes — **Expect:** old material both loses level AND loses high end, getting duller each pass.
-9. F at noon = Add: overdub several hot passes — **Expect:** layers pile up at full level and eventually clip/distort — that is the mode working, not a bug.
-10. F at \~2 o'clock = Replace: twist u up mid-loop, then down after a beat — **Expect:** a clean punch-in — new audio replaces the old only where you held record.
-11. F full CW = Lock: twist u up and try to record — **Expect:** nothing records; the loop is protected and Record is ignored.
-12. Turn A (Red Size) down to \~25%, then sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop; at full Size (A max), B and y do nothing — that's by design. (If the other heads mask the scrubbing, solo Red on Knob Set 2 for steps 12-14.)
-13. With A partway down, raise y (Red Jitter) — **Expect:** Red's window hops to random positions, from subtle shuffle (low y) to full scatter (high y).
-14. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) while scrubbing A and B — **Expect:** Red's Size and Position snap to grid divisions; changes land musically on the beat instead of free-sliding.
-15. Sweep D (Dry/Wet) full CCW then full CW — **Expect:** CCW = only the live drum-loop input, CW = only the heads; noon = the baked-in 50/50 blend.
-16. Twist v up (or send a trigger into Gate In 2) — **Expect:** the loop erases; heads go silent until you record again.
-17. If the source WAV ever stops (it shouldn't with Loop on), twist z up then down — **Expect:** the drum loop restarts from the top.
+
+*Block 1 — record start/stop · from a freshly loaded patch*
+
+1. Record the loop as described above — **Expect:** playback through all four heads the instant you twist u down; twisting u up = press, down = release.
+2. Twist v up to clear, then record again using a trigger into Gate In 1 to start and a second trigger to stop — **Expect:** identical start/stop from the jack. If knob and jack interfere (one arms and the other won't disarm), that's a finding.
+
+**Reset:** reload the patch.
+
+*Block 2 — the four-head ensemble · from a freshly loaded patch, then record the loop*
+
+3. Listen to the ensemble with all Levels at their loaded 25% — **Expect:** four voices at once: Red at unison, Yellow an octave up panned left, Blue reversed panned right, Purple at 1.5× in the center.
+4. Sit on it for a minute and listen for Purple's pan — **Expect:** Purple drifts slowly left-right (\~10 s per cycle) from the baked-in LFO; the other three stay put.
+5. Solo each head in turn: switch to Knob Set 2, pull the other three Levels to 0, listen, then pull the soloed one down and bring up the next — **Expect:** each head's character matches step 3 heard alone. Stay on Set 2 for the whole sweep; there's no need to switch back between heads.
+
+**Reset:** reload the patch. Don't hand-restore the Levels — after working on Set 2 the physical knobs no longer line up with Set 1's params, and reloading is one button.
+
+*Block 3 — Yellow's speed knob · from a freshly loaded patch, then record the loop*
+
+6. Optionally solo Yellow on Knob Set 2 first (Red/Blue/Purple to 0), then return to Knob Set 1 and turn C (Yellow Speed): 3 o'clock = 1×, full CW = 2×, 9 o'clock = −1×, noon = stopped region — **Expect:** Yellow re-pitches smoothly; below noon it runs backward.
+7. Loop seam check: listen across the wrap point several times — **Expect:** no click or tick at the seam (crossfade is ON here; contrast RB-Loooop-3, which has it off).
+
+**Reset:** reload the patch.
+
+*Block 4 — overdub modes · from a freshly loaded patch, then record the loop. Each mode is cumulative across its own passes — do NOT reload between passes within a mode, or you'll restart the effect you're trying to hear. DO reload between modes.*
+
+8. F full CCW = Layer. Overdub four or five passes: twist u up for a pass, then down (the still-running drum loop re-records over itself at a new offset — that IS the new material) — **Expect:** each pass ducks the older material by roughly 1 dB; old layers recede but never dull. **Then reload and re-record.**
+9. F at \~10 o'clock = Decay. Same four or five passes — **Expect:** old material loses level AND high end, audibly duller than Layer at the same pass count. This A/B against step 8 is the point of the block, so match the pass counts. **Then reload and re-record.**
+10. F at noon = Add. Several hot passes — **Expect:** layers pile up at full level and eventually clip/distort — the mode working, not a bug. **Then reload and re-record.**
+11. F at \~2 o'clock = Replace: twist u up mid-loop, then down after a beat — **Expect:** a clean punch-in; new audio replaces the old only where you held record.
+12. F full CW = Lock: twist u up and try to record — **Expect:** nothing records; the loop is protected and Record is ignored.
+
+**Reset:** reload the patch.
+
+*Block 5 — Red's window: Size, Position, Jitter, Grid · from a freshly loaded patch, then record the loop. Runs continuously — each step leaves the state the next one wants.*
+
+13. Optionally solo Red on Knob Set 2 (others to 0) and stay there for the block, then return to Set 1. Turn A (Red Size) down to \~25% and sweep B (Red Position) — **Expect:** Red scrubs a short window around the loop.
+14. Return A to full and move B again — **Expect:** nothing; Position and Jitter do nothing at full Size, by design. Put A back to \~25% before continuing.
+15. With A still at \~25%, raise y (Red Jitter) — **Expect:** Red's window hops to random positions, subtle shuffle at low y through full scatter at high y. Leave y up.
+16. Turn E (Grid) up one step at a time (Off/4/8/16/32/64) while scrubbing A and B — **Expect:** Size and Position snap to grid divisions; changes land on the beat instead of free-sliding.
+
+**Reset:** reload the patch.
+
+*Block 6 — mix and erase · from a freshly loaded patch, then record the loop*
+
+17. Sweep D (Dry/Wet) full CCW then full CW — **Expect:** CCW = only the live drum-loop input, CW = only the heads; noon = the baked-in 50/50 blend.
+18. Twist v up (or send a trigger into Gate In 2) — **Expect:** the loop erases; heads go silent until you record again.
+19. Any time the source WAV stops (it shouldn't, with Loop on), twist z up then down — **Expect:** the drum loop restarts from the top. This one needs no reset; it's a utility, not a test.
 
 ## RB-Loooop-2 — Self-loading gate record + grid slicer (Loooop, one-shot slice heads on a 16-grid)
 
