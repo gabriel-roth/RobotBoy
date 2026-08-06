@@ -4,7 +4,7 @@ Reference for authoring MetaModule patch files (.yml) by hand, compiled 2026-07-
 
 ## 1. Patch YAML format
 
-Root map is `PatchData:`. Required keys: `patch_name` (non-empty), `module_slugs`, `int_cables`, `mapped_ins`, `mapped_outs` (use `[]` when empty). Optional: `description`, `static_knobs`, `mapped_knobs`, `vcvModuleStates`. Do NOT write `suggested_samplerate`/`suggested_blocksize` (omit = don't override device setting), `midi_*`, `mapped_lights`, `bypassed_modules`, `module_aliases`.
+Root map is `PatchData:`. Required keys: `patch_name` (non-empty), `module_slugs`, `int_cables`, `mapped_ins`, `mapped_outs` (use `[]` when empty — **omitting one can hard-crash the patch loader, see Rules**). Optional: `description`, `static_knobs`, `mapped_knobs`, `vcvModuleStates`. Do NOT write `suggested_samplerate`/`suggested_blocksize` (omit = don't override device setting), `midi_*`, `mapped_lights`, `bypassed_modules`, `module_aliases`.
 
 ```yaml
 PatchData:
@@ -41,6 +41,7 @@ PatchData:
 ```
 
 Rules:
+- **`module_slugs`, `int_cables`, `mapped_ins`, and `mapped_outs` must all be present, even when empty (`int_cables: []`). Omitting one is undefined behaviour in the loader, not a clean rejection — it can SIGSEGV before any module runs.** `yaml_to_patch.cc:30-34` reads these four without the `has_child()` guard every optional key gets, so a missing key leaves rapidyaml's `operator[]` returning an invalid node ref that is then dereferenced. Verified 2026-08-06: deleting `int_cables:` from a Löp patch crashed the headless simulator 5/5 runs (`EXC_BAD_ACCESS` in `c4::yml::Tree::num_children` ← `c4::yml::read<InternalCable>`); the same deletion on a Loooop patch ran fine 5/5. Whether it faults depends on tree layout, so a patch that loads today can crash after an unrelated edit. An empty list is always safe.
 - `module_slugs` keys `0:`, `1:`… are decorative but must be in order; ids elsewhere refer to these positions.
 - `jack_id` = 0-based index of the module's input (for cable `ins` / `mapped_ins`) or output (for cable `out` / `mapped_outs`) per the tables below. `param_id` likewise.
 - One `int_cables` entry per source output; several `ins` = fan-out. Omit `color`.
@@ -155,7 +156,7 @@ After writing each patch:
 ```bash
 cd /Users/gabrielroth/Dev/metamodule/simulator && ./build-headless/simulator -p /Users/gabrielroth/Dev/RobotBoy/mm-test-patches/RB-X-n.yml -n 48000 --out /tmp/rb-test.wav
 ```
-Expect `Patch loaded: N modules` with N = your module count (hub excluded? report what it prints), and NO `Module ... not found` lines. If the patch should make sound without user input, check the wav is non-silent (`afinfo` or python soundfile RMS). Fix and re-run until clean. Note in your report what the simulator printed and whether the wav had signal.
+Expect `Patch loaded: N modules` with N = your module count (hub excluded? report what it prints), and NO `Module ... not found` lines. **Check the exit code, not just the output**: a patch missing one of the four required keys can die with no output at all (exit 139 = SIGSEGV, see Rules), which is easy to misread as "rendered silence" if you only look at the wav. If the patch should make sound without user input, check the wav is non-silent (`afinfo` or python soundfile RMS). Fix and re-run until clean. Note in your report what the simulator printed and whether the wav had signal.
 
 ## 6. Checklist section
 
