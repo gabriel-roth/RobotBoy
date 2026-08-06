@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- **MetaModule builds now require firmware v2.3 or later.** The plugin is built against SDK v2.3, which lets the firmware catch a plugin that runs out of memory instead of crashing. Adding a Loooop or Löp to a patch with too little memory free now fails cleanly with "Not enough memory to load module" rather than taking the patch down with it. Firmware v2.2 and earlier will refuse to load this build.
+- **Loooop & Löp** — changing the sample rate can no longer crash the module. Each looper reserves a 60-second stereo record buffer (about 23 MB at 48 kHz, and twice that at 96 kHz), and on a busy patch the larger buffer may not fit. Previously that killed the module — and on the desktop build it could crash outright, reading from a buffer that had already been freed. Now the looper keeps the buffer it has and carries on with a shorter maximum loop time, telling you the new limit on MetaModule and logging it in VCV Rack.
+
 - **Vespid on MetaModule** — locked to standard accuracy and the charcoal panel. The **Accuracy** and **Panel** right-click items are gone from the MetaModule build (both remain in VCV Rack), and a patch carrying High accuracy or the gold panel no longer unlocks them there.
 - **Vespid & Onbetap on MetaModule** — oversampling now defaults to 1×, where the processor has the least headroom to spare; 2× and 4× are still selectable from the right-click menu. Vespid's **Auto** entry is gone on MetaModule (it would only ever have resolved to 1× there); a patch saved with Auto opens at 1×. VCV Rack is unchanged — Vespid still defaults to Auto and Onbetap to 2×.
 - **Retours** — tap tempo now holds indefinitely, like a normal tap-tempo control: a tempo set by tapping or from a patched clock sticks through a stopped clock, an unpatched cable, or an Interval move, until you use the new **Clear saved tempo** right-click item (or set a new tempo).

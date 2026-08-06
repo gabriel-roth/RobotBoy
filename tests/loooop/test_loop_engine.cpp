@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
+#include <new>
 #include <vector>
 
 static int g_failures = 0;
@@ -929,6 +930,163 @@ static void test_sample_rate_change_empty_reallocates() {
     check(!e.isRecording(),    "sr_change empty: auto-stopped at new ceiling");
 }
 
+// ---------------------------------------------------------------------------
+// Out-of-memory resilience. The looper's buffers are the only large allocation
+// in the plugin (~23 MB at 48 kHz / 60 s), and on MetaModule they can genuinely
+// fail. reset() must stay all-or-nothing and keep throwing (the firmware
+// catches it at module-construction time); setSampleRate() must never throw
+// (the firmware does NOT wrap PatchPlayer::set_samplerate, so a throw there
+// reaches std::terminate).
+//
+// No allocator mocking: a big enough request makes std::vector really throw.
+// The size has to exceed the address space, not just RAM — a merely huge
+// request (hundreds of GB) succeeds lazily on macOS and then gets the process
+// SIGKILLed while it zero-fills. 48 kHz * 2e10 s = 9.6e14 samples ~ 3.8 PB per
+// channel is past any 47-bit user VA, so malloc fails outright and cleanly.
+// Only the product matters, so both reset args are fixed in one helper.
+// ---------------------------------------------------------------------------
+static bool resetUnallocatable(LoopEngine& e) {
+    try { e.reset(48000.f, 2e10f); }
+    catch (const std::bad_alloc&) { return true; }
+    return false;
+}
+
+static void test_reset_alloc_failure_throws_and_preserves_loop() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f}) e.process(x);
+    e.toggleRecord();                       // loop = 1,2,3,4
+
+    check(resetUnallocatable(e), "reset oom: bad_alloc propagates out of reset()");
+
+    // All-or-nothing: the engine is exactly as it was — same loop, same
+    // buffer, same rate — so it plays back bit-identically.
+    check(e.loopLength() == 4, "reset oom: loop length preserved");
+    check(e.hasLoop(),         "reset oom: loop still present");
+    check(!e.isRecording(),    "reset oom: record state untouched");
+    check(near(e.process(0.f), 1.f), "reset oom: out[0]==1");
+    check(near(e.process(0.f), 2.f), "reset oom: out[1]==2");
+    check(near(e.process(0.f), 3.f), "reset oom: out[2]==3");
+    check(near(e.process(0.f), 4.f), "reset oom: out[3]==4");
+    check(near(e.process(0.f), 1.f), "reset oom: out[4]==1 (wrapped)");
+    // reset() is the construction path: it reports failure by throwing, not
+    // via the shortfall flag (which means "running with a smaller buffer").
+    check(!e.bufferShortfall(), "reset oom: no shortfall flag from reset()");
+}
+
+static void test_reset_alloc_failure_preserves_capacity() {
+    LoopEngine e;
+    e.reset(10.f, 1.f);                     // capacity 10 samples
+    soloHead0(e);
+    check(resetUnallocatable(e), "reset oom capacity: bad_alloc propagates");
+    check(e.maxLoopSamples() == 10, "reset oom capacity: maxLoopSamples unchanged");
+    e.toggleRecord();
+    for (int i = 0; i < 15; ++i) e.process(1.f);
+    check(e.loopLength() == 10, "reset oom capacity: old ceiling still enforced");
+    check(!e.isRecording(),     "reset oom capacity: auto-ended at old ceiling");
+}
+
+static void test_reset_success_reinitializes_state() {
+    LoopEngine e;
+    e.reset(10.f, 100.f);
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {1.f, 2.f, 3.f, 4.f}) e.process(x);
+    e.toggleRecord();
+    e.setSpeed(0, -2.f); e.setSize(0, 0.25f); e.setPosition(0, 0.1f);
+    const std::uint32_t rev = e.waveformRevision();
+
+    e.reset(10.f, 1.f);                     // successful reset, smaller capacity
+    check(!e.hasLoop() && e.loopLength() == 0, "reset ok: loop cleared");
+    check(!e.isRecording(),                    "reset ok: not recording");
+    check(e.maxLoopSamples() == 10,            "reset ok: capacity resized");
+    check(!e.bufferShortfall(),                "reset ok: no shortfall flag");
+    auto s = e.displaySnapshot();
+    check(s.loopLen == 0 && s.recordedLen == 0 && !s.recording,
+                                               "reset ok: display mirrors cleared");
+    check(e.waveformRevision() != rev,         "reset ok: waveform revision bumped");
+    // Head params are back to defaults (speed 1, size 1, centre 0.5).
+    soloHead0(e);
+    e.toggleRecord();
+    for (float x : {5.f, 6.f, 7.f, 8.f}) e.process(x);
+    e.toggleRecord();
+    check(near(e.process(0.f), 5.f), "reset ok: out[0]==5 (head defaults restored)");
+    check(near(e.process(0.f), 6.f), "reset ok: out[1]==6");
+    check(near(e.process(0.f), 7.f), "reset ok: out[2]==7");
+}
+
+static void test_sample_rate_change_alloc_failure_is_nonfatal() {
+    // One head: at the rate used below the ~2 ms level smoother is frozen, so
+    // soloHead0's Level-0 on the other heads would never take effect.
+    LoopEngine e(1);
+    // 1 Hz keeps the crossfade at 0 samples (like the suite's 10 Hz rate) while
+    // leaving maxSeconds_ huge, so the *rate change* is what can't be satisfied:
+    // 1e11 Hz * 1e4 s * 4 bytes ~ 4 PB per channel.
+    e.reset(1.f, 1e4f);                     // capacity 10000 samples
+    check(e.maxLoopSamples() == 10000, "sr oom: capacity 10000 before the change");
+
+    bool threw = false;
+    try { e.setSampleRate(1e11f); }
+    catch (...) { threw = true; }
+    check(!threw, "sr oom: setSampleRate never throws");
+    check(e.bufferShortfall(), "sr oom: shortfall flag raised");
+    check(e.maxLoopSamples() == 10000,
+          "sr oom: maxLoopSamples still matches the real buffer");
+
+    // Sticky-until-consumed, so the host notifies exactly once.
+    check(e.consumeBufferShortfall(),  "sr oom: consume reports the shortfall");
+    check(!e.bufferShortfall(),        "sr oom: flag cleared after consume");
+    check(!e.consumeBufferShortfall(), "sr oom: second consume reports nothing");
+
+    // Still a working looper, just with the shorter maximum loop time.
+    // The 5 ms crossfade is ~5e8 samples at this absurd rate, so turn it off
+    // to compare exact sample values.
+    e.setCrossfade(false);
+    e.toggleRecord();
+    for (int i = 0; i < 12000; ++i) e.process(static_cast<float>(i % 5) + 1.f);
+    check(e.loopLength() == 10000, "sr oom: records up to the surviving capacity");
+    check(!e.isRecording(),        "sr oom: auto-ended at the surviving ceiling");
+    e.restartHead(0);
+    check(near(e.process(0.f), 1.f), "sr oom: plays back out[0]==1");
+    check(near(e.process(0.f), 2.f), "sr oom: plays back out[1]==2");
+    check(near(e.process(0.f), 3.f), "sr oom: plays back out[2]==3");
+}
+
+static void test_sample_rate_change_alloc_failure_retries() {
+    LoopEngine e(1);
+    e.reset(1.f, 1e4f);
+    bool threw = false;
+    try {
+        e.setSampleRate(1e11f);
+        e.consumeBufferShortfall();
+        e.setSampleRate(1e11f);   // same (still unsatisfiable) rate: retry, no throw
+    } catch (...) { threw = true; }
+    check(!threw, "sr oom retry: repeated failing rate change never throws");
+    check(e.bufferShortfall(), "sr oom retry: shortfall re-raised on the retry");
+    // Falling back to a rate that fits clears the shortfall.
+    e.setSampleRate(1.f);
+    check(!e.bufferShortfall(), "sr oom retry: a successful rate change clears it");
+    check(e.maxLoopSamples() == 10000, "sr oom retry: capacity restored for 1 Hz");
+}
+
+static void test_sample_rate_change_success_sets_no_shortfall() {
+    LoopEngine e;
+    e.reset(10.f, 1.f);      // maxSamples = 10
+    soloHead0(e);
+    check(!e.bufferShortfall(), "sr ok: no shortfall after reset");
+    e.setSampleRate(20.f);   // no loop -> full reset, maxSamples = 20
+    check(!e.bufferShortfall(),        "sr ok: successful rate change sets no flag");
+    check(!e.consumeBufferShortfall(), "sr ok: nothing to consume");
+    check(e.maxLoopSamples() == 20,    "sr ok: capacity sized for the new rate");
+    e.setSampleRate(20.f);   // redundant call: early-out, still no flag
+    check(!e.bufferShortfall(), "sr ok: redundant same-rate call sets no flag");
+    e.toggleRecord();
+    for (int i = 0; i < 25; ++i) e.process(1.f);
+    check(e.loopLength() == 20, "sr ok: ceiling at the new rate (unchanged)");
+}
+
 static void test_overdub_ramps_declick() {
     LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);  // xfade = 240
     e.toggleRecord();
@@ -1595,6 +1753,12 @@ int main() {
     test_sample_rate_change_redundant_same_rate();
     test_sample_rate_change_mid_recording();
     test_sample_rate_change_empty_reallocates();
+    test_reset_alloc_failure_throws_and_preserves_loop();
+    test_reset_alloc_failure_preserves_capacity();
+    test_reset_success_reinitializes_state();
+    test_sample_rate_change_alloc_failure_is_nonfatal();
+    test_sample_rate_change_alloc_failure_retries();
+    test_sample_rate_change_success_sets_no_shortfall();
     test_nan_input_recorded_as_zero();
     test_level_smoothing();
     test_readhead_pinning();

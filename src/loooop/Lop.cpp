@@ -90,6 +90,18 @@ struct Lop : Module {
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
         engine.setSampleRate(e.sampleRate);
+        if (engine.consumeBufferShortfall()) {
+            // setSampleRate can't throw, so it kept the record buffer it
+            // already had rather than the (larger) one the new rate wants: the
+            // looper stays fully usable, just with a shorter maximum loop
+            // time. Worth surfacing so a loop that stops short doesn't look
+            // like a bug. VCV has no user-facing notification API, so this
+            // goes to the log, matching Particules/Retours. WARN is defined
+            // identically by both hosts' logger.hpp (Rack SDK and MetaModule
+            // plugin SDK).
+            WARN("Lop: record buffer allocation for %g Hz failed; max loop time is now %.1f s",
+                 e.sampleRate, engine.maxLoopSamples() / (double)e.sampleRate);
+        }
     }
 
     void onReset(const ResetEvent& e) override {
