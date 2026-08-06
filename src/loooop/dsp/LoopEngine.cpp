@@ -1,10 +1,41 @@
 #include "LoopEngine.hpp"
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 static inline float clamp01(float v) { return v < 0.f ? 0.f : (v > 1.f ? 1.f : v); }
 
+// Allocate-then-commit. The two record buffers are the plugin's only large
+// allocation (~23 MB total at 48 kHz / 60 s) and on MetaModule, where the whole
+// patch shares ~290 MB, they can genuinely fail to allocate.
+//
+// So the buffers are built into locals and committed with swap BEFORE any
+// member state is touched: reset() is all-or-nothing. If either allocation
+// throws, std::bad_alloc propagates out with the engine byte-for-byte as it
+// was — same buffers, same rate, same loop — and it stays safe to keep calling
+// process(). Do NOT go back to vector::assign(): libc++ deallocates the old
+// buffer before allocating the new one, so a throw leaves the vectors EMPTY
+// while loopLen_ still says there is audio, and the next process() reads
+// through a null pointer.
+//
+// bad_alloc deliberately still escapes: the construction path
+// (LoooopCore/LopCore) relies on it reaching the firmware, which then refuses
+// to add the module with "Not enough memory to load module". setSampleRate()
+// is the path that must not throw, and it catches this itself.
+//
+// Cost of the guarantee: peak memory during a resize is old L+R plus new L+R,
+// one buffer more than assign()'s worst case. Acceptable — the alternative is
+// freeing first and having nothing to fall back on.
 void LoopEngine::reset(float sampleRate, float maxSeconds) {
+    const std::size_t want = static_cast<std::size_t>(sampleRate * maxSeconds);
+    std::vector<float> newL(want, 0.f);
+    std::vector<float> newR(want, 0.f);
+    // --- past this point nothing may throw ---
+    bufL_.swap(newL);
+    bufR_.swap(newR);
+    maxSamples_ = want;                 // always == bufL_.size() == bufR_.size()
+    // The buffer now matches the request, so any earlier shortfall is resolved.
+    bufferShortfall_.store(false, std::memory_order_relaxed);
     maxSeconds_ = maxSeconds;
     sampleRate_ = sampleRate;
     // ~5 ms declick crossfade. Rounds to 0 at very low sample rates (e.g. the
@@ -18,8 +49,6 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     levelAlpha_ = 1.f - std::exp(-1.f / (0.002f * sampleRate));   // ~2 ms; ==1 at test rates
     minWinLen_ = std::ceil(
         static_cast<double>(sampleRate) * MINIMUM_LOOP_MILLISECONDS / 1000.0);
-    maxSamples_ = static_cast<std::size_t>(sampleRate * maxSeconds);
-    bufL_.assign(maxSamples_, 0.f); bufR_.assign(maxSamples_, 0.f);   // pre-allocate once; never resized in audio
     writeIdx_ = 0;
     loopLen_ = 0;
     invLoopLen_ = 0.f;
@@ -43,12 +72,38 @@ void LoopEngine::reset(float sampleRate, float maxSeconds) {
     bumpWaveformRevision();
 }
 
-void LoopEngine::setSampleRate(float sampleRate) {
+// Never throws. The firmware calls this from PatchPlayer::set_samplerate,
+// which has no try/catch anywhere above it, so an escaping exception would
+// reach std::terminate and take the device down — and 96 kHz is user-selectable
+// (it doubles the buffer). On allocation failure we fall through to the
+// retune-only path: rate-derived scalars are recomputed and the existing,
+// smaller buffer is kept. The only user-visible degradation is a shorter
+// maximum loop time, which bufferShortfall() reports to the host.
+void LoopEngine::setSampleRate(float sampleRate) noexcept {
     if (loopLen_ == 0 && !recording_) {
-        if (sampleRate == sampleRate_ && bufL_.size() == maxSamples_ && maxSamples_ != 0)
-            return;                       // already sized for this rate; skip the ~23 MB refill
-        reset(sampleRate, maxSeconds_);   // nothing to lose; size for the new rate
-        return;
+        const std::size_t want = static_cast<std::size_t>(sampleRate * maxSeconds_);
+        // Skip the ~23 MB refill only when the buffer we hold really is the
+        // one this rate wants. maxSamples_ < want means an earlier change fell
+        // short, so retry the allocation instead of early-outing: memory may
+        // have been freed since (another module unloaded, say).
+        if (sampleRate == sampleRate_ && bufL_.size() == maxSamples_
+            && maxSamples_ != 0 && maxSamples_ >= want)
+            return;
+        try {
+            reset(sampleRate, maxSeconds_);   // nothing to lose; size for the new rate
+            return;
+        } catch (...) {
+            // Catch-all, not just bad_alloc: the two vector constructions are
+            // the only throwing operations in reset(), and an out-of-range
+            // request raises length_error rather than bad_alloc (reachable on
+            // 32-bit ARM, where vector<float>::max_size is only 2^29). Both
+            // mean the same thing here, and "never throws" has to hold for
+            // every one of them.
+            //
+            // reset() is all-or-nothing, so the engine is untouched: the old
+            // buffer is intact and maxSamples_ still describes it.
+            bufferShortfall_.store(true, std::memory_order_relaxed);
+        }
     }
     sampleRate_ = sampleRate;
     xfadeSamples_ = static_cast<std::uint32_t>(0.005f * sampleRate + 0.5f);
@@ -61,6 +116,11 @@ void LoopEngine::setSampleRate(float sampleRate) {
     // minWinLen_ isn't part of the cache's compare set; invalidate explicitly.
     for (auto& perHead : winCache_)
         for (auto& c : perHead) c.loopLen = static_cast<std::size_t>(-1);
+    // Belt-and-braces: maxSamples_ is the record ceiling, so it must never
+    // exceed what the buffer can actually hold. It already matches on both
+    // paths reaching here (reset() commits them together, and the failure
+    // path above leaves both untouched); this makes the invariant explicit.
+    maxSamples_ = std::min(maxSamples_, bufL_.size());
 }
 
 void LoopEngine::toggleRecord(bool continueOverdub) {

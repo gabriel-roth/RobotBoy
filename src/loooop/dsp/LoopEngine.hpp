@@ -17,12 +17,23 @@ public:
         : numHeads_(numHeads < 1 ? 1 : (numHeads > NUM_HEADS ? NUM_HEADS : numHeads)) {}
     int numHeads() const { return numHeads_; }
 
+    // Allocates the record buffers (sampleRate * maxSeconds per channel) and
+    // returns the engine to its initial state. All-or-nothing: if the
+    // allocation fails, std::bad_alloc propagates and the engine is left
+    // exactly as it was, still safe to keep processing. Hosts call this from
+    // their constructors and let the throw escape — the MetaModule firmware
+    // catches it and refuses to add the module, which is the intended
+    // behaviour. See the comment on the definition.
     void reset(float sampleRate, float maxSeconds = 60.f);
     // Retune to a new sample rate WITHOUT destroying a recorded loop: the
     // loop plays back repitched. Only reallocates (full reset) when there is
     // nothing to lose (no loop, not recording) — never audio-adjacent with
     // content in the buffer (see the clear() comment for why that matters).
-    void setSampleRate(float sampleRate);
+    // Never throws: the firmware's set_samplerate path has no try/catch above
+    // it, so an escaping exception would reach std::terminate. If the buffer
+    // for the new rate can't be allocated, the engine keeps the one it has
+    // (shorter maximum loop time) and raises bufferShortfall().
+    void setSampleRate(float sampleRate) noexcept;
     void process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& heads);
     // Mono convenience: inL=inR=in, returns the level-weighted sum of head L
     // (mix-like, no pan) — mirrors the hosts' Mix path.
@@ -73,6 +84,12 @@ public:
     void triggerOneShot(int head);        // (re)start a one-shot pass
     void jumpHead(int head, float t01);   // pos = winStart + t01 * (winLen - 1)
 
+    // Real record-buffer capacity in samples. Normally
+    // sampleRate * maxSeconds, but after a failed sample-rate change it is the
+    // (smaller) capacity the engine kept — always == the actual buffer size,
+    // so it is the only source of truth for "how long can this loop be".
+    std::size_t maxLoopSamples() const { return maxSamples_; }
+
     // introspection (tests)
     std::size_t loopLength() const { return loopLen_; }
     bool isRecording() const { return recording_; }
@@ -103,6 +120,26 @@ public:
         // doesn't look broken.
         std::array<bool, NUM_HEADS> playing;
     };
+    // Buffer-shortfall flag. Set when setSampleRate() could not allocate the
+    // record buffer for the new rate and kept the (smaller) buffer it already
+    // had: the engine stays fully usable, but maxLoopSamples() — the maximum
+    // loop time — is now less than maxSeconds at the new rate. Cleared by any
+    // later successful reset()/setSampleRate(), since the condition no longer
+    // holds. Hosts use this to tell the user once, e.g.
+    //
+    //     engine.setSampleRate(sr);
+    //     if (engine.consumeBufferShortfall()) notify("...");
+    //
+    // Safe to read from the GUI/display thread while audio runs: it is a
+    // single relaxed atomic, like the dispPos01_ display mirrors.
+    bool bufferShortfall() const {
+        return bufferShortfall_.load(std::memory_order_relaxed);
+    }
+    // Read-and-clear: returns true exactly once per shortfall event.
+    bool consumeBufferShortfall() {
+        return bufferShortfall_.exchange(false, std::memory_order_relaxed);
+    }
+
     DisplaySnapshot displaySnapshot() const;
     std::uint32_t waveformRevision() const {
         return waveformRevision_.load(std::memory_order_acquire);
@@ -246,4 +283,9 @@ private:
     std::array<std::atomic<float>, NUM_HEADS> dispWinStart01_{};
     std::array<std::atomic<float>, NUM_HEADS> dispWinEnd01_{};
     std::array<std::atomic<bool>, NUM_HEADS> dispPlaying_{};
+
+    // Sticky "running on a smaller buffer than requested" flag (see
+    // bufferShortfall()). Atomic because the GUI thread polls it while the
+    // audio thread's setSampleRate() may be setting it.
+    std::atomic<bool> bufferShortfall_{false};
 };

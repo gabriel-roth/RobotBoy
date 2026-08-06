@@ -4,11 +4,13 @@
 #include "dsp/LoopEngine.hpp"
 #include "display/LoopWaveformRenderer.hpp"
 #include "LooperModuleDSP.hpp"
+#include "gui/notification.hh"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
 #include <span>
 #include <string>
+#include <string_view>
 
 namespace MetaModule
 {
@@ -16,6 +18,25 @@ namespace MetaModule
 // MetaModule pixel word layout, matching PixelRGBA::raw() in the SDK.
 static uint32_t packARGB(uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     return (uint32_t(a) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | b;
+}
+
+// Builds the buffer-shortfall notice into a caller-owned stack buffer and
+// returns a view of it. Deliberately not a std::string: notify_user itself is
+// safe from the audio context, but building a string there is not (SDK
+// docs/system-api.md), and set_samplerate runs in the audio context.
+// ASCII only -- the MetaModule font renders en/em-dashes and other non-ASCII
+// as boxes. Quoting the resulting maximum loop time (real capacity / rate, to
+// one decimal) is far more use to the player than a vague "reduced".
+static std::string_view shortfallNotice(char (&buf)[96], std::size_t maxSamples, float sr) {
+    static constexpr std::string_view head = "Loooop: not enough memory at this sample rate. Max loop time now ";
+    static constexpr std::string_view tail = " sec";
+    const unsigned tenths = sr > 0.f ? unsigned(double(maxSamples) * 10.0 / double(sr)) : 0u;
+    char* p = std::copy(head.begin(), head.end(), buf);
+    p = std::to_chars(p, buf + sizeof buf, tenths / 10u).ptr;
+    *p++ = '.';
+    *p++ = char('0' + tenths % 10u);
+    p = std::copy(tail.begin(), tail.end(), p);
+    return {buf, std::size_t(p - buf)};
 }
 
 class LoooopCore : public SmartCoreProcessor<LoooopInfo> {
@@ -121,6 +142,20 @@ public:
 
     void set_samplerate(float sr) override {
         engine_.setSampleRate(sr);   // preserve a recorded loop (matches VCV onSampleRateChange)
+        // Notifying from here is safe, and checked rather than assumed: the
+        // firmware reaches set_samplerate from the AUDIO context, not the GUI
+        // one -- audio.cc's codec DMA callback ends with update_audio_settings()
+        // (audio.cc:126), which stops the codec, changes the rate, then calls
+        // PatchPlayer::set_samplerate (patch_player.hh:635) before restarting
+        // it. Gui::notify_user is documented "safe to be called from audio
+        // context" (SDK docs/system-api.md) -- it only pushes a fixed-size
+        // Notification onto the GUI's queue -- and 4ms's own BWAVPCore calls it
+        // straight out of update(). The one documented hazard is building a
+        // std::string there, which shortfallNotice avoids.
+        if (engine_.consumeBufferShortfall()) {
+            char msg[96];
+            Gui::notify_user(shortfallNotice(msg, engine_.maxLoopSamples(), sr), 3000);
+        }
         const float a = loooop::smootherAlpha(sr, 0.002f);
         mixSm_.alpha = a;
         for (auto& s : panSm_) s.alpha = a;
