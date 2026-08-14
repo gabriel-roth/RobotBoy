@@ -27,7 +27,7 @@ A granular texture processor: it records your input and plays back a swarm of sh
 
 <img src="screenshots/Retours.png" alt="Retours module" height="300">
 
-A delay and beat-slicer based on Beads’s hidden delay mode: manual, clocked, or tap-tempo delay times down to audio rates (Karplus-Strong), a beat-slicer, a pitch shifter, and tempo-synced repeat shaping. [**[Manual]**](Retours.md)
+A delay and beat-slicer based on Beads’s hidden delay mode, with manual, clocked, or tap-tempo delay times down to audio rates. [**[Manual]**](Retours.md)
 
 ### Ondes
 
@@ -40,7 +40,7 @@ A simple VCO based on Beads’s secret morphing wavetable oscillator: two knobs 
 <img src="screenshots/Loooop.png" alt="Loooop module" height="300">
 <img src="screenshots/Lop.png" alt="Löp module" height="300">
 
-A stereo RAM looper: capture a loop, then play it back with four independent playheads, each with its own speed, position, length, and jitter. Get granular glitches and backward drones simultaneously. Löp is the single-playhead version. [**[Manual]**](Loooop.md)
+A stereo RAM looper: capture a loop, then play it back with four independent playheads, each with its own speed, position, length, and jitter. Löp is the single-playhead version. [**[Manual]**](Loooop.md)
 
 ## Filters
 
