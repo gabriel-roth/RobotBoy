@@ -1,6 +1,6 @@
 PatchData:
   patch_name: RB-Particules-1
-  description: 'Free-running texture & qualities: drum loop into Particules, all four quality modes, freeze, attenurandomizers'
+  description: 'Free-running texture & qualities: melodic loop into Particules, all four quality modes, freeze, attenurandomizers'
   module_slugs:
     0: '4msCompany:HubMedium'
     1: 'RobotBoy:Particules'
@@ -42,7 +42,7 @@ PatchData:
     - {module_id: 1, param_id: 6, value: 0.45}
     - {module_id: 1, param_id: 7, value: 0}
     - {module_id: 1, param_id: 8, value: 0.25}
-    - {module_id: 1, param_id: 9, value: 0.85}
+    - {module_id: 1, param_id: 9, value: 1}
     - {module_id: 1, param_id: 10, value: 0.75}
     - {module_id: 1, param_id: 11, value: 0.5}
     - {module_id: 1, param_id: 12, value: 0.5}
@@ -83,4 +83,4 @@ PatchData:
         {"qualityState":0,"seedState":0,"autoGain":true,"manualGainDb":0.0,"pitchScale":0,"pitchRoot":0,"grainTriggerOut":false}
     - module_id: 2
       data: |-
-        drum-loop.wav
+        melody-loop.wav

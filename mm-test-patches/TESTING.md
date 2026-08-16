@@ -1,13 +1,13 @@
 # Robot Boy MetaModule test patches
 
-Nineteen patches covering every feature of the eight Robot Boy modules on MetaModule hardware, one Robot Boy module per patch. Copy this whole directory onto the MetaModule's SD card — the patches that use the drum loop expect `drum-loop.wav` in the **same directory** as the `.yml` files.
+Nineteen patches covering every feature of the eight Robot Boy modules on MetaModule hardware, one Robot Boy module per patch. Copy this whole directory onto the MetaModule's SD card — the patches that use a WAV loop expect `drum-loop.wav` and `melody-loop.wav` in the **same directory** as the `.yml` files.
 
 **Plugins required on the MetaModule:** Robot Boy (the release candidate build), Fundamental, Bogaudio, Count Modula. (The 4ms modules are built in.)
 
 ## Conventions
 
 - **Buttons live on knobs.** The Hub has no mappable buttons, so button params (Record, Clear, Freeze, Slice, Tap tempo, WAV restart) are mapped to small knobs: **twist up past center = press, twist back down = release.** One press = one full up-down twist. Latching params (Freeze, Slice) simply hold while the knob is up.
-- **Drum-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z).
+- **WAV-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z). The Loooop patches use `drum-loop.wav`; RB-Particules-1 uses `melody-loop.wav`, a 4-second loop of eight plucked notes ascending an A-minor arpeggio followed by a steady held tone (A3) — built so pitch shifts, buffer position, and pitch-wobble artifacts are all audible.
 - **Never open a module's menu.** Every alternate context-menu setting under test is baked into its own patch via saved module state (that's what the -2/-3 patches are). If a test seems to need a menu, that's a bug in the patch, not the procedure.
 - **Bring four external signals** across the session: an LFO (any shape, slow to audio-rate), a pitch CV source (keyboard/sequencer, 1 V/oct), a clock/gate/trigger source, and an audio-rate oscillator. Also bring a **passive mult or stackcable** — a couple of tracking tests feed the same pitch CV into two panel inputs at once. Panel jack assignments are aliased in each patch (visible on the jack roller).
 - **Some patches have a second knob set** (extra mix/utility controls that didn't fit on the twelve knobs). A step that needs it says so by name, e.g. "switch to Knob Set 2 (*Head Levels*)". Switching sets never changes a param by itself — the set you leave holds its values.
@@ -15,7 +15,7 @@ Nineteen patches covering every feature of the eight Robot Boy modules on MetaMo
 - **Main audio is always Out 1 / Out 2.** Extra taps (individual playheads, filter responses) sit on Outs 3-5 where noted.
 - A few behaviors key off whether a **physical cable** is present in a mapped input (Particules/Retours attenurandomizers switch between randomizer and CV-attenuator; Particules auto-gain recalibrates on patch/unpatch; Seed/Clock detection). Steps that depend on this say so — if something behaves as if a cable were patched when the jack is empty, note it as a finding.
 
-All 19 patches load clean in the MetaModule headless simulator with the current Robot Boy build (module counts verified, states applied); patches that make sound without external input were additionally verified non-silent (Ondes drone, Vespid German self-oscillation — note the German *hardware-pitch* build-up takes a few seconds to bloom).
+All 19 patches load clean in the MetaModule headless simulator with the current Robot Boy build (module counts verified, states applied); patches that make sound without external input were additionally verified non-silent (Ondes drone, Vespid German self-oscillation — note the German *hardware-pitch* build-up takes a few seconds to bloom — and Particules-1's grain bursts from the melody loop).
 
 ---
 
@@ -620,9 +620,9 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 4. Drive a bright, hot audio-rate signal (raw saw or square, high pitch) into In 3, with C high and A high — **Expect:** clean. Vespid is fixed at 4× oversampling in every build, so no inharmonic "birdies" sweeping the wrong way as you play up.
 5. Leaving those hot settings from step 4 in place, watch the device CPU meter and turn knobs — **Expect:** acceptable headroom, no audio dropouts. Vespid always pays the 4× cost, so this is its worst-case figure; note it alongside the Onbetap numbers from RB-Onbetap-3.
 
-## RB-Particules-1 — Free-running texture & qualities (Particules, granular texture from a baked-in drum loop)
+## RB-Particules-1 — Free-running texture & qualities (Particules, granular texture from a baked-in melodic loop)
 
-**Setup:** A drum loop (drum-loop.wav, looping) auto-starts about 2 s after the patch loads and feeds Particules. All twelve knobs are spoken for, so the loop-restart control lives on Knob Set 2 (*Utility*): if the loop isn't playing, switch there, twist z up then down, and switch back. Particules output on Out 1 (L) / Out 2 (R). Baked state: Triggers seed mode, auto-gain on, pitch quantizer off, grain trigger out off. Starting texture: Density 65%, Time 30%, Size 55%, Shape 45%, Reverb 25%, Dry/Wet 85%, Time attenuverter fixed at +75%. Seed input is deliberately unmapped — Density free-runs.
+**Setup:** A melodic loop (melody-loop.wav, looping — eight plucked notes up an A-minor arpeggio, then \~1.5 s of steady held A3) auto-starts about 2 s after the patch loads and feeds Particules. The tonal source is the point: semitone Pitch steps, buffer position, and the Sunny/Scorched pitch waver are all audible against it in a way they never were against drums. All twelve knobs are spoken for, so the loop-restart control lives on Knob Set 2 (*Utility*): if the loop isn't playing, switch there, twist z up then down, and switch back. Particules output on Out 1 (L) / Out 2 (R). Baked state: Triggers seed mode, auto-gain on, pitch quantizer off, grain trigger out off. Starting texture: Density 65%, Time 30%, Size 55%, Shape 45%, Reverb 25%, Dry/Wet 100% (fully wet — no dry bleed under the grains), Time attenuverter fixed at +75%. Seed input is deliberately unmapped — Density free-runs. At the loaded Density the cloud is *sparse* — scattered grains with gaps, not a wash. That's the starting point, not a fault; step 1 thickens it.
 
 **Panel:**
 
@@ -649,15 +649,15 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 *Block 1 — Density, and the shape of a grain · from a freshly loaded patch. Runs in order; each step leaves the state the next wants.*
 
 1. Sweep A (Density) through its whole range — **Expect:** exactly 12 o'clock is silence; clockwise gives random grain clouds thickening as you go; counter-clockwise gives a metronomic pulse, denser the further you turn. Leave A somewhere clockwise with a comfortable cloud.
-2. Sweep C (Size) from about 9 o'clock to full — **Expect:** grains lengthen from short ticks to long overlapping swells. Take C counter-clockwise of centre — **Expect:** grains play reversed. Return C to \~55%.
-3. Sweep D (Shape) — **Expect:** grain attacks move from clicky and percussive at one end to soft swells at the other.
-4. Turn E (Pitch) — **Expect:** grain pitch steps through semitone notches; centre = original pitch, roughly 3 o'clock = +12 st.
+2. Sweep C (Size) from about 9 o'clock to full — **Expect:** grains lengthen from single plucks to long overlapping phrases of the arpeggio. Take C counter-clockwise of centre — **Expect:** grains play reversed: each pluck becomes a swell that ends in its attack, unmistakably backwards. Return C to \~55%.
+3. Sweep D (Shape) — **Expect:** grain attacks move from clicky and percussive at one end to soft swells at the other (clearest on grains that land on the held-tone part of the loop, where the envelope is the only transient).
+4. Turn E (Pitch) — **Expect:** grain pitch steps through semitone notches — each notch a clearly musical half-step against the source notes; centre = original pitch, roughly 3 o'clock = +12 st (grains land an exact octave up — if the interval at 3 o'clock is audibly not an octave, that's a finding).
 
 **Reset:** reload the patch.
 
 *Block 2 — Freeze · from a freshly loaded patch. Runs in order; step 7 needs Freeze still engaged from step 5.*
 
-5. Twist u up past mid (Freeze on), then sweep B (Time) — **Expect:** you scrub through a frozen snapshot of the loop; new incoming audio is ignored.
+5. Twist u up past mid (Freeze on), then sweep B (Time) — **Expect:** you scrub through a frozen snapshot of the loop: different knob positions land on different, identifiable arp notes (low notes one way, high notes and the held tone the other), and holding B still repeats the same pitch indefinitely. New incoming audio is ignored — if the pitches under a parked knob keep changing as the loop plays on, the freeze isn't freezing.
 6. Release u, then do the same with a gate into Gate In 1 — **Expect:** identical freeze behavior from the jack.
 7. With Freeze still engaged, try to move v (Quality) — **Expect:** quality does NOT change while frozen. Release the freeze — **Expect:** the pending change now takes.
 
@@ -671,14 +671,14 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 4 — Time CV and cable detection · from a freshly loaded patch*
 
-9. Patch a slow LFO into In 1 — **Expect:** the read position scrubs back and forth through the loop (the Time attenuverter is fixed at +75%, so the sweep is wide but not full-range).
+9. Patch a slow LFO into In 1 — **Expect:** the read position scrubs back and forth through the loop — you hear it walk up and down the arpeggio (the Time attenuverter is fixed at +75%, so the sweep is wide but not full-range).
 10. Remove the cable from In 1 — **Expect:** no effect at all from the empty jack. Flag anything that behaves as if a cable were still present.
 
 **Reset:** reload the patch.
 
 *Block 5 — the four Qualities · from a freshly loaded patch. Each Quality change re-formats the buffer, so expect a brief mute and a refill each time; that's normal, not a dropout.*
 
-11. Step v (Quality) through its four positions, giving the buffer a couple of seconds to refill at each — **Expect:** Bright = clean; Cold = 12-bit Clouds-style grit; Sunny = darker with a GENTLE cassette waver, not seasick; Scorched = 8-bit crunch plus obvious warble.
+11. Step v (Quality) through its four positions, giving the buffer a couple of seconds to refill at each — **Expect:** Bright = clean; Cold = 12-bit Clouds-style grit; Sunny = darker with a GENTLE cassette waver, not seasick; Scorched = 8-bit crunch plus obvious warble. Judge the waver on grains from the held-tone part of the loop — a steady tone is where pitch instability shows; on Bright and Cold that tone should hold rock-steady.
 12. Park v on Scorched and set w (Feedback) to about 60%, then let it run — **Expect:** repeats degrade into tape mush.
 13. Leaving w where it is, step v back to Bright — **Expect:** the same feedback setting stays clean and simply builds, held in check by the per-quality limiter. That contrast is the point of the block.
 
@@ -687,9 +687,9 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 *Block 6 — reverb and mix · from a freshly loaded patch*
 
 14. Turn x (Reverb) up past noon — **Expect:** a smooth reverb tail blooms around the grains; back at 0 it's gone.
-15. Turn F (Dry/Wet) down — **Expect:** the untouched drum loop fades in under the grains.
+15. Turn F (Dry/Wet) down from full wet — **Expect:** the untouched melodic loop fades in under the grains; at full counter-clockwise the grains are gone entirely.
 
-*Utility, any time:* if the drum loop stops, switch to Knob Set 2 (*Utility*), twist z up then down, and switch back.
+*Utility, any time:* if the melody loop stops, switch to Knob Set 2 (*Utility*), twist z up then down, and switch back.
 
 ## RB-Particules-2 — Clocked melodic grains + grain trigger out (Particules, Seed-clocked quantized grain voice)
 
