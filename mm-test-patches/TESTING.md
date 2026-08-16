@@ -1,13 +1,13 @@
 # Robot Boy MetaModule test patches
 
-Nineteen patches covering every feature of the eight Robot Boy modules on MetaModule hardware, one Robot Boy module per patch. Copy this whole directory onto the MetaModule's SD card — the patches that use a WAV loop expect `drum-loop.wav` and `melody-loop.wav` in the **same directory** as the `.yml` files.
+Nineteen patches covering every feature of the eight Robot Boy modules on MetaModule hardware, one Robot Boy module per patch. Copy this whole directory onto the MetaModule's SD card — the patches that use a WAV loop expect `drum-loop.wav`, `melody-loop.wav` and `delay-test-loop.wav` in the **same directory** as the `.yml` files.
 
 **Plugins required on the MetaModule:** Robot Boy (the release candidate build), Fundamental, Bogaudio, Count Modula. (The 4ms modules are built in.)
 
 ## Conventions
 
 - **Buttons live on knobs.** The Hub has no mappable buttons, so button params (Record, Clear, Freeze, Slice, Tap tempo, WAV restart) are mapped to small knobs: **twist up past center = press, twist back down = release.** One press = one full up-down twist. Latching params (Freeze, Slice) simply hold while the knob is up.
-- **WAV-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z). The Loooop patches use `drum-loop.wav`; RB-Particules-1 uses `melody-loop.wav`, a 4-second loop of eight plucked notes ascending an A-minor arpeggio followed by a steady held tone (A3) — built so pitch shifts, buffer position, and pitch-wobble artifacts are all audible.
+- **WAV-loop patches start themselves.** A Count Modula StartupDelay fires the 4ms WAV player about 2 seconds after the patch loads. If the loop isn't playing, twist the knob mapped as *Loop restart / Reload loop* (usually knob z). The Loooop patches use `drum-loop.wav`; RB-Particules-1 uses `melody-loop.wav`, a 4-second loop of eight plucked notes ascending an A-minor arpeggio followed by a steady held tone (A3) — built so pitch shifts, buffer position, and pitch-wobble artifacts are all audible. RB-Retours-1 and -2 use `delay-test-loop.wav`, described in their Setup: a *deliberately sparse* 8-second loop, because an echo that lands on top of fresh source material can't be heard as an echo.
 - **Never open a module's menu.** Every alternate context-menu setting under test is baked into its own patch via saved module state (that's what the -2/-3 patches are). If a test seems to need a menu, that's a bug in the patch, not the procedure.
 - **Bring four external signals** across the session: an LFO (any shape, slow to audio-rate), a pitch CV source (keyboard/sequencer, 1 V/oct), a clock/gate/trigger source, and an audio-rate oscillator. Also bring a **passive mult or stackcable** — a couple of tracking tests feed the same pitch CV into two panel inputs at once. Panel jack assignments are aliased in each patch (visible on the jack roller).
 - **Some patches have a second knob set** (extra mix/utility controls that didn't fit on the twelve knobs). A step that needs it says so by name, e.g. "switch to Knob Set 2 (*Head Levels*)". Switching sets never changes a param by itself — the set you leave holds its values.
@@ -814,7 +814,11 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 ## RB-Retours-1 — Tape delay, slicer, shimmer (Retours, full feature tour in Tape/doppler time-change mode)
 
-**Setup:** Drum loop (BWAVP, looping, auto-started \~2 s after load) feeds Retours in stereo; delay mix on Out 1/2. Baked state: Tape (doppler) time-change, Bright quality. Feedback starts at 40%, Dry/Wet 50%, Interval at its default .35, Time at 1×. If the loop ever stops, twist knob z up and back down to restart it.
+**Setup:** `delay-test-loop.wav` (BWAVP, looping, auto-started \~2 s after load) feeds Retours through an attenuverter acting as an input level; delay mix on Out 1/2. Baked state: Tape (doppler) time-change, Bright quality. Feedback starts at 40%, Dry/Wet 50%, Interval at its default .35 (\~0.4 s delay), Time at 1×. The source is mono into both inputs — nothing here tests stereo source content.
+
+**The loop is sparse on purpose, and its four sections each do a job.** Over 8 seconds: a single bright **blip**, then \~2.9 s of **silence** (long enough to hear roughly seven repeats at the loaded delay time), then **three quick plucks** in rhythm, a second gap, then a **2-second steady held tone**, then silence. Use the gaps to hear individual repeats and count them, the plucks for the slice tests, and the held tone for anything involving pitch — doppler bend, shimmer, and quality waver all read on a sustained tone and are close to inaudible on a transient.
+
+**Knob z is Input level, and it is the most useful knob in this patch.** Turn it fully down to mute the source and leave the delay running on its own tail — that's the only way to judge decay, unity feedback, and how repeats degrade, since a source that keeps feeding the line hides all three. It loads fully up (unity). **Knob Set 2 (*Utility*)** holds z = Loop restart, for the rare case where the source stops.
 
 **Panel:**
 
@@ -831,7 +835,8 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 | Knob w | Tap (twist up) | Tap tempo button |
 | Knob x | Time AR | Time attenurandomizer |
 | Knob y | Pitch AR | Pitch attenurandomizer |
-| Knob z | Loop restart | BWAVP Play (twist up then down to replay) |
+| Knob z | Input level | Source level into Retours: fully up = unity, fully down = silence (loads up) |
+| Knob z (Set 2: *Utility*) | Loop restart | BWAVP Play (twist up then down to replay) |
 | In 1 | Time CV | Time CV |
 | In 2 | Interval CV | Interval CV |
 | Gate In 1 | Clock | Clock input (patching it switches Interval to divider mode) |
@@ -841,23 +846,23 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 1 — manual time and the doppler swoop · from a freshly loaded patch, nothing patched. Runs in order.*
 
-1. Sweep A from 12 o'clock toward CCW — **Expect:** a single clean echo tap whose delay shortens as you turn; 12 o'clock is the longest delay.
-2. Sweep A to the CW side — **Expect:** a second, uneven tap joins: a galloping two-tap pattern, not an even doubling.
-3. Set A near 12 o'clock, then turn B up through its range — **Expect:** the delay time multiplies 1-16× and repeats get much longer.
-4. Raise C to \~60% so repeats are audibly regenerating, then grab A or B and turn — **Expect:** the echoes pitch-bend like varispeed tape, swooping DOWN as you lengthen and UP as you shorten, with no clicks. This is the behavior RB-Retours-2 replaces, so fix it in your ear before moving on.
+1. Listen through a full loop, watching the gap after the blip — **Expect:** blip, then a single clean echo repeating into the silence. Sweep A from 12 o'clock toward CCW — **Expect:** the spacing between those echoes shortens as you turn, and more of them fit in the gap; 12 o'clock is the longest delay (\~4 s, longer than the gap, so there you get one echo landing well after the blip).
+2. Sweep A to the CW side — **Expect:** a second, uneven tap joins: in the gap you hear a galloping two-tap pattern — *ta-tak … ta-tak* — not an even doubling.
+3. Set A near 12 o'clock, then turn B up through its range — **Expect:** the delay time multiplies 1-16× and repeats stretch out until they run past the gap into the next section of the loop.
+4. Raise C to \~60% so repeats are audibly regenerating. Wait for the **held tone** to arrive, turn z (Input level) fully down as it ends so the tail rings on alone, then grab A or B and turn — **Expect:** the ringing tone pitch-bends like varispeed tape, swooping DOWN as you lengthen and UP as you shorten, with no clicks. Muting first is what makes this obvious: you're bending a sustained pitch with nothing else in the way. This is the behavior RB-Retours-2 replaces, so fix it in your ear before moving on.
 
 **Reset:** reload the patch.
 
 *Block 2 — Time CV and the tape wander · from a freshly loaded patch. Step 6 requires In 1 to be EMPTY, so the order matters.*
 
-5. Patch a small slow sine LFO into In 1 (Time CV) — **Expect:** a tape-warble chorus on the repeats, a gentle cyclic detune.
-6. Unpatch In 1, then turn x (Time AR) toward CCW — **Expect:** a slow tape-mechanism wander creeps into the repeat timing: irregular drift, not a regular vibrato. This depends on the jack sensing no cable, so flag anything odd if the mapped-but-empty jack misbehaves.
+5. Patch a small slow sine LFO into In 1 (Time CV) — **Expect:** a tape-warble chorus on the repeats, a gentle cyclic detune. Judge it on the held tone, where a cyclic detune is unmistakable; on the plucks it only sounds like slightly loose timing.
+6. Unpatch In 1, then turn x (Time AR) toward CCW — **Expect:** a slow tape-mechanism wander creeps into the repeat timing: irregular drift, not the regular vibrato of step 5. Easiest to hear as uneven spacing between the echoes of the blip in the long gap. This depends on the jack sensing no cable, so flag anything odd if the mapped-but-empty jack misbehaves.
 
 **Reset:** reload the patch.
 
 *Block 3 — clocked mode · from a freshly loaded patch, with a steady clock in Gate In 1. Runs in order; step 10 needs the clock REMOVED, so do it last.*
 
-7. Patch the clock into Gate In 1 — **Expect:** Interval (A) becomes a divider: the CCW side steps 1/2, 1/4, 1/8, 1/16 and the CW side gives triplet divisions. Repeats lock to the clock.
+7. Patch the clock into Gate In 1 — **Expect:** Interval (A) becomes a divider: the CCW side steps 1/2, 1/4, 1/8, 1/16 and the CW side gives triplet divisions. Repeats lock to the clock — count them in the gap after the blip, where the division is countable rather than merely felt.
 8. Nudge the clock tempo up and down while it runs — **Expect:** repeats stay locked to the new tempo with no free-run drift.
 9. Still clocked, turn B — **Expect:** Time snaps to musical multiples instead of sweeping continuously. Then turn E (Shape) up in stages — **Expect:** the repeat envelope steps flat → gated → swell → slow ramp, phase-locked to the beat.
 10. Unpatch the clock, then twist w up/down four times in rhythm — **Expect:** tap tempo takes over, the light blinks the tapped beat, and the tempo holds. Re-tap to change it. **Note:** a tapped tempo persists — clearing it is menu-only — so reload the patch before the next block rather than leaving a tempo saved.
@@ -866,8 +871,8 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 4 — slice / beat-repeat · from a freshly loaded patch. Runs in order; steps 12-13 need the slice still latched from step 11.*
 
-11. Twist u up (Slice latch) while the drum loop plays — **Expect:** capture stops instantly and a slice repeats: an immediate beat-repeat hold.
-12. While still sliced, turn B — **Expect:** B chooses WHICH slice of the held audio repeats.
+11. Twist u up (Slice latch) during the three-pluck figure — **Expect:** capture stops instantly and a slice repeats: an immediate beat-repeat hold, stuttering on whichever plucks were caught.
+12. While still sliced, turn B — **Expect:** B chooses WHICH slice of the held audio repeats — you should be able to land on a different pluck, or on the silence between them, and hear the held fragment change.
 13. While still sliced, turn A — **Expect:** A sets the slice length. Twist u back down to release.
 14. Send a gate into Gate In 2 instead — **Expect:** the same slice behavior, held only while the gate is high.
 
@@ -875,26 +880,28 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 5 — shimmer and pitch · from a freshly loaded patch. Step 17 needs the Pitch CV jack EMPTY.*
 
-15. Turn D to the +12 st notch and set C to \~65% — **Expect:** each repeat climbs an octave, a rising shimmer ladder.
-16. Return D exactly to centre — **Expect:** the shifter is truly bypassed: repeats are clean copies with no chorus blur or detune haze. If centre still smears, that's a finding.
+15. Turn D to the +12 st notch and set C to \~65% — **Expect:** each repeat climbs an octave, a rising shimmer ladder. In the gap after the blip you should be able to hear it as a ladder of discrete octave steps, not a general brightening.
+16. Return D exactly to centre and listen to the held tone's repeats — **Expect:** the shifter is truly bypassed: repeats are clean copies of the tone, holding one steady pitch with no chorus blur or detune haze. If centre still smears, that's a finding.
 17. With nothing patched to a Pitch CV jack, turn y (Pitch AR) off-centre — **Expect:** a random per-repeat pitch spread; back at centre, exact repeats.
 
 **Reset:** reload the patch.
 
 *Block 6 — feedback and the four Qualities · from a freshly loaded patch. Deliberately cumulative: each over-unity build needs to run for a while, so don't reload mid-build. DO reload between Qualities so each starts from the same place.*
 
-18. Set C just below the 90% arrow — **Expect:** repeats decay away. At the arrow — **Expect:** they hold at unity. Above it — **Expect:** they grow each pass.
-19. With C above unity on Bright (v at 0), let the stack build — **Expect:** it builds clean and eventually brickwall-limits without distorting the tone. **Then reload.**
-20. Repeat the over-unity build on Sunny, then again on Scorched, reloading between each — **Expect:** each is darker and more saturated than Bright; Scorched adds obvious warble. Each Quality limits differently, and none should run away into harsh digital clipping.
-21. Finally, with repeats sounding, step v through all four positions in one pass — **Expect:** a brief mute and re-format at each change is acceptable; character steps Bright (clean) → Cold → Sunny → Scorched.
+**Every step in this block uses the same move: let the loop play into the delay, then turn z (Input level) fully down and judge what the delay does on its own.** With the source still running you are listening to new material, not to the tail, and none of these three results can be told apart.
 
-*Utility, any time:* if the drum loop stops, twist z up then down to restart it.
+18. Set C just below the 90% arrow, let a pass or two in, then mute with z — **Expect:** the repeats decay away to silence. At the arrow, muted — **Expect:** they hold at a steady level indefinitely instead of fading. Above it, muted — **Expect:** they grow louder each pass. The three are only distinguishable with the source muted.
+19. With C above unity on Bright (v at 0), feed in the held tone, mute, and let the stack build — **Expect:** it builds clean and eventually brickwall-limits without distorting the tone. **Then reload.**
+20. Repeat the over-unity build on Sunny, then again on Scorched, reloading between each and muting each time — **Expect:** each is darker and more saturated than Bright; Scorched adds obvious warble, audible as pitch instability in the held tone. Each Quality limits differently, and none should run away into harsh digital clipping.
+21. Finally, with repeats sounding and the source muted, step v through all four positions in one pass — **Expect:** a brief mute and re-format at each change is acceptable; character steps Bright (clean) → Cold → Sunny → Scorched on the same ringing tail.
+
+*Utility, any time:* if the source loop stops, switch to Knob Set 2 (*Utility*), twist z up then down, and switch back. (On the main set, z is Input level — if you get silence unexpectedly, check that first.)
 
 ## RB-Retours-2 — Crossfade time-change (Retours, same rig as RB-Retours-1 with digital-clean time jumps)
 
-**Setup:** Identical to RB-Retours-1 (drum loop → Retours, delay mix on Out 1/2) except the baked time-change mode is Crossfade instead of Tape. Same knob/jack layout and aliases as RB-Retours-1; knob z restarts the loop.
+**Setup:** Identical to RB-Retours-1 (`delay-test-loop.wav` → input level → Retours, delay mix on Out 1/2) except the baked time-change mode is Crossfade instead of Tape. Same knob/jack layout and aliases as RB-Retours-1, same sparse loop, and the same **Input level on knob z** — mute the source and work on the tail exactly as there.
 
-**Panel:** Same as RB-Retours-1: A=Interval, B=Time, C=Feedback, D=Pitch, E=Shape, F=Dry/Wet, u=Slice (up=hold), v=Quality, w=Tap (twist up), x=Time AR, y=Pitch AR, z=Loop restart; In 1=Time CV, In 2=Interval CV, Gate In 1=Clock, Gate In 2=Slice gate.
+**Panel:** Same as RB-Retours-1: A=Interval, B=Time, C=Feedback, D=Pitch, E=Shape, F=Dry/Wet, u=Slice (up=hold), v=Quality, w=Tap (twist up), x=Time AR, y=Pitch AR, z=Input level; Knob Set 2 (*Utility*) z=Loop restart; In 1=Time CV, In 2=Interval CV, Gate In 1=Clock, Gate In 2=Slice gate.
 
 **This patch exists to be compared with RB-Retours-1**, so the two must be in matching states when you switch. Reload whichever patch you're moving to, then make the same move in both.
 
@@ -902,24 +909,24 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 1 — clean time jumps · from a freshly loaded patch. Runs in order.*
 
-1. Raise C to \~60% so repeats are audibly regenerating, then grab A or B and turn — **Expect:** the delay JUMPS cleanly to the new time: pitch-neutral, click-free, no tape swoop, each jump landing waveform-aligned with no tick at the splice.
-2. Sweep A fast across a wide range — **Expect:** repeats stay clean and intelligible rather than garbling or smearing.
+1. Raise C to \~60% so repeats are audibly regenerating. Wait for the **held tone**, mute with z as it ends so the tail rings alone, then grab A or B and turn — **Expect:** the delay JUMPS cleanly to the new time: the ringing pitch stays put, pitch-neutral and click-free with no tape swoop, each jump landing waveform-aligned with no tick at the splice. A sustained tone is the only material that shows this — on a transient, "no pitch bend" and "pitch bend" look alike.
+2. Sweep A fast across a wide range, still on the muted tail — **Expect:** repeats stay clean and intelligible rather than garbling or smearing.
 
 **Reset:** reload this patch, and reload RB-Retours-1 before switching to it.
 
 *Block 2 — the A/B against Tape mode · both patches freshly loaded, same move in each*
 
-3. Make the step 1 move here, then reload RB-Retours-1 and make it there — **Expect:** this patch steps cleanly like a digital delay; patch 1 pitch-bends like a tape machine. If they sound alike, that's a bug worth reporting.
+3. Make the step 1 move here — same wait for the held tone, same mute, same turn — then reload RB-Retours-1 and make the identical move there — **Expect:** this patch steps cleanly like a digital delay; patch 1 pitch-bends like a tape machine. Both patches load the same loop and the same knob map, so the ringing tone is the one variable: if they sound alike, that's a bug worth reporting.
 
 **Reset:** reload the patch.
 
 *Block 3 — spot-check the shared features · from a freshly loaded patch, reloading between each item below*
 
 4. Clock into Gate In 1 — **Expect:** divider mode and locked repeats, exactly as in RB-Retours-1. **Reload.**
-5. Slice via u or Gate In 2 — **Expect:** identical beat-repeat hold behavior. **Reload.**
-6. Shimmer with D at the +12 notch and C \~65% — **Expect:** the rising octave ladder, same as patch 1. Only manual and CV time changes should differ between the two patches; anything else that diverges is a finding.
+5. Slice via u or Gate In 2 during the three-pluck figure — **Expect:** identical beat-repeat hold behavior. **Reload.**
+6. Shimmer with D at the +12 notch and C \~65% — **Expect:** the rising octave ladder in the gap after the blip, same as patch 1. Only manual and CV time changes should differ between the two patches; anything else that diverges is a finding.
 
-*Utility, any time:* if the drum loop stops, twist z up then down to restart it.
+*Utility, any time:* if the source loop stops, switch to Knob Set 2 (*Utility*), twist z up then down, and switch back. (On the main set, z is Input level — if you get silence unexpectedly, check that first.)
 
 ## RB-Retours-3 — Karplus-Strong string (Retours, audio-rate delay as a plucked-string voice)
 
