@@ -1,5 +1,6 @@
 #include "LoopWaveformRenderer.hpp"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 
 namespace {
@@ -11,19 +12,52 @@ void vline(uint32_t* buf, int width, int height, int x, int y0, int y1, uint32_t
         buf[y * width + x] = c;
 }
 
-// Vertical bars at a grid's interior segment boundaries, across the full
-// region height. Callers pick the z-order: over the waveform (slicing it into
-// chunks), under the lane bars (so head markers stay prominent).
+// Vertical bars at a grid's interior segment boundaries. Callers pick the
+// z-order: over the waveform (slicing it into chunks), under the lane bars
+// (so head markers stay prominent).
+//
+// The Grid choice ladder (loooop::gridSegments' kGridChoices, in
+// LooperModuleDSP.hpp) is a strict doubling sequence: 4, 8, 16, 32, 64. That
+// means every boundary of a coarser setting is exactly reproduced at a finer
+// one -- grid=32's boundaries are a subset of grid=64's, and so on down to
+// grid=4. So boundary k (of `grid` segments) has a "depth": the ladder rung
+// that first introduces it, found from k's trailing zero bits. Depth 0 (the
+// rung shared by every setting) always draws full-height and brightest.
+// Each deeper level draws a shorter tick anchored at the region's top/bottom
+// edges, and dimmer, so a dense setting on a narrow display (MetaModule's
+// ~74px-wide Loooop display at grid=64) shades in from the edges instead of
+// painting over the waveform's middle rows.
 void drawGridBars(uint32_t* buf, int width, int height, unsigned grid,
                   LoopWaveformRenderer::PackFn pack) {
-    const uint32_t c = pack(LoopWaveformRenderer::GRID[0],
-                            LoopWaveformRenderer::GRID[1],
-                            LoopWaveformRenderer::GRID[2], 0xFF);
+    const int n = std::clamp(
+        int(std::lround(std::log2(double(std::max(grid, 4u)) / 4.0))), 0, 4);
     const int bw = std::max(1, width / 300);
-    for (unsigned k = 1; k < grid; ++k) {
-        const int x = int(std::uint64_t(k) * unsigned(width) / grid);
-        for (int dx = 0; dx < bw; ++dx)
-            vline(buf, width, height, x + dx, 0, height - 1, c);
+    constexpr float kMaxDim = 0.6f;   // deepest level blends 60% of the way toward BG
+
+    // Draw dimmest depths first, brightest (depth 0) last, so a bright
+    // boundary is never partially overwritten by a dim one sharing a column.
+    for (int depth = n; depth >= 0; --depth) {
+        const float t = n > 0 ? float(depth) / float(n) : 0.f;
+        const auto blend = [t](uint8_t from, uint8_t to) {
+            return uint8_t(std::lround(from + (float(to) - float(from)) * t * kMaxDim));
+        };
+        const uint32_t c = pack(blend(LoopWaveformRenderer::GRID[0], LoopWaveformRenderer::BG[0]),
+                                blend(LoopWaveformRenderer::GRID[1], LoopWaveformRenderer::BG[1]),
+                                blend(LoopWaveformRenderer::GRID[2], LoopWaveformRenderer::BG[2]),
+                                0xFF);
+        // depth 0 always spans the full height (both "ticks" cover 0..height-1,
+        // drawn twice harmlessly) -- this keeps grid=4 pixel-identical to the
+        // pre-hierarchy renderer regardless of height parity.
+        const int half = (depth == 0) ? height : std::max(1, height / (2 * (depth + 1)));
+        for (unsigned k = 1; k < grid; ++k) {
+            const int kDepth = n - std::min(int(std::countr_zero(k)), n);
+            if (kDepth != depth) continue;
+            const int x = int(std::uint64_t(k) * unsigned(width) / grid);
+            for (int dx = 0; dx < bw; ++dx) {
+                vline(buf, width, height, x + dx, 0, half - 1, c);
+                vline(buf, width, height, x + dx, height - half, height - 1, c);
+            }
+        }
     }
 }
 } // namespace

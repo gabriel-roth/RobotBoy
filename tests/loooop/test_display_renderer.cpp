@@ -392,6 +392,90 @@ static void test_grid_hidden_while_recording() {
           "grid: hidden until the loop freezes");
 }
 
+static void test_grid_hierarchy_depths() {
+    // A silent loop (all-zero samples) draws a single flat line per band, at
+    // a fixed known row, and BG everywhere else -- isolating the grid bars'
+    // colors/coverage from any waveform content.
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(0.f); e.process(0.f);
+    e.toggleRecord();                     // silent loop of 4
+    e.setGrid(64);
+    static constexpr int width = 64, height = 32;   // width=64 makes grid=64's
+                                                     // boundaries land exactly
+                                                     // at x=k (no aliasing)
+    std::vector<uint32_t> local(std::size_t(width) * height);
+    LoopWaveformRenderer::renderWaveform(local.data(), width, height, e, pack);
+    auto at = [&](int x, int y) { return local[std::size_t(y) * width + x]; };
+    const uint32_t bright = C(LoopWaveformRenderer::GRID);
+    const uint32_t bg = C(LoopWaveformRenderer::BG);
+
+    // x=16 (k=16, 4 trailing zero bits) is depth 0 -- shared with grid=4/8/16/32
+    // -- so it must stay full-height and undimmed, same as the flat pre-hierarchy bars.
+    check(at(16, 0) == bright && at(16, height - 1) == bright && at(16, height / 2) == bright,
+          "grid hierarchy: depth-0 boundary (x=16) is full-height and undimmed");
+
+    // x=1 (k=1, 0 trailing zero bits) is depth 4 -- new only at grid=64 -- so it
+    // must be dimmer than pure GRID, and must NOT reach the middle row: the
+    // waveform's center stays visible even at the densest setting.
+    const uint32_t finest = at(1, 0);
+    check(finest != bright && finest != bg,
+          "grid hierarchy: depth-4 boundary (x=1) is dimmed, not full GRID or BG");
+    check(at(1, height / 2) == bg,
+          "grid hierarchy: depth-4 boundary (x=1) does not reach the middle row");
+}
+
+static void test_grid_hierarchy_zorder_coarse_wins_collision() {
+    // At width=40, grid=64: k=1 (depth 4, x=0) is isolated and must stay dim.
+    // k=16 (depth 0) and k=17 (depth 4) both round to x=10 -- the depth-0 bar
+    // must win that shared column outright, not be partially overwritten by
+    // the finer one drawn for k=17.
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(0.f); e.process(0.f);
+    e.toggleRecord();
+    e.setGrid(64);
+    static constexpr int width = 40, height = 32;
+    std::vector<uint32_t> local(std::size_t(width) * height);
+    LoopWaveformRenderer::renderWaveform(local.data(), width, height, e, pack);
+    auto at = [&](int x, int y) { return local[std::size_t(y) * width + x]; };
+    const uint32_t bright = C(LoopWaveformRenderer::GRID);
+
+    check(at(0, 0) != bright,
+          "grid hierarchy: an isolated depth-4 boundary (x=0) is dimmed, not full GRID");
+    check(at(10, 0) == bright && at(10, height - 1) == bright,
+          "grid hierarchy: a depth-0 boundary fully wins a column shared with a finer one (x=10)");
+}
+
+static void test_grid_narrow_display_preserves_center() {
+    // Regression test for the original bug: on MetaModule's actual Loooop
+    // display (~74px wide), grid=64 used to paint every one of its 63
+    // boundaries as a full-height bar, turning nearly the entire display --
+    // including its vertical center -- solid GRID color. With the depth
+    // hierarchy, only the coarsest (depth-0) boundaries reach the center
+    // row; there are exactly 3 of them at this width/grid combination
+    // (k=16, 32, 48, landing at x=18, 37, 55). (This test drives
+    // renderWaveform directly with the full 74x42 as one wave region --
+    // on real hardware geometry() splits off a lane slice, so 42 isn't
+    // literally the on-device wave-region height, but the boundary math
+    // this test checks is unaffected by that split.)
+    LoopEngine e; e.reset(10.f, 100.f);
+    e.toggleRecord();
+    e.process(0.f); e.process(0.f); e.process(0.f); e.process(0.f);
+    e.toggleRecord();
+    e.setGrid(64);
+    static constexpr int width = 74, height = 42;   // Loooop's real MetaModule display size
+    std::vector<uint32_t> local(std::size_t(width) * height);
+    LoopWaveformRenderer::renderWaveform(local.data(), width, height, e, pack);
+    const uint32_t grid = C(LoopWaveformRenderer::GRID);
+    const int midRow = height / 2;
+    int gridPixelsAtMidRow = 0;
+    for (int x = 0; x < width; ++x)
+        if (local[std::size_t(midRow) * width + x] == grid) ++gridPixelsAtMidRow;
+    check(gridPixelsAtMidRow == 3,
+          "grid hierarchy: at grid=64 on a 74px display, only the 3 depth-0 boundaries reach the center row");
+}
+
 static void test_width_cap() {
     check(LoopWaveformRenderer::cappedWidth(500) == 500,
           "cap: width below cap is unchanged");
@@ -429,6 +513,9 @@ int main() {
     test_tiny_heights_stay_within_destination();
     test_grid_bars();
     test_grid_hidden_while_recording();
+    test_grid_hierarchy_depths();
+    test_grid_hierarchy_zorder_coarse_wins_collision();
+    test_grid_narrow_display_preserves_center();
     test_width_cap();
     if (g_failures == 0) std::printf("All display renderer tests passed.\n");
     return g_failures;
