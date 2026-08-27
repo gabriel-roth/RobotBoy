@@ -40,7 +40,7 @@ All four are summed into the **Mix** output, and each head also has its own outp
 
 * **Size**: *How much* of the loop this head plays, from a tiny grain up to the whole thing. Small Size + moving Position = scrubbing/granular textures.
 * **Position**: *Where* in the loop the head plays — the center of its window. Sweep it to scrub through the recording.
-* **Speed**: Playback rate. `1` = normal, `2` = double speed / up an octave, `0` = frozen. Turn it **below zero to play backward**.
+* **Speed**: Playback rate. `1` = normal, `2` = double speed / up an octave, `0` = frozen. Turn it **below zero to play backward**. Turning near `1` or `−1` snaps to exactly that value.
 * **Jitter**: Random positioning: turn it up and the head jumps to a different spot each time it repeats.
 * **Pan**: Where this head sits in the stereo **Mix**. It only affects the Mix outputs; the head's own **Out L / R** jacks are unchanged.
 * **Level**: This head's volume in the mix outputs. (Defaults are set so all four heads at once add up to unity gain.)
@@ -120,5 +120,7 @@ You can find these options by right-clicking the panel in VCV Rack or scrolling 
 ## Löp
 
 **Löp** is Loooop with a **single playhead** instead of four. It works like one head of Loooop, minus the mixing controls — with only one head there are no Pan or Level knobs and no Exclude-from-Grid option.
+
+Its **Speed** knob controls playback rate (`1` = normal, below zero = backward); turning near `1` or `−1` snaps to exactly that value, just like Loooop's playheads.
 
 <img src="screenshots/Lop.png" alt="Löp module" height="500">
