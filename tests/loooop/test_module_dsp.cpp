@@ -21,6 +21,17 @@ int main() {
     check(near(loooop::normalizedControl(0.9f, 5.0f), 1.0f), "normalized control clamps");
     check(near(loooop::panControl(0.0f, 2.5f), 0.5f), "pan CV scaling");
 
+    check(near(loooop::applySpeedNotch(1.03f), 1.0f), "notch snaps just inside +1 window");
+    check(near(loooop::applySpeedNotch(-0.97f), -1.0f), "notch snaps just inside -1 window");
+    check(near(loooop::applySpeedNotch(1.05f), 1.0f), "notch snaps exactly at +1 boundary");
+    check(near(loooop::applySpeedNotch(-1.05f), -1.0f), "notch snaps exactly at -1 boundary");
+    check(near(loooop::applySpeedNotch(1.06f), 1.06f), "notch passes through just outside +1 window");
+    check(near(loooop::applySpeedNotch(-1.06f), -1.06f), "notch passes through just outside -1 window");
+    check(near(loooop::applySpeedNotch(0.0f), 0.0f), "notch leaves freeze untouched");
+    check(near(loooop::applySpeedNotch(0.4f), 0.4f), "notch leaves mid-range value untouched");
+    check(near(loooop::applySpeedNotch(2.0f), 2.0f), "notch leaves max speed untouched");
+    check(near(loooop::applySpeedNotch(-2.0f), -2.0f), "notch leaves min speed untouched");
+
     // NaN CV must land on a clamp bound (rack::clamp semantics), never
     // propagate into the engine. fmax(lo, fmin(NaN, hi)) == hi.
     const float nan = std::nanf("");

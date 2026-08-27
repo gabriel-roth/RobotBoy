@@ -39,6 +39,20 @@ struct VOctSpeedMemo {
     }
 };
 
+constexpr float kSpeedNotchTargets[2] = {1.f, -1.f};
+constexpr float kSpeedNotchWidth = 0.05f;  // raw units each side; range is -2..2
+
+// Hard-locks rawKnob to exactly 1.0 or -1.0 when it falls within
+// kSpeedNotchWidth of either target; passes through unchanged otherwise.
+// Stateless -- no hysteresis needed, since the two windows are isolated
+// and everything outside them is plain identity (see spec's Edge Cases).
+inline float applySpeedNotch(float rawKnob) {
+    for (float target : kSpeedNotchTargets)
+        if (std::fabs(rawKnob - target) <= kSpeedNotchWidth)
+            return target;
+    return rawKnob;
+}
+
 inline float normalizedControl(float knob, float cvVolts) {
     return clampSafe(knob + cvVolts * 0.1f, 0.0f, 1.0f);
 }
