@@ -100,7 +100,7 @@ public:
 
         // Knobs read back normalized 0..1; speed maps to -2..+2.
         // CV: 10 V spans each param's full range, summed with the knob, clamped.
-        float spKnob = (getState<SpeedKnob>() - 0.5f) * 4.f;
+        float spKnob = loooop::applySpeedNotch((getState<SpeedKnob>() - 0.5f) * 4.f);
         float spCv = getInput<SpeedCvIn>().value_or(0.f);
         engine_.setSpeed(0, getState<SpeedVoctAlt>() == 1
             ? voctMemo_.get(spKnob, spCv)

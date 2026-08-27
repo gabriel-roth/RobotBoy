@@ -152,7 +152,7 @@ struct Lop : Module {
             engine.clear();
 
         // CV: 10 V spans each param's full range, summed with the knob, clamped.
-        float spKnob = params[SPEED_PARAM].getValue();
+        float spKnob = loooop::applySpeedNotch(params[SPEED_PARAM].getValue());
         float spCv = inputs[SPEED_CV_INPUT].getVoltage();
         engine.setSpeed(0, params[SPEED_VOCT_PARAM].getValue() > 0.5f
             ? voctMemo.get(spKnob, spCv)

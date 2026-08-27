@@ -226,7 +226,7 @@ private:
              Info::Elem TI, Info::Elem JI, Info::Elem TM, Info::Elem VO,
              Info::Elem XG, Info::Elem PN, Info::Elem PNC>
     LoopEngine::HeadOut updateHead(int h) {
-        float spKnob = (getState<S>() - 0.5f) * 4.f;
+        float spKnob = loooop::applySpeedNotch((getState<S>() - 0.5f) * 4.f);
         float spCv = getInput<SC>().value_or(0.f);
         engine_.setSpeed(h, getState<VO>() == 1
             ? voctMemo_[h].get(spKnob, spCv)

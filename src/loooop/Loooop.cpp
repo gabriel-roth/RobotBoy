@@ -199,7 +199,7 @@ struct Loooop : Module {
 
         // CV: 10 V spans each param's full range, summed with the knob, clamped.
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            float spKnob = params[SPEED1_PARAM + HEAD_PARAMS * h].getValue();
+            float spKnob = loooop::applySpeedNotch(params[SPEED1_PARAM + HEAD_PARAMS * h].getValue());
             float spCv = inputs[SPEED1_CV_INPUT + HEAD_INPUTS * h].getVoltage();
             engine.setSpeed(h, params[SPEED_VOCT1_PARAM + h].getValue() > 0.5f
                 ? voctMemo[h].get(spKnob, spCv)
