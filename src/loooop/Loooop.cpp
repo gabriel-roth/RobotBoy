@@ -69,7 +69,7 @@ struct Loooop : Module {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
         for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
             const std::string& n = kHeadNames[h];
-            configParam(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, n + " speed");
+            configParam<SpeedParamQuantity>(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, n + " speed");
             configParam(POSITION1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.5f, n + " position");
             configParam(SIZE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 1.f, n + " size");
             // Level defaults to 0.25: four phase-locked heads at defaults sum to

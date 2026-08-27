@@ -2,6 +2,7 @@
 #include <rack.hpp>
 #include <cmath>
 #include "particules/pitch_notch_map.hpp"
+#include "loooop/LooperModuleDSP.hpp"
 
 using namespace rack;
 
@@ -33,6 +34,14 @@ struct PitchParamQuantity : ParamQuantity {
 		return string::f("%.1f", st);
 	}
 	std::string getUnit() override { return " st"; }
+};
+
+// Keeps the tooltip in sync with the engine's speed-knob notch (see
+// loooop::applySpeedNotch): display-only, doesn't change the stored
+// value or the knob's drag feel.
+struct SpeedParamQuantity : ParamQuantity {
+	float getDisplayValue() override { return loooop::applySpeedNotch(getValue()); }
+	void setDisplayValue(float v) override { setValue(v); }
 };
 
 static constexpr float kQualityColors[4][3] = {

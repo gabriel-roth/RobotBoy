@@ -39,7 +39,7 @@ struct Lop : Module {
 
     Lop() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-        configParam(SPEED_PARAM, -2.f, 2.f, 1.f, "Speed");
+        configParam<SpeedParamQuantity>(SPEED_PARAM, -2.f, 2.f, 1.f, "Speed");
         configParam(POSITION_PARAM, 0.f, 1.f, 0.5f, "Position");
         configParam(SIZE_PARAM, 0.f, 1.f, 1.f, "Size");
         configParam(JITTER_PARAM, 0.f, 1.f, 0.f, "Jitter");
