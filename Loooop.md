@@ -62,7 +62,7 @@ The bottom row holds the global controls, left to right:
     - **Lock** (flashing magenta) — overdubbing off. The Record button does nothing while a loop exists; the loop is untouchable until you **Clear** it or switch modes.
 - **Clear** — Erases the loop.
 - **Grid** — Off (the default), 4, 8, 16, 32, or 64. When set, the loop is divided into that many equal segments, shown as vertical bars on the display, and every head's window snaps to them: **Size** becomes a whole number of segments and **Position** (including CV and **Jitter** offsets) lands on segment boundaries. Record a drum loop, set Grid to 16, and heads slice it cleanly on the beat.
-- **Dry/Wet** — Sets the blend between incoming audio (dry) and loop playback (wet) at the Mix output. Fully clockwise = loop only.
+- **Dry/Wet** — Sets the blend between incoming audio (dry) and loop playback (wet) at the Mix output. Fully clockwise = loop only. While recording the very first pass (before any loop exists), Wet monitors the incoming audio too, so Mix always lets you hear what's being recorded, regardless of this knob's position.
 
 ---
 
