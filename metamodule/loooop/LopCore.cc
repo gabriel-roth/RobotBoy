@@ -135,10 +135,13 @@ public:
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
+        const bool monitorDry = loooop::monitorDryWhileEmpty(engine_.isRecording(), engine_.hasLoop());
+        const float wetL = monitorDry ? inL : hs[0].l;
+        const float wetR = monitorDry ? inR : hs[0].r;
         float w = mixSm_.process(loooop::normalizedControl(
             getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
-        setOutput<OutL>(loooop::dryWet(inL, hs[0].l, w) * 5.f);
-        setOutput<OutR>(loooop::dryWet(inR, hs[0].r, w) * 5.f);
+        setOutput<OutL>(loooop::dryWet(inL, wetL, w) * 5.f);
+        setOutput<OutR>(loooop::dryWet(inR, wetR, w) * 5.f);
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 

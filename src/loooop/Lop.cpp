@@ -185,10 +185,13 @@ struct Lop : Module {
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine.process(inL, inR, hs);
+        const bool monitorDry = loooop::monitorDryWhileEmpty(engine.isRecording(), engine.hasLoop());
+        const float wetL = monitorDry ? inL : hs[0].l;
+        const float wetR = monitorDry ? inR : hs[0].r;
         const float w = mixSm.process(loooop::normalizedControl(
             params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
-        outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL, hs[0].l, w) * 5.f);
-        outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR, hs[0].r, w) * 5.f);
+        outputs[OUT_L_OUTPUT].setVoltage(loooop::dryWet(inL, wetL, w) * 5.f);
+        outputs[OUT_R_OUTPUT].setVoltage(loooop::dryWet(inR, wetR, w) * 5.f);
         lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
         loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od, overdubPhase, args.sampleTime);
     }

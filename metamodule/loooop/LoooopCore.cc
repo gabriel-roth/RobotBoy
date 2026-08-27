@@ -133,6 +133,10 @@ public:
                     lv2 = engine_.smoothedLevel(2), lv3 = engine_.smoothedLevel(3);
         float wetL = hs[0].l*g0.l*lv0 + hs[1].l*g1.l*lv1 + hs[2].l*g2.l*lv2 + hs[3].l*g3.l*lv3;
         float wetR = hs[0].r*g0.r*lv0 + hs[1].r*g1.r*lv1 + hs[2].r*g2.r*lv2 + hs[3].r*g3.r*lv3;
+        if (loooop::monitorDryWhileEmpty(engine_.isRecording(), engine_.hasLoop())) {
+            wetL = inL;
+            wetR = inR;
+        }
         float w = mixSm_.process(loooop::normalizedControl(
             getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
         setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);

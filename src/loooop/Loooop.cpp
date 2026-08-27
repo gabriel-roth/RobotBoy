@@ -256,6 +256,10 @@ struct Loooop : Module {
             const float lvl = engine.smoothedLevel(h);
             wetL += hs[h].l * lvl * gL; wetR += hs[h].r * lvl * gR;
         }
+        if (loooop::monitorDryWhileEmpty(engine.isRecording(), engine.hasLoop())) {
+            wetL = inL;
+            wetR = inR;
+        }
         const float w = mixSm.process(loooop::normalizedControl(
             params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
         outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL, wetL, w) * 5.f);
