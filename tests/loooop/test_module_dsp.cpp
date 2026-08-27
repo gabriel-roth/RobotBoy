@@ -37,6 +37,19 @@ int main() {
     check(near(stereo.l, 0.25f) && near(stereo.r, 0.75f), "stereo inputs stay independent");
 
     check(near(loooop::dryWet(0.25f, 0.75f, 0.4f), 0.45f), "dry wet mix");
+
+    // Wet bus monitors Dry only while actively recording the very first
+    // pass (no loop exists yet); idle-empty and post-loop states are
+    // unaffected, including a later overdub pass on an existing loop.
+    check(loooop::monitorDryWhileEmpty(false, false) == false,
+          "idle, empty buffer stays silent");
+    check(loooop::monitorDryWhileEmpty(true, false) == true,
+          "recording the first pass monitors dry");
+    check(loooop::monitorDryWhileEmpty(false, true) == false,
+          "loop closed, not recording reads the buffer");
+    check(loooop::monitorDryWhileEmpty(true, true) == false,
+          "overdubbing an existing loop reads the buffer, not dry");
+
     check(near(loooop::panLeftGain(-0.5f), 1.0f) && near(loooop::panRightGain(-0.5f), 0.5f),
           "left pan balance");
     check(near(loooop::panLeftGain(0.5f), 0.5f) && near(loooop::panRightGain(0.5f), 1.0f),

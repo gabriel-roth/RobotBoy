@@ -61,6 +61,14 @@ inline float dryWet(float dry, float wet, float mix) {
     return dry * (1.0f - mix) + wet * mix;
 }
 
+// True while actively recording the very first pass (no loop exists yet):
+// the Wet bus has nothing to read back, so hosts should monitor the dry
+// signal instead of the (currently silent) head output. False once a loop
+// exists, even during a later overdub pass -- "first time" only.
+inline bool monitorDryWhileEmpty(bool recording, bool hasLoop) {
+    return recording && !hasLoop;
+}
+
 inline float panLeftGain(float pan) {
     return pan <= 0.0f ? 1.0f : 1.0f - pan;
 }
