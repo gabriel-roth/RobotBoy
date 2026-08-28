@@ -9,7 +9,7 @@
 - **Loooop & Löp** — changing the sample rate can no longer crash the module. Each looper reserves a 60-second stereo record buffer (about 23 MB at 48 kHz, and twice that at 96 kHz), and on a busy patch the larger buffer may not fit. Previously that killed the module — and on the desktop build it could crash outright, reading from a buffer that had already been freed. Now the looper keeps the buffer it has and carries on with a shorter maximum loop time, telling you the new limit on MetaModule and logging it in VCV Rack.
 
 - **Vespid on MetaModule** — locked to standard accuracy and the charcoal panel. The **Accuracy** and **Panel** right-click items are gone from the MetaModule build (both remain in VCV Rack), and a patch carrying High accuracy or the gold panel no longer unlocks them there.
-- **Vespid & Onbetap on MetaModule** — oversampling now defaults to 1×, where the processor has the least headroom to spare; 2× and 4× are still selectable from the right-click menu. Vespid's **Auto** entry is gone on MetaModule (it would only ever have resolved to 1× there); a patch saved with Auto opens at 1×. VCV Rack is unchanged — Vespid still defaults to Auto and Onbetap to 2×.
+- **Vespid on MetaModule** — locked to 1×, where the processor has the least headroom to spare (Vespid has no other oversampling option). Vespid's **Auto** entry is gone on MetaModule (it would only ever have resolved to 1× there); a patch saved with Auto opens at 1×. VCV Rack is unchanged — Vespid still defaults to Auto.
 - **Retours** — tap tempo now holds indefinitely, like a normal tap-tempo control: a tempo set by tapping or from a patched clock sticks through a stopped clock, an unpatched cable, or an Interval move, until you use the new **Clear saved tempo** right-click item (or set a new tempo).
 - **Retours** — the Clock light now tracks the clock: when clocked it blinks once per beat, locked to incoming ticks, instead of free-running at the subdivided base Interval (which strobed too fast to read at fast tempos on a subdivided knob).
 - **Particules & Retours** — the right-click **Clear buffer** item is greyed out when the recording buffer is already empty.
@@ -34,10 +34,10 @@
   attenurandomizers. VCV Rack + MetaModule.
 - **Ondes** — new module: a morphing wavetable oscillator inspired by the
   wavetable mode of Mutable Instruments Beads. 24 banks of 8 waveforms
-  (derived from Plaits), swept by BANK and POSITION knobs with CV
-  attenuverters and interpolation on both axes, a pitch knob notched at
-  octaves/fifths/unison, a V/oct input, and a live waveform display.
-  VCV Rack + MetaModule.
+  (derived from Plaits, in three menu-toggleable groups — Sines, Formants,
+  Braids), swept by BANK and POSITION knobs with CV attenuverters and
+  interpolation on both axes, a linear ±24 st pitch knob, a V/oct input,
+  and a live waveform display. VCV Rack + MetaModule.
 - Particules: fixed a macOS-simulator portability issue in the `memalign()`
   usage guard (real firmware and VCV Rack behavior unchanged).
 - **Particules & Retours** — fixed an inverted quality-mode fidelity ladder

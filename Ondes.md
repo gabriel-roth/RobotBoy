@@ -8,7 +8,7 @@
 
 ## Controls
 
-- **Pitch** — −24 to +24 st. Coarse/fine pitch, notched at octaves, fifths, and unison for easy tuning.
+- **Pitch** — −24 to +24 st, plain linear response.
 - **V/Oct** — pitch input, summed with the Pitch knob.
 - **Bank** — selects the timbral family across the 24 banks.
 - **Bank CV** + amount — ±5V CV control of Bank, scaled by the attenuverter below it.
@@ -23,6 +23,12 @@
 - **Banks 0–7** — mild / additive: sines, quadra waves, combs, pairs, triangles, drawbars.
 - **Banks 8–15** — formant-flavoured: trisaw, sawtri, burst, formant, pulse, sine^n.
 - **Banks 16–23** — Braids imports: Male, Choir, Digi, Drone, Metal, Fant, plus two banks of Braids extras.
+
+---
+
+## Right-click menu
+
+- **Waveform banks** — toggle **1 - Sines**, **2 - Formants**, **3 - Braids** independently. Disabling a group removes its banks from the Bank knob's range; the remaining enabled groups spread across the knob's full travel. At least one group must stay enabled — the last one can't be unchecked.
 
 ---
 

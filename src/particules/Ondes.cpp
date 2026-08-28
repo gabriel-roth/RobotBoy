@@ -186,7 +186,8 @@ struct OndesWidget : ModuleWidget {
                 [m, g](bool v) {
                     m->wavetable_provider_.setGroupEnabled(g, v);
                     m->osc_.SetProvider(&m->wavetable_provider_);
-                }));
+                },
+                /*disabled=*/!m->wavetable_provider_.canDisableGroup(g)));
         }
     }
 };
