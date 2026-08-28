@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Ondes** — the right-click menu can now disable whole waveform-bank groups (**1 - Sines**, **2 - Formants**, **3 - Braids**). Disabling a group removes its banks from the Bank knob's range and spreads the remaining groups across the full knob travel; at least one group must stay enabled.
 - **Ondes** — the Pitch knob is now a plain linear +-24 semitone control. It no longer stretches extra knob travel around octave/fifth/unison landmarks the way it used to (and the way Particules' and Retours' pitch knobs still do).
 - **Onbetap** — the Oversampling menu drops the **1x** option; it's now **CPU efficient** (2x) / **high quality** (4x), and 2x is the default on both VCV Rack and MetaModule (previously MetaModule defaulted to 1x). A patch saved with the old 1x setting now opens at 2x.
 - **MetaModule builds now require firmware v2.3 or later.** The plugin is built against SDK v2.3, which lets the firmware catch a plugin that runs out of memory instead of crashing. Adding a Loooop or Löp to a patch with too little memory free now fails cleanly with "Not enough memory to load module" rather than taking the patch down with it. Firmware v2.2 and earlier will refuse to load this build.

@@ -19,6 +19,10 @@ struct OndesPitchParamQuantity : ParamQuantity {
     std::string getUnit() override { return " st"; }
 };
 
+static constexpr const char* kBankGroupNames[RackWavetableProvider::kNumBankGroups] = {
+    "1 - Sines", "2 - Formants", "3 - Braids"
+};
+
 struct Ondes : Module {
     enum ParamId {
         PITCH_PARAM,
@@ -80,6 +84,27 @@ struct Ondes : Module {
         osc_.Process(pitch, bank, position, &out, 1);
         outputs[OUT_OUTPUT].setVoltage(out.l * 5.f);  // oscillator is mono: out.l == out.r
     }
+
+    json_t* dataToJson() override {
+        json_t* root = json_object();
+        json_t* groups = json_array();
+        for (int g = 0; g < RackWavetableProvider::kNumBankGroups; ++g)
+            json_array_append_new(groups, json_boolean(wavetable_provider_.isGroupEnabled(g)));
+        json_object_set_new(root, "bankGroupsEnabled", groups);
+        return root;
+    }
+
+    void dataFromJson(json_t* root) override {
+        json_t* groups = json_object_get(root, "bankGroupsEnabled");
+        if (groups && json_is_array(groups)) {
+            int n = (int)json_array_size(groups);
+            for (int g = 0; g < RackWavetableProvider::kNumBankGroups && g < n; ++g) {
+                json_t* v = json_array_get(groups, g);
+                wavetable_provider_.setGroupEnabled(g, json_boolean_value(v));
+            }
+            osc_.SetProvider(&wavetable_provider_);
+        }
+    }
 };
 
 // Draws the current bilinearly-interpolated wavetable frame as a cyan trace
@@ -93,7 +118,9 @@ struct WavetableDisplay : LedDisplay {
 
             float bank = module ? module->lastBank : 0.f;
             float wave = module ? module->lastWave : 0.f;
-            RackWavetableProvider provider;
+            static const RackWavetableProvider kFallbackProvider;  // module==nullptr: browser thumbnail
+            const RackWavetableProvider& provider =
+                module ? module->wavetable_provider_ : kFallbackProvider;
 
             Rect scope = Rect(Vec(0, 0), box.size).shrink(Vec(4, 5));
             const int n = particules_dsp::kWavetableSize;
@@ -145,6 +172,22 @@ struct OndesWidget : ModuleWidget {
         display->box.size = mm2px(Vec(34.64, 24.5));
         display->module = module;
         addChild(display);
+    }
+
+    void appendContextMenu(Menu* menu) override {
+        auto* m = dynamic_cast<Ondes*>(module);
+        if (!m) return;
+
+        menu->addChild(new MenuSeparator);
+        menu->addChild(createMenuLabel("Waveform banks"));
+        for (int g = 0; g < RackWavetableProvider::kNumBankGroups; ++g) {
+            menu->addChild(createBoolMenuItem(kBankGroupNames[g], "",
+                [m, g] { return m->wavetable_provider_.isGroupEnabled(g); },
+                [m, g](bool v) {
+                    m->wavetable_provider_.setGroupEnabled(g, v);
+                    m->osc_.SetProvider(&m->wavetable_provider_);
+                }));
+        }
     }
 };
 
