@@ -1,8 +1,23 @@
 #include "plugin.hpp"
 #include "RackWavetableProvider.hpp"
 #include "WavetableFrame.hpp"
+#include "ondes_pitch_map.hpp"
 #include "dsp/src/wavetable/wavetable_oscillator.h"
 #include <cmath>
+
+// Ondes' own pitch-knob quantity: plain linear +-24 st (see
+// ondes_pitch_map.hpp), independent of the shared notched PitchParamQuantity
+// in plugin.hpp that Particules/Retours use.
+struct OndesPitchParamQuantity : ParamQuantity {
+    float getDisplayValue() override { return ondesKnobToSemitones(getValue()); }
+    void setDisplayValue(float semitones) override { setValue(ondesSemitonesToKnob(semitones)); }
+    std::string getDisplayValueString() override {
+        float st = getDisplayValue();
+        if (std::fabs(st - std::round(st)) < 0.05f) return string::f("%d", (int)std::round(st));
+        return string::f("%.1f", st);
+    }
+    std::string getUnit() override { return " st"; }
+};
 
 struct Ondes : Module {
     enum ParamId {
@@ -20,10 +35,6 @@ struct Ondes : Module {
     particules_dsp::WavetableOscillator osc_;
     RackWavetableProvider wavetable_provider_;
 
-    // Pitch knob cache: pitchKnobToSemitones() is a linear search; skip when unchanged.
-    float cached_pitch_knob_      = -999.f;
-    float cached_pitch_semitones_ = 0.f;
-
     // Last post-CV bank/wave (0-1), read by the panel display. UI-thread read of
     // an audio-thread write is a benign race (display only), as in Fundamental.
     float lastBank = 0.f;
@@ -31,7 +42,7 @@ struct Ondes : Module {
 
     Ondes() {
         config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-        configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
+        configParam<OndesPitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
         configParam(POSITION_PARAM, 0.f, 1.f, 0.5f, "Position");
         configParam(POSITION_AMT_PARAM, -1.f, 1.f, 0.f, "Position CV amount");
         configParam(BANK_PARAM, 0.f, 1.f, 0.f, "Bank");
@@ -51,12 +62,8 @@ struct Ondes : Module {
     }
 
     void process(const ProcessArgs& args) override {
-        float raw_pitch = params[PITCH_PARAM].getValue();
-        if (raw_pitch != cached_pitch_knob_) {
-            cached_pitch_knob_      = raw_pitch;
-            cached_pitch_semitones_ = pitchKnobToSemitones(raw_pitch);
-        }
-        float pitch = cached_pitch_semitones_ + inputs[VOCT_INPUT].getVoltage() * 12.f;
+        float pitch = ondesKnobToSemitones(params[PITCH_PARAM].getValue())
+                    + inputs[VOCT_INPUT].getVoltage() * 12.f;
         float position = clamp(
             params[POSITION_PARAM].getValue()
             + inputs[POSITION_INPUT].getVoltage() * 0.2f * params[POSITION_AMT_PARAM].getValue(),

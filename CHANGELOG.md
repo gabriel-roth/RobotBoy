@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- **Ondes** — the Pitch knob is now a plain linear +-24 semitone control. It no longer stretches extra knob travel around octave/fifth/unison landmarks the way it used to (and the way Particules' and Retours' pitch knobs still do).
 - **Onbetap** — the Oversampling menu drops the **1x** option; it's now **CPU efficient** (2x) / **high quality** (4x), and 2x is the default on both VCV Rack and MetaModule (previously MetaModule defaulted to 1x). A patch saved with the old 1x setting now opens at 2x.
 - **MetaModule builds now require firmware v2.3 or later.** The plugin is built against SDK v2.3, which lets the firmware catch a plugin that runs out of memory instead of crashing. Adding a Loooop or Löp to a patch with too little memory free now fails cleanly with "Not enough memory to load module" rather than taking the patch down with it. Firmware v2.2 and earlier will refuse to load this build.
 - **Loooop & Löp** — changing the sample rate can no longer crash the module. Each looper reserves a 60-second stereo record buffer (about 23 MB at 48 kHz, and twice that at 96 kHz), and on a busy patch the larger buffer may not fit. Previously that killed the module — and on the desktop build it could crash outright, reading from a buffer that had already been freed. Now the looper keeps the buffer it has and carries on with a shorter maximum loop time, telling you the new limit on MetaModule and logging it in VCV Rack.
