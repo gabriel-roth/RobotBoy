@@ -71,4 +71,4 @@ PatchData:
   vcvModuleStates:
     - module_id: 1
       data: |-
-        {"vintageDrift":true,"oversample":1}
+        {"vintageDrift":true,"oversample":2}

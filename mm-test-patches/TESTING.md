@@ -383,7 +383,7 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 ## RB-Onbetap-1 — Tamed: the Polivoks behaviors (Onbetap, signature-behavior tour)
 
-**Setup:** Saw VCO at C2 into the Onbetap through a unity-gain VCA (knob v = Input level, loaded at full), Tamed mode at 1× oversampling (baked state). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
+**Setup:** Saw VCO at C2 into the Onbetap through a unity-gain VCA (knob v = Input level, loaded at full), Tamed mode at 2× oversampling ("CPU efficient", the baked default on both hosts). Cutoff starts \~400 Hz, Q 60%, Drive 20%, LP mode, all CV amounts full. Filter output on Out 1/Out 2.
 **Panel:**
 
 | Control | Maps to |
@@ -434,7 +434,7 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 ## RB-Onbetap-2 — Vintage stereo pad (Onbetap, Vintage drift + hard mode switching)
 
-**Setup:** Two saw VCOs — C3 left, C3 +7 cents right — feed the Onbetap's L/R inputs (true stereo through one filter). Vintage mode is baked in (drift ON, 1×). A slow sine LFO (0.1 Hz, ±1.5 V) is wired to Cutoff CV internally with Cutoff CV Amt at +30%. Cutoff \~750 Hz, Q 50%, Drive 30%, LP mode. Output on Out 1/Out 2 — listen in stereo.
+**Setup:** Two saw VCOs — C3 left, C3 +7 cents right — feed the Onbetap's L/R inputs (true stereo through one filter). Vintage mode is baked in (drift ON, 2× "CPU efficient"). A slow sine LFO (0.1 Hz, ±1.5 V) is wired to Cutoff CV internally with Cutoff CV Amt at +30%. Cutoff \~750 Hz, Q 50%, Drive 30%, LP mode. Output on Out 1/Out 2 — listen in stereo.
 **Panel:**
 
 | Control | Maps to |
@@ -470,9 +470,9 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 6. Sequence In 1 — **Expect:** both saws transpose together in tune (one CV, two VCOs); the detune interval and the stereo drift character hold at every pitch.
 7. In 2 (Q CV) is mapped but you may leave it empty — **Expect:** with nothing patched it behaves exactly as if unmapped. Note anything odd; this is one of the cable-detection cases from the conventions.
 
-## RB-Onbetap-3 — 4× oversampling (Onbetap, aliasing A/B against RB-Onbetap-1)
+## RB-Onbetap-3 — 4× oversampling / high quality (Onbetap, aliasing A/B against RB-Onbetap-1)
 
-**Setup:** Same layout as RB-Onbetap-1 (saw VCO at C2, Tamed mode) but baked at 4× oversampling with Drive at 80% and Cutoff high (\~70%, several kHz) — a deliberately hot, bright setting. RB-Onbetap-1 runs the MetaModule default 1×; to A/B, set patch 1's knobs C to 80% and A to 70% to match. Output on Out 1/Out 2.
+**Setup:** Same layout as RB-Onbetap-1 (saw VCO at C2, Tamed mode) but baked at 4× oversampling ("high quality") with Drive at 80% and Cutoff high (\~70%, several kHz) — a deliberately hot, bright setting. RB-Onbetap-1 runs the default 2× ("CPU efficient"); to A/B, set patch 1's knobs C to 80% and A to 70% to match. Output on Out 1/Out 2.
 **Panel:** identical to RB-Onbetap-1 (A Cutoff · B Q · C Drive · D Mode · E Cutoff CV Amt · F Q CV Amt · u Drive CV Amt · v Input level · In 1 Cutoff CV · In 2 Q CV · In 3 Drive CV · In 4 VCO Pitch).
 
 **This patch is an A/B against RB-Onbetap-1**, which needs its knobs moved to match (C 80%, A 70%) since it loads at gentler settings. Do that from a fresh reload of patch 1 each time, so the only difference between the two is oversampling.
@@ -481,15 +481,15 @@ This patch self-loads: every block below starts from a fresh reload and needs no
 
 *Block 1 — the aliasing A/B · this patch freshly loaded and untouched; RB-Onbetap-1 freshly loaded with C to 80% and A to 70%*
 
-1. In RB-Onbetap-1 (1×, knobs matched as above), play a rising line into In 4 over 2-3 octaves — **Expect:** inharmonic aliasing "birdies" under the distortion, faint whistles that sweep DOWN as you play UP.
-2. Reload THIS patch and play the same rising line, knobs untouched — **Expect:** clean at 4×, no counter-sweeping birdies; the distortion harmonics all move up with the notes.
+1. In RB-Onbetap-1 (2× "CPU efficient", knobs matched as above), play a rising line into In 4 over 2-3 octaves — **Expect:** inharmonic aliasing "birdies" under the distortion, faint whistles that sweep DOWN as you play UP.
+2. Reload THIS patch and play the same rising line, knobs untouched — **Expect:** clean at 4× "high quality", no counter-sweeping birdies; the distortion harmonics all move up with the notes.
 3. Push it harder here: C to max, sweep A through the top of its range while holding a high note — **Expect:** still no birdies; the harshest setting available stays harmonically well-behaved.
 
 **Reset:** reload the patch — the CPU figures below must come from the loaded settings, not from step 3's maxed Drive.
 
 *Block 2 — the CPU numbers · from a freshly loaded patch, and a freshly loaded RB-Onbetap-1 with C 80% / A 70%*
 
-4. Watch the device CPU meter with this patch at its loaded positions, then do the same in RB-Onbetap-1 — **Expect:** headroom acceptable at 4×. **Write down both figures.** We're considering locking Onbetap to 4× the way Vespid is, and this pair of numbers is the deciding data point.
+4. Watch the device CPU meter with this patch at its loaded positions, then do the same in RB-Onbetap-1 — **Expect:** headroom acceptable at 4×, and better still at 2× — the 1x option that used to trade audio quality for headroom is gone, since 2× alone now has enough headroom on MetaModule. **Write down both figures** as the current CPU-efficient/high-quality baseline.
 5. For each patch, catch the worst case rather than the idle figure: wiggle A and B and modulate In 1 while watching the meter — **Expect:** the peak reading is higher than the resting one; record the peak.
 
 ## RB-Vespid-1 — British: the CMOS rasp (Vespid, dirty-Wasp character + Blend morph + output taps)

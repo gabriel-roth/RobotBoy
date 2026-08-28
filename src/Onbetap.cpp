@@ -77,15 +77,14 @@ struct Onbetap : Module {
 	// implements both (exercised by tests). All tuning constants are baked —
 	// see onbetap/drive.hpp and kOnsetTrim above.
 
-	// Oversampling default: 1x on MetaModule, where the Cortex-A7 core needs the
-	// headroom; 2x on desktop. The 1x/2x/4x menu is available on both hosts, and
-	// a patch that saved a factor keeps it.
-#if defined(METAMODULE)
-	static constexpr int kDefaultOversample = 1;
-#else
+	// Oversampling default: 2x ("CPU efficient") on both hosts. 1x used to be
+	// the MetaModule default (the Cortex-A7 core has the least headroom) but
+	// has been removed as a menu option entirely -- 2x has enough headroom on
+	// MetaModule now (see docs/superpowers/plans/2026-07-24-cpu-optimization.md),
+	// so the menu is just CPU efficient (2x) / high quality (4x) on both hosts.
+	// A patch saved at the old oversample:1 loads at 2x (dataFromJson below).
 	static constexpr int kDefaultOversample = 2;
-#endif
-	int oversample = kDefaultOversample;            // 1 / 2 / 4
+	int oversample = kDefaultOversample;            // 2 / 4
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -231,11 +230,10 @@ struct Onbetap : Module {
 	}
 
 	// One stereo side through the oversampled core. Returns output volts.
-	// fir{Lp,Bp,Hp} run on the 2x and 4x paths (on 4x as stage B behind the
-	// fir4* stage-A decimators); the 1x path bypasses them entirely.
+	// fir{Lp,Bp,Hp} run on both paths (on 4x as stage B behind the fir4*
+	// stage-A decimators).
 	float processSide(OnbetapFilter& flt, float& xPrev, DCBlock& dc, float inVolts,
 	                  float g, float kEff, float driveScale, float makeup, float push,
-	                  bool needHp,
 	                  DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp,
 	                  DecimFir9& fir4Lp, DecimFir9& fir4Bp, DecimFir9& fir4Hp) {
 		float lp = 0, bp = 0, hp = 0;
@@ -263,8 +261,9 @@ struct Onbetap : Module {
 					fir4Hp.pushHistory(o.hp);
 				}
 			}
-		} else if (oversample == 2) {
-			// 2x: 13-tap decimation FIR (see engine.hpp DecimFir13) replaces
+		} else {
+			// 2x (the only other option, and the default on both hosts):
+			// 13-tap decimation FIR (see engine.hpp DecimFir13) replaces
 			// the crude 2-tap boxcar average, which under-attenuates the
 			// alias band and both droops the top octave and lets content
 			// above the new Nyquist fold back down (measured, Task 5).
@@ -277,19 +276,8 @@ struct Onbetap : Module {
 				float fh = firHp.push(o.hp);
 				if (i == 2) { lp = fl; bp = fb; hp = fh; }  // decimate: keep 1 of 2
 			}
-		} else {
-			// 1x (the MetaModule default): no resampling — the old generic
-			// fall-through interpolated toward t = 1 and averaged over one
-			// sample, i.e. two runtime divides and arithmetic to reproduce
-			// the input (doc §4.2). needHp only gates the tap here: at 1x
-			// skipping it is exactly equivalent (hp is not filter state);
-			// at 2x/4x the decimation FIRs must keep seeing hp, so those
-			// paths always compute it.
-			auto o = flt.processG(x1, g, kEff, needHp);
-			lp = o.lp; bp = o.bp; hp = o.hp;
 		}
-		xPrev = x1;   // still tracked at 1x so an oversampling switch
-		              // interpolates from the right previous sample
+		xPrev = x1;
 
 		// taps + 5 ms crossfade on mode change (Vintage: hard switch, DC step
 		// and all, like the factory panel switch)
@@ -324,15 +312,6 @@ struct Onbetap : Module {
 
 		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
 
-		// HP tap gate (§4.6/§7.2, conservative): only the 1x path may skip
-		// the tap, and only when neither the crossfade target nor — while a
-		// crossfade is still running — its source reads hp. Vintage switches
-		// modes hard, so only the target matters there. Modes 2/3/4
-		// (HP/notch/peak) read hp.
-		auto usesHp = [](int m) { return m >= 2; };
-		bool needHp = oversample != 1 || usesHp(modeTarget)
-		              || (modeXf < 1.f && !vintageDrift && usesHp(modeCurrent));
-
 		for (int c = 0; c < voices; c++) {
 			OnbetapVoice& v = pool.voices[c];
 			float g      = v.gSlew.process(v.gTarget);
@@ -344,7 +323,7 @@ struct Onbetap : Module {
 
 			float inL = inputs[AUDIO_INPUT].getPolyVoltage(c) + dither;
 			float outL = processSide(v.fL, v.xPrevL, v.dcL, inL, g, kEff, drive, makeup,
-			                         push, needHp, v.firLpL, v.firBpL, v.firHpL,
+			                         push, v.firLpL, v.firBpL, v.firHpL,
 			                         v.fir4LpL, v.fir4BpL, v.fir4HpL);
 			outputs[AUDIO_OUTPUT].setVoltage(outL, c);
 
@@ -352,7 +331,7 @@ struct Onbetap : Module {
 				float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c) + dither;
 				float outR = processSide(v.fR, v.xPrevR, v.dcR, inR,
 				                         g * v.fRgRatio, kEff, drive, makeup, push,
-				                         needHp, v.firLpR, v.firBpR, v.firHpR,
+				                         v.firLpR, v.firBpR, v.firHpR,
 				                         v.fir4LpR, v.fir4BpR, v.fir4HpR);
 				outputs[AUDIO_OUTPUT_R].setVoltage(outR, c);
 			} else {
@@ -378,8 +357,11 @@ struct Onbetap : Module {
 		// "limitMode" from old patches is deliberately ignored (hardwired Soft).
 		json_t* os = json_object_get(root, "oversample");
 		if (os) {
+			// oversample:1 was a valid value before 1x was removed from the
+			// menu; a patch saved at 1x now loads at the 2x default instead
+			// of silently keeping an unreachable-from-the-menu value.
 			int v = (int)json_integer_value(os);
-			oversample = (v == 1 || v == 2 || v == 4) ? v : kDefaultOversample;
+			oversample = (v == 2 || v == 4) ? v : kDefaultOversample;
 		}
 		// tune* keys from the removed Tuning menu (including tuneOnset) are
 		// deliberately ignored — the voicing is baked now.
@@ -437,10 +419,10 @@ struct OnbetapWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Oversampling",
-			{"1x", "2x", "4x"},
-			[m]() { return m->oversample == 1 ? 0 : m->oversample == 2 ? 1 : 2; },
+			{"CPU efficient", "high quality"},
+			[m]() { return m->oversample == 4 ? 1 : 0; },
 			[m](int i) {
-				m->oversample = (i == 0) ? 1 : (i == 1) ? 2 : 4;
+				m->oversample = (i == 1) ? 4 : 2;
 				m->pool.resetAll();
 			}));
 	}
