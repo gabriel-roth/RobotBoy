@@ -380,22 +380,22 @@ struct OnbetapWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		// Knobs: Q (left) / Cutoff hero (centre) / Drive (right).
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.80, 37.000)), module, Onbetap::RES_PARAM));
-		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 30.000)), module, Onbetap::CUTOFF_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.00, 37.000)), module, Onbetap::DRIVE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.80, 40.500)), module, Onbetap::RES_PARAM));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 33.500)), module, Onbetap::CUTOFF_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.00, 40.500)), module, Onbetap::DRIVE_PARAM));
 
 		// Attenuverters, one per column.
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.80, 49.000)), module, Onbetap::RES_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(25.40, 49.000)), module, Onbetap::CUTOFF_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(39.00, 49.000)), module, Onbetap::DRIVE_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.80, 52.500)), module, Onbetap::RES_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(25.40, 52.500)), module, Onbetap::CUTOFF_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(39.00, 52.500)), module, Onbetap::DRIVE_CV_PARAM));
 
 		// CV jacks, one per column.
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.80, 67.350)), module, Onbetap::RES_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.40, 67.350)), module, Onbetap::CUTOFF_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.00, 67.350)), module, Onbetap::DRIVE_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.80, 64.500)), module, Onbetap::RES_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.40, 64.500)), module, Onbetap::CUTOFF_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.00, 64.500)), module, Onbetap::DRIVE_INPUT));
 
 		// Mode hero (snap enabled via configSwitch).
-		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 89.833)), module, Onbetap::MODE_PARAM));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 86.333)), module, Onbetap::MODE_PARAM));
 
 		// Stereo audio I/O.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.35, 114.017)), module, Onbetap::AUDIO_INPUT));

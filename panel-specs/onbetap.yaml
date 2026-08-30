@@ -46,13 +46,14 @@ grids:
   main:
     cols: [11.8, 25.4, 39.0]
     rows:
-      hero:   30.0     # Cutoff hero knob (RoundBigBlackKnob), center column only
-      flank:  37.0     # Q / Drive knobs (RoundBlackKnob), outer columns —
+      hero:   33.5     # Cutoff hero knob (RoundBigBlackKnob), center column only
+      flank:  40.5     # Q / Drive knobs (RoundBlackKnob), outer columns —
                        # dropped 7mm below the row's nominal line to flank
                        # the taller hero knob
-      atten:  49.0     # Q/Cutoff/Drive CV attenuverters (Trimpot)
-      cv_jack: 67.35   # CV input jacks, stacked below the attenuverters
-      mode:   89.833333333333  # Mode hero snap knob
+      atten:  52.5     # Q/Cutoff/Drive CV attenuverters (Trimpot)
+      cv_jack: 64.5    # CV input jacks, raised to sit 12mm below the
+                       # attenuverters (same gap as knob->attenuverter)
+      mode:   86.333333333333  # Mode hero snap knob
 
 elements:
   # Row 1 — Cutoff hero (center) flanked by Q and Drive (outer columns,
@@ -60,9 +61,9 @@ elements:
   - {name: CUTOFF_PARAM, widget: RoundBigBlackKnob, grid: main, col: 2, row: hero}
   - {name: RES_PARAM, grid: main, col: 1, row: flank}
   - {name: DRIVE_PARAM, grid: main, col: 3, row: flank}
-  - {text: Q, x: 11.8, y: 27.0}
-  - {text: Cutoff, x: 25.4, y: 20.0}
-  - {text: Drive, x: 39.0, y: 27.0}
+  - {text: Q, x: 11.8, y: 30.5}
+  - {text: Cutoff, x: 25.4, y: 23.5}
+  - {text: Drive, x: 39.0, y: 30.5}
 
   # Row 2 — attenuverters (Trimpot), one per column, unlabelled.
   - {name: RES_CV_PARAM, widget: Trimpot, grid: main, col: 1, row: atten}
@@ -79,7 +80,7 @@ elements:
   # ringed around it, labelled below.
   - {name: MODE_PARAM, widget: RoundBigBlackKnob, grid: main, col: 2, row: mode}
   - {ring: [LP, BP, HP, N, P], around: MODE_PARAM}
-  - {text: Mode, x: 25.4, y: 103.833333333333}
+  - {text: Mode, x: 25.4, y: 100.333333333333}
 
   # Stereo audio I/O, sharing one centered label each.
   - {name: AUDIO_INPUT, x: 9.35, y: 114.016666666667}
