@@ -18,7 +18,7 @@ All of this holds for MF-20, Onbetap, and Vespid; the sections below cover only 
 - **Stereo audio in and out.** The right input is normalled to the left, so patching **In L** alone fills both sides.
 - **Polyphonic** on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule).
 - **Cutoff** spans 20 Hz – 20 kHz, and every cutoff CV input tracks **1 V/octave.**
-- The options listed under each filter below are in the right-click menu in VCV Rack, or under Options on MetaModule.
+- The options listed under each filter below are in the context menu in VCV Rack, or under Options on MetaModule.
 
 ---
 
@@ -30,7 +30,7 @@ All of this holds for MF-20, Onbetap, and Vespid; the sections below cover only 
 
 The **Korg MS-20** (1978) is a semi-modular monophonic synth that became one of the most sampled and cloned instruments ever made. Much of its reputation rests on its filter, which is unusually aggressive at high resonance and cuts through a mix.
 
-Korg built it two ways: early units (1978–79) used a Korg-made chip, the **Korg-35,** in a Sallen-Key design; later units switched to the more common **LM13600** transconductance amplifier. The Korg-35 is edgier and rawer; the later chip is smoother, especially at maximum resonance. MF-20 emulates both, switchable in the right-click menu.
+Korg built it two ways: early units (1978–79) used a Korg-made chip, the **Korg-35,** in a Sallen-Key design; later units switched to the more common **LM13600** transconductance amplifier. The Korg-35 is edgier and rawer; the later chip is smoother, especially at maximum resonance. MF-20 emulates both, switchable in the context menu.
 
 ### How it works
 
@@ -53,7 +53,7 @@ The two cutoffs have independent knobs. To sweep them together the way the MS-20
 
 Peak and Drive have no CV inputs: the MS-20 had no resonance modulation.
 
-### Right-click menu
+### Context menu
 
 - **Filter revision** — **OTA (revised MS-20)**, based on the later LM13600 design (smoother, more open), or **Korg35 (original MS-20)**, the early chip (edgier, grittier distortion).
 
@@ -94,9 +94,10 @@ These four behaviors run counter to what most filters do, and they are the heart
 - **Drive** — 0–100%, roughly −12 to +24 dB into the core. Adds asymmetric-clipping grit and, characteristically, suppresses resonance as you push it.
 - **Mode** — a five-position knob: **Lowpass** (12 dB/oct), **Bandpass** (6 dB/oct — the circuit's two native outputs), **Highpass**, **Notch**, and **Peak**. Lowpass and Bandpass match the original hardware; the other three are new, from the same core. Mode changes crossfade over 5 ms to avoid clicks (except in Vintage — see below), and Mode has no CV input.
 
-### Right-click menu
+### Context menu
 
 - **Character** — **Tamed** (default), a calibrated, stable version of the circuit; or **Vintage**, which layers in the imperfections of a real, aging unit: a slow drift of cutoff (independent per channel), a fixed mismatch between the two filter stages, a per-unit DC offset that produces a thump on fast cutoff sweeps, and a hard (unfaded) mode switch.
+- **Oversampling** — **CPU efficient** (2×, default) or **high quality** (4×). The Polivoks core's own distortion stage generates harmonics that can alias back into the audible range at high drive and resonance; 4× pushes that aliasing further down at the cost of more CPU.
 
 ### Under the hood
 
@@ -138,7 +139,7 @@ The original Wasp sits right at the verge of self-oscillation — enough to whis
 
 Alone among the three filters, Vespid has four outputs, each a stereo pair and all live at once: **HP**, **BP**, and **LP** carry the three filter responses unblended, and **Mix** carries the LP–notch–HP crossfade set by the Blend knob. **Freq**, **Res**, **Drive**, and **Blend** each have a CV input.
 
-### Right-click menu
+### Context menu
 
 - **Character** — **British** (default): the original 1978 Wasp sound, riding the edge of oscillation for whistles and chirps but staying under control. **German**: a self-oscillation mod based on the Doepfer A-124, crossing into full self-oscillation.
 - **Self-oscillation pitch (German)** — **Hardware (drifts flat)** reproduces the way the real circuit's oscillation pitch sags at high resonance; **Corrected (tracks knob)** keeps it in tune so you can play the self-oscillation as a voice.

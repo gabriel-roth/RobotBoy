@@ -79,7 +79,7 @@ All buffer lengths double when the input is mono: 8, 16, 32, and 64 seconds resp
 
 ## Context-menu options
 
-Right-click the panel in VCV Rack, or open Options on MetaModule:
+Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Auto gain** — Particules normally sets its own input gain (−60 to +32 dB) whenever you patch or unpatch, boosting quiet sources and attenuating hot ones to leave headroom (a full-scale ±5 V input lands around −8 dB). Selecting this re-runs calibration; the menu shows the current gain.
 - **Manual gain** — turns auto gain off and lets you set a fixed input gain (0–32 dB). Useful when the source is silent or intermittent and auto gain would otherwise crank up the noise floor.

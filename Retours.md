@@ -66,7 +66,7 @@ The **Quality** button (top center, with the multicolor LED) cycles through four
 - ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gentle wow and flutter. 16-second buffer.
 - ***Scorched cassette*** (magenta LED) — 24 kHz, true 8-bit µ-law, tape hiss, wow and flutter. Crunchy lo-fi. 32-second buffer.
 
-All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the right-click menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
+All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
 
 ### The trimpots (Time · Pitch · Shape)
 
@@ -90,7 +90,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 
 ## Context menu
 
-Right-click the panel in VCV Rack, or open Options on MetaModule:
+Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Quality** — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
 - **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend; each jump lands on a waveform-aligned spot near the new time, so even fast Interval sweeps stay clean rather than garbling.

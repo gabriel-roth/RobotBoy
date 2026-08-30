@@ -26,7 +26,7 @@
 
 ---
 
-## Right-click menu
+## Context menu
 
 - **Waveform banks** — toggle **1 - Sines**, **2 - Formants**, **3 - Braids** independently. Disabling a group removes its banks from the Bank knob's range; the remaining enabled groups spread across the knob's full travel. At least one group must stay enabled — the last one can't be unchecked.
 

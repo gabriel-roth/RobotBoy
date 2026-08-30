@@ -8,8 +8,9 @@ On MetaModule a module exposes controls through **two** surfaces:
    SDK sorts by `param_idx`, i.e. the module's `ParamId` order). Native modules
    group their AltParams under an **"Options:"** header here; these are real,
    mappable params.
-2. **The module context menu** — opened from the module (right-click / menu
-   button). The **current firmware renders the module's VCV `appendContextMenu`**
+2. **The module context menu** — opened from the module (right-click on VCV
+   Rack; the menu button on MetaModule). The **current firmware renders the
+   module's VCV `appendContextMenu`**
    here (`firmware/src/gui/module_menu/vcv_plugin_menu.hh` calls
    `mw->appendContextMenu(...)` and draws MenuItems, submenus, sliders, and
    separators). This is where the **VCV-adapter** modules' menu-only settings
