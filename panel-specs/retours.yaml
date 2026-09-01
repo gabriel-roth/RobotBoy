@@ -3,7 +3,7 @@
 # original, not a generated SVG, so panel-path byte parity is NOT the goal
 # here. Component-CENTER parity IS mandatory (the firmware's
 # mm2px(Vec(...)) coordinates in src/retours_delay/Retours.cpp are locked to
-# it, and MetaModule's coordinate sync depends on it). Regenerate with:
+# it, and MetaModule's coordinate sync depends on it). Regenerate with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/retours.yaml --out res/Retours.svg
 #
 # Every x/y below is copied verbatim from Retours.cpp's

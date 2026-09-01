@@ -2,7 +2,7 @@
 # the component-center and label-path layout of the shipped panel. (The
 # module was named Yellowjacket until 2026-07; layout is unchanged from
 # that panel — only the name/slug and title wordmark differ.) Regenerate
-# with:
+# with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/vespid.yaml --out res/Vespid.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id

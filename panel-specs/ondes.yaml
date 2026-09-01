@@ -1,6 +1,6 @@
 # Ondes panel spec (panel-gen v2) — generates res/Ondes.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
-# with:
+# with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/ondes.yaml --out res/Ondes.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id

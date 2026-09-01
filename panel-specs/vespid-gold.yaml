@@ -2,7 +2,7 @@
 # res/Vespid-gold.svg, the alternate panel theme selected via the
 # module's context menu. (The module was named Yellowjacket until 2026-07;
 # layout is unchanged from that panel — only the name/slug and title
-# wordmark differ.) Regenerate with:
+# wordmark differ.) Regenerate with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/vespid-gold.yaml --out res/Vespid-gold.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id

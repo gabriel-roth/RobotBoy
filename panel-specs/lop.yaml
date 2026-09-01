@@ -1,6 +1,6 @@
 # Löp panel spec (panel-gen v2) — generates res/Lop.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
-# with:
+# with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lop.yaml --out res/Lop.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id
