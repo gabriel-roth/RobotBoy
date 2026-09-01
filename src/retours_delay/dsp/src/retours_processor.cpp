@@ -164,6 +164,35 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
     // at 48 kHz / 64-sample blocks) in every storage config.
     s.recording_buffer.TickClear(s.recording_buffer.capacity_bytes() / 128);
 
+    // First-ever block: resolve the real channel-count/quality config
+    // synchronously instead of falling into the crossfaded transition below.
+    // Init() always configures the buffer for stereo (cable state isn't
+    // known at construction time), so a mono-cabled patch -- only IN_L
+    // patched, the module's own documented "mono in" pattern and exactly
+    // what a Karplus-Strong pluck patch uses -- reports params.mono_input
+    // (true) against active_mono (false) from the very first block. Nothing
+    // has played yet, so there's no click to protect against: apply the
+    // config immediately and clear (the pool is already zeroed by Init(),
+    // but Configure()'s contract requires a Clear() after a layout change
+    // regardless). Skipping this left every mono Retours patch muted for
+    // ~250 ms after load (fade-out + buffer-clear drain + fade-in) and
+    // silently detuned the delay time an octave once it settled (mono
+    // doubles the buffer's effective duration), swallowing the first pluck
+    // of a Karplus-Strong voice every time.
+    if (!s.config_resolved) {
+        s.config_resolved = true;
+        s.active_quality = s.params.quality;
+        s.active_mono = s.params.mono_input;
+        auto cfg = particules_dsp::QualityConfigFor(s.active_quality);
+        s.recording_buffer.Configure(cfg.decimation, cfg.format,
+                                     s.active_mono ? 1 : 2, cfg.max_bytes);
+        s.recording_buffer.ImmediateClear();
+        float effective_seconds =
+            static_cast<float>(s.recording_buffer.size()) *
+            static_cast<float>(cfg.decimation) / s.sample_rate;
+        s.base_time.SetBufferSeconds(effective_seconds);
+    }
+
     // Config transition (quality and/or channel count): fade wet out,
     // reconfigure + clear the buffer, hold muted until the clear drains,
     // fade back in. Starting a transition is ignored while frozen

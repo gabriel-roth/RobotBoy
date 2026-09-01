@@ -207,6 +207,53 @@ TEST_CASE("high feedback decays instead of self-oscillating (fb HP must not peak
 }
 
 // ---------------------------------------------------------------------------
+// Regression: Impl::active_mono defaults to false, but Init() always
+// configures the recording buffer for stereo (cable state isn't known at
+// construction time). A mono-cabled patch -- only IN_L patched, the
+// module's own documented "mono in" pattern, and exactly what a
+// Karplus-Strong pluck patch uses -- reports params.mono_input=true from
+// the very first block. That used to mismatch active_mono and fall into
+// the crossfaded config-transition state machine meant for a LIVE
+// mid-patch quality/cabling change (fade wet out ~43 ms, hold muted
+// through the buffer-clear drain ~170 ms, fade back in ~43 ms) -- eating
+// the very first pluck of every mono Karplus-Strong patch (found via the
+// RB-Retours-3 test-patch investigation). ProcessBlock now resolves the
+// real config synchronously on the first-ever block instead.
+// ---------------------------------------------------------------------------
+TEST_CASE("mono input on the first block does not mute the first pluck") {
+    Proc proc;
+    RetoursParameters params;
+    params.dry_wet = 1.f;
+    params.feedback = 0.85f;
+    params.density = 0.05f;             // audio-rate KS delay, matches RB-Retours-3
+    params.mono_input = true;           // only IN_L patched
+    proc.p.SetParameters(params);
+    const size_t total = 48000;         // 1 s
+    std::vector<StereoFrame> in(total, StereoFrame{0.f, 0.f});
+    // 5 ms noise-ish burst (deterministic), same construction style as the
+    // high-feedback decay test above.
+    int n_burst = 240;
+    for (int i = 0; i < n_burst; ++i) {
+        float w = 0.5f - 0.5f * std::cos(2.f * 3.14159265f * i / n_burst);
+        float noise = ((i * 2654435761u) % 1000) / 500.f - 1.f;
+        in[i] = {0.2f * w * noise, 0.2f * w * noise};
+    }
+    std::vector<StereoFrame> out(total);
+    for (size_t off = 0; off < total; off += 64) {
+        proc.p.SetParameters(params);
+        proc.p.Process(in.data() + off, out.data() + off, 64);
+    }
+    auto rms = [&](size_t a, size_t b) {
+        double ss = 0;
+        for (size_t i = a; i < b; ++i) ss += (double)out[i].l * out[i].l;
+        return std::sqrt(ss / (b - a));
+    };
+    // Before the fix this window measured ~0.000002 (fully muted by the
+    // spurious fade-out/clear); the pluck should still be audibly ringing.
+    REQUIRE(rms(1900, 2100) > 0.005f);   // ~40-44 ms post-pluck
+}
+
+// ---------------------------------------------------------------------------
 // Fix round (final review): FEEDBACK knob range is 0..1.1, not clamped to
 // 1.0 -- >1 loop gain (self-sustaining/growing feedback, signature Beads
 // behavior per the plan) must be reachable at the top of the knob's travel,

@@ -55,6 +55,16 @@ struct RetoursProcessor::Impl {
     int qt_fade_counter = 0;
     static constexpr int kQualityFadeSamples = 2048;   // ~43 ms at 48 kHz
 
+    // True once the very first block has resolved the real channel-count/
+    // quality config. Init() always configures the buffer for stereo
+    // (cable state isn't known yet at construction time), so a mono-cabled
+    // patch's first block sees params.mono_input (true) mismatch
+    // active_mono (false) and would otherwise fall into the crossfaded
+    // transition below meant for a LIVE quality/cabling change mid-patch --
+    // muting the wet path for ~250 ms and eating the first pluck of every
+    // mono Karplus-Strong patch (see ProcessBlock's first-block resolution).
+    bool config_resolved = false;
+
     // Smoothed mix params (zipper prevention)
     float smoothed_dry_wet = 0.5f;
     float smoothed_feedback = 0.f;
