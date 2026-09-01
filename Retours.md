@@ -101,7 +101,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 ## Patch ideas
 
-- **Karplus-Strong string:** turn Interval a long way from center for an audio-rate delay, set Feedback high, and send a V/oct pitch sequence into **Interval CV** — the delay length becomes the string's pitch. Feed it short bursts of noise to pluck it: each burst rings out as a decaying string.
+- **Karplus-Strong string:** turn Interval counter-clockwise into audio-rate territory for a clean single-tap voice — stop short of the floor, so a V/oct sequence has a couple of octaves of headroom before it clamps — set Feedback high, and send a V/oct pitch sequence into **Interval CV**: the delay length becomes the string's pitch. Feed it short bursts of noise to pluck it: each burst rings out as a decaying string.
 - **Spiralling echoes:** set a moderate delay and feedback, then nudge **Pitch** off its center detent. Every repeat climbs (or falls) a step, so a single note becomes an endless ascending shimmer.
 - **Beat slicer:** play a drum loop in, patch its clock into **Clock**, turn Feedback down and Dry/Wet up, and gate **Slice** from your sequencer. While sliced, **Interval** sets the slice length in beat divisions and **Time** picks which slice plays — sequence **Time CV** with stepped random to rearrange the loop in tempo.
 - **Gated rhythmic delay:** clock Retours, then turn up **Shape** to gate each repeat — the echoes become a rhythmic pattern locked to your tempo.
