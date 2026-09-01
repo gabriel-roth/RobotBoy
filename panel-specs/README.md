@@ -69,5 +69,3 @@ generate. Per-panel overrides live in the spec's own `theme:` block (see
 - **`res/*.svg` are generated artifacts — never hand-edit them.** Change the
   spec and regenerate. (`vcv/res/` is a further build-time copy made by
   `vcv/Makefile`; also never hand-edited.)
-- `Particules` and `Retours` were formerly hand-built Inkscape originals;
-  both are now spec-driven like every other panel here.
