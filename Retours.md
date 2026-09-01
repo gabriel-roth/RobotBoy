@@ -1,6 +1,6 @@
 # Retours
 
-**Retours** is a delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). At its simplest it's a stereo echo, but its repeat time runs from several seconds down to audio rates, so the same knob that sets a slapback also turns the delay into a plucked, pitched resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. It's based on the delay mode hidden inside Mutable Instruments Beads and shares its recording engine with Particules.
+**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. It's based on the delay mode hidden inside Mutable Instruments Beads and shares its recording engine with Particules.
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
@@ -10,7 +10,7 @@
 
 Retours is always recording your input onto a short loop of tape. A playback head follows behind the record head at a distance you set, and what it reads is your delayed signal — move it further back for a longer echo.
 
-Feedback sends the delayed signal back to be recorded again, so it repeats and decays. In the feedback path sits a **pitch shifter**, so each repeat can come back higher or lower, spiralling up or down. A tempo-synced **envelope** can chop or swell each repeat, and **Slice** stops the tape entirely to loop one frozen slice as a stutter.
+Feedback sends the delayed signal back to be recorded again, so it repeats and decays. In the feedback path sits a **pitch shifter**, so each repeat can come back higher or lower. A tempo-synced **envelope** can chop or swell each repeat. **Slice** stops the tape entirely to loop one frozen recording.
 
 Like Particules, Retours records through one of four **Quality** characters — from clean digital to grungy 8-bit cassette — and the feedback path picks up that same character, so dirt compounds with feedback.
 
@@ -33,23 +33,23 @@ Like Particules, Retours records through one of four **Quality** characters — 
 
 * When a clock is patched or you set a tap tempo, Interval becomes a **musical divider/multiplier** of the clock tempo: straight up is one repeat per beat, counter-clockwise gives 1/2, 1/4, 1/8, and 1/16, and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer).
 
-*Clock:* A **tap-tempo** button: tap it a couple of times to set the delay tempo by hand. **A tempo, once set — by tapping or from a patched clock — holds indefinitely.** It sticks through a stopped clock, an unpatched cable, and any Interval move (Interval just re-selects the subdivision). To return to free-running, use **Clear saved tempo** in the context menu, or establish a new tempo.
+*Clock:* A **tap-tempo** button: tap it a couple of times to set the delay tempo by hand. A tempo, once set — by tapping or from a patched clock — holds indefinitely. To return to free-running, use **Clear saved tempo** in the context menu, or establish a new tempo.
 
 * When **clocked** it blinks once per clock beat (or per tapped beat). When **free-running** it blinks once per base Interval, before the Time multiplier — matching the full delay period when Time is at 1×.
 
-*Time:* A multiplier on top of Interval, from 1× up to 16×. Use Interval to set the ballpark and Time to stretch it out. When Retours is clocked, Time snaps to musical multiples (1, 2, 3, 4, 6, 8, 12, 16). **When Slice is engaged, Time chooses which slice of the buffer loops** (see Slice below).
+*Time:* A multiplier on top of Interval, from 1× up to 16×. Use Interval to set the ballpark and Time to stretch it out. When Retours is clocked, Time snaps to musical multiples (1, 2, 3, 4, 6, 8, 12, 16). When Slice is engaged, Time chooses which slice of the buffer loops (see Slice below).
 
 ### Repeat character
 
-*Pitch:* Transposes the signal in the feedback path, roughly −24 to +24 semitones, with gentle notches at the octave, fifth, and unison so it settles onto useful intervals. Off at the center detent; away from center, each repeat comes back transposed, so a string of echoes spirals steadily up or down.
+*Pitch:* Transposes the signal in the feedback path, roughly −24 to +24 semitones, with gentle notches at the octave, fifth, and unison.
 
-*Shape:* A tempo-synced amplitude envelope applied to each repeat. Fully counter-clockwise (off) leaves the echoes untouched. Turning it up morphs the envelope through three stages: first a **gate,** then a smooth **swell,** and finally a **slow ramp.**
+*Shape:* A tempo-synced amplitude envelope applied to each repeat. Fully counter-clockwise (off) leaves the echoes untouched. Turning it up morphs the envelope through three stages: first a **gate** that truncates the repeat’s tail, then a smooth **swell,** and finally a **slow ramp.**
 
-*Feedback:* How much of the delayed signal is fed back to be recorded again. The small arrow at the **90% position** marks exact unity gain: below it repeats always decay; at 90% they hold steady; above, the loop grows on its own. Each Quality setting limits feedback differently, so the runaway zone sounds different in each.
+*Feedback:* How much of the delayed signal is fed back to be recorded again. The small arrow at the **90% position** marks exact unity gain.
 
 ### Slice
 
-*Slice:* Stops recording and loops a frozen slice of the buffer — an instant beat-slicer / stutter. The button latches; the **Slice** gate input (top left) does the same from CV (high above 1V). While Slice is held, **Time selects which slice** plays and **Interval sets how long each slice is**, so you can step through a recorded phrase or lock onto one chopped fragment.
+*Slice:* Stops recording and loops a frozen slice of the buffer — an instant beat-slicer / stutter. The button latches; the **Slice** gate input (top left) does the same when it receives CV above 1V. While Slice is held, **Time selects which slice** plays and **Interval sets how long each slice is**, so you can step through a recorded phrase or lock onto one chopped fragment.
 
 ### Mixing
 
