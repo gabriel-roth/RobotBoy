@@ -7,14 +7,12 @@
  * deliberately independent of Drive. The core's integrator-state rail clamping
  * already provides level compression — the authentic "natural compression
  * between signal and self-osc" — so a Drive-dependent makeup double-compensates,
- * dropping level AND stripping grit as Drive rises. See
- * docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
+ * dropping level AND stripping grit as Drive rises.
  *
  * The one deliberate Drive-dependent output element is vcaPush: a bounded
  * BOOST (never a cut) into the fixed 9 V output-VCA ceiling, quadratic in
  * drive, so the top of the knob keeps gaining grit while the (authentic)
  * resonance choke removes the resonance-derived grit. gritDb = 0 disables it.
- * See docs/superpowers/specs/2026-07-18-onbetap-drive-grit-design.md.
  */
 
 #include <cmath>
@@ -24,7 +22,7 @@ namespace onbetap {
 // volts → core units (1 / 2.4 V window) and Task-5 calibration constants.
 constexpr float kVoltsToCore = 1.f / 2.4f;
 constexpr float kBaseTrim    = 0.4f;   // drive=0 → mild warmth at ±5 V
-constexpr float kOutScale    = 20.5f;  // constant output buffer gain (Task 5)
+constexpr float kOutScale    = 20.5f;  // constant output buffer gain
 
 // Baked voicing (2026-07-18, by-ear final): the Tuning menu was removed and
 // its sliders fixed at these values. Span 36 dB (knob = −12…+24 dB) is viable

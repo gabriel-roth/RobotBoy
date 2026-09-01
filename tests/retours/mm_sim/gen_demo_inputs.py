@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""Generate input WAVs for the three Retours demo renders (Task 13 sanity
-renders, also referenced by the user checklist's audible checks).
+"""Generate input WAVs for the three Retours demo renders.
 
 All files are stereo float32 @48 kHz in the simulator's minimal WAV format
 (see gen_burst.py). MM sim amplitude convention is 1:1 volts.

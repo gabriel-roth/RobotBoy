@@ -4,7 +4,6 @@
 // get LOUDER-or-level (never quieter) and DIRTIER. The bug this catches was a
 // drive-dependent output makeup gain that double-compensated the core's own
 // rail-clamp compression, so Drive made the module quieter and cleaner instead.
-// See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
 //
 // Mirrors Onbetap.cpp::processSide for the 2×/LP path (the stable audio glue),
 // but computes the gains under test via the real onbetap::driveGains(), so the

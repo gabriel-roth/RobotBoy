@@ -16,7 +16,7 @@ constexpr float kCwSubdivisions[8] = {
 constexpr float kCwZoneWidth = 0.0625f;  // 0.5 / 8
 
 constexpr float kNoonEpsilon = 1e-4f;    // knob==0.5 (within float slop) → 1/1
-constexpr float kHysteresis = 0.02f;     // knob units, per brief
+constexpr float kHysteresis = 0.02f;     // knob units
 
 // Clocked-mode TIME multiplier snaps to the nearest of these.
 constexpr float kMultiplierTable[8] = {1.f, 2.f, 3.f, 4.f, 6.f, 8.f, 12.f, 16.f};

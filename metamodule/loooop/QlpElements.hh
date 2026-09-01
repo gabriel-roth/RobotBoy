@@ -12,12 +12,11 @@ namespace MetaModule
 // installed -- the same images 4ms's own modules use (see firmware
 // lib/CoreModules/4ms/helpers/4ms_elements.hh).
 //
-// HAND-MAINTAINED FILE — never overwrite with `panel_gen.py --metamodule`.
-// The generator cannot express the menu-only alt-params, per-param defaults,
-// or the name/order contract shared with LoooopCore.cc/LopCore.cc and
-// test/mm_wiring_test.py. After a panel layout change, update positions with:
-//     python3 metamodule/sync_info_positions.py
-// (See docs/superpowers/specs/2026-07-03-loooop-mm-header-recovery-design.md.)
+// HAND-MAINTAINED FILE — never regenerate it from the panel spec. The
+// generator cannot express the menu-only alt-params, per-param defaults, or
+// the name/order contract shared with LoooopCore.cc/LopCore.cc. After a
+// panel layout change, update positions with:
+//     python3 metamodule/loooop/sync_info_positions.py
 struct QlpKnob : Knob {
     constexpr QlpKnob(BaseElement b, float defaultValue)
         : Knob{{{b, "4ms/comp/knob9mm_x.png"}, defaultValue}} {}

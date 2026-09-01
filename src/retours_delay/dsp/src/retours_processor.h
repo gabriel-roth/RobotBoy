@@ -45,7 +45,7 @@ struct RetoursProcessor::Impl {
     // Config transition (quality mode and/or input channel count): fade the
     // wet path out, reconfigure + clear the buffer (a layout change makes old
     // pool bytes garbage), hold muted until the deferred clear drains, then
-    // fade back in. Mirrors Particules' identical state machine (Task 7).
+    // fade back in. Mirrors Particules' identical state machine.
     enum class QualityTransition : uint8_t { kIdle, kFadeOut, kClearing, kFadeIn };
     QualityTransition qt_state = QualityTransition::kIdle;
     QualityMode active_quality = QualityMode::kBrightDigital;

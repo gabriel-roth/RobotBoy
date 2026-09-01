@@ -1,7 +1,7 @@
 /**
  * test_wasp_filter.cpp — Behavioral tests for src/vespid/WaspFilter.hpp
  *
- * TDD behavioral suite for the Wasp VCF nonlinear core (Task 3).  The core is
+ * Behavioral suite for the Wasp VCF nonlinear core.  The core is
  * driven directly at fsInt = 192000 (standing in for 48 kHz host x 4), no
  * resamplers.  Controls are wired exactly like wasp_ref.py's set_controls:
  *     fci = clamp(fc*wcComp, 0.25, 0.45*fsInt)
@@ -299,8 +299,7 @@ static void test_dc_block() {
 }
 
 // THD (h2..h12 vs h1) and fundamental of raw LP for a 5 V, 110 Hz sine
-// scaled by `gain` — the drive-staging measurement from
-// docs/superpowers/specs/2026-07-19-vespid-drive-remap-design.md.
+// scaled by `gain` — the drive-staging measurement.
 struct Thd { double fund; double thd; bool finite; };
 static Thd thdAtGain(const wasp::ModeConfig& m, float gain, float fc, float rho) {
     const float f0 = 110.f, amp = 5.f;

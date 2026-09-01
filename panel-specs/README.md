@@ -8,9 +8,8 @@ validation (anything off the panel edge is an error; overlaps are warnings).
 It has no opinion on what makes a good layout; that judgment lives in the
 spec.
 
-Declarative panel layouts (v2 spec format) for every RobotBoy module live
-here. Each `<slug>.yaml` generates the corresponding `res/<Slug>.svg` (see
-Rules below).
+Declarative panel layouts for every RobotBoy module live here. Each
+`<slug>.yaml` generates the corresponding `res/<Slug>.svg` (see Rules below).
 
 ## Setup
 
@@ -27,7 +26,7 @@ committed. It's only needed when editing a panel's layout.
 
 ## Commands
 
-Generate, using redux venv path per the migration's ground rules:
+Generate:
 
 ```bash
 ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py \
@@ -51,9 +50,8 @@ browser):
 
 ## Theme
 
-House defaults are read automatically from `~/.config/vcv-panel-gen/theme.yaml`
-(same schema across v1 and v2); no flag needed for a normal RobotBoy
-generate. Per-panel overrides live in the spec's own `theme:` block (see
+House defaults are read automatically from `~/.config/vcv-panel-gen/theme.yaml`;
+no flag needed for a normal RobotBoy generate. Per-panel overrides live in the spec's own `theme:` block (see
 `vespid-gold.yaml` for an example).
 
 ## More

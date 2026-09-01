@@ -869,7 +869,7 @@ TEST_CASE("Grain: playback phase is exact at large buffer positions", "[grain][p
 
 // ── Block-resolved ReadContext vs an independent reference reader ────────
 //
-// Task 12 hoists RecordingBuffer's per-sample format_/channels_/LUT switch
+// RecordingBuffer's per-sample format_/channels_/LUT switch is hoisted
 // out into a ReadContext resolved once per render block (see
 // RecordingBuffer::MakeReadContext / the static ctx overload of
 // ReadHermiteStereoFrac). Grain::Process/ProcessBlock now call ONLY the ctx

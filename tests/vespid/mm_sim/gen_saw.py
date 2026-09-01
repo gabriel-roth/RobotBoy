@@ -11,7 +11,7 @@ exact byte layout the reader (and its sibling WavWriter) expect, matching a
 32-bit float, 2-channel WAV with an 18-byte extended fmt chunk (ext_size=0).
 
 Amplitude is 1:1 "volts" (MetaModule convention), unlike VCV headless which
-scales volts/5 -- see the known gotcha in the task brief.
+scales volts/5.
 """
 import numpy as np
 import struct

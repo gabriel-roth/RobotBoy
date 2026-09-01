@@ -312,8 +312,7 @@ void GrainEngine::Process(const ParticulesParameters& params,
     // always sound (decided 2026-07-11); automatic density ticks are
     // dropped so playing grains finish their envelopes instead of
     // churning (cap floor 2026-07-25, generalized to every cap
-    // 2026-07-26). See docs/superpowers/specs/
-    // 2026-07-26-particules-midrange-saturation-drop-design.md.
+    // 2026-07-26).
     for (int t = 0; t < num_triggers; ++t) {
         Grain* g = nullptr;
         bool reused_active_slot = false;

@@ -19,9 +19,8 @@ static constexpr int    kJumpCrossfadeFrames = 1024;
 // --- Crossfade-mode splice alignment ---
 // When a Crossfade-mode fade starts, its destination may be nudged by up to
 // +/-kAlignSearchFrames so the two taps being blended line up in phase; see
-// AlignedFadeTarget in engine/echo_engine.cpp for the mechanism and
-// docs/superpowers/2026-07-26-crossfade-variants-measurements.md for the
-// measurements that picked these values. All distances are BUFFER frames (host
+// AlignedFadeTarget in engine/echo_engine.cpp for the mechanism (the values
+// were picked by measurement). All distances are BUFFER frames (host
 // samples divided by the quality mode's decimation factor).
 //
 // The comparison window is kAlignWindowFrames of buffer history sampled every

@@ -20,8 +20,7 @@ public:
     // loop silently drops when the grain pool is saturated, instead of
     // stealing (kLatched phasor ticks, kGated held-repeat ticks); false
     // for manual triggers, which always steal (kGated rising edge, all
-    // kClocked ticks, kMidi). See
-    // docs/superpowers/specs/2026-07-26-particules-midrange-saturation-drop-design.md.
+    // kClocked ticks, kMidi).
     int Process(const ParticulesParameters& params, size_t block_size,
                 int* trigger_samples, int max_triggers, bool* droppable = nullptr);
 

@@ -1,4 +1,4 @@
-# Vespid GOLD panel spec (panel-gen v2) — generates
+# Vespid GOLD panel spec (vcv-panel-gen) — generates
 # res/Vespid-gold.svg, the alternate panel theme selected via the
 # module's context menu. (The module was named Yellowjacket until 2026-07;
 # layout is unchanged from that panel — only the name/slug and title
@@ -114,7 +114,7 @@ elements:
 
 # Vertical bars: each cluster column's knob -> attenuverter -> CV jack, plus
 # Blend's lone CV input -> knob. Every #808080 bar in the reference SVG is an
-# explicit pair here (v2 has no implicit-row connector model). BLEND_INPUT and
+# explicit pair here (connectors are always explicit). BLEND_INPUT and
 # BLEND_PARAM sit 0.0167mm apart on x (both exact per the shipped panel) —
 # within the connector resolver's 0.1mm same-column tolerance; the bar itself
 # stops short of the Blend ring's "N" label rather than running through it

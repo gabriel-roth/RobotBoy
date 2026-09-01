@@ -79,9 +79,8 @@ def fit_supply_restricted(VDD, frac=0.8):
                 rms_fit_err_window=float(resid_window), frac=frac,
                 vin=vin, vout=vout)
 
-# --- Investigation note (known wrinkle from the task brief) --------------
-# The brief flags that alpha_p's polynomial is negative-valued and says to
-# use abs(); done above. With abs() applied, the DC curve is monotonic and
+# --- Investigation note --------------------------------------------------
+# alpha_p's polynomial is negative-valued, so abs() is applied above. With abs() applied, the DC curve is monotonic and
 # correctly-directioned (high at vin=0, low at vin=VDD), matching Fig 5's
 # qualitative shape -- but the transition point comes out around vin~8.7V
 # (12V supply) rather than the ~5.5-6V shown in the paper's Fig 5.

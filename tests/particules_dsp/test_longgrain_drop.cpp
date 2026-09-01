@@ -10,10 +10,8 @@
 #include "grain/grain.h"
 #include "grain/grain_engine.h"
 
-// Particules: drop automatic triggers at any saturated grain cap.
-// Specs: docs/superpowers/specs/2026-07-25-particules-longgrain-trigger-drop-design.md
-//        (original cap-floor-only rule), generalized by
-//        docs/superpowers/specs/2026-07-26-particules-midrange-saturation-drop-design.md.
+// Particules: drop automatic triggers at any saturated grain cap (originally
+// only at the cap floor, later generalized to every cap).
 //
 // When a trigger finds the grain pool saturated (dynamic CPU cap, ramped
 // startup cap, or full pool), automatic (droppable) triggers -- kLatched

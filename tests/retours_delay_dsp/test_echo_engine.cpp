@@ -32,10 +32,10 @@ int FindPeak(const std::vector<StereoFrame>& v, int from, int to = -1) {
 }
 
 // ---------------------------------------------------------------------------
-// Task 10 pinning-test helpers (same FNV-1a-over-raw-float-bits technique as
-// Task 7's LoopEngine pinning test, tests/loooop/test_loop_engine.cpp).
+// Pinning-test helpers (same FNV-1a-over-raw-float-bits technique as the
+// LoopEngine pinning test, tests/loooop/test_loop_engine.cpp).
 // Pins EchoEngine::ReadWet's wrap/decimation/multi-tap-snap/freeze-seam
-// output bit-exact across the Task 10 rework (steps 2-5 of the brief).
+// output bit-exact across the ReadWet rework.
 // ---------------------------------------------------------------------------
 std::uint64_t Fnv1aStereo(const std::vector<StereoFrame>& v) {
     std::uint64_t h = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
@@ -52,7 +52,7 @@ std::uint64_t Fnv1aStereo(const std::vector<StereoFrame>& v) {
 }
 
 // Deterministic LCG noise, independently seeded per channel (same constants
-// as the Task 7 loop-engine pinning test's PRNG).
+// as the loop-engine pinning test's PRNG).
 void FillLcgNoise(std::vector<StereoFrame>& buf, std::uint32_t seedL, std::uint32_t seedR) {
     std::uint32_t lcgL = seedL, lcgR = seedR;
     for (auto& fr : buf) {
@@ -431,8 +431,7 @@ TEST_CASE("crossfade mode: retarget during an in-progress fade queues cleanly") 
 
 // ---------------------------------------------------------------------------
 // Crossfade-mode splice alignment (see AlignedFadeTarget in
-// dsp/src/engine/echo_engine.cpp and
-// docs/superpowers/2026-07-26-crossfade-variants-measurements.md). A
+// dsp/src/engine/echo_engine.cpp). A
 // Crossfade-mode fade blends the tap at the
 // old delay with the tap at the new one; on an Interval sweep those sit
 // hundreds of ms apart in the buffer, so their phase relationship is random
@@ -637,7 +636,7 @@ TEST_CASE("NaN input does not poison the buffer") {
 }
 
 // ---------------------------------------------------------------------------
-// Task 10 pinning tests (written FIRST, against the unmodified EchoEngine).
+// Pinning tests (written first, against the unmodified EchoEngine).
 // Each scenario drives RetoursProcessor's public API through 4096 samples of
 // a known deterministic input pattern and hashes the full stereo output
 // stream (raw float bits, FNV-1a). These pin ReadWet's per-sample wrap
@@ -727,8 +726,7 @@ TEST_CASE("pinning: crossfade mode, delay-time retarget mid-run") {
     proc.p.Process(in.data() + 2048, out.data() + 2048, 2048);
 
     // Hash regenerated for splice alignment (AlignedFadeTarget in
-    // dsp/src/engine/echo_engine.cpp; see docs/superpowers/
-    // 2026-07-26-crossfade-variants-measurements.md). This is the ONLY one of
+    // dsp/src/engine/echo_engine.cpp). This is the ONLY one of
     // the five pins in
     // this file whose scenario enters kCrossfade mode -- the other four run in
     // kTape (two set it explicitly, the two frozen ones inherit

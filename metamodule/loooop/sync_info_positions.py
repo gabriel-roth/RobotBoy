@@ -8,8 +8,7 @@ element coordinates are synced by the generic tool
 ~/Dev/vcv-panel-gen/mm_sync.py (strict mode, name-matched through each
 module's sync-map-*.yaml); this script then
 patches the waveform display widget's rect in the matching src/loooop/*.cpp
-from the SVG's SCREEN rect — the one coordinate neither mm_sync nor the
-build-install.sh coord sync covers. Each module's cpp is validated before its
+from the SVG's SCREEN rect — the one coordinate mm_sync does not cover. Each module's cpp is validated before its
 header is touched, and on any mismatch that module's files are left unwritten
 and the run exits nonzero (other modules are still processed independently).
 
@@ -53,7 +52,7 @@ MODULES = [
 ]
 
 # The VCV waveform display widget's rect in src/loooop/*.cpp — the one panel
-# coordinate the build-install.sh coord sync doesn't cover.
+# coordinate mm_sync doesn't cover.
 CPP_POS_RE = re.compile(
     r"^(\s*display->box\.pos = mm2px\(Vec\()(-?\d+\.?\d*),\s*(-?\d+\.?\d*)(\)\);.*)$")
 CPP_SIZE_RE = re.compile(

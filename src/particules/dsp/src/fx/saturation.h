@@ -63,8 +63,7 @@ public:
     // FastTanh) with a 1.4x drive (granular_processor.cc:197-203), so its
     // overload was a warm cubic smudge, never a hard clip. Normalized here
     // (unity small-signal slope, ceiling 1/1.4) to keep the uniform
-    // loop-gain law. See docs/superpowers/plans/
-    // 2026-07-21-cold-digital-clouds-voicing-notes.md.
+    // loop-gain law.
     static constexpr float kColdWriteDrive = 1.4f;
     static constexpr float kColdWriteDriveRecip = 1.0f / kColdWriteDrive;
 

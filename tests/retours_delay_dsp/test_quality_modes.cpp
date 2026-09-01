@@ -216,7 +216,7 @@ TEST_CASE("quality: kBrightDigital feedback stays bounded at feedback=1.0") {
         REQUIRE(std::isfinite(f.r));
         max_abs = std::max(max_abs, std::max(std::fabs(f.l), std::fabs(f.r)));
     }
-    // Adjustment from the brief's literal "<= 1.5": HardClip bounds each
+    // Looser than a literal "<= 1.5": HardClip bounds each
     // written sample's feedback component to +/-1, but the *sum* written
     // (input + fb, never re-clipped) plus cubic-Hermite interpolation
     // overshoot on wideband noise (a known property of the interpolator,
@@ -243,7 +243,7 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
-    // Stereo-distinct (L/R 90 degrees out of phase). Per Task 5,
+    // Stereo-distinct (L/R 90 degrees out of phase).
     // kScorchedCassette no longer mono-sums its input (channel count is an
     // input property, not a mode property) — L and R should stay distinct
     // through the switch, not converge.
@@ -309,10 +309,10 @@ TEST_CASE("quality: mid-stream kBrightDigital to kScorchedCassette switch stays 
     // to its post-switch target; give it the last 0.5 s of phase 2 — i.e.
     // 3.5 s after the switch, >11 slew time constants — to be well clear
     // of all of that), L and R
-    // should still be distinct — kScorchedCassette no longer mono-sums
-    // (Task 5), so stereo content is preserved through the switch rather
+    // should still be distinct — kScorchedCassette no longer mono-sums,
+    // so stereo content is preserved through the switch rather
     // than collapsing to mono.
-    // Threshold lowered from 0.5x to 0.3x (Task 3, 2026-07): Scorched's new
+    // Threshold lowered from 0.5x to 0.3x (2026-07): Scorched's new
     // write-path saturation (SaturateWrite) independently compresses L and R
     // every feedback pass, which narrows -- but must not erase -- the
     // stereo image. Measured ratio with SaturateWrite wired in is ~0.41x;
@@ -456,7 +456,7 @@ TEST_CASE("quality: pending change deferred one more block past unfreeze, no cor
     p.density = KnobForSeconds(0.25f);   // base ~= 250 ms in kBrightDigital terms
     p.time = 0.f;
     p.time_change_mode = TimeChangeMode::kTape;  // default; explicit for clarity
-    p.slew_seconds = 1.0f;                       // slow: worst case per the brief
+    p.slew_seconds = 1.0f;                       // slow: worst case
     p.quality = QualityMode::kBrightDigital;
     proc.p.SetParameters(p);
 
@@ -756,10 +756,10 @@ TEST_CASE("quality: Retours mono_input transition and 64 s mono capacity") {
         REQUIRE(std::fabs(f.l) <= 2.f);
         REQUIRE(std::fabs(f.r) <= 2.f);
     }
-    // Threshold lowered from 0.05 to 0.02 (Task 3, 2026-07): Scorched's
+    // Threshold lowered from 0.05 to 0.02 (2026-07): Scorched's
     // write-path saturation now compresses this 0.9-amplitude noise (well
     // into its ~0.45 ceiling) before it's ever written, and the 2.5 kHz tape
-    // tone cutoff (Task 3) attenuates this broadband fixture further on top
+    // tone cutoff attenuates this broadband fixture further on top
     // of that, so the round-tripped level is legitimately lower than
     // pre-wiring. Measured RMS here is ~0.12 -- comfortably non-zero (true
     // silence reads near 0), which is all this sanity check needs to confirm.

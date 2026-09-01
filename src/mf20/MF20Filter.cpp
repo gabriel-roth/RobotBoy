@@ -66,7 +66,6 @@ struct MF20FilterModule : Module {
     // eases its feedback diode toward the Drive-1 threshold while keeping full
     // input pre-gain; K35 keeps its forward clip at full drive (grit) and
     // instead opens the resonance-loop clip.
-    // See docs/superpowers/specs/2026-07-18-mf20-resonance-retention-design.md.
     static constexpr float kResRetention = 0.75f;
     // Max K35 feedback-loop clip threshold at full retention (threshold 1.0 =
     // stock). Bounded so the loop stays stable (saturated-region slope is

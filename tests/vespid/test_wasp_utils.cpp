@@ -11,7 +11,7 @@
 #include <cstdlib>
 #include <chrono>
 
-// ── Reference halfband implementations (Task 5b) ───────────────────────────
+// ── Reference halfband implementations ─────────────────────────────────────
 // Verbatim copies of the pre-optimization src/vespid/wasp_dsp_utils.hpp
 // HalfbandUp/HalfbandDown (plain O(kHbN) shift-register, no sparsity
 // exploited). Kept here ONLY as an equivalence oracle for the optimized
@@ -87,8 +87,8 @@ static bool near(float actual, float expected, float tol = 0.01f) {
 // ── tanhApprox ──────────────────────────────────────────────────────────────
 
 static void test_tanh_approx() {
-    // NOTE ON TOLERANCE: the brief's Step 1 asks for < 0.01 here, but the
-    // brief's own verbatim formula x*(27+x^2)/(27+9x^2) has a *measured*
+    // NOTE ON TOLERANCE: a < 0.01 bound was the original target here, but
+    // the formula x*(27+x^2)/(27+9x^2) has a *measured*
     // max abs error of 0.0235 near x=1.57 (confirmed numerically: at x=1,
     // approx=0.777778 vs tanh=0.761594, diff=0.016184 > 0.01). This is an
     // inherent property of that exact rational approximant, not a bug in
@@ -338,7 +338,7 @@ static void test_inner_halfband() {
     report(std::fabs(dB) < 0.3f, "inner round trip RMS within 0.3 dB", buf);
 }
 
-// ── Halfband optimized-vs-reference equivalence (Task 5b) ──────────────────
+// ── Halfband optimized-vs-reference equivalence ────────────────────────────
 // Drives wasp::HalfbandUp/Down side-by-side with ReferenceHalfbandUp/Down
 // (the pre-optimization shift-register implementation, copied verbatim
 // above) over noise+sine input, checking sample-for-sample agreement within
@@ -462,9 +462,9 @@ static void test_halfband_matches_reference() {
     }
 }
 
-// ── Halfband perf bench (Task 5b, informational — not a pass/fail test) ────
+// ── Halfband perf bench (informational — not a pass/fail test) ─────────────
 // Times a 10s-equivalent 4x-oversampled stereo render loop (3 HalfbandUp +
-// 9 HalfbandDown calls/channel/host-sample, per the Task 5 accounting) using
+// 9 HalfbandDown calls/channel/host-sample) using
 // the CURRENT (optimized) wasp::HalfbandUp/Down, then the same loop against
 // the Reference (pre-optimization) implementations, and reports the ratio.
 static void bench_halfband() {

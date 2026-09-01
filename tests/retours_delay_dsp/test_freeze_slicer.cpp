@@ -199,8 +199,8 @@ TEST_CASE("freeze: TIME selects a different slice while frozen") {
 // (tone -> flat) is a much more robust signature than comparing RMS values
 // (which, for these two signals' particular amplitudes, can land close
 // enough numerically to make a bare RMS-diff threshold fragile). This is a
-// pragmatic adjustment from the brief's literal "RMS differs by >20%"
-// wording; the underlying intent -- "new input's signature reappears" --
+// pragmatic adjustment from a literal "RMS differs by >20%"
+// criterion; the underlying intent -- "new input's signature reappears" --
 // still holds and is checked more robustly this way.
 TEST_CASE("freeze: unfreeze resumes writes, new input reappears") {
     Proc proc;

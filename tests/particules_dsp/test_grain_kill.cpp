@@ -401,7 +401,7 @@ TEST_CASE("GrainEngine: CPU-cap saturation fades oldest grain and starts new one
 
 // ── (d) NaN pitch CV must resolve to the exact unity pitch fallback ────────
 //
-// SemitonesToRatioFast (Exp2Fast, Task 13) requires a finite argument:
+// SemitonesToRatioFast (Exp2Fast) requires a finite argument:
 // unlike std::exp2, which propagates NaN straight through, Exp2Fast's
 // `(int)y` truncation is UB on non-finite input and has been observed to
 // produce small but FINITE garbage -- which would sail straight past the

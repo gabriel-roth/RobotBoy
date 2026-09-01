@@ -165,7 +165,7 @@ private:
     void windowBounds(const PlayHead& h, double& winStart, double& winLen) const;
     void windowBoundsUncached(const PlayHead& h, float jitterOff,
                               double& winStart, double& winLen) const;
-    // Value-compare cache for the hot per-sample call sites (Findings §2 H5):
+    // Value-compare cache for the hot per-sample call sites:
     // grid-path windowBounds costs 3 double divides + 2 lround libm calls, but
     // all its inputs are control-rate, so recomputing every sample is wasted
     // work. Hosts call the setters every sample, so the cache MUST compare
@@ -184,7 +184,7 @@ private:
     mutable std::array<std::array<WinCache, 2>, NUM_HEADS> winCache_{};
     float readInterpolated(const PlayHead& h, const std::vector<float>& buf,
                            double winStart, double winLen) const;
-    // Shared L/R Catmull-Rom read (Findings §2 H2): one floor/frac/index
+    // Shared L/R Catmull-Rom read: one floor/frac/index
     // computation for both channels instead of two independent
     // readInterpolated calls. Interior taps (all 4 taps inside the window
     // and inside [0, loopLen_)) load bufL_/bufR_ directly, matching
@@ -207,8 +207,8 @@ private:
     float oneShotFadeGain(const PlayHead& h, double winStart, double winLen, int F) const;
     void rollJitter(PlayHead& h);
     void commitJitter(PlayHead& h);
-    // dispTick gates the position/window display-mirror stores (Findings §2
-    // M5): dispPlaying_ is NOT gated here — one-shot pass endings must
+    // dispTick gates the position/window display-mirror stores:
+    // dispPlaying_ is NOT gated here — one-shot pass endings must
     // publish immediately regardless of the throttle.
     void advanceHead(PlayHead& h, int idx, double winStart, double winLen, bool dispTick);
     // Waveform-cache invalidation: bumped (release) after any change to the
@@ -273,7 +273,7 @@ private:
     // the display still converges immediately at pass boundaries.
     std::uint32_t revThrottle_ = 0;
     static constexpr std::uint32_t REV_THROTTLE_MASK = 2047;
-    // Display-mirror store throttle (Findings §2 M5): advanceHead's per-head
+    // Display-mirror store throttle: advanceHead's per-head
     // position/window stores (and the parked-head display block in process())
     // are gated to ~750 Hz at 48 kHz -- far above any display frame rate.
     // dispPlaying_ is excluded: state transitions (e.g. a one-shot pass

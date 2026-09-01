@@ -1,8 +1,7 @@
 #pragma once
 // WaspFilter.hpp — EDP Wasp state-variable VCF nonlinear core (header-only).
 //
-// Circuit model, Rev-1 physics, and solver: see
-//   docs/superpowers/specs/2026-07-15-vespid-dsp-design.md
+// Circuit model: Köper et al., DAFx 2022 (see Filters.md, Vespid: Sources).
 // Fitted constants (authoritative): tests/vespid_ref/fitted_constants.md
 // Behavioral golden reference:       tests/vespid_ref/wasp_ref.py
 //

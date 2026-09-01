@@ -33,7 +33,7 @@ struct DCBlock {
 // downsampling. Replaces a 2-tap boxcar average decimator, which only
 // attenuates the alias band by ~3 dB at the new Nyquist (cos(pi/4)) —
 // audible top-octave droop plus aliased spurs folding back into the audio
-// band (measured, Task 5: -29.5 dB worst spur at 5 kHz/max drive, -2.6 dB
+// band (measured: -29.5 dB worst spur at 5 kHz/max drive, -2.6 dB
 // droop @ 18 kHz pre-fix). Kaiser-windowed FIR (scipy firwin, 13 taps,
 // cutoff 23.5 kHz, beta 1.0, at fsOs = 96 kHz for 2x oversampling), tuned
 // for passband flatness rather than max stopband: the linear-interp
@@ -41,7 +41,7 @@ struct DCBlock {
 // contributes ~1.4 dB of its own droop near 18-20 kHz, so the decimator's
 // budget has to stay under ~0.5 dB there for the combined path to clear
 // the 2 dB target (measured combined droop 0.7 dB @ 18 kHz after this
-// swap — see docs/research/onbetap-worklog.md). A textbook 7-tap
+// swap). A textbook 7-tap
 // half-band was tried first and rejected: it is pinned to -6 dB at exactly
 // fsOs/4 by construction, which pushed the measured 18 kHz droop to
 // -3.4 dB, worse than the boxcar it replaced. push() is called once per
@@ -197,7 +197,7 @@ constexpr float kMismatchR1 = -0.05f, kMismatchR2 = 0.055f;
 
 // Phase-lag damping-correction factor, a pure function of cutoff.
 // Evaluated at kCLagRefFsOs — the oversampled rate the module's kCLag
-// constant was calibrated at (Task 5: 2x OS, 48 kHz host) — so the
+// constant was calibrated at (2x OS, 48 kHz host) — so the
 // correction, and with it kEff, self-osc onset, and top-octave damping,
 // no longer depend on the oversample setting or the host rate. cutoffToG's
 // own fc clamp (0.245·fsOs = 23.52 kHz here) saturates the correction
@@ -226,7 +226,7 @@ struct DriftWalker {
         // OU: sigma = depthOct·sqrt(2a); with uniform [-1,1] noise (var 1/3)
         // this gives stationary std ≈ depthOct/sqrt(3), not depthOct — the
         // constant was calibrated empirically against that actual std, so
-        // this is a naming note only, not a bug (see worklog Task 5, 2e).
+        // this is a naming note only, not a bug.
         float sigma = depthOct * std::sqrt(2.f * a);
         value += a * (0.f - value) + sigma * u;
         value = std::clamp(value, -3.f * depthOct, 3.f * depthOct);

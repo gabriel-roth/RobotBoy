@@ -75,7 +75,7 @@ The **Quality** button cycles through four recording characters. Each changes th
 - ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gentle (half-depth) wow and flutter. Warm tape sound. 16-second buffer.
 - ***Scorched cassette*** (magenta LED) — 24 kHz, true 8-bit µ-law, tape hiss, wow and flutter. Crunchy lo-fi. 32-second buffer.
 
-All buffer lengths double when the input is mono: 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R, or changing the Quality setting, re-formats the recording buffer, briefly muting the wet signal and clearing recorded audio. While Freeze is engaged, the Quality button refuses to cycle; choosing a quality from the context menu changes the selection, but the reformat waits for Freeze to release.
+All buffer lengths double when the input is mono: 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R, or changing the Quality setting, re-formats the recording buffer, briefly muting the wet signal and clearing recorded audio. While Freeze is engaged, the Quality button refuses to cycle. (On MetaModule, where Quality is a four-position switch, the switch still changes the selection, but the reformat waits for Freeze to release.)
 
 ## Context-menu options
 

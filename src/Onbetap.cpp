@@ -13,9 +13,9 @@
 // intervals (modulate()); the audio path (process()/processSide()) only
 // slews and runs the oversampled solve. Mode switching crossfades over 5 ms
 // except in Vintage character, which switches hard (matches the factory
-// panel switch). See docs/superpowers/specs/2026-07-15-onbetap-dsp-spec.md
-// and docs/research/polivoks-*.md for the circuit derivation. Panel
-// positions mirror res/Onbetap.svg (see panel-specs/onbetap.yaml).
+// panel switch). See Filters.md (Onbetap: Sources) for the circuit
+// references behind the model. Panel positions mirror res/Onbetap.svg (see
+// panel-specs/onbetap.yaml).
 
 // Drive-knob → gain mapping (input drive + output makeup) lives in
 // onbetap/drive.hpp so the makeup formula is unit-tested directly. The output
@@ -24,7 +24,7 @@
 // dropping level and stripping grit as Drive rises. drive knob [0,1] → input
 // gain 0.25×…≈15.8× (−12…+24 dB, span baked at onbetap::kDriveSpanDb); output:
 // volts = core × makeup, then VCA sat
-// 9·tanhish(v/9). See docs/superpowers/specs/2026-07-18-onbetap-drive-hw-path-design.md.
+// 9·tanhish(v/9).
 // A Drive-following push into the output VCA (drive.hpp vcaPush, quadratic in
 // drive, bounded by the 9 V ceiling) keeps the top of the knob gaining grit
 // while the authentic resonance choke removes the resonance-derived grit.
@@ -32,7 +32,7 @@ static constexpr float kCLag     = 0.25f;     // phase-lag: kTarget -= cLag·cut
                                               // (engine.hpp; reference-rate, OS-independent)
 static constexpr float kOnsetTrim = 0.045f;   // baked self-osc onset trim (by ear,
                                               // 2026-07-18): onset res ~0.72 → ~0.84
-static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std, calibrated Task 5
+static constexpr float kVintageDriftOct = 0.12f;  // OU stationary std (calibrated)
 static constexpr float kVintageOffset   = 0.03f;  // node offset at 750 Hz, scales with log2 fc
 static constexpr float kTwoPi = 6.28318530717959f;
 
@@ -80,7 +80,7 @@ struct Onbetap : Module {
 	// Oversampling default: 2x ("CPU efficient") on both hosts. 1x used to be
 	// the MetaModule default (the Cortex-A7 core has the least headroom) but
 	// has been removed as a menu option entirely -- 2x has enough headroom on
-	// MetaModule now (see docs/superpowers/plans/2026-07-24-cpu-optimization.md),
+	// MetaModule now, after the CPU optimization pass,
 	// so the menu is just CPU efficient (2x) / high quality (4x) on both hosts.
 	// A patch saved at the old oversample:1 loads at 2x (dataFromJson below).
 	static constexpr int kDefaultOversample = 2;
@@ -266,7 +266,7 @@ struct Onbetap : Module {
 			// 13-tap decimation FIR (see engine.hpp DecimFir13) replaces
 			// the crude 2-tap boxcar average, which under-attenuates the
 			// alias band and both droops the top octave and lets content
-			// above the new Nyquist fold back down (measured, Task 5).
+			// above the new Nyquist fold back down (measured).
 			for (int i = 1; i <= 2; i++) {
 				float t = (float)i * 0.5f;
 				float x = xPrev + (x1 - xPrev) * t;  // linear interp upsample

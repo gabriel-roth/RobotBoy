@@ -1,6 +1,6 @@
 """Generate halfband FIR coefficients for the Vespid oversampler.
 
-Brief (plan Task 1 Step 5) asked for remez(31, [0, 0.205, 0.295, 0.5], [1, 0])
+The original target was remez(31, [0, 0.205, 0.295, 0.5], [1, 0])
 validated to: passband ripple < 0.1 dB below 0.20*fs, stopband > 70 dB above
 0.295*fs. Those two goals are mutually unachievable at 31 taps: a true
 halfband is equal-ripple in both bands (weighting one band destroys the
@@ -8,7 +8,7 @@ halfband zero-tap structure), and 31 taps over a 0.09-wide transition buys
 ~52.6 dB. Kaiser's estimate puts 70 dB at ~48 taps. So the primary design
 here is the 47-tap halfband, which meets both validation numbers
 (passband dev 0.0021 dB, stopband -72.1 dB); the 31-tap variant is also
-emitted (52.6 dB) in case Task 2 prefers the cheaper filter and accepts
+emitted (52.6 dB) in case the cheaper filter is ever preferred at
 the lower attenuation. Recorded as a deviation in fitted_constants.md.
 
 Exact halfband structure is enforced by zeroing the (already ~1e-6)

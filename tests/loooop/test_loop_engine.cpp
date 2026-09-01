@@ -294,7 +294,7 @@ static void test_display_snapshot() {
     check(s2.loopLen == 4 && !s2.recording,  "snap: loop frozen at 4");
     check(near(s2.headPos01[0], 0.f),        "snap: head starts at 0");
 
-    // Display mirrors (Task 8) are throttled to every 64th sample; tick past
+    // Display mirrors are throttled to every 64th sample; tick past
     // the throttle boundary before reading a snapshot instead of reading
     // right after a couple of process() calls. 61 more samples lands on
     // the 65th process() call since reset() (call #1 landed on a tick too,
@@ -344,7 +344,7 @@ static void test_display_snapshot_four_heads() {
     e.toggleRecord();                       // loop of 8, all heads at pos 0
     e.setSpeed(1, 2.f);                     // head 1 double speed
     e.setSize(2, 0.5f); e.setPosition(2, 0.5f);   // head 2 half window [2,6)
-    // Display mirrors (Task 8) are throttled to every 64th sample; settle
+    // Display mirrors are throttled to every 64th sample; settle
     // past the throttle boundary (57 more samples reaches the 65th
     // process() call since reset(), the next tick after the record pass'
     // own tick at call #1, which had no effect while the loop was still
@@ -664,7 +664,7 @@ static void test_triggers_no_loop() {
 static void test_jitter_off_stable() {
     LoopEngine e; record_ramp(e, 8);
     e.setSize(0, 0.5f);                    // window can move
-    // Display mirrors (Task 8) are throttled to every 64th sample: settle
+    // Display mirrors are throttled to every 64th sample: settle
     // past one tick here so the measurement loop below starts reading the
     // post-setSize window, not a stale pre-change value (which would read
     // as spurious "movement" the first time the throttle catches up).
@@ -1362,8 +1362,8 @@ static void test_grid_size_snaps_to_segments() {
     check(near(e.process(0.f), 11.f), "grid_size: out[2]==11");
     check(near(e.process(0.f), 12.f), "grid_size: out[3]==12");
     check(near(e.process(0.f), 9.f),  "grid_size: out[4]==9 (wrapped)");
-    // Window is static (no jitter); settle a full throttle period (Task 8:
-    // display mirrors tick every 64th sample) so the snapshot below reflects
+    // Window is static (no jitter); settle a full throttle period (display
+    // mirrors tick every 64th sample) so the snapshot below reflects
     // the current window instead of a stale pre-setSize value.
     for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
@@ -1388,7 +1388,7 @@ static void test_grid_window_clamped_inside_loop() {
     e.setSize(0, 0.6f);              // 9.6 -> 2 segments (8 samples)
     e.setPosition(0, 1.f);           // start 12 -> k clamped to 2 -> [8,16)
     check(near(e.process(0.f), 9.f), "grid_clamp: window pinned inside loop");
-    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // Settle past the display-mirror throttle (gated every 64th
     // sample) before reading the snapshot; the window is static here.
     for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
@@ -1400,7 +1400,7 @@ static void test_grid_min_one_segment() {
     LoopEngine e; record_ramp(e, 16);
     e.setGrid(4);
     e.setSize(0, 0.01f);             // under one segment -> grows to 1 segment
-    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // Settle past the display-mirror throttle (gated every 64th
     // sample) before reading the snapshot; the window is static here.
     for (int i = 0; i < 64; ++i) e.process(0.f);
     const auto s = e.displaySnapshot();
@@ -1454,7 +1454,7 @@ static void test_grid_exclude_head() {
     LoopEngine c; record_ramp(c, 16);
     c.setGrid(4); c.setGridExclude(0, true);
     c.setSize(1, 0.3f); c.setPosition(1, 0.37f);   // would snap: 1 segment at [4,8)
-    // Settle past the display-mirror throttle (Task 8: gated every 64th
+    // Settle past the display-mirror throttle (gated every 64th
     // sample) before reading the snapshot; the window is static here.
     for (int i = 0; i < 64; ++i) c.process(0.f);
     const auto s = c.displaySnapshot();
@@ -1550,7 +1550,7 @@ static void test_armed_oneshot_window_tracks_size() {
     e.setOneShot(0, true);            // arm: head 0 goes silent
     e.setSize(0, 0.5f);
     e.setPosition(0, 0.5f);
-    // The parked-head display block (Task 8) is throttled to every 64th
+    // The parked-head display block is throttled to every 64th
     // sample too; settle past a tick instead of reading right after one
     // idle sample.
     for (int i = 0; i < 64; ++i) e.process(0.f, 0.f, hs);
@@ -1564,7 +1564,7 @@ static void test_armed_oneshot_window_tracks_size() {
     check(!s2.playing[0], "armed one-shot: head still not playing (silent)");
 }
 
-// Task 4: the per-sample bump in the record paths is throttled to ~every
+// The per-sample bump in the record paths is throttled to ~every
 // 2048 samples (REV_THROTTLE_MASK) so the release store (a full memory
 // barrier on ARMv7) and the GUI's waveform re-scan don't run every sample.
 // Transition bumps (pass start, pass stop) still make the display converge
@@ -1591,9 +1591,8 @@ static void test_waveform_revision_throttled_during_recording() {
     check(afterStop != afterWrites, "throttle: ending the pass bumps immediately");
 }
 
-// --- Task 7 pinning test -------------------------------------------------
-// Bit-exact pin for the readInterpolatedLR interior fast path (Findings §2
-// H2). Hashes below were captured against the UNMODIFIED per-channel
+// --- readInterpolatedLR pinning test -------------------------------------
+// Bit-exact pin for the readInterpolatedLR interior fast path. Hashes below were captured against the UNMODIFIED per-channel
 // readInterpolated path (two separate calls in readHead) before the
 // shared-index rework; the reworked code must reproduce them exactly. If a
 // hash moves, the rework changed behavior -- fix the code, do not

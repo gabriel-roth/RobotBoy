@@ -1,4 +1,4 @@
-# Retours panel spec (panel-gen v2) — generates res/Retours.svg.
+# Retours panel spec (vcv-panel-gen) — generates res/Retours.svg.
 # LIKE Particules, the panel this replaces was a HAND-BUILT Inkscape
 # original, not a generated SVG, so panel-path byte parity is NOT the goal
 # here. Component-CENTER parity IS mandatory (the firmware's
@@ -47,9 +47,8 @@
 # same-size knob there. This spec follows cpp (uniform RoundBlackKnob,
 # panel-gen's default widget for a _PARAM-suffixed name, no override needed).
 #
-# One deliberate visual departure from the original hand-built panel (called
-# out in the panel-refactor worktree's v1-format spec that first proposed
-# it): the audio I/O is labelled as true stereo pairs, IN / OUT, each
+# One deliberate visual departure from the original hand-built panel: the
+# audio I/O is labelled as true stereo pairs, IN / OUT, each
 # centered on its own pair's midpoint -- not the original's per-channel
 # "L IN R" / "L OUT R" lettering -- matching how every other RobotBoy module
 # labels its stereo jacks.
@@ -101,10 +100,8 @@ slug: Retours
 name: RETOURS
 hp: 11
 side_margin: 3.04   # vestigial: every grid column below is an explicit
-                     # literal (matching the 3.04mm side margin the
-                     # panel-refactor worktree's v1 spec used to derive the
-                     # same 11.34/27.94/44.54mm columns), kept for
-                     # provenance parity with that spec's own value.
+                     # literal (the 11.34/27.94/44.54mm columns were derived
+                     # from this 3.04mm side margin).
 
 title:
   size: 6.35
@@ -114,7 +111,7 @@ title:
     - {pair: OU, em: -0.01}   # a hair
     - {pair: UR, em: 0.02}    # straight+straight — open a hair
     - {pair: RS, em: -0.04}   # R's diagonal leg meets S's curve
-  # v2's default baseline formula (valign: baseline -> size + 1.0 = 7.35)
+  # The default baseline formula (valign: baseline -> size + 1.0 = 7.35)
   # doesn't match this panel; dy shifts it to the shipped panel's measured
   # baseline (bbox max-y of the "RETOURS" text path = 8.000).
   dy: 0.65

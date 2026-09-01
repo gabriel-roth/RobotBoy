@@ -108,8 +108,7 @@ constexpr float kSeamCrossfadeFrames = 64.f;
 // best cross-correlates with the old tap's, so the two copies line up in phase
 // and the blend is coherent.
 //
-// Measured (inharmonic residual over a 220 Hz burst train, see
-// docs/superpowers/2026-07-26-crossfade-variants-measurements.md): 5-8 dB
+// Measured (inharmonic residual over a 220 Hz burst train): 5-8 dB
 // cleaner mean and
 // 2-10 dB cleaner worst-case (p95) on every single-tap crossfade sweep, at
 // unchanged responsiveness -- the delay still reaches the knob's target within

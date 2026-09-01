@@ -16,7 +16,7 @@ The MS-20 has two filters in series and screams when pushed. The Polivoks has an
 All of this holds for MF-20, Onbetap, and Vespid; the sections below cover only what's specific to each.
 
 - **Stereo audio in and out.** The right input is normalled to the left, so patching **In L** alone fills both sides.
-- **Polyphonic** on both [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule).
+- **Polyphonic** in [VCV Rack](https://vcvrack.com). (The [4ms MetaModule](https://4mscompany.com/metamodule) has no polyphonic cables; each instance there is a single stereo voice.)
 - **Cutoff** spans 20 Hz – 20 kHz, and every cutoff CV input tracks **1 V/octave.**
 - The options listed under each filter below are in the context menu in VCV Rack, or under Options on MetaModule.
 

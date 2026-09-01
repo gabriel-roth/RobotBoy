@@ -1,8 +1,6 @@
 // Unit tests for loooop::RecordGateHelper (header-only) plus an integration
 // sequence against a real LoopEngine, exercising the spec's gate-mode action
-// table end to end.
-//
-// Spec: docs/superpowers/specs/2026-07-25-loooop-record-gate-design.md
+// table end to end (see Loooop.md, "Record jack").
 
 #include "../../src/loooop/LooperModuleDSP.hpp"
 #include "../../src/loooop/dsp/LoopEngine.hpp"

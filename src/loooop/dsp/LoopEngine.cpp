@@ -130,7 +130,7 @@ void LoopEngine::toggleRecord(bool continueOverdub) {
     if (!recording_ && loopLen_ > 0 && !overdubEnabled_) return;
     if (!recording_) {
         recording_ = true;
-        writeIdx_ = 0;                  // record/overdub always starts at loop start (v1)
+        writeIdx_ = 0;                  // record/overdub always starts at loop start
         if (loopLen_ == 0) {
             odGain_ = 1.f; odGainStep_ = 0.f;   // initial pass: overwrite, no ramp
         } else {
@@ -331,7 +331,7 @@ void LoopEngine::windowBounds(const PlayHead& h, double& winStart, double& winLe
     windowBoundsUncached(h, h.jitterOff, winStart, winLen);
 }
 
-// Value-compare cache (Findings §2 H5): every input here is control-rate, but
+// Value-compare cache: every input here is control-rate, but
 // hosts call the setters every sample, so a dirty flag would always be dirty.
 // Comparing the actual values instead recomputes only on a real change.
 // minWinLen_ is deliberately excluded: it only changes in reset()/
@@ -578,7 +578,7 @@ void LoopEngine::advanceHead(PlayHead& h, int idx, double winStart, double winLe
     }
 
     // Position/window mirrors feed only the display; throttled to ~750 Hz at
-    // 48 kHz (Findings §2 M5). dispPlaying_ stays unconditional (below) so a
+    // 48 kHz. dispPlaying_ stays unconditional (below) so a
     // one-shot pass ending is never delayed behind the throttle; store
     // ordering is preserved (position/window, then playing) whether or not
     // this sample is a tick.
@@ -596,7 +596,7 @@ void LoopEngine::process(float inL, float inR, std::array<HeadOut, NUM_HEADS>& h
     // the loop (and summed forever by overdub) until the user hits Clear.
     if (!std::isfinite(inL)) inL = 0.f;
     if (!std::isfinite(inR)) inR = 0.f;
-    // Display-mirror store throttle (Findings §2 M5): gates the per-head
+    // Display-mirror store throttle: gates the per-head
     // position/window mirrors (advanceHead and the parked-head block below)
     // to ~750 Hz at 48 kHz, far above any display frame rate. Recording-state
     // mirrors and dispPlaying_ are untouched -- they publish unconditionally.

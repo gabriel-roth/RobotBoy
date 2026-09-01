@@ -150,7 +150,7 @@ static void test_moved_window_lane() {
     e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
     e.toggleRecord();                        // loop of 4
     e.setSize(2, 0.5f); e.setPosition(2, 0.5f);   // head 2: window [1,3) = [0.25,0.75]
-    // Display mirrors (Task 8) are throttled to every 64th sample; 61 more
+    // Display mirrors are throttled to every 64th sample; 61 more
     // samples reaches the 65th process() call since reset() (the record
     // pass' call #1 landed on a tick too, but had no effect while the loop
     // was still unfrozen), landing both heads at the same phase a

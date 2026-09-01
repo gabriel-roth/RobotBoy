@@ -108,7 +108,7 @@ TailStats FeedbackTailStats(float feedback) {
 // sqrt(0.0304800 * 0.0007810) ~= 0.00488.
 //
 // Note: an earlier version of this test compared aggregate tail *energy*
-// for feedback=0 vs feedback=0.9 (per the original task brief), on the
+// for feedback=0 vs feedback=0.9, on the
 // theory that a "nearly inert" feedback path would add little energy.
 // That metric did not hold up: because the previous-block-held sample can
 // coincidentally sit near a waveform peak, repeating it for 64 samples can

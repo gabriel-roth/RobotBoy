@@ -2,8 +2,7 @@
 /**
  * OnbetapFilter.hpp — Polivoks VCF core (Onbetap)
  *
- * Model (docs/superpowers/specs/2026-07-15-onbetap-dsp-spec.md,
- * docs/research/polivoks-*.md):
+ * Model (circuit references: Filters.md, Onbetap: Sources):
  *
  * The Polivoks filter core is two К140УД12 programmable op-amps run open-loop
  * as current-controlled integrators (internal 30 pF comp caps; GBW ∝ Iset),
@@ -27,7 +26,7 @@
  * the STATES, not the output, or high-resonance behavior is wrong):
  *   Hard (factory/Erica): asymmetric hard clamp at +4.4/−4.1.
  *   Soft (diode-clamp mod, Elta "soft"): saturating knee 3.4→4.0.
- *   Measured (onbetap-worklog test 2d): both self-oscillate square-ish with
+ *   Measured: both self-oscillate square-ish with
  *     nearly identical crest (hard 1.044, soft 1.052); Soft sits slightly
  *     higher in pitch. The audible difference is mainly pitch and behavior
  *     near the onset of oscillation, not waveshape.

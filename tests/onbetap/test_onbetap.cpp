@@ -99,7 +99,7 @@ int main() {
         // sinusoid at fc — the state ramps at the fixed max rate ωc across
         // nearly the full rail-to-rail swing, landing ~310 Hz for fc=1000,
         // k=-0.06 (reproducible across the whole fc range, ratio ~0.31).
-        // Bound widened from the brief's ±40% window to this measured
+        // Bound widened from a ±40% window to this measured
         // regime; still requires oscillation in the same octave-ish
         // neighborhood as fc (catches runaway to sub-audio/ultrasonic).
         CHECK(osc.freq > 200.f && osc.freq < 450.f, "hard self-osc in slew-limited band");

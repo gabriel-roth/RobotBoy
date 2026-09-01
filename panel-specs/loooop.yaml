@@ -1,4 +1,4 @@
-# Loooop panel spec (panel-gen v2) — generates res/Loooop.svg with the
+# Loooop panel spec (vcv-panel-gen) — generates res/Loooop.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/loooop.yaml --out res/Loooop.svg
@@ -26,12 +26,8 @@ side_margin: 3
 title:
   size: 9
   valign: center
-  # v1's valign:center formula centered the title in the headroom above the
-  # title band PLUS the first row's gap_above (the screen row had gap_above:
-  # 0.4, same as Löp's); v2's _resolve_title has no row model to consult, so
-  # it centers in the bare TITLE_BAND_MM only, landing 0.2mm high. dy
-  # restores that 0.4/2 = 0.2mm the old formula added (matches the shipped
-  # panel's title exactly).
+  # valign: center centers the cap height in the bare 10mm title band, which
+  # lands 0.2mm above the shipped panel's title; dy restores that offset.
   dy: 0.2
 
 # Four head tints, mirroring loooop::kHeadColors: H1 red, H2 yellow, H3 blue,

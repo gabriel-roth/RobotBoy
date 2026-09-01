@@ -1,4 +1,4 @@
-# Ondes panel spec (panel-gen v2) — generates res/Ondes.svg with the
+# Ondes panel spec (vcv-panel-gen) — generates res/Ondes.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/ondes.yaml --out res/Ondes.svg
@@ -23,8 +23,7 @@ slug: Ondes
 name: ONDES
 hp: 8
 side_margin: 3   # vestigial: every grid column below is an explicit literal,
-                 # so side_margin has no effect on resolved geometry (kept
-                 # for provenance parity with the v1 spec's value).
+                 # so side_margin has no effect on resolved geometry.
 
 title:
   # Same wordmark size as Particules/Retours; at 6.35 it fits between the

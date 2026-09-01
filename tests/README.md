@@ -32,8 +32,8 @@ This repo has three independent test lanes:
   parity between `src/loooop/HeadColors.hpp` and `panel-specs/loooop.yaml`).
   Runs anywhere, no build system needed beyond a `python3` on `PATH`.
 - **Lane 2 — `tests/particules_dsp/run.sh`** — the Particules granular-DSP
-  Catch2 suite (CMake + CTest). Covers the granular / delay / reverb / quality
-  / pitch DSP that powers Particules. Catch2 is vendored (amalgamated, v3.5.2),
+  Catch2 suite (CMake + CTest). Covers the granular / reverb / quality / pitch DSP
+  that powers Particules. Catch2 is vendored (amalgamated, v3.5.2),
   so the lane builds and runs fully offline. Run it with:
 
   ```

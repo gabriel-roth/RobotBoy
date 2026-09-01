@@ -1,4 +1,4 @@
-# Löp panel spec (panel-gen v2) — generates res/Lop.svg with the
+# Löp panel spec (vcv-panel-gen) — generates res/Lop.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lop.yaml --out res/Lop.svg
@@ -23,17 +23,13 @@ title:
   # The "Shuttleblock Test Demi" trial font installed on this machine has no
   # U+00D6 (Ö) glyph, so "LÖP" can't be set as live text — lop-logo.svg is a
   # baked vector wordmark (traced from the real Shuttleblock Demi) that
-  # carries the real letterforms instead. size 9 + valign center reproduce
-  # v1's title_size/title_valign; the generator scales/centers/bakes it (see
-  # logo.py) with no transform= surviving in the output.
+  # carries the real letterforms instead; the generator scales/centers/bakes
+  # it (see logo.py) with no transform= surviving in the output.
   logo: lop-logo.svg
   size: 9
   valign: center
-  # v1's valign:center formula centered the title in the headroom above the
-  # title band PLUS the first row's gap_above (the screen row had gap_above:
-  # 0.4); v2's _resolve_title has no row model to consult, so it centers in
-  # the bare TITLE_BAND_MM only, landing 0.2mm high. dy restores that 0.4/2 =
-  # 0.2mm the old formula added, reproducing the shipped panel exactly.
+  # valign: center centers the cap height in the bare 10mm title band, which
+  # lands 0.2mm above the shipped panel's title; dy restores that offset.
   dy: 0.2
 
 # One neutral control-zone tint (white, unified) behind rows 1-2 only;

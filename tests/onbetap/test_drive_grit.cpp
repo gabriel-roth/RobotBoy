@@ -5,7 +5,6 @@
 // ~1 dB of level with it, so Drive got smoother/softer past ~90% of travel.
 // The fix pushes the signal harder into the existing output VCA as Drive
 // rises: out = 9*tanhish(push*v/9), push = exp2(gritDb/6.0206 * drive^2).
-// See docs/superpowers/specs/2026-07-18-onbetap-drive-grit-design.md.
 //
 // Mirrors Onbetap.cpp::processSide for the 2x/LP path (gains from the real
 // onbetap::driveGains). Run with any argument to print the calibration sweep

@@ -1,4 +1,4 @@
-# Onbetap panel spec (panel-gen v2) — generates res/Onbetap.svg with the
+# Onbetap panel spec (vcv-panel-gen) — generates res/Onbetap.svg with the
 # component-center and label-path layout of the shipped panel. Regenerate
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/onbetap.yaml --out res/Onbetap.svg

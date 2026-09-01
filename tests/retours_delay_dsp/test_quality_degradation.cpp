@@ -204,9 +204,8 @@ TEST_CASE("degradation: tape modes settle on a soft ceiling, not the codec clamp
 // -----------------------------------------------------------------------
 // (C) Sunny's decay rate matches Bright's at the same feedback knob.
 // Measured over repeats 8..12 (below the saturation knee). Pre-fix the
-// hidden 0.9x limiter trim made Sunny ~0.9 dB/repeat faster. This may
-// already pass once Task 1's shared curve fix lands — it pins that fix at
-// the integration level.
+// hidden 0.9x limiter trim made Sunny ~0.9 dB/repeat faster; this pins the
+// shared-curve fix at the integration level.
 // -----------------------------------------------------------------------
 TEST_CASE("degradation: Sunny decay rate matches Bright at the same knob") {
     auto sunny = RenderBurst(QualityMode::kSunnyTape, 16.f);

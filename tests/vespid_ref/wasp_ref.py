@@ -1,11 +1,11 @@
 """Vespid reference simulation (design validator + golden data).
 
-Implements the spec model (docs/superpowers/specs/2026-07-15-vespid-dsp-design.md,
-including the Revision 1 section):
+Implements the design model (Köper et al., DAFx 2022, with the Revision 1
+refinements below):
 TPT SVF, scalar implicit solve in hp via scipy brentq (robust, offline-only),
 H1 pole-zero damping network, diode boost, inverter saturator, rail clamps.
 
-Rev 1 physics (see spec "Revision 1"):
+Rev 1 physics:
 - Loop-gain factor lambda = A0/(nInv + A0) multiplies every loop term in the
   small-signal theory: D(s) = s^2 + lam*(H1 + kC2eff)*wc*s + lam*kR2*wc^2.
   LP passband gain = 1/kR2 (lambda cancels at DC) -- Screaming's LP passband

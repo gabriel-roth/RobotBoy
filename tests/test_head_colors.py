@@ -11,7 +11,7 @@ def parse_table_hues():
     return ["%02x%02x%02x" % (int(r,16), int(g,16), int(b,16)) for r,g,b in rows]
 
 def parse_spec_hues():
-    # v2 spec format: the four head tints are zone entries (one rect per
+    # In the panel spec, the four head tints are zone entries (one rect per
     # head, in H1..H4 order) whose fill is the head color.
     with open(os.path.join(ROOT, "panel-specs/loooop.yaml")) as f:
         spec = f.read()
