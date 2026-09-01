@@ -25,7 +25,10 @@ import sys
 import xml.etree.ElementTree as ET
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PANEL_GEN = os.path.expanduser("~/Dev/vcv-panel-gen")
+# https://github.com/gabriel-roth/vcv-panel-gen, cloned as a sibling by
+# default; override with VCV_PANEL_GEN_DIR if it lives elsewhere.
+PANEL_GEN = os.environ.get(
+    "VCV_PANEL_GEN_DIR", os.path.expanduser("~/Dev/vcv-panel-gen"))
 
 # HERE is metamodule/loooop/; the repo root is two levels up. The canonical
 # panel SVGs live at res/ (vcv/res is a build-time copy) and the module

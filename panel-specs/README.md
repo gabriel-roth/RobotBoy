@@ -3,6 +3,20 @@
 Declarative panel layouts (v2 spec format) for every RobotBoy module. Each
 `<slug>.yaml` here generates the corresponding `res/<Slug>.svg`.
 
+## Setup
+
+Generating or previewing a panel requires
+[`vcv-panel-gen`](https://github.com/gabriel-roth/vcv-panel-gen) cloned as a
+sibling of this repo:
+
+```bash
+git clone https://github.com/gabriel-roth/vcv-panel-gen ~/Dev/vcv-panel-gen
+cd ~/Dev/vcv-panel-gen && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+This isn't needed to build the plugin — `res/*.svg` are already generated and
+committed. It's only needed when editing a panel's layout.
+
 ## Commands
 
 Generate, using redux venv path per the migration's ground rules:
@@ -40,8 +54,7 @@ generate. Per-panel overrides live in the spec's own `theme:` block (see
   the `vcv-panel` skill, not here — read that before writing or editing a
   spec.
 - Tool internals and the full spec-format reference:
-  `~/Dev/vcv-panel-gen/README.md` and
-  `~/Dev/vcv-panel-gen/docs/superpowers/specs/2026-07-17-grid-panel-generator-design.md`.
+  `~/Dev/vcv-panel-gen/README.md` and `~/Dev/vcv-panel-gen/AGENTS.md`.
 
 ## Rules
 
