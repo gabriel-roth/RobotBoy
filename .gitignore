@@ -40,3 +40,7 @@ tests/retours/mm_sim/*.wav
 # root-level scratch patches and audio samples
 /test-7.vcv
 /looperman-l-2657941-0347670-doom-drum-loop.wav
+
+# local-only scratch: DSP reference material (schematics/manuals/gerbers, not
+# needed to build the plugin) and one-off demo patches / photos
+/local/
