@@ -12,9 +12,9 @@ void vline(uint32_t* buf, int width, int height, int x, int y0, int y1, uint32_t
         buf[y * width + x] = c;
 }
 
-// Vertical bars at a grid's interior segment boundaries. Callers pick the
-// z-order: over the waveform (slicing it into chunks), under the lane bars
-// (so head markers stay prominent).
+// Vertical bars at a grid's interior segment boundaries, drawn on top of
+// both the waveform and the lane bars — a boundary always slices cleanly
+// through whatever's beneath it, waveform trace or head-color bars alike.
 //
 // The Grid choice ladder (loooop::gridSegments' kGridChoices, in
 // LooperModuleDSP.hpp) is a strict doubling sequence: 4, 8, 16, 32, 64. That
@@ -153,9 +153,6 @@ void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
     const auto s = engine.displaySnapshot();
     if (s.loopLen == 0) return;
 
-    if (s.grid >= 2)
-        drawGridBars(buf, width, height, s.grid, pack);
-
     const int nHeads = engine.numHeads();
     const int lanesTop = 0;
     const int hw = std::max(2, width / 90);   // playhead bar width
@@ -185,6 +182,11 @@ void LoopWaveformRenderer::renderLanes(uint32_t* buf, int width, int height,
         for (int dx = 0; dx < hw; ++dx)
             vline(buf, width, height, hx - hw / 2 + dx, top, bot, headC);
     }
+
+    // Grid bars on top, matching the waveform region: they slice through the
+    // lane bars too rather than being interrupted by them.
+    if (s.grid >= 2)
+        drawGridBars(buf, width, height, s.grid, pack);
 }
 
 void LoopWaveformRenderer::render(uint32_t* buf, int width, int height,

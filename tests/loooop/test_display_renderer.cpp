@@ -372,10 +372,11 @@ static void test_grid_bars() {
           "grid: no bars at loop edges");
     // x=32 is the waveform peak column: with grid on the bar slices the peak.
     check(px(32, 2) == grid, "grid: bar drawn over the waveform");
-    // Lane region: bars sit UNDER the head bars. The full default window
-    // covers x=16 in dim head color; the gap row below shows the grid line.
-    check(px(16, 32) == laneDim(0), "grid: lane bars stay on top of grid lines");
-    check(px(16, 39) == grid,       "grid: gap row shows grid line");
+    // Lane region: bars sit ON TOP of the head bars, slicing through them
+    // the same way they slice the waveform. The gap row below shows the
+    // grid line too (nothing else is drawn there to begin with).
+    check(px(16, 32) == grid, "grid: bars slice through lane bars too");
+    check(px(16, 39) == grid, "grid: gap row shows grid line");
     // Off again: no grid pixels anywhere.
     e.setGrid(0);
     LoopWaveformRenderer::render(buf, W, H, e, pack);
