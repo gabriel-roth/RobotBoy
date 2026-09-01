@@ -3,7 +3,7 @@ name: Build
 # Cross-platform VCV Rack plugin builds via the per-platform Rack SDK.
 # Each job downloads the matching SDK, runs `make -C vcv dist` (which packages
 # a .vcvplugin), and uploads it as an artifact. On a version tag (e.g. v2.0.1)
-# the release job attaches all four platform bundles to a GitHub Release.
+# the release job attaches all five platform bundles to a GitHub Release.
 #
 # NOTE: this builds the VCV plugin only. The MetaModule .mmplugin needs the
 # arm-none-eabi cross-toolchain + metamodule-plugin-sdk and is built locally
@@ -29,11 +29,19 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: lin-x64, os: ubuntu-latest,  sdk: lin-x64 }
-          # The mac SDK is a single universal (x64+arm64) build, so one job
-          # produces a universal .vcvplugin covering Intel and Apple Silicon.
-          - { name: mac,     os: macos-14,       sdk: mac-x64+arm64 }
-          - { name: win-x64, os: windows-latest, sdk: win-x64 }
+          - { name: lin-x64,   os: ubuntu-latest, sdk: lin-x64 }
+          # macos-14 runners are Apple Silicon. The Rack SDK's arch.mk picks
+          # the plugin's compile target from `$(CC) -dumpmachine` (the build
+          # host), not from which SDK zip was downloaded — so even against
+          # the "universal" mac-x64+arm64 SDK, a plain build only produces an
+          # arm64 plugin.dylib. Get x64 by cross-compiling explicitly via
+          # CROSS_COMPILE; Apple clang can target x86_64 from an arm64 host
+          # without a separate toolchain. Two single-arch mac assets ship
+          # (there's no plugin.mk support for packaging a fat/universal
+          # .vcvplugin), same coverage as one universal build.
+          - { name: mac-arm64, os: macos-14,      sdk: mac-x64+arm64 }
+          - { name: mac-x64,   os: macos-14,      sdk: mac-x64+arm64, cross: x86_64-apple-darwin }
+          - { name: win-x64,   os: windows-latest, sdk: win-x64 }
     steps:
       - uses: actions/checkout@v4
 
@@ -52,11 +60,17 @@ jobs:
       - name: Build .vcvplugin (Unix)
         if: runner.os != 'Windows'
         shell: bash
+        env:
+          CROSS_COMPILE: ${{ matrix.cross }}
         run: |
           set -euo pipefail
           curl -fL "https://vcvrack.com/downloads/Rack-SDK-${RACK_SDK_VERSION}-${{ matrix.sdk }}.zip" -o rack-sdk.zip
           unzip -q rack-sdk.zip
-          make -C vcv dist RACK_DIR="$PWD/Rack-SDK"
+          if [ -n "$CROSS_COMPILE" ]; then
+            make -C vcv dist RACK_DIR="$PWD/Rack-SDK" CROSS_COMPILE="$CROSS_COMPILE"
+          else
+            make -C vcv dist RACK_DIR="$PWD/Rack-SDK"
+          fi
 
       - name: Build .vcvplugin (Windows)
         if: runner.os == 'Windows'
