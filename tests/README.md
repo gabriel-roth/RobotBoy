@@ -2,8 +2,7 @@
 
 Offline, host-free C++ tests for the DSP/rendering code in `src/`. No Rack
 engine, no MetaModule runtime — just plain `g++` executables exercising the
-pure-DSP classes/headers directly. This is a safety net for the merge, not a
-full test suite: it only covers what was portable from each source repo.
+pure-DSP classes/headers directly.
 
 ## Running
 
@@ -20,30 +19,6 @@ If a test needs a non-header-only `.cpp` from `src/` linked in (e.g. Loooop's
 one extra source path per line, relative to `tests/`. `run.sh` picks it up
 automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 `tests/loooop/test_display_renderer.cpp.extra` for examples.
-
-## What's ported
-
-Each module here (Loooop, MF-20, Particules, ...) started life in its own
-pre-merge repo (not public). The "Source repo" column below cites the
-original file's path within that repo, for provenance only.
-
-| Dir | Test | Source repo | Covers |
-|---|---|---|---|
-| `mf20/` | `test_mf20.cpp` | `filter/test_mf20.cpp` | `MF20Filter.hpp` (Korg MS-20 OTA/K35 filter emulation) — header-only, 30 assertions |
-| `mf20/` | `test_module_dsp.cpp` | `filter/test_module_dsp.cpp` | `dsp_utils.hpp` (`OnePoleSmoother` etc.) — header-only, 8 assertions |
-| `loooop/` | `test_loop_engine.cpp` | `Loooop/tests/loop_engine_test.cpp` | `dsp/LoopEngine.{hpp,cpp}` — record/play, speed, reverse, one-shot, jitter, overdub, per-head params, peak/display snapshots |
-| `loooop/` | `test_display_renderer.cpp` | `Loooop/tests/display_renderer_test.cpp` | `display/LoopWaveformRenderer.{hpp,cpp}` — waveform/lane rendering, stereo bands, level-aware height |
-| `particules/` | `test_pitch_notch_map.cpp` | `particules/tests/test_pitch_notch_map.cpp` | `pitch_notch_map.hpp` — pitch-knob-to-semitone mapping, notch round-trips, monotonicity |
-
-Only include paths were changed (pointing at the new `src/` locations);
-test logic and assertions are untouched.
-
-The table above records the original port only. The suite has grown well
-past it since — new modules brought their own tests (currently 16
-`test_*.cpp` files across the five `run.sh` dirs: `mf20/`, `loooop/`,
-`particules/`, `onbetap/`, `vespid/`), plus the Catch2 lanes below. `run.sh`
-picks up new `test_*.cpp` files automatically, so this table is history,
-not the current inventory.
 
 ## Test lanes
 
@@ -73,44 +48,11 @@ This repo has three independent test lanes:
   ./tests/retours_delay_dsp/run.sh
   ```
 
-## What was intentionally skipped, and why
+## What isn't covered here
 
-- **`Loooop/test/`** (singular, not `tests/`): Python scripts
-  (`*_wiring_test.py`, `mm_click_test.py`, `sync_positions_test.py`) that
-  drive a live VCV/MetaModule host or the headless simulator against real
-  `.wav`/patch fixtures. These need a running host process, not just the
-  DSP headers — out of scope for an offline `g++` harness. Not ported.
-- **Any test instantiating the `Particules` Rack `Module`**: its constructor
-  calls `APP->engine->getSampleRate()`, which segfaults without a live Rack
-  `Context`. `particules/tests/` only ever had the one pure-DSP test
-  (`test_pitch_notch_map.cpp`), so nothing was actually excluded here — but
-  the constraint is why no Particules module-level test exists in this repo.
-- **`filter/test_poly.cpp`**: exists in the source repo but wasn't in
-  this task's named scope (`test_mf20.cpp` / `test_module_dsp.cpp` only).
-  It is self-contained pure DSP (`VoiceEngine` in `engine.hpp`, no Rack
-  dependency) and would likely port cleanly with the same include-path
-  treatment — a reasonable candidate to add in a future pass, deliberately
-  left out here to stay in scope.
-- **`particules/nosuch_texture/tests/`**: a much larger Catch2 suite
-  (`test_grain.cpp`, `test_reverb.cpp`,
-  `test_pitch_quantizer.cpp`, `test_auto_gain.cpp`, `test_buffer.cpp`, etc.)
-  covering the `beads_dsp` engine that lives in
-  `src/particules/dsp/`. It's real DSP coverage and squarely the kind of
-  thing this task's "prefer pure-DSP tests" guidance points at — but it (a)
-  wasn't in the brief's named paths, (b) depends on Catch2, which isn't
-  wired into this repo's build at all, and (c) is ~14 files, materially
-  larger than a "port the existing tests" pass. Left unported and flagged
-  here as the best candidate for a dedicated follow-up task (vendor Catch2
-  or rewrite the assertions against this repo's plain `check()`/`report()`
-  harness style, fix its `beads/...` and `grain/...` include paths against
-  `src/particules/dsp/include` and `src/particules/dsp/src`).
-- **Ondes/Retours-dependent tests**: none of the source repos' test
-  directories referenced those excluded modules, so there was nothing to
-  filter out on that basis.
-
-## Results at port time
-
-All 5 ported test binaries built and passed: 201 `ok:`/`PASS` lines across
-MF-20 (30 + 8), Loooop (2 suites), and Particules — `run.sh` exited 0.
-Those counts are a snapshot of the original port; the suite has grown since
-(see above), so run the three lanes for current numbers.
+- Anything needing a live VCV/MetaModule host process or the headless
+  simulator (wiring tests, click tests, patch-fixture playback) — out of
+  scope for an offline `g++` harness.
+- Any test instantiating the `Particules` Rack `Module` directly: its
+  constructor calls `APP->engine->getSampleRate()`, which segfaults without
+  a live Rack `Context`. Only its pure-DSP pieces are tested here.
