@@ -1,13 +1,21 @@
 # panel-specs/
 
-Declarative panel layouts (v2 spec format) for every RobotBoy module. Each
-`<slug>.yaml` here generates the corresponding `res/<Slug>.svg`.
+RobotBoy's panels are generated with
+[`vcv-panel-gen`](https://github.com/gabriel-roth/vcv-panel-gen), a separate
+tool that turns a declarative YAML spec into a finished VCV Rack / MetaModule
+front-panel SVG — grid layout, label text baked to vector paths, and
+validation (anything off the panel edge is an error; overlaps are warnings).
+It has no opinion on what makes a good layout; that judgment lives in the
+spec.
+
+Declarative panel layouts (v2 spec format) for every RobotBoy module live
+here. Each `<slug>.yaml` generates the corresponding `res/<Slug>.svg` (see
+Rules below).
 
 ## Setup
 
-Generating or previewing a panel requires
-[`vcv-panel-gen`](https://github.com/gabriel-roth/vcv-panel-gen) cloned as a
-sibling of this repo:
+Generating or previewing a panel requires `vcv-panel-gen` cloned as a sibling
+of this repo:
 
 ```bash
 git clone https://github.com/gabriel-roth/vcv-panel-gen ~/Dev/vcv-panel-gen
