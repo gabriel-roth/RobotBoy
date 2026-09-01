@@ -4,7 +4,9 @@ if(NOT "${METAMODULE_SDK_DIR}" STREQUAL "")
 elseif(DEFINED ENV{METAMODULE_SDK_DIR})
     set(METAMODULE_SDK_DIR "$ENV{METAMODULE_SDK_DIR}")
 else()
-    set(METAMODULE_SDK_DIR "/Users/gabrielroth/Dev/metamodule-plugin-sdk")
+    message(FATAL_ERROR "METAMODULE_SDK_DIR is not set. Pass -DMETAMODULE_SDK_DIR=<path> "
+        "or export the METAMODULE_SDK_DIR environment variable, pointing at a "
+        "checkout of https://github.com/4ms/metamodule-plugin-sdk.")
 endif()
 include(${METAMODULE_SDK_DIR}/plugin.cmake)
 

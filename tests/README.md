@@ -23,13 +23,17 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 
 ## What's ported
 
+Each module here (Loooop, MF-20, Particules, ...) started life in its own
+pre-merge repo (not public). The "Source repo" column below cites the
+original file's path within that repo, for provenance only.
+
 | Dir | Test | Source repo | Covers |
 |---|---|---|---|
-| `mf20/` | `test_mf20.cpp` | `~/Dev/filter/test_mf20.cpp` | `MF20Filter.hpp` (Korg MS-20 OTA/K35 filter emulation) — header-only, 30 assertions |
-| `mf20/` | `test_module_dsp.cpp` | `~/Dev/filter/test_module_dsp.cpp` | `dsp_utils.hpp` (`OnePoleSmoother` etc.) — header-only, 8 assertions |
-| `loooop/` | `test_loop_engine.cpp` | `~/Dev/Loooop/tests/loop_engine_test.cpp` | `dsp/LoopEngine.{hpp,cpp}` — record/play, speed, reverse, one-shot, jitter, overdub, per-head params, peak/display snapshots |
-| `loooop/` | `test_display_renderer.cpp` | `~/Dev/Loooop/tests/display_renderer_test.cpp` | `display/LoopWaveformRenderer.{hpp,cpp}` — waveform/lane rendering, stereo bands, level-aware height |
-| `particules/` | `test_pitch_notch_map.cpp` | `~/Dev/particules/tests/test_pitch_notch_map.cpp` | `pitch_notch_map.hpp` — pitch-knob-to-semitone mapping, notch round-trips, monotonicity |
+| `mf20/` | `test_mf20.cpp` | `filter/test_mf20.cpp` | `MF20Filter.hpp` (Korg MS-20 OTA/K35 filter emulation) — header-only, 30 assertions |
+| `mf20/` | `test_module_dsp.cpp` | `filter/test_module_dsp.cpp` | `dsp_utils.hpp` (`OnePoleSmoother` etc.) — header-only, 8 assertions |
+| `loooop/` | `test_loop_engine.cpp` | `Loooop/tests/loop_engine_test.cpp` | `dsp/LoopEngine.{hpp,cpp}` — record/play, speed, reverse, one-shot, jitter, overdub, per-head params, peak/display snapshots |
+| `loooop/` | `test_display_renderer.cpp` | `Loooop/tests/display_renderer_test.cpp` | `display/LoopWaveformRenderer.{hpp,cpp}` — waveform/lane rendering, stereo bands, level-aware height |
+| `particules/` | `test_pitch_notch_map.cpp` | `particules/tests/test_pitch_notch_map.cpp` | `pitch_notch_map.hpp` — pitch-knob-to-semitone mapping, notch round-trips, monotonicity |
 
 Only include paths were changed (pointing at the new `src/` locations);
 test logic and assertions are untouched.
@@ -71,23 +75,23 @@ This repo has three independent test lanes:
 
 ## What was intentionally skipped, and why
 
-- **`~/Dev/Loooop/test/`** (singular, not `tests/`): Python scripts
+- **`Loooop/test/`** (singular, not `tests/`): Python scripts
   (`*_wiring_test.py`, `mm_click_test.py`, `sync_positions_test.py`) that
   drive a live VCV/MetaModule host or the headless simulator against real
   `.wav`/patch fixtures. These need a running host process, not just the
   DSP headers — out of scope for an offline `g++` harness. Not ported.
 - **Any test instantiating the `Particules` Rack `Module`**: its constructor
   calls `APP->engine->getSampleRate()`, which segfaults without a live Rack
-  `Context`. `~/Dev/particules/tests/` only ever had the one pure-DSP test
+  `Context`. `particules/tests/` only ever had the one pure-DSP test
   (`test_pitch_notch_map.cpp`), so nothing was actually excluded here — but
   the constraint is why no Particules module-level test exists in this repo.
-- **`~/Dev/filter/test_poly.cpp`**: exists in the source repo but wasn't in
+- **`filter/test_poly.cpp`**: exists in the source repo but wasn't in
   this task's named scope (`test_mf20.cpp` / `test_module_dsp.cpp` only).
   It is self-contained pure DSP (`VoiceEngine` in `engine.hpp`, no Rack
   dependency) and would likely port cleanly with the same include-path
   treatment — a reasonable candidate to add in a future pass, deliberately
   left out here to stay in scope.
-- **`~/Dev/particules/nosuch_texture/tests/`**: a much larger Catch2 suite
+- **`particules/nosuch_texture/tests/`**: a much larger Catch2 suite
   (`test_grain.cpp`, `test_reverb.cpp`,
   `test_pitch_quantizer.cpp`, `test_auto_gain.cpp`, `test_buffer.cpp`, etc.)
   covering the `beads_dsp` engine that lives in
