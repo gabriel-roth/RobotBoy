@@ -4,7 +4,16 @@
   "MetaModulePluginMaintainer": "Gabriel Roth",
   "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, and Retours delay.",
   "MetaModuleIncludedModules": [
-    { "slug": "Loooop", "name": "Loooop", "displayName": "Loooop" },
+    {
+      "slug": "Loooop", "name": "Loooop", "displayName": "Loooop",
+      "groups": {
+        "Red": ["Red Size", "Red Position", "Red Speed", "Red Jitter", "Red Pan", "Red Level", "Red Size CV", "Red Pos CV", "Red Speed CV", "Red Jitter CV", "Red Pan CV", "Red Level CV", "Red Trig", "Red Jump", "Red Out L", "Red Out R", "Red Trig mode", "Red Speed V/Oct", "Red Grid exclude"],
+        "Yellow": ["Yellow Size", "Yellow Position", "Yellow Speed", "Yellow Jitter", "Yellow Pan", "Yellow Level", "Yellow Size CV", "Yellow Pos CV", "Yellow Speed CV", "Yellow Jitter CV", "Yellow Pan CV", "Yellow Level CV", "Yellow Trig", "Yellow Jump", "Yellow Out L", "Yellow Out R", "Yellow Trig mode", "Yellow Speed V/Oct", "Yellow Grid exclude"],
+        "Blue": ["Blue Size", "Blue Position", "Blue Speed", "Blue Jitter", "Blue Pan", "Blue Level", "Blue Size CV", "Blue Pos CV", "Blue Speed CV", "Blue Jitter CV", "Blue Pan CV", "Blue Level CV", "Blue Trig", "Blue Jump", "Blue Out L", "Blue Out R", "Blue Trig mode", "Blue Speed V/Oct", "Blue Grid exclude"],
+        "Purple": ["Purple Size", "Purple Position", "Purple Speed", "Purple Jitter", "Purple Pan", "Purple Level", "Purple Size CV", "Purple Pos CV", "Purple Speed CV", "Purple Jitter CV", "Purple Pan CV", "Purple Level CV", "Purple Trig", "Purple Jump", "Purple Out L", "Purple Out R", "Purple Trig mode", "Purple Speed V/Oct", "Purple Grid exclude"]
+      },
+      "order": ["Red", "Yellow", "Blue", "Purple", "Record", "Overdub mode", "Clear", "Grid", "Dry/Wet", "In L", "In R", "Record Trigger", "Clear Trigger", "Dry/Wet CV", "Mix L", "Mix R", "Record jack", "When recording ends", "Crossfade", "Display"]
+    },
     { "slug": "Lop", "name": "Löp", "displayName": "Löp" },
     { "slug": "MF20Filter", "name": "MF-20", "displayName": "MF-20" },
     { "slug": "Onbetap", "name": "Onbetap", "displayName": "Onbetap" },
