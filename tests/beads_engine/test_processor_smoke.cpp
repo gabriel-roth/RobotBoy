@@ -1,6 +1,6 @@
 // Smoke test of the vendored, patched beads::Processor: every media in both
 // mono and stereo, and both pinned modes, render finite, non-silent audio.
-#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_amalgamated.hpp>
 
 #include <cmath>
 #include <memory>
