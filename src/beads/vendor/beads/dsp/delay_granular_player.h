@@ -57,10 +57,16 @@ class DelayGranularPlayer : public GranularPlayer<DelayGrain, 32> {
       const int safety = DelayGrain::head_crossing_safety_zone + 1;
       const int max_delay = delay_line->duration() - 2 * safety;
 
+      // RobotBoy: route the grain's pitch through the optional pitch lock.
+      const float pitch_ratio = p.pitch_lock
+          ? stmlib::SemitonesToRatio(
+              p.pitch_lock->Quantize(p.pitch.value(NULL, 0, 24.0f, false)))
+          : p.pitch.pitch_value();
+
       new_grain()->Start(
           delay_line,
           p.time.value() * float(max_delay) + float(safety),
-          (reverse ? -1.0f : 1.0f) * p.pitch.pitch_value(),
+          (reverse ? -1.0f : 1.0f) * pitch_ratio,
           ComputeGrainDuration(duration),
           p.shape.value(),
           amplitude, pan,

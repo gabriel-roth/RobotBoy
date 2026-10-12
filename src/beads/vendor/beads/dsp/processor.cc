@@ -62,6 +62,9 @@ void Processor::Init(
 
   Configure(MEDIA_DIGITAL, false);
   
+  mode_lock_ = MODE_AUTO;  // RobotBoy
+  reverb_enabled_ = true;  // RobotBoy
+  
   // Used for the timing of the delay to granular transition.
   delay_mode_transition_ = -kDelayModeTransitionTime;
 }
@@ -109,6 +112,13 @@ void Processor::Process(
     const FloatFrame* in,
     FloatFrame* out,
     size_t size) {
+  // RobotBoy: a pinned mode holds the transition timer at its end stop.
+  if (mode_lock_ != MODE_AUTO) {
+    delay_mode_transition_ = mode_lock_ == MODE_DELAY
+        ? kDelayModeTransitionTime
+        : -kDelayModeTransitionTime;
+  }
+  
   const float delay_mode = delay_mode_transition_ > 0.0f;
   const float threshold = delay_mode ? 0.98f : 0.99f;
   const float direction = parameters.size.base > threshold ? 1.0f : -1.0f;
@@ -230,17 +240,19 @@ void Processor::Process(
   pre_reverb_limiter_.Process(out, size);
   
   // Reverb.
-  const bool caveman = media_ != MEDIA_DIGITAL;
-  const float reverb = mix_parameters.reverb_amount;
-  const float reverb_mix = reverb * reverb * 0.9f;
-  const float reverb_time = reverb * reverb * reverb;
-  reverb_.set_mix(reverb_mix);
-  reverb_.set_time(caveman
-      ? (0.45f + 0.5f * reverb_time)
-      : (0.3f + 0.6f * reverb_time));
-  reverb_.set_lp(
-      caveman ? 0.4f : (media_ == MEDIA_VINTAGE_DIGITAL ? 0.75f : 0.6f));
-  reverb_.Process(out, size);
+  if (reverb_enabled_) {  // RobotBoy
+    const bool caveman = media_ != MEDIA_DIGITAL;
+    const float reverb = mix_parameters.reverb_amount;
+    const float reverb_mix = reverb * reverb * 0.9f;
+    const float reverb_time = reverb * reverb * reverb;
+    reverb_.set_mix(reverb_mix);
+    reverb_.set_time(caveman
+        ? (0.45f + 0.5f * reverb_time)
+        : (0.3f + 0.6f * reverb_time));
+    reverb_.set_lp(
+        caveman ? 0.4f : (media_ == MEDIA_VINTAGE_DIGITAL ? 0.75f : 0.6f));
+    reverb_.Process(out, size);
+  }
   
   // Final clipping/limiting
   output_limiter_.Process(out, size);

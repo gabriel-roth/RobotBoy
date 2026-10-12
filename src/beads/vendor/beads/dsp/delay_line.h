@@ -40,6 +40,15 @@
 #include "beads/dsp/frame.h"
 #include "beads/dsp/mu_law.h"
 
+// RobotBoy: MinGW defaults to MS bitfield layout, which would make the packed
+// 12-bit items 4 bytes instead of 3 and overrun the bank layout; force the
+// GCC layout everywhere (checked by the static_asserts below).
+#if defined(__MINGW32__)
+#define BEADS_PACKED __attribute__((packed, gcc_struct))
+#else
+#define BEADS_PACKED __attribute__((packed))
+#endif  // __MINGW32__
+
 namespace beads {
 
 enum Resolution {
@@ -98,7 +107,7 @@ struct Item<RESOLUTION_12_BIT, 2> {
   enum { bundle_size = 1 };
   int16_t l : 12;
   int16_t r : 12;
-} __attribute__((packed));
+} BEADS_PACKED;
 
 template<>
 struct Item<RESOLUTION_12_BIT, 1> {
@@ -119,7 +128,7 @@ struct Item<RESOLUTION_12_BIT, 1> {
   enum { bundle_size = 2 };
   int16_t odd : 12;
   int16_t even : 12;
-} __attribute__((packed));
+} BEADS_PACKED;
 
 template<>
 struct Item<RESOLUTION_8_BIT, 1> {
@@ -152,6 +161,14 @@ struct Item<RESOLUTION_8_BIT, 2> {
   uint8_t l;
   uint8_t r;
 };
+
+// RobotBoy: the bank arithmetic depends on these exact item sizes.
+static_assert(sizeof(Item<RESOLUTION_16_BIT, 1>) == 2, "item size");
+static_assert(sizeof(Item<RESOLUTION_16_BIT, 2>) == 4, "item size");
+static_assert(sizeof(Item<RESOLUTION_12_BIT, 1>) == 3, "item size");
+static_assert(sizeof(Item<RESOLUTION_12_BIT, 2>) == 3, "item size");
+static_assert(sizeof(Item<RESOLUTION_8_BIT, 1>) == 1, "item size");
+static_assert(sizeof(Item<RESOLUTION_8_BIT, 2>) == 2, "item size");
 
 enum Interpolation {
   INTERPOLATION_ZOH,

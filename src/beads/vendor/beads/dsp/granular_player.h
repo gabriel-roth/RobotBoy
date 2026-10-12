@@ -44,12 +44,22 @@ const float kInstantCrossfadeTime = 0.005f;
 const float kSimpleSchedulerThreshold = 0.025f;
 const float kPreemptiveCrossfadeTime = 0.1f;
 
+// RobotBoy: optional quantizer applied to each grain's pitch, in semitones,
+// at the moment the grain starts (Particules' "Lock pitch" menu).
+class PitchLock {
+ public:
+  virtual float Quantize(float semitones) const = 0;
+ protected:
+  ~PitchLock() { }
+};
+
 struct Parameters {
   RandomizedParameter time;
   RandomizedParameter size;
   RandomizedParameter shape;
   RandomizedParameter pitch;
   bool monophonic_mode;
+  const PitchLock* pitch_lock;  // RobotBoy: NULL = unquantized (upstream)
 };
 
 template<typename T, int num_grains>

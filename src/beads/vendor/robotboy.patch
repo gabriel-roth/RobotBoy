@@ -1,0 +1,256 @@
+diff --git a/beads/dsp/delay_granular_player.h b/beads/dsp/delay_granular_player.h
+index 4d91ed4..4dddd3f 100644
+--- a/beads/dsp/delay_granular_player.h
++++ b/beads/dsp/delay_granular_player.h
+@@ -57,10 +57,16 @@ class DelayGranularPlayer : public GranularPlayer<DelayGrain, 32> {
+       const int safety = DelayGrain::head_crossing_safety_zone + 1;
+       const int max_delay = delay_line->duration() - 2 * safety;
+ 
++      // RobotBoy: route the grain's pitch through the optional pitch lock.
++      const float pitch_ratio = p.pitch_lock
++          ? stmlib::SemitonesToRatio(
++              p.pitch_lock->Quantize(p.pitch.value(NULL, 0, 24.0f, false)))
++          : p.pitch.pitch_value();
++
+       new_grain()->Start(
+           delay_line,
+           p.time.value() * float(max_delay) + float(safety),
+-          (reverse ? -1.0f : 1.0f) * p.pitch.pitch_value(),
++          (reverse ? -1.0f : 1.0f) * pitch_ratio,
+           ComputeGrainDuration(duration),
+           p.shape.value(),
+           amplitude, pan,
+diff --git a/beads/dsp/delay_line.h b/beads/dsp/delay_line.h
+index 8d16bfd..ab85149 100644
+--- a/beads/dsp/delay_line.h
++++ b/beads/dsp/delay_line.h
+@@ -40,6 +40,15 @@
+ #include "beads/dsp/frame.h"
+ #include "beads/dsp/mu_law.h"
+ 
++// RobotBoy: MinGW defaults to MS bitfield layout, which would make the packed
++// 12-bit items 4 bytes instead of 3 and overrun the bank layout; force the
++// GCC layout everywhere (checked by the static_asserts below).
++#if defined(__MINGW32__)
++#define BEADS_PACKED __attribute__((packed, gcc_struct))
++#else
++#define BEADS_PACKED __attribute__((packed))
++#endif  // __MINGW32__
++
+ namespace beads {
+ 
+ enum Resolution {
+@@ -98,7 +107,7 @@ struct Item<RESOLUTION_12_BIT, 2> {
+   enum { bundle_size = 1 };
+   int16_t l : 12;
+   int16_t r : 12;
+-} __attribute__((packed));
++} BEADS_PACKED;
+ 
+ template<>
+ struct Item<RESOLUTION_12_BIT, 1> {
+@@ -119,7 +128,7 @@ struct Item<RESOLUTION_12_BIT, 1> {
+   enum { bundle_size = 2 };
+   int16_t odd : 12;
+   int16_t even : 12;
+-} __attribute__((packed));
++} BEADS_PACKED;
+ 
+ template<>
+ struct Item<RESOLUTION_8_BIT, 1> {
+@@ -153,6 +162,14 @@ struct Item<RESOLUTION_8_BIT, 2> {
+   uint8_t r;
+ };
+ 
++// RobotBoy: the bank arithmetic depends on these exact item sizes.
++static_assert(sizeof(Item<RESOLUTION_16_BIT, 1>) == 2, "item size");
++static_assert(sizeof(Item<RESOLUTION_16_BIT, 2>) == 4, "item size");
++static_assert(sizeof(Item<RESOLUTION_12_BIT, 1>) == 3, "item size");
++static_assert(sizeof(Item<RESOLUTION_12_BIT, 2>) == 3, "item size");
++static_assert(sizeof(Item<RESOLUTION_8_BIT, 1>) == 1, "item size");
++static_assert(sizeof(Item<RESOLUTION_8_BIT, 2>) == 2, "item size");
++
+ enum Interpolation {
+   INTERPOLATION_ZOH,
+   INTERPOLATION_LINEAR,
+diff --git a/beads/dsp/granular_player.h b/beads/dsp/granular_player.h
+index 2823848..09e3906 100644
+--- a/beads/dsp/granular_player.h
++++ b/beads/dsp/granular_player.h
+@@ -44,12 +44,22 @@ const float kInstantCrossfadeTime = 0.005f;
+ const float kSimpleSchedulerThreshold = 0.025f;
+ const float kPreemptiveCrossfadeTime = 0.1f;
+ 
++// RobotBoy: optional quantizer applied to each grain's pitch, in semitones,
++// at the moment the grain starts (Particules' "Lock pitch" menu).
++class PitchLock {
++ public:
++  virtual float Quantize(float semitones) const = 0;
++ protected:
++  ~PitchLock() { }
++};
++
+ struct Parameters {
+   RandomizedParameter time;
+   RandomizedParameter size;
+   RandomizedParameter shape;
+   RandomizedParameter pitch;
+   bool monophonic_mode;
++  const PitchLock* pitch_lock;  // RobotBoy: NULL = unquantized (upstream)
+ };
+ 
+ template<typename T, int num_grains>
+diff --git a/beads/dsp/granular_processor.h b/beads/dsp/granular_processor.h
+index 8b1039e..eb4422d 100644
+--- a/beads/dsp/granular_processor.h
++++ b/beads/dsp/granular_processor.h
+@@ -83,6 +83,11 @@ class GranularProcessor {
+     multitap_delay_.Reset();
+   }
+   
++  // RobotBoy: exposed for the grain-activity LED.
++  inline int num_active_grains() const {
++    return granular_player_.CountActiveGrains();
++  }
++  
+   inline int max_delay_times_ratio() const {
+     return max_delay * ratio;
+   }
+@@ -133,6 +138,7 @@ class GranularProcessor {
+     p.pitch.has_cv = false;
+     
+     p.monophonic_mode = false;
++    p.pitch_lock = NULL;  // RobotBoy
+ 
+     FloatFrame out;
+     out.l = 0.0f;
+diff --git a/beads/dsp/processor.cc b/beads/dsp/processor.cc
+index 1bcd1ce..3dd1946 100644
+--- a/beads/dsp/processor.cc
++++ b/beads/dsp/processor.cc
+@@ -62,6 +62,9 @@ void Processor::Init(
+ 
+   Configure(MEDIA_DIGITAL, false);
+   
++  mode_lock_ = MODE_AUTO;  // RobotBoy
++  reverb_enabled_ = true;  // RobotBoy
++  
+   // Used for the timing of the delay to granular transition.
+   delay_mode_transition_ = -kDelayModeTransitionTime;
+ }
+@@ -109,6 +112,13 @@ void Processor::Process(
+     const FloatFrame* in,
+     FloatFrame* out,
+     size_t size) {
++  // RobotBoy: a pinned mode holds the transition timer at its end stop.
++  if (mode_lock_ != MODE_AUTO) {
++    delay_mode_transition_ = mode_lock_ == MODE_DELAY
++        ? kDelayModeTransitionTime
++        : -kDelayModeTransitionTime;
++  }
++  
+   const float delay_mode = delay_mode_transition_ > 0.0f;
+   const float threshold = delay_mode ? 0.98f : 0.99f;
+   const float direction = parameters.size.base > threshold ? 1.0f : -1.0f;
+@@ -230,17 +240,19 @@ void Processor::Process(
+   pre_reverb_limiter_.Process(out, size);
+   
+   // Reverb.
+-  const bool caveman = media_ != MEDIA_DIGITAL;
+-  const float reverb = mix_parameters.reverb_amount;
+-  const float reverb_mix = reverb * reverb * 0.9f;
+-  const float reverb_time = reverb * reverb * reverb;
+-  reverb_.set_mix(reverb_mix);
+-  reverb_.set_time(caveman
+-      ? (0.45f + 0.5f * reverb_time)
+-      : (0.3f + 0.6f * reverb_time));
+-  reverb_.set_lp(
+-      caveman ? 0.4f : (media_ == MEDIA_VINTAGE_DIGITAL ? 0.75f : 0.6f));
+-  reverb_.Process(out, size);
++  if (reverb_enabled_) {  // RobotBoy
++    const bool caveman = media_ != MEDIA_DIGITAL;
++    const float reverb = mix_parameters.reverb_amount;
++    const float reverb_mix = reverb * reverb * 0.9f;
++    const float reverb_time = reverb * reverb * reverb;
++    reverb_.set_mix(reverb_mix);
++    reverb_.set_time(caveman
++        ? (0.45f + 0.5f * reverb_time)
++        : (0.3f + 0.6f * reverb_time));
++    reverb_.set_lp(
++        caveman ? 0.4f : (media_ == MEDIA_VINTAGE_DIGITAL ? 0.75f : 0.6f));
++    reverb_.Process(out, size);
++  }
+   
+   // Final clipping/limiting
+   output_limiter_.Process(out, size);
+diff --git a/beads/dsp/processor.h b/beads/dsp/processor.h
+index f01765b..78d68b3 100644
+--- a/beads/dsp/processor.h
++++ b/beads/dsp/processor.h
+@@ -62,6 +62,14 @@ class Processor {
+     MEDIA_DIGITAL
+   };
+   
++  // RobotBoy: Particules and Retours each run one half of Beads, so the
++  // granular/delay choice can be pinned instead of following the Size knob.
++  enum ModeLock {
++    MODE_AUTO,
++    MODE_GRANULAR,
++    MODE_DELAY
++  };
++  
+   struct MixParameters {
+     float feedback;
+     float dry_wet;
+@@ -72,6 +80,42 @@ class Processor {
+   void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
+   void Configure(Media media, bool mono);
+   
++  // RobotBoy: mode pinning, optional reverb, buffer clear, grain count.
++  inline void set_mode_lock(ModeLock mode_lock) { mode_lock_ = mode_lock; }
++  inline void set_reverb_enabled(bool enabled) { reverb_enabled_ = enabled; }
++  
++  inline void ClearBuffer() {
++    switch (media_) {
++      case MEDIA_DIRTY_TAPE:
++        processor_dirty_tape_.Reset();
++        break;
++      case MEDIA_CLEAN_TAPE:
++        processor_clean_tape_.Reset();
++        break;
++      case MEDIA_VINTAGE_DIGITAL:
++        processor_vintage_digital_.Reset();
++        break;
++      case MEDIA_DIGITAL:
++      default:
++        processor_digital_.Reset();
++        break;
++    }
++  }
++  
++  inline int num_active_grains() const {
++    switch (media_) {
++      case MEDIA_DIRTY_TAPE:
++        return processor_dirty_tape_.num_active_grains();
++      case MEDIA_CLEAN_TAPE:
++        return processor_clean_tape_.num_active_grains();
++      case MEDIA_VINTAGE_DIGITAL:
++        return processor_vintage_digital_.num_active_grains();
++      case MEDIA_DIGITAL:
++      default:
++        return processor_digital_.num_active_grains();
++    }
++  }
++  
+   inline Media media() const { return media_; }
+   inline bool mono() const { return mono_; }
+   
+@@ -192,6 +236,8 @@ class Processor {
+   DelayController delay_controller_;
+   
+   Media media_;
++  ModeLock mode_lock_;  // RobotBoy
++  bool reverb_enabled_;  // RobotBoy
+   bool process_dry_;
+   bool mono_;
+   

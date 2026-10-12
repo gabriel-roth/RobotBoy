@@ -62,6 +62,14 @@ class Processor {
     MEDIA_DIGITAL
   };
   
+  // RobotBoy: Particules and Retours each run one half of Beads, so the
+  // granular/delay choice can be pinned instead of following the Size knob.
+  enum ModeLock {
+    MODE_AUTO,
+    MODE_GRANULAR,
+    MODE_DELAY
+  };
+  
   struct MixParameters {
     float feedback;
     float dry_wet;
@@ -71,6 +79,42 @@ class Processor {
   
   void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
   void Configure(Media media, bool mono);
+  
+  // RobotBoy: mode pinning, optional reverb, buffer clear, grain count.
+  inline void set_mode_lock(ModeLock mode_lock) { mode_lock_ = mode_lock; }
+  inline void set_reverb_enabled(bool enabled) { reverb_enabled_ = enabled; }
+  
+  inline void ClearBuffer() {
+    switch (media_) {
+      case MEDIA_DIRTY_TAPE:
+        processor_dirty_tape_.Reset();
+        break;
+      case MEDIA_CLEAN_TAPE:
+        processor_clean_tape_.Reset();
+        break;
+      case MEDIA_VINTAGE_DIGITAL:
+        processor_vintage_digital_.Reset();
+        break;
+      case MEDIA_DIGITAL:
+      default:
+        processor_digital_.Reset();
+        break;
+    }
+  }
+  
+  inline int num_active_grains() const {
+    switch (media_) {
+      case MEDIA_DIRTY_TAPE:
+        return processor_dirty_tape_.num_active_grains();
+      case MEDIA_CLEAN_TAPE:
+        return processor_clean_tape_.num_active_grains();
+      case MEDIA_VINTAGE_DIGITAL:
+        return processor_vintage_digital_.num_active_grains();
+      case MEDIA_DIGITAL:
+      default:
+        return processor_digital_.num_active_grains();
+    }
+  }
   
   inline Media media() const { return media_; }
   inline bool mono() const { return mono_; }
@@ -192,6 +236,8 @@ class Processor {
   DelayController delay_controller_;
   
   Media media_;
+  ModeLock mode_lock_;  // RobotBoy
+  bool reverb_enabled_;  // RobotBoy
   bool process_dry_;
   bool mono_;
   
