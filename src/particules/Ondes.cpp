@@ -41,12 +41,14 @@ void Ondes::requestMode(bool classic) {   // UI thread
 }
 
 void Ondes::applyPendingMode() {   // audio thread
-    const int pending = pending_mode_.exchange(kModeNone, std::memory_order_acq_rel);
+    int pending = pending_mode_.load(std::memory_order_acquire);
     if (pending < 0) return;
     const bool want = pending != 0;
-    if (want == classicMode()) return;
-    classic_.store(want, std::memory_order_relaxed);
-    active_.store(want ? classic_engine_.get() : beads_.get(), std::memory_order_release);
+    if (want != classicMode()) {
+        classic_.store(want, std::memory_order_relaxed);
+        active_.store(want ? classic_engine_.get() : beads_.get(), std::memory_order_release);
+    }
+    pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
 }
 
 void Ondes::onSampleRateChange(const SampleRateChangeEvent& e) {

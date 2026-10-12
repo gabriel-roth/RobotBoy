@@ -85,14 +85,19 @@ void Particules::requestMode(bool classic) {   // UI thread
 }
 
 void Particules::applyPendingMode(float sample_rate) {   // audio thread
-	const int pending = pending_mode_.exchange(kModeNone, std::memory_order_acq_rel);
+	// Load, switch, store classic_, and only then clear the request, so the
+	// UI never reads neither mode and a newer request is not lost.
+	int pending = pending_mode_.load(std::memory_order_acquire);
 	if (pending < 0) return;
 	const bool want = (pending & 1) != 0;
 	const bool forced = pending >= kModeForced;
-	if (engine_ && want == classicMode()) return;
 	// A live switch is refused while frozen, like Quality. A load or undo
-	// is not: the module must run the mode its JSON says.
-	if (engine_ && !forced && engine_->frozen()) return;
+	// is not: the module must run the mode its JSON says. A refused or
+	// redundant request is still cleared.
+	if ((engine_ && want == classicMode()) || (engine_ && !forced && engine_->frozen())) {
+		pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
+		return;
+	}
 	classic_.store(want, std::memory_order_relaxed);
 	sample_rate_ = sample_rate;
 	engine_.reset();   // free first: peak RAM is the larger engine, not both
@@ -103,6 +108,7 @@ void Particules::applyPendingMode(float sample_rate) {   // audio thread
 	// A patch loaded straight into a mode switches before the first frame:
 	// nothing has played, so there is nothing to mute.
 	mute_seconds_ = processed_any_ ? kModeSwitchMuteSeconds : 0.f;
+	pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
 }
 
 void Particules::process(const ProcessArgs& args) {
@@ -174,6 +180,12 @@ void Particules::dataFromJson(json_t* root) {
 		classic_j != nullptr, json_is_true(classic_j),
 		json_object_get(root, "tapeHiss") != nullptr,
 		robotboy::ClassicFingerprint::kAbsentTapeHiss);
+
+	// Engine-only settings go back to their defaults first, so a key that is
+	// absent means "default" whatever the instance held before.
+	classic_seed_mode_ = 0;
+	seed_locked_ = true;
+	tape_hiss_ = true;
 
 	if ((j = json_object_get(root, "qualityState")))
 		quality_state_ = clamp((int)json_integer_value(j), 0, 3);
