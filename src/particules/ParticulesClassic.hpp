@@ -52,6 +52,11 @@ class ParticulesClassic : public ParticulesEngine {
 
 	rack::dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
 	rack::dsp::SchmittTrigger seed_gate_;     // same for SEED
+	// Seed button, latched per sample like the SEED gate and consumed once
+	// per block: pressed at any point in the block, and newly pressed.
+	bool prev_seed_button_ = false;
+	bool seed_button_latch_ = false;
+	bool seed_press_latch_ = false;
 	bool prev_in_l_connected_ = false;
 	bool prev_in_r_connected_ = false;
 	bool needs_calibration_ = true;  // Calibrate on first process() if auto_gain_

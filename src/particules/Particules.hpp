@@ -81,8 +81,9 @@ struct Particules : Module, robotboy::ClassicModeSource {
 	// writes input_peak_ (+-5 V = 1.0) and gain_db_readout_, and consumes
 	// recalibrate_requested_.
 	std::atomic<bool> recalibrate_requested_{false};
-	float input_peak_ = 0.f;
-	float gain_db_readout_ = 0.f;
+	// Atomic (relaxed): the audio thread writes them while the menu reads.
+	std::atomic<float> input_peak_{0.f};
+	std::atomic<float> gain_db_readout_{0.f};
 	// Clear buffer: set by the menu or a reset, consumed by the active
 	// engine at its next block.
 	std::atomic<bool> clear_requested_{false};
@@ -138,4 +139,4 @@ struct Particules : Module, robotboy::ClassicModeSource {
 };
 
 // The gain menu's readout of the gain auto gain applies (beads_menu.hpp).
-inline float BeadsMenuGainDb(Particules* m) { return m->gain_db_readout_; }
+inline float BeadsMenuGainDb(Particules* m) { return m->gain_db_readout_.load(std::memory_order_relaxed); }

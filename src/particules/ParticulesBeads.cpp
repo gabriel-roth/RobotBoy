@@ -184,8 +184,9 @@ void ParticulesBeads::process(const rack::Module::ProcessArgs& args) {
 	const float l = inputs[Particules::IN_L_INPUT].getVoltage() * 0.2f;
 	const float r = inputs[Particules::IN_R_INPUT].getVoltage() * 0.2f;
 	if (std::isfinite(l) && std::isfinite(r))
-		m_.input_peak_ = std::max(std::max(std::fabs(l), std::fabs(r)),
-		                          m_.input_peak_ * (1.f - 2.f * args.sampleTime));
+		m_.input_peak_.store(std::max(std::max(std::fabs(l), std::fabs(r)),
+		                     m_.input_peak_.load(std::memory_order_relaxed) * (1.f - 2.f * args.sampleTime)),
+		                     std::memory_order_relaxed);
 
 	const robotboy_beads::HostFrameOut out =
 		host_.Process({l, r, frozen, seed_gate_.isHigh()}, this);
@@ -205,7 +206,7 @@ void ParticulesBeads::process(const rack::Module::ProcessArgs& args) {
 
 	if (++light_divider_ >= 32) {
 		light_divider_ = 0;
-		m_.gain_db_readout_ = host_.gain_db();
+		m_.gain_db_readout_.store(host_.gain_db(), std::memory_order_relaxed);
 		lights[Particules::GRAIN_LIGHT].setBrightness(grain_led_);
 		// Seed light (ui.cc): a slow pulse while locked; while unlocked,
 		// lit when the button or the Seed input is high.

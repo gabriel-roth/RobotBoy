@@ -187,12 +187,27 @@ void ParticulesClassic::updateSlowParams(bool frozen) {
 	// 2026-07-26, Gates set kGated unconditionally, which silenced the
 	// module when SEED was unpatched (gate permanently low).
 	const bool seed_patched = inputs[Particules::SEED_INPUT].isConnected();
+	// The Seed button (not in v2.1; never pressed, this is v2.1 exactly).
+	// With SEED patched it is OR'd into the jack's gate above. Unpatched,
+	// it stands in for the jack: in Gates mode the module is gated while
+	// it is held; in Triggers mode a press runs one block gated with the
+	// gate high, which fires exactly one grain at any Density (a gated
+	// rising edge always fires, and no repeat can wrap within one block),
+	// where a clocked edge would be divided or dropped by Density.
+	const bool seed_button_held = seed_button_latch_;
+	const bool seed_button_pressed = seed_press_latch_;
+	seed_button_latch_ = false;
+	seed_press_latch_ = false;
 	if (m_.classic_seed_mode_ == 0) {
 		params_.trigger_mode = seed_patched
 			? particules_dsp::TriggerMode::kClocked
 			: particules_dsp::TriggerMode::kLatched;
+		if (!seed_patched && seed_button_pressed) {
+			params_.trigger_mode = particules_dsp::TriggerMode::kGated;
+			params_.gate = true;
+		}
 	} else {
-		params_.trigger_mode = seed_patched
+		params_.trigger_mode = (seed_patched || seed_button_held)
 			? particules_dsp::TriggerMode::kGated
 			: particules_dsp::TriggerMode::kLatched;
 	}
@@ -219,11 +234,14 @@ void ParticulesClassic::process(const rack::Module::ProcessArgs& args) {
 
 	// Latch the SEED gate every sample so short triggers survive the
 	// block boundary on MetaModule (updateSlowParams runs once per block).
-	// The Seed button is OR'd with the jack: in Triggers mode the engine
-	// clocks on its rising edge, in Gates mode it holds the gate.
+	// The Seed button is OR'd with the jack (and stands in for it when
+	// SEED is unpatched; see updateSlowParams).
 	seed_gate_.process(inputs[Particules::SEED_INPUT].getVoltage(), 0.1f, 1.f);
 	const bool seed_button = params[Particules::SEED_PARAM].getValue() > 0.5f;
 	block_runtime_.NoteSeedGateSample(seed_gate_.isHigh() || seed_button);
+	seed_button_latch_ = seed_button_latch_ || seed_button;
+	seed_press_latch_ = seed_press_latch_ || (seed_button && !prev_seed_button_);
+	prev_seed_button_ = seed_button;
 
 #ifndef METAMODULE
 	// Desktop: momentary button cycles the mode; blocked while frozen.
@@ -295,8 +313,8 @@ void ParticulesClassic::process(const rack::Module::ProcessArgs& args) {
 		block_runtime_.DecayGrainLed();
 		lights[Particules::GRAIN_LIGHT].setBrightness(block_runtime_.GrainLed());
 		// For the gain menu, which must not read the engine.
-		m_.input_peak_ = processor_.InputLevel();
-		m_.gain_db_readout_ = processor_.AutoGainDb();
+		m_.input_peak_.store(processor_.InputLevel(), std::memory_order_relaxed);
+		m_.gain_db_readout_.store(processor_.AutoGainDb(), std::memory_order_relaxed);
 	}
 
 	// Light updates
@@ -329,7 +347,7 @@ void AppendParticulesClassicMenu(Particules* module, rack::ui::Menu* menu) {
 		void step() override {
 			text = module->auto_gain_ ? "Auto gain" : "Enable auto gain";
 			if (module->auto_gain_) {
-				rightText = string::f("%.1f dB", module->gain_db_readout_);
+				rightText = string::f("%.1f dB", module->gain_db_readout_.load(std::memory_order_relaxed));
 			} else {
 				rightText = "";
 			}
@@ -378,7 +396,7 @@ void AppendParticulesClassicMenu(Particules* module, rack::ui::Menu* menu) {
 				rightText = "";
 			} else {
 				text = "Manual gain";
-				rightText = string::f("%.1f dB ▸", module->manual_gain_db_);
+				rightText = string::f("%.1f dB", module->manual_gain_db_);
 			}
 			MenuItem::step();
 		}
@@ -398,7 +416,7 @@ void AppendParticulesClassicMenu(Particules* module, rack::ui::Menu* menu) {
 		Particules* module;
 #ifndef METAMODULE
 		void step() override {
-			rightText = FormatInputLevelDb(module->input_peak_);
+			rightText = FormatInputLevelDb(module->input_peak_.load(std::memory_order_relaxed));
 			MenuItem::step();
 		}
 #endif
@@ -407,7 +425,7 @@ void AppendParticulesClassicMenu(Particules* module, rack::ui::Menu* menu) {
 		auto* item = new InputLevelItem;
 		item->module = module;
 		item->text = "Input";
-		item->rightText = FormatInputLevelDb(module->input_peak_);
+		item->rightText = FormatInputLevelDb(module->input_peak_.load(std::memory_order_relaxed));
 		item->disabled = true;
 		menu->addChild(item);
 	}
