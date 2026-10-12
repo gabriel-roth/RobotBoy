@@ -125,20 +125,21 @@ index 8b1039e..eb4422d 100644
      FloatFrame out;
      out.l = 0.0f;
 diff --git a/beads/dsp/processor.cc b/beads/dsp/processor.cc
-index 1bcd1ce..3dd1946 100644
+index 1bcd1ce..1e4f6f1 100644
 --- a/beads/dsp/processor.cc
 +++ b/beads/dsp/processor.cc
-@@ -62,6 +62,9 @@ void Processor::Init(
+@@ -62,6 +62,10 @@ void Processor::Init(
  
    Configure(MEDIA_DIGITAL, false);
    
 +  mode_lock_ = MODE_AUTO;  // RobotBoy
++  std::fill(&gate_out_[0], &gate_out_[kMaxGateBlockSize], false);  // RobotBoy
 +  reverb_enabled_ = true;  // RobotBoy
 +  
    // Used for the timing of the delay to granular transition.
    delay_mode_transition_ = -kDelayModeTransitionTime;
  }
-@@ -109,6 +112,13 @@ void Processor::Process(
+@@ -109,6 +113,13 @@ void Processor::Process(
      const FloatFrame* in,
      FloatFrame* out,
      size_t size) {
@@ -152,7 +153,7 @@ index 1bcd1ce..3dd1946 100644
    const float delay_mode = delay_mode_transition_ > 0.0f;
    const float threshold = delay_mode ? 0.98f : 0.99f;
    const float direction = parameters.size.base > threshold ? 1.0f : -1.0f;
-@@ -230,17 +240,19 @@ void Processor::Process(
+@@ -230,17 +241,19 @@ void Processor::Process(
    pre_reverb_limiter_.Process(out, size);
    
    // Reverb.
@@ -183,8 +184,21 @@ index 1bcd1ce..3dd1946 100644
    
    // Final clipping/limiting
    output_limiter_.Process(out, size);
+@@ -251,6 +264,11 @@ void Processor::Process(
+       out[i].r = gate_out[i] ? -0.8f : 0.0f;
+     }
+   }
++  
++  // RobotBoy: keep the gate stream for the host.
++  for (size_t i = 0; i < size && i < kMaxGateBlockSize; ++i) {
++    gate_out_[i] = gate_out[i];
++  }
+ }
+ 
+ }  // namespace beads
+\ No newline at end of file
 diff --git a/beads/dsp/processor.h b/beads/dsp/processor.h
-index f01765b..78d68b3 100644
+index f01765b..99e413c 100644
 --- a/beads/dsp/processor.h
 +++ b/beads/dsp/processor.h
 @@ -62,6 +62,14 @@ class Processor {
@@ -202,7 +216,7 @@ index f01765b..78d68b3 100644
    struct MixParameters {
      float feedback;
      float dry_wet;
-@@ -72,6 +80,42 @@ class Processor {
+@@ -72,6 +80,47 @@ class Processor {
    void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
    void Configure(Media media, bool mono);
    
@@ -242,14 +256,20 @@ index f01765b..78d68b3 100644
 +    }
 +  }
 +  
++  // RobotBoy: the grain/tap gate of the last block, frame by frame (what
++  // output_gate mode would send to the right output).
++  enum { kMaxGateBlockSize = 32 };
++  inline bool gate_out(size_t i) const { return gate_out_[i]; }
++  
    inline Media media() const { return media_; }
    inline bool mono() const { return mono_; }
    
-@@ -192,6 +236,8 @@ class Processor {
+@@ -192,6 +241,9 @@ class Processor {
    DelayController delay_controller_;
    
    Media media_;
 +  ModeLock mode_lock_;  // RobotBoy
++  bool gate_out_[kMaxGateBlockSize];  // RobotBoy
 +  bool reverb_enabled_;  // RobotBoy
    bool process_dry_;
    bool mono_;

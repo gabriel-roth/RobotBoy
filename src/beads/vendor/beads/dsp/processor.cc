@@ -63,6 +63,7 @@ void Processor::Init(
   Configure(MEDIA_DIGITAL, false);
   
   mode_lock_ = MODE_AUTO;  // RobotBoy
+  std::fill(&gate_out_[0], &gate_out_[kMaxGateBlockSize], false);  // RobotBoy
   reverb_enabled_ = true;  // RobotBoy
   
   // Used for the timing of the delay to granular transition.
@@ -262,6 +263,11 @@ void Processor::Process(
       out[i].l = (out[i].l + out[i].r) * 0.5f;
       out[i].r = gate_out[i] ? -0.8f : 0.0f;
     }
+  }
+  
+  // RobotBoy: keep the gate stream for the host.
+  for (size_t i = 0; i < size && i < kMaxGateBlockSize; ++i) {
+    gate_out_[i] = gate_out[i];
   }
 }
 

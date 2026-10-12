@@ -10,7 +10,7 @@ This directory holds the DSP of Mutable Instruments **Beads**, designed and writ
 
 All local changes are in `robotboy.patch` and are marked `// RobotBoy:` in the source. `update.sh /path/to/eurorack` recreates this directory from upstream and re-applies the patch.
 
-1. `Processor` can pin granular or delay mode (`set_mode_lock`) instead of following the Size knob, skip the reverb (`set_reverb_enabled`), clear the active buffer (`ClearBuffer`), and report its active grain count (`num_active_grains`).
+1. `Processor` can pin granular or delay mode (`set_mode_lock`) instead of following the Size knob, skip the reverb (`set_reverb_enabled`), clear the active buffer (`ClearBuffer`), and report its active grain count (`num_active_grains`) and the per-frame gate of the last block (`gate_out`).
 2. `Parameters::pitch_lock`: an optional quantizer applied to each grain's pitch, in semitones, when the grain starts.
 3. The packed 12-bit delay-line items force the GCC bitfield layout on MinGW, and every item size is checked with a `static_assert`.
 

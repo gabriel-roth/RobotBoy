@@ -116,6 +116,11 @@ class Processor {
     }
   }
   
+  // RobotBoy: the grain/tap gate of the last block, frame by frame (what
+  // output_gate mode would send to the right output).
+  enum { kMaxGateBlockSize = 32 };
+  inline bool gate_out(size_t i) const { return gate_out_[i]; }
+  
   inline Media media() const { return media_; }
   inline bool mono() const { return mono_; }
   
@@ -237,6 +242,7 @@ class Processor {
   
   Media media_;
   ModeLock mode_lock_;  // RobotBoy
+  bool gate_out_[kMaxGateBlockSize];  // RobotBoy
   bool reverb_enabled_;  // RobotBoy
   bool process_dry_;
   bool mono_;

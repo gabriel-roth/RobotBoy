@@ -47,7 +47,15 @@ using beads::FloatFrame;
 
 class GainControl {
  public:
-  GainControl() { }
+  // RobotBoy: the firmware's instance is a zero-initialized global, and
+  // Init() reads time_ and Process() smooths manual_gain_ from that zero
+  // state; do the same for instances that live on the heap or stack.
+  GainControl()
+      : peak_(0.0f), agc_peak_(0.0f), stable_agc_peak_(0.0f), gain_(0.0f),
+        soft_clipping_amount_(0.0f),
+        soft_clipping_mode_(SOFT_CLIPPING_MODE_OFF),
+        auto_gain_(false), manual_gain_(0.0f), one_hertz_(0.0f),
+        time_(0), ignore_time_(0), active_time_(0) { }
   ~GainControl() { }
   
   enum State {
