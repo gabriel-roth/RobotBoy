@@ -396,6 +396,7 @@ void RetoursProcessor::ProcessBlock(const StereoFrame* in, StereoFrame* out, siz
         float env_gain = s.envelope.Next();
         wet.l *= env_gain;
         wet.r *= env_gain;
+        if (wet_filter_) wet_filter_->Process(wet);   // classic-mode hook
 
         StereoFrame fb_in{wet.l * s.smoothed_feedback, wet.r * s.smoothed_feedback};
         StereoFrame fb = s.saturation.LimitFeedback(fb_in, s.active_quality);

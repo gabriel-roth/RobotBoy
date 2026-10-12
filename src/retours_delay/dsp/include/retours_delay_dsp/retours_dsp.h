@@ -3,6 +3,13 @@
 
 namespace retours_delay_dsp {
 
+// Optional filter on the wet signal, inside the feedback loop (classic
+// Retours' Filter knob). Null by default: the engine is then unchanged.
+struct WetFilter {
+    virtual ~WetFilter() = default;
+    virtual void Process(StereoFrame& frame) = 0;
+};
+
 class RetoursProcessor {
 public:
     struct MemoryRequirements { size_t total_bytes; size_t alignment; };
@@ -11,6 +18,7 @@ public:
     void Init(void* memory, size_t memory_size, float sample_rate);
     void SetParameters(const RetoursParameters& params);
     void Process(const StereoFrame* input, StereoFrame* output, size_t num_frames);
+    void SetWetFilter(WetFilter* f) { wet_filter_ = f; }   // null = none
     void ClearBuffer();
     void ClearTappedTempo();          // abandon measured tempo -> free-running
     bool BufferEmpty() const;         // no audio recorded since last clear
@@ -24,6 +32,7 @@ public:
 private:
     struct Impl;
     Impl* impl_ = nullptr;
+    WetFilter* wet_filter_ = nullptr;   // not in Impl: survives Init()
     void ProcessBlock(const StereoFrame* input, StereoFrame* output, size_t n);
 };
 

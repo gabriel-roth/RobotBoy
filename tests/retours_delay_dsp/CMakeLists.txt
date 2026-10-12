@@ -24,7 +24,9 @@ add_executable(retours_delay_dsp_tests ${TEST_SRC})
 target_include_directories(retours_delay_dsp_tests PRIVATE
     ${PARTICULES_TESTS}/catch2
     ${RETOURS_DELAY_DSP}/include ${RETOURS_DELAY_DSP}/src
-    ${PARTICULES_DSP}/include ${PARTICULES_DSP}/src)
+    ${PARTICULES_DSP}/include ${PARTICULES_DSP}/src
+    ${REPO_ROOT}/src/retours_delay ${REPO_ROOT}/src/beads/vendor)
+target_compile_definitions(retours_delay_dsp_tests PRIVATE TEST stmlib=robotboy_stmlib)
 target_link_libraries(retours_delay_dsp_tests PRIVATE robotboy_retours_delay_dsp catch2_amalgamated)
 
 enable_testing()
