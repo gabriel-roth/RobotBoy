@@ -262,7 +262,9 @@ struct ParticulesWidget : ModuleWidget {
 
 		// The engine's own items, for the mode the toggle shows. Built from
 		// module state only: the UI thread never touches engine_.
-		if (!module->displayedClassicMode())
+		if (module->displayedClassicMode())
+			AppendParticulesClassicMenu(module, menu);
+		else
 			AppendParticulesBeadsMenu(module, menu);
 
 		// --- Pitch Lock ---

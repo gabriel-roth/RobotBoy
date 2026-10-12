@@ -35,6 +35,7 @@ std::unique_ptr<ParticulesEngine> MakeParticulesClassic(Particules& m);
 // Each mode's engine-only menu items, built from module state only (never
 // from the engine, which the audio thread may be replacing).
 void AppendParticulesBeadsMenu(Particules* m, rack::ui::Menu* menu);
+void AppendParticulesClassicMenu(Particules* m, rack::ui::Menu* menu);
 
 // How many engines each factory has built, process-wide. Lets the headless
 // mode-switch test check that a patch loaded into one mode never builds the

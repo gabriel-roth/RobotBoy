@@ -25,6 +25,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/Onbetap.cpp
     ${SRC}/src/particules/Particules.cpp
     ${SRC}/src/particules/ParticulesBeads.cpp
+    ${SRC}/src/particules/ParticulesClassic.cpp
     ${SRC}/src/particules/Ondes.cpp
     ${SRC}/src/Vespid.cpp
     ${SRC}/src/retours_delay/Retours.cpp

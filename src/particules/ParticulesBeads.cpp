@@ -225,17 +225,7 @@ void ParticulesBeads::process(const rack::Module::ProcessArgs& args) {
 	}
 }
 
-static std::unique_ptr<ParticulesEngine> BuildBeads(Particules& m) {
-	return std::unique_ptr<ParticulesEngine>(new (std::nothrow) ParticulesBeads(m, m.sample_rate_));
-}
-
 std::unique_ptr<ParticulesEngine> MakeParticulesBeads(Particules& m) {
 	g_particules_beads_builds.fetch_add(1, std::memory_order_relaxed);
-	return BuildBeads(m);
-}
-
-// replaced in Task 5
-std::unique_ptr<ParticulesEngine> MakeParticulesClassic(Particules& m) {
-	g_particules_classic_builds.fetch_add(1, std::memory_order_relaxed);
-	return BuildBeads(m);
+	return std::unique_ptr<ParticulesEngine>(new (std::nothrow) ParticulesBeads(m, m.sample_rate_));
 }
