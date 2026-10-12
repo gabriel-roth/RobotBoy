@@ -346,3 +346,41 @@ TEST_CASE("Output is clipped to the codec's full scale, as in beads.cc") {
   }
   CHECK(peak <= 1.0f);
 }
+
+TEST_CASE("Scorched cassette hisses unless the hiss is switched off") {
+  auto rms_of_silence = [](robotboy_beads::Quality q, bool hiss) {
+    FixedControls controls;
+    controls.c.mix.dry_wet = 0.0f;  // dry only: the hiss shows up directly
+    // Auto gain: Beads' manual-gain soft clipper in Scorched is asymmetric
+    // and turns silence into a small DC offset, which would mask the test.
+    controls.c.gain_setting = 0;
+    EngineHost host;
+    REQUIRE(host.Init(Processor::MODE_GRANULAR, true, 48000.0f));
+    host.SetQuality(q);
+    host.SetHissEnabled(hiss);
+    host.SetInputs(true, true);
+    double acc = 0.0;
+    size_t n = 0;
+    for (int i = 0; i < 48000; ++i) {
+      const HostFrameOut out = host.Process({0.0f, 0.0f, false, false}, &controls);
+      if (i > 24000) { acc += out.l * out.l; ++n; }
+    }
+    return std::sqrt(acc / double(n));
+  };
+  const double hiss = rms_of_silence(Quality::kScorched, true);
+  CHECK(hiss > 2e-5);
+  CHECK(hiss < 1e-3);
+  CHECK(rms_of_silence(Quality::kScorched, false) == 0.0);
+  CHECK(rms_of_silence(Quality::kBright, true) == 0.0);
+}
+
+TEST_CASE("Hiss doesn't mark an empty buffer as recorded") {
+  FixedControls controls;
+  controls.c.gain_setting = 0;  // see above: no soft-clip DC offset
+  EngineHost host;
+  REQUIRE(host.Init(Processor::MODE_GRANULAR, true, 48000.0f));
+  host.SetQuality(Quality::kScorched);
+  host.SetInputs(true, true);
+  for (int i = 0; i < 48000; ++i) host.Process({0.0f, 0.0f, false, false}, &controls);
+  CHECK(host.buffer_empty());
+}

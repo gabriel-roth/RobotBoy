@@ -99,6 +99,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	std::atomic<bool> clear_requested_{false};
 	std::atomic<bool> recalibrate_requested_{false};
 	bool grain_trigger_out_ = false;
+	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
 	bool auto_gain_ = true;
 	float manual_gain_db_ = 0.f;
 	bool metamodule_fpu_configured_ = false;
@@ -206,6 +207,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		pitch_root_          = 0;
 		scale_dirty_.store(true, std::memory_order_release);
 		grain_trigger_out_   = false;
+		tape_hiss_ = true;
 		auto_gain_           = true;
 		manual_gain_db_      = 0.f;
 		recalibrate_requested_.store(true);
@@ -221,6 +223,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
 		json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
 		json_object_set_new(root, "grainTriggerOut", json_boolean(grain_trigger_out_));
+		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
 		return root;
 	}
 
@@ -243,6 +246,8 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		scale_dirty_.store(true, std::memory_order_release);
 		if ((j = json_object_get(root, "grainTriggerOut")))
 			grain_trigger_out_ = json_boolean_value(j);
+		if ((j = json_object_get(root, "tapeHiss")))
+			tape_hiss_ = json_boolean_value(j);
 	}
 
 	static beads::RandomizedParameter Randomized(float base, float attenuverter,
@@ -339,6 +344,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		prev_quality_button_ = quality_pressed;
 #endif
 		host_.SetQuality(static_cast<robotboy_beads::Quality>(quality_state_));
+		host_.SetHissEnabled(tape_hiss_);
 
 		const bool in_l = inputs[IN_L_INPUT].isConnected();
 		const bool in_r = inputs[IN_R_INPUT].isConnected();
@@ -418,6 +424,7 @@ struct ParticulesWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 
 		appendBeadsGainMenu(menu, module);
+		appendBeadsHissMenu(menu, module);
 
 		// --- SEED CV Mode ---
 		menu->addChild(createIndexSubmenuItem("SEED CV mode",

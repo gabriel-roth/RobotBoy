@@ -244,6 +244,25 @@ void EngineHost::RunBlock(ControlSource* controls) {
     return;
   }
 
+  // Checked before the hiss goes in, so silence still counts as empty.
+  if (!frozen) {
+    for (size_t i = 0; i < size && buffer_empty_; ++i) {
+      if (gained[i].l != 0.0f || gained[i].r != 0.0f) {
+        buffer_empty_ = false;
+      }
+    }
+  }
+
+  // Scorched cassette's hiss: independent white noise per channel, +-0.00025
+  // of full scale (about -77 dBFS RMS), after the gain stage, where the
+  // codec's noise enters on Beads. So the dry signal hisses too, as there.
+  if (hiss_enabled_ && quality_ == Quality::kScorched) {
+    for (size_t i = 0; i < size; ++i) {
+      gained[i].l += kHissLevel * NextHiss();
+      gained[i].r += kHissLevel * NextHiss();
+    }
+  }
+
   c.mix.output_gate = false;  // the host builds the gate output itself
   processor_->Process(
       c.seed_button,
@@ -257,13 +276,6 @@ void EngineHost::RunBlock(ControlSource* controls) {
       size);
   active_grains_ = processor_->num_active_grains();
 
-  if (!frozen) {
-    for (size_t i = 0; i < size && buffer_empty_; ++i) {
-      if (gained[i].l != 0.0f || gained[i].r != 0.0f) {
-        buffer_empty_ = false;
-      }
-    }
-  }
 
   // beads.cc clips to the codec's full scale before conversion; the
   // limiters inside the processor are peak followers and let fast

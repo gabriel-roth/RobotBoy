@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 - Particules, Retours and Ondes now run on the real Mutable Instruments Beads code, which Émilie Gillet released as open source in October 2026, instead of a reconstruction. They should sound and respond like Beads in its granular mode, delay mode and wavetable-oscillator mode. Panels and patches carry over, but some behavior changes:
-  - Quality settings now match Beads: Cold digital runs at 32 kHz, and buffers are 4, 8, 10.7 and 16 seconds (double for a mono input). Scorched cassette no longer adds tape hiss, and Sunny tape no longer has wow and flutter.
+  - Quality settings now match Beads: Cold digital runs at 32 kHz, and buffers are 4, 8, 10.7 and 16 seconds (double for a mono input). Sunny tape no longer has wow and flutter. Scorched cassette's tape hiss can now be switched off from the context menu.
   - Auto gain works as on Beads: it boosts quiet sources by up to 32 dB but never turns hot ones down.
   - Particules: the Pitch knob has Beads' notches (unison, 1, 3, 4 and 7 semitones, octaves). Size reaches 4-second grains. Grain scheduling and voice stealing are Beads'. The grain-trigger output sends a gate per grain.
   - Retours: tap tempo works as on Beads (the first press switches to tempo mode, then taps set the tempo). The "Time change response" menu is gone. Feedback reaches unity at about 82% (the panel arrow has moved there). New input-gain menu items, as on Particules.

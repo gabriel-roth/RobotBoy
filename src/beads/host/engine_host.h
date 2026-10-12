@@ -87,6 +87,11 @@ class EngineHost {
   // reformats the buffer (as Beads does when a cable goes in or out).
   void SetInputs(bool left_patched, bool right_patched);
 
+  // Synthetic tape hiss in Scorched cassette (on by default). On Beads the
+  // hiss is the codec's own noise at 24 kHz, which the DSP code doesn't
+  // contain, so RobotBoy adds it here, at the converter's place in the chain.
+  void SetHissEnabled(bool enabled) { hiss_enabled_ = enabled; }
+
   void RequestClear() { clear_requested_ = true; }
   void RecalibrateGain() { recalibrate_requested_ = true; }
 
@@ -123,6 +128,15 @@ class EngineHost {
   void RunBlock(ControlSource* controls);
   void PushOutputFrame(float l, float r, float gate);
 
+  static constexpr float kHissLevel = 0.00025f;
+  // xorshift32, mapped to [-1, 1).
+  float NextHiss() {
+    hiss_state_ ^= hiss_state_ << 13;
+    hiss_state_ ^= hiss_state_ >> 17;
+    hiss_state_ ^= hiss_state_ << 5;
+    return float(int32_t(hiss_state_)) * (1.0f / 2147483648.0f);
+  }
+
   std::unique_ptr<beads::Processor> processor_;
   std::unique_ptr<uint8_t[]> delay_memory_;
   std::unique_ptr<uint16_t[]> reverb_memory_;
@@ -157,6 +171,8 @@ class EngineHost {
   stmlib::GateFlags previous_seed_ = stmlib::GATE_FLAG_LOW;
 
   int transition_blocks_ = 0;
+  bool hiss_enabled_ = true;
+  uint32_t hiss_state_ = 0x2545f491u;  // separate from Beads' own RNG
   bool clear_requested_ = false;
   bool recalibrate_requested_ = false;
   bool buffer_empty_ = true;

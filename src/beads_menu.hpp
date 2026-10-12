@@ -165,3 +165,15 @@ inline void appendBeadsGainMenu(Menu* menu, M* module) {
 		menu->addChild(item);
 	}
 }
+
+// Scorched cassette's synthetic tape hiss (expects bool tape_hiss_).
+template <class M>
+inline void appendBeadsHissMenu(Menu* menu, M* module) {
+	menu->addChild(createBoolMenuItem("Tape hiss (Scorched cassette)", "",
+		[=]() { return module->tape_hiss_; },
+		[=](bool on) {
+			withMenuUndo(module, on ? "enable tape hiss" : "disable tape hiss",
+				[=]() { module->tape_hiss_ = on; });
+		}
+	));
+}

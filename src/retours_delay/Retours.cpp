@@ -99,6 +99,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	// Input gain (Beads' auto gain by default), shared menu with Particules.
 	std::atomic<bool> recalibrate_requested_{false};
 	bool auto_gain_ = true;
+	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
 	float manual_gain_db_ = 0.f;
 	float input_peak_ = 0.f;
 
@@ -187,6 +188,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		quality_state_ = 0;
 		auto_gain_ = true;
 		manual_gain_db_ = 0.f;
+		tape_hiss_ = true;
 		clear_requested_.store(true);
 		clear_tempo_requested_.store(true);   // initialize returns to free-running
 		recalibrate_requested_.store(true);
@@ -197,6 +199,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		json_object_set_new(root, "qualityState", json_integer(quality_state_));
 		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
+		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
 		return root;
 	}
 
@@ -208,6 +211,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			auto_gain_ = json_boolean_value(j);
 		if ((j = json_object_get(root, "manualGainDb")))
 			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
+		if ((j = json_object_get(root, "tapeHiss")))
+			tape_hiss_ = json_boolean_value(j);
 		// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
 		// "envelopePreFeedback") from patches made before the Beads engine
 		// are ignored: Beads has one fixed time-change behaviour.
@@ -321,6 +326,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		prev_quality_button_ = quality_pressed;
 #endif
 		host_.SetQuality(static_cast<robotboy_beads::Quality>(quality_state_));
+		host_.SetHissEnabled(tape_hiss_);
 		host_.SetInputs(inputs[IN_L_INPUT].isConnected(), inputs[IN_R_INPUT].isConnected());
 
 		const float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
@@ -406,6 +412,7 @@ struct RetoursWidget : ModuleWidget {
 #endif
 
 		appendBeadsGainMenu(menu, module);
+		appendBeadsHissMenu(menu, module);
 
 		// --- Clear saved tempo ---
 		// A tempo from a tap or a clock holds after the clock is unpatched;

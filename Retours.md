@@ -64,7 +64,7 @@ The **Quality** button (top center, with the multicolor LED) cycles through four
 - ***Bright digital*** (white LED) — 48 kHz, 16-bit. Cleanest and brightest. 4-second buffer.
 - ***Cold digital*** (cyan LED) — 32 kHz, 12-bit, gently saturated feedback. 8-second buffer.
 - ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gently saturated feedback, and soft saturation on the input when the gain is set manually. 10.7-second buffer.
-- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier feedback saturation (and input saturation when the gain is set manually), wow and flutter. Crunchy lo-fi. 16-second buffer.
+- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier feedback saturation (and input saturation when the gain is set manually), wow and flutter, and tape hiss. Crunchy lo-fi. 16-second buffer.
 
 All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Going between stereo (both inputs patched) and mono, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
 
@@ -94,6 +94,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Quality** (VCV Rack only; on MetaModule, use the Quality switch) — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
 - **Auto gain / Gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details. To pass the input at unity, as earlier versions of Retours did, turn **Auto gain** off and leave **Gain** at 0 dB.
+- **Tape hiss (Scorched cassette)** — on by default. Beads' Scorched cassette setting runs its audio converter at a low sample rate, which makes it hiss; this adds a similar quiet hiss to the input (and so to the dry signal too). Turn it off for a clean noise floor. It has no effect in the other Quality settings.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
