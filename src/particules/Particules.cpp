@@ -1,430 +1,204 @@
-#include "plugin.hpp"
+#include "Particules.hpp"
 #include "beads_menu.hpp"
 #include "particules_scales.h"
-#include "metamodule_fpu.h"
-
-#include "host/controls.h"
-#include "host/engine_host.h"
-#include "host/pitch_lock.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 
-// Particules is the granular half of Mutable Instruments Beads, running on
-// the Beads source (src/beads). This file maps the panel onto what the
-// Beads firmware reads from its pots and jacks each block (beads.cc).
+// Particules: the panel, saved settings and engine mode. The audio is done
+// by the active engine adapter: ParticulesBeads (the Beads source) or the
+// classic v2.1 engine.
 
-// Seconds for the grain LED to fade after a flash.
-static constexpr float kGrainLedDecaySeconds = 0.08f;
-// Beads' Seed button (ui.cc): holding it this long re-locks it.
-static constexpr float kSeedLongPressSeconds = 4.f;
-// Period of the locked Seed light's slow pulse (ui.cc: a 2048 ms triangle).
-static constexpr float kSeedPulseSeconds = 2.048f;
-
-struct Particules;
+// Output mute after a live engine switch, as beads.cc's codec_transition.
+static constexpr float kModeSwitchMuteSeconds = 0.25f;
 
 struct QualityParamQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
 };
 
-struct Particules : Module, robotboy_beads::ControlSource {
-	enum ParamId {
-		FREEZE_PARAM,
-		QUALITY_PARAM,
-		TIME_PARAM,
-		DENSITY_PARAM,
-		PITCH_PARAM,
-		SIZE_PARAM,
-		SHAPE_PARAM,
-		FEEDBACK_PARAM,
-		REVERB_PARAM,
-		DRY_WET_PARAM,
-		TIME_AR_PARAM,
-		PITCH_AR_PARAM,
-		SIZE_AR_PARAM,
-		SHAPE_AR_PARAM,
-		FEEDBACK_AMT_PARAM,
-		REVERB_AMT_PARAM,
-		DRY_WET_AMT_PARAM,
-		SEED_PARAM,   // added later; appended so older patches still load
-		PARAMS_LEN
-	};
-	enum InputId {
-		IN_L_INPUT,
-		IN_R_INPUT,
-		FREEZE_INPUT,
-		SEED_INPUT,
-		TIME_INPUT,
-		DENSITY_INPUT,
-		PITCH_INPUT,
-		SIZE_INPUT,
-		SHAPE_INPUT,
-		FEEDBACK_INPUT,
-		REVERB_INPUT,
-		DRY_WET_INPUT,
-		INPUTS_LEN
-	};
-	enum OutputId {
-		OUT_L_OUTPUT,
-		OUT_R_OUTPUT,
-		GATE_OUTPUT,   // added later; appended so older patches still load
-		OUTPUTS_LEN
-	};
-	enum LightId {
-		QUALITY_R_LIGHT,
-		QUALITY_G_LIGHT,
-		QUALITY_B_LIGHT,
-		FREEZE_BUTTON_LIGHT,
-		GRAIN_LIGHT,
-		SEED_LIGHT,
-		LIGHTS_LEN
-	};
-
-	robotboy_beads::EngineHost host_;
-	robotboy_beads::ScalePitchLock pitch_lock_;
-
-	// Beads' pot and CV conditioning (cv_reader.cc), run once per engine block.
-	robotboy_beads::PotChannel time_pot_, size_pot_, shape_pot_, pitch_pot_, density_pot_;
-	robotboy_beads::PotChannel time_ar_pot_, size_ar_pot_, shape_ar_pot_, pitch_ar_pot_;
-	robotboy_beads::CvChannel time_cv_, size_cv_, shape_cv_, pitch_cv_, density_cv_;
-	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_, reverb_cv_;
-
-	// Module state
-	int quality_state_ = 0;   // 0-3: Bright, Cold, Sunny, Scorched
-	// Beads' Seed button. Locked (the default) is Beads' normal state:
-	// Density alone makes grains, and a patched Seed input is a clock to
-	// divide or a trigger to gate by probability. A press unlocks it and
-	// makes grains while held (with Seed patched, while either is high); a
-	// 4-second hold locks it again. Saved as "seedState": 0 = locked, 1 =
-	// unlocked (the old "Seed CV mode" menu's Triggers/Gates).
-	bool seed_locked_ = true;
-	bool seed_held_ = false;          // pressed and not yet long-pressed
-	bool prev_seed_button_ = false;
-	float seed_hold_seconds_ = 0.f;
-	float seed_pulse_phase_ = 0.f;
-	bool prev_quality_button_ = false;
-	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
-	dsp::SchmittTrigger seed_gate_;     // same for SEED
-	// Lock pitch: 0 = off, 1-2 = octaves (+ fifths), 3-7 = scales (see
-	// particules_scales.h); the root applies to the scale modes only.
-	int pitch_scale_ = 0;
-	int pitch_root_ = 0;
-	// Menu/load/reset mutate this state on the UI thread; the audio thread
-	// applies it at the next engine block.
-	std::atomic<bool> scale_dirty_{true};
-	std::atomic<bool> clear_requested_{false};
-	std::atomic<bool> recalibrate_requested_{false};
-	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
-	bool auto_gain_ = true;
-	float manual_gain_db_ = 0.f;
-	bool metamodule_fpu_configured_ = false;
-
-	// Grain LED and the input-level readout.
-	bool prev_gate_ = false;
-	float grain_led_ = 0.f;
-	float input_peak_ = 0.f;
-	int light_divider_ = 0;
-	int light_quality_state_ = -1;
-
-	Particules() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		// configSwitch does NOT disable randomization (only configButton does),
-		// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
-		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
-			->randomizeEnabled = false;
-		configButton(SEED_PARAM, "Seed (hold 4 s to lock)");
+Particules::Particules() {
+	config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+	// configSwitch does NOT disable randomization (only configButton does),
+	// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
+	configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
+		->randomizeEnabled = false;
+	configButton(SEED_PARAM, "Seed (hold 4 s to lock)");
 #ifdef METAMODULE
-		// MetaModule: a real 4-position switch so the firmware shows the mode
-		// name (the adapter can't label a momentary button). Desktop keeps the
-		// momentary cycle button below.
-		configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
-			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"})
-			->randomizeEnabled = false;
+	// MetaModule: a real 4-position switch so the firmware shows the mode
+	// name (the adapter can't label a momentary button). Desktop keeps the
+	// momentary cycle button below.
+	configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
+		{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"})
+		->randomizeEnabled = false;
 #else
-		configButton<QualityParamQuantity>(QUALITY_PARAM, "Quality");
+	configButton<QualityParamQuantity>(QUALITY_PARAM, "Quality");
 #endif
-		configParam(DENSITY_PARAM, 0.f, 1.f, 0.5f, "Density");
-		configParam(TIME_PARAM, 0.f, 1.f, 0.5f, "Time");
-		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
-		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
-		configParam(FEEDBACK_AMT_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
-		configParam(SIZE_PARAM, -1.f, 1.f, 0.f, "Size");
-		configParam(SHAPE_PARAM, 0.f, 1.f, 0.5f, "Shape");
-		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/Wet");
-		configParam(DRY_WET_AMT_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
-		configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
-		configParam(REVERB_AMT_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
-		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
-		configParam(SIZE_AR_PARAM, -1.f, 1.f, 0.f, "Size AR");
-		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
-		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
+	configParam(DENSITY_PARAM, 0.f, 1.f, 0.5f, "Density");
+	configParam(TIME_PARAM, 0.f, 1.f, 0.5f, "Time");
+	configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
+	configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
+	configParam(FEEDBACK_AMT_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
+	configParam(SIZE_PARAM, -1.f, 1.f, 0.f, "Size");
+	configParam(SHAPE_PARAM, 0.f, 1.f, 0.5f, "Shape");
+	configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/Wet");
+	configParam(DRY_WET_AMT_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
+	configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
+	configParam(REVERB_AMT_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
+	configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
+	configParam(SIZE_AR_PARAM, -1.f, 1.f, 0.f, "Size AR");
+	configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
+	configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
 
-		configInput(FEEDBACK_INPUT, "Feedback CV");
-		configInput(DRY_WET_INPUT, "Dry/wet CV");
-		configInput(REVERB_INPUT, "Reverb CV");
-		configInput(TIME_INPUT, "Time CV");
-		configInput(SIZE_INPUT, "Size CV");
-		configInput(SHAPE_INPUT, "Shape CV");
-		configInput(PITCH_INPUT, "Pitch CV (V/oct)");
-		configInput(DENSITY_INPUT, "Density CV");
-		configInput(IN_L_INPUT, "Audio in L");
-		configInput(IN_R_INPUT, "Audio in R");
-		configInput(FREEZE_INPUT, "Freeze gate");
-		configInput(SEED_INPUT, "Seed/clock");
-		configOutput(OUT_L_OUTPUT, "Audio out L");
-		configOutput(OUT_R_OUTPUT, "Audio out R");
-		configOutput(GATE_OUTPUT, "Grain gate");
-		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
-		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
-		// configLight() is intentionally omitted: the lights are embedded in
-		// button params (FREEZE, QUALITY), so their tooltips come from configParam.
-		// Adding separate light labels would show a second overlapping tooltip.
+	configInput(FEEDBACK_INPUT, "Feedback CV");
+	configInput(DRY_WET_INPUT, "Dry/wet CV");
+	configInput(REVERB_INPUT, "Reverb CV");
+	configInput(TIME_INPUT, "Time CV");
+	configInput(SIZE_INPUT, "Size CV");
+	configInput(SHAPE_INPUT, "Shape CV");
+	configInput(PITCH_INPUT, "Pitch CV (V/oct)");
+	configInput(DENSITY_INPUT, "Density CV");
+	configInput(IN_L_INPUT, "Audio in L");
+	configInput(IN_R_INPUT, "Audio in R");
+	configInput(FREEZE_INPUT, "Freeze gate");
+	configInput(SEED_INPUT, "Seed/clock");
+	configOutput(OUT_L_OUTPUT, "Audio out L");
+	configOutput(OUT_R_OUTPUT, "Audio out R");
+	configOutput(GATE_OUTPUT, "Grain gate");
+	configBypass(IN_L_INPUT, OUT_L_OUTPUT);
+	configBypass(IN_R_INPUT, OUT_R_OUTPUT);
+	// configLight() is intentionally omitted: the lights are embedded in
+	// button params (FREEZE, QUALITY), so their tooltips come from configParam.
+	// Adding separate light labels would show a second overlapping tooltip.
 
-		InitControlChannels();
-		if (!host_.Init(beads::Processor::MODE_GRANULAR, true,
-		                APP->engine->getSampleRate())) {
-			// WARN is defined identically by both hosts' logger.hpp.
-			WARN("Particules: could not allocate the Beads delay memory");
-		}
+	sample_rate_ = APP->engine->getSampleRate();
+	classic_ = false;
+	engine_ = MakeParticulesBeads(*this);
+	if (!engine_ || !engine_->ok()) {
+		// WARN is defined identically by both hosts' logger.hpp.
+		WARN("Particules: could not allocate the Beads delay memory");
 	}
+}
 
-	void InitControlChannels() {
-		using robotboy_beads::PotLaw;
-		const float lp = robotboy_beads::kPotLp;
-		time_pot_.Init(PotLaw::kNormal, lp, robotboy_beads::kTimeHysteresis);
-		size_pot_.Init(PotLaw::kNormal, lp, 0.f);
-		shape_pot_.Init(PotLaw::kNormal, lp, 0.f);
-		density_pot_.Init(PotLaw::kNormal, lp, 0.f);
-		pitch_pot_.Init(PotLaw::kDetune, lp, 0.f);
-		time_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		size_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		shape_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		pitch_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		robotboy_beads::InitTimeSizeShapeCv(&time_cv_);
-		robotboy_beads::InitTimeSizeShapeCv(&size_cv_);
-		robotboy_beads::InitTimeSizeShapeCv(&shape_cv_);
-		robotboy_beads::InitPitchCv(&pitch_cv_);
-		robotboy_beads::InitDensityCv(&density_cv_);
-		robotboy_beads::InitMixCv(&feedback_cv_);
-		robotboy_beads::InitMixCv(&dry_wet_cv_);
-		robotboy_beads::InitMixCv(&reverb_cv_);
+void Particules::requestMode(bool classic) {   // UI thread
+	pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
+}
+
+void Particules::applyPendingMode(float sample_rate) {   // audio thread
+	const int want = pending_mode_.exchange(-1, std::memory_order_acq_rel);
+	if (want < 0) return;
+	if (engine_ && bool(want) == classic_) return;
+	if (engine_ && engine_->frozen()) return;   // refused, like Quality
+	classic_ = want;
+	sample_rate_ = sample_rate;
+	engine_.reset();   // free first: peak RAM is the larger engine, not both
+	engine_ = classic_ ? MakeParticulesClassic(*this) : MakeParticulesBeads(*this);
+	if (!engine_ || !engine_->ok())
+		WARN("Particules: could not allocate the %s engine", classic_ ? "classic" : "Beads");
+	scale_dirty_.store(true, std::memory_order_release);
+	// A patch loaded straight into a mode switches before the first frame:
+	// nothing has played, so there is nothing to mute.
+	mute_seconds_ = processed_any_ ? kModeSwitchMuteSeconds : 0.f;
+}
+
+void Particules::process(const ProcessArgs& args) {
+	applyPendingMode(args.sampleRate);
+	processed_any_ = true;
+	if (engine_) {
+		engine_->process(args);
+	} else {
+		mute_seconds_ = std::max(mute_seconds_, args.sampleTime);   // no engine: silence
 	}
-
-	void onSampleRateChange(const SampleRateChangeEvent& e) override {
-		host_.SetHostRate(e.sampleRate);
-		// Re-arm so a possibly-new audio thread gets FTZ configured.
-		metamodule_fpu_configured_ = false;
+	if (mute_seconds_ > 0.f) {
+		outputs[OUT_L_OUTPUT].setVoltage(0.f);
+		outputs[OUT_R_OUTPUT].setVoltage(0.f);
+		outputs[GATE_OUTPUT].setVoltage(0.f);
+		mute_seconds_ -= args.sampleTime;
 	}
+}
 
-	void onReset(const ResetEvent& e) override {
-		Module::onReset(e);
-		quality_state_       = 0;
-		seed_locked_         = true;
-		seed_held_           = false;
-		pitch_scale_         = 0;
-		pitch_root_          = 0;
-		scale_dirty_.store(true, std::memory_order_release);
-		tape_hiss_ = true;
-		auto_gain_           = true;
-		manual_gain_db_      = 0.f;
-		recalibrate_requested_.store(true);
-		clear_requested_.store(true);
-	}
+void Particules::onSampleRateChange(const SampleRateChangeEvent& e) {
+	sample_rate_ = e.sampleRate;
+	if (engine_) engine_->onSampleRateChange(e.sampleRate);
+}
 
-	json_t* dataToJson() override {
-		json_t* root = json_object();
-		json_object_set_new(root, "qualityState", json_integer(quality_state_));
-		json_object_set_new(root, "seedState",    json_integer(seed_locked_ ? 0 : 1));
-		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
-		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
-		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
-		json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
-		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
-		return root;
-	}
+void Particules::onReset(const ResetEvent& e) {
+	Module::onReset(e);
+	// Resets the settings, not the mode.
+	quality_state_       = 0;
+	seed_locked_         = true;
+	classic_seed_mode_   = 0;
+	pitch_scale_         = 0;
+	pitch_root_          = 0;
+	scale_dirty_.store(true, std::memory_order_release);
+	tape_hiss_ = true;
+	auto_gain_           = true;
+	manual_gain_db_      = 0.f;
+	recalibrate_requested_.store(true);
+	if (engine_) engine_->onReset();
+}
 
-	void dataFromJson(json_t* root) override {
-		json_t* j;
-		if ((j = json_object_get(root, "qualityState")))
-			quality_state_ = clamp((int)json_integer_value(j), 0, 3);
+void Particules::onPortChange(const PortChangeEvent& e) {
+	if (engine_) engine_->onPortChange(e);
+}
+
+json_t* Particules::dataToJson() {
+	json_t* root = json_object();
+	// A switch not yet applied is saved as the mode, so the menu's undo
+	// snapshot records it.
+	json_object_set_new(root, "classic",      json_boolean(displayedClassicMode()));
+	json_object_set_new(root, "qualityState", json_integer(quality_state_));
+	json_object_set_new(root, "seedState",    json_integer(seed_locked_ ? 0 : 1));
+	json_object_set_new(root, "classicSeedMode", json_integer(classic_seed_mode_));
+	json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
+	json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
+	json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
+	json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
+	json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
+	return root;
+}
+
+void Particules::dataFromJson(json_t* root) {
+	json_t* j;
+	json_t* classic_j = json_object_get(root, "classic");
+	const bool classic = robotboy::DetectClassic(
+		classic_j != nullptr, json_is_true(classic_j),
+		json_object_get(root, "tapeHiss") != nullptr,
+		robotboy::ClassicFingerprint::kAbsentTapeHiss);
+
+	if ((j = json_object_get(root, "qualityState")))
+		quality_state_ = clamp((int)json_integer_value(j), 0, 3);
+	if (!classic_j && classic) {
+		// A pre-2.2 patch: its "seedState" was v2.1's Seed CV mode
+		// (0 = Triggers, 1 = Gates); the Beads seed keeps its default.
+		if ((j = json_object_get(root, "seedState")))
+			classic_seed_mode_ = clamp((int)json_integer_value(j), 0, 1);
+		seed_locked_ = true;
+	} else {
+		if ((j = json_object_get(root, "classicSeedMode")))
+			classic_seed_mode_ = clamp((int)json_integer_value(j), 0, 1);
 		if ((j = json_object_get(root, "seedState")))
 			seed_locked_ = json_integer_value(j) == 0;
-		if ((j = json_object_get(root, "autoGain")))
-			auto_gain_ = json_boolean_value(j);
-		if ((j = json_object_get(root, "manualGainDb")))
-			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
-		if ((j = json_object_get(root, "pitchScale")))
-			pitch_scale_ = clamp((int)json_integer_value(j), 0, 7);
-		else if ((j = json_object_get(root, "pitchLock")))   // pre-scale patches
-			pitch_scale_ = clamp((int)json_integer_value(j), 0, 2);
-		// "grainTriggerOut" (the old Out-R grain-trigger option) is ignored:
-		// the grain gate now has its own GATE output.
-		if ((j = json_object_get(root, "pitchRoot")))
-			pitch_root_ = clamp((int)json_integer_value(j), 0, 11);
-		scale_dirty_.store(true, std::memory_order_release);
-		if ((j = json_object_get(root, "tapeHiss")))
-			tape_hiss_ = json_boolean_value(j);
 	}
+	if ((j = json_object_get(root, "autoGain")))
+		auto_gain_ = json_boolean_value(j);
+	if ((j = json_object_get(root, "manualGainDb")))
+		manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
+	if ((j = json_object_get(root, "pitchScale")))
+		pitch_scale_ = clamp((int)json_integer_value(j), 0, 7);
+	else if ((j = json_object_get(root, "pitchLock")))   // pre-scale patches
+		pitch_scale_ = clamp((int)json_integer_value(j), 0, 2);
+	// "grainTriggerOut" (the old Out-R grain-trigger option) is ignored:
+	// the grain gate now has its own GATE output.
+	if ((j = json_object_get(root, "pitchRoot")))
+		pitch_root_ = clamp((int)json_integer_value(j), 0, 11);
+	scale_dirty_.store(true, std::memory_order_release);
+	if ((j = json_object_get(root, "tapeHiss")))
+		tape_hiss_ = json_boolean_value(j);
 
-	static beads::RandomizedParameter Randomized(float base, float attenuverter,
-	                                             bool has_cv, float cv) {
-		beads::RandomizedParameter r;
-		r.base = base;
-		r.attenuverter = attenuverter;
-		r.has_cv = has_cv;
-		r.cv = cv;
-		return r;
-	}
-
-	// Called by the engine host at the start of every Beads block.
-	void ReadControls(robotboy_beads::BlockControls* c) override {
-		if (scale_dirty_.exchange(false, std::memory_order_acquire))
-			pitch_lock_.Set(pitch_scale_, pitch_root_);
-		if (clear_requested_.exchange(false))
-			host_.RequestClear();
-		if (recalibrate_requested_.exchange(false))
-			host_.RecalibrateGain();
-
-		auto attenuverter = [](float x) { return (x + 1.f) * 0.5f; };
-		auto volts = [this](int input) { return inputs[input].getVoltage(); };
-
-		const bool time_cv = inputs[TIME_INPUT].isConnected();
-		const bool size_cv = inputs[SIZE_INPUT].isConnected();
-		const bool shape_cv = inputs[SHAPE_INPUT].isConnected();
-		const bool pitch_cv = inputs[PITCH_INPUT].isConnected();
-
-		c->parameters.time = Randomized(
-			time_pot_.Process(params[TIME_PARAM].getValue()),
-			time_ar_pot_.Process(attenuverter(params[TIME_AR_PARAM].getValue())),
-			time_cv, time_cv_.Process(volts(TIME_INPUT) * 0.2f));
-		// The panel's Size knob runs -1..1; Beads' runs 0..1.
-		c->parameters.size = Randomized(
-			size_pot_.Process(attenuverter(params[SIZE_PARAM].getValue())),
-			size_ar_pot_.Process(attenuverter(params[SIZE_AR_PARAM].getValue())),
-			size_cv, size_cv_.Process(volts(SIZE_INPUT) * 0.2f));
-		c->parameters.shape = Randomized(
-			shape_pot_.Process(params[SHAPE_PARAM].getValue()),
-			shape_ar_pot_.Process(attenuverter(params[SHAPE_AR_PARAM].getValue())),
-			shape_cv, shape_cv_.Process(volts(SHAPE_INPUT) * 0.2f));
-		c->parameters.pitch = Randomized(
-			pitch_pot_.Process(params[PITCH_PARAM].getValue()),
-			pitch_ar_pot_.Process(attenuverter(params[PITCH_AR_PARAM].getValue())),
-			pitch_cv, pitch_cv_.Process(volts(PITCH_INPUT) * 12.f));
-		c->parameters.monophonic_mode = false;
-		c->parameters.pitch_lock = pitch_lock_.hook();
-
-		c->density.base = density_pot_.Process(params[DENSITY_PARAM].getValue());
-		// beads.cc zeroes an unpatched Density CV to ignore ADC noise.
-		c->density.cv = inputs[DENSITY_INPUT].isConnected()
-			? density_cv_.Process(volts(DENSITY_INPUT) * 0.2f) : 0.f;
-
-		c->mix.feedback = robotboy_beads::MixParameter(params[FEEDBACK_PARAM].getValue(),
-			feedback_cv_.Process(volts(FEEDBACK_INPUT) * 0.2f), params[FEEDBACK_AMT_PARAM].getValue());
-		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
-			dry_wet_cv_.Process(volts(DRY_WET_INPUT) * 0.2f), params[DRY_WET_AMT_PARAM].getValue());
-		c->mix.reverb_amount = robotboy_beads::MixParameter(params[REVERB_PARAM].getValue(),
-			reverb_cv_.Process(volts(REVERB_INPUT) * 0.2f), params[REVERB_AMT_PARAM].getValue());
-		c->mix.output_gate = false;
-
-		// Seed button, exactly as beads.cc reports it to the DSP.
-		c->seed_patched = inputs[SEED_INPUT].isConnected();
-		c->seed_button = seed_locked_
-			? beads::SEED_BUTTON_STATE_LOCKED
-			: (seed_held_ ? beads::SEED_BUTTON_STATE_ON : beads::SEED_BUTTON_STATE_OFF);
-
-		c->gain_setting = auto_gain_ ? 0 : BeadsManualGainByte(manual_gain_db_);
-	}
-
-	void process(const ProcessArgs& args) override {
-		if (!metamodule_fpu_configured_) {
-			metamodule_fpu_configured_ = true;
-			particules::EnableMetaModuleFlushToZero();
-		}
-		bool freeze_button = params[FREEZE_PARAM].getValue() > 0.5f;
-		freeze_gate_.process(inputs[FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
-		bool frozen = freeze_button || freeze_gate_.isHigh();
-		seed_gate_.process(inputs[SEED_INPUT].getVoltage(), 0.1f, 1.f);
-
-		// Seed button (ui.cc): a press unlocks and holds; a 4 s hold locks
-		// again (and ends the hold, though the button is still down).
-		const bool seed_button = params[SEED_PARAM].getValue() > 0.5f;
-		if (seed_button && !prev_seed_button_) {
-			seed_locked_ = false;
-			seed_held_ = true;
-			seed_hold_seconds_ = 0.f;
-		}
-		if (seed_button && seed_held_) {
-			seed_hold_seconds_ += args.sampleTime;
-			if (seed_hold_seconds_ >= kSeedLongPressSeconds) {
-				seed_locked_ = true;
-				seed_held_ = false;
-			}
-		}
-		if (!seed_button)
-			seed_held_ = false;
-		prev_seed_button_ = seed_button;
-
-#ifdef METAMODULE
-		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
-		quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
-#else
-		// Desktop: momentary button cycles the mode; blocked while frozen.
-		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
-		if (quality_pressed && !prev_quality_button_ && !frozen)
-			quality_state_ = (quality_state_ + 1) % 4;
-		prev_quality_button_ = quality_pressed;
-#endif
-		host_.SetQuality(static_cast<robotboy_beads::Quality>(quality_state_));
-		host_.SetHissEnabled(tape_hiss_);
-
-		const bool in_l = inputs[IN_L_INPUT].isConnected();
-		const bool in_r = inputs[IN_R_INPUT].isConnected();
-		host_.SetInputs(in_l, in_r);
-
-		const float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
-		const float r = inputs[IN_R_INPUT].getVoltage() * 0.2f;
-		if (std::isfinite(l) && std::isfinite(r))
-			input_peak_ = std::max(std::max(std::fabs(l), std::fabs(r)),
-			                       input_peak_ * (1.f - 2.f * args.sampleTime));
-
-		const robotboy_beads::HostFrameOut out =
-			host_.Process({l, r, frozen, seed_gate_.isHigh()}, this);
-
-		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
-		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
-		// GATE: Beads' gate stream (what its gate-output mode puts on the
-		// right output), high for the first half of each grain's trigger period.
-		outputs[GATE_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
-
-		// Grain LED: flash on each grain, brighter the more grains sound.
-		if (out.gate && !prev_gate_)
-			grain_led_ = std::min(1.f, 0.4f + 0.1f * host_.active_grains());
-		prev_gate_ = out.gate;
-		grain_led_ = std::max(0.f, grain_led_ - args.sampleTime / kGrainLedDecaySeconds);
-
-		if (++light_divider_ >= 32) {
-			light_divider_ = 0;
-			lights[GRAIN_LIGHT].setBrightness(grain_led_);
-			// Seed light (ui.cc): a slow pulse while locked; while unlocked,
-			// lit when the button or the Seed input is high.
-			seed_pulse_phase_ += 32.f * args.sampleTime / kSeedPulseSeconds;
-			seed_pulse_phase_ -= std::floor(seed_pulse_phase_);
-			const float triangle = 1.f - std::fabs(2.f * seed_pulse_phase_ - 1.f);
-			lights[SEED_LIGHT].setBrightness(seed_locked_
-				? 0.25f + 0.75f * triangle
-				: ((seed_held_ || seed_gate_.isHigh()) ? 1.f : 0.f));
-			lights[FREEZE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
-			if (quality_state_ != light_quality_state_) {
-				light_quality_state_ = quality_state_;
-				lights[QUALITY_R_LIGHT].setBrightness(kQualityColors[quality_state_][0]);
-				lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
-				lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
-			}
-		}
-	}
-};
+	// The engine swap happens at the next process(), on the audio thread.
+	pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
+}
 
 std::string QualityParamQuantity::getDisplayValueString() {
 	Particules* m = dynamic_cast<Particules*>(module);
@@ -460,8 +234,24 @@ struct ParticulesWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 
-		appendBeadsGainMenu(menu, module);
-		appendBeadsHissMenu(menu, module);
+		// --- Classic mode: the v2.1 engine ---
+		// Refused while frozen, like Quality: a switch would drop the frozen
+		// recording.
+		{
+			const bool frozen = module->engine_ && module->engine_->frozen();
+			menu->addChild(createBoolMenuItem("Classic mode",
+				frozen ? "Unfreeze to switch" : "",
+				[=]() { return module->displayedClassicMode(); },
+				[=](bool on) {
+					withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
+						[=]() { module->requestMode(on); });
+				},
+				/*disabled=*/frozen
+			));
+		}
+
+		if (module->engine_)
+			module->engine_->appendMenu(menu);
 
 		// --- Pitch Lock ---
 		menu->addChild(createIndexSubmenuItem("Lock pitch",
@@ -498,8 +288,8 @@ struct ParticulesWidget : ModuleWidget {
 		// Deferred to the audio thread (process()) to avoid racing the DSP;
 		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { module->clear_requested_.store(true); },
-			/*disabled=*/module->host_.buffer_empty()
+			[=]() { if (module->engine_) module->engine_->requestClear(); },
+			/*disabled=*/!module->engine_ || module->engine_->clearDisabled()
 		));
 
 	}

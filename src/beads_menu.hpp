@@ -5,6 +5,7 @@
 // The gain menu expects the module to have: bool auto_gain_,
 // float manual_gain_db_, std::atomic<bool> recalibrate_requested_,
 // float input_peak_ (+-5 V = 1.0) and robotboy_beads::EngineHost host_.
+// A module without host_ overloads BeadsMenuGainDb(Module*) instead.
 
 #pragma once
 
@@ -45,6 +46,12 @@ static void withMenuUndo(Module*, const char*, F&& mutate) {
 	mutate();
 }
 #endif
+
+// The gain auto gain applies, for the Gain item's readout.
+template <class M>
+inline float BeadsMenuGainDb(M* module) {
+	return module->host_.gain_db();
+}
 
 template <class M>
 struct BeadsManualGainQuantity : Quantity {
@@ -109,7 +116,7 @@ inline void appendBeadsGainMenu(Menu* menu, M* module) {
 		void Refresh() {
 			disabled = module->auto_gain_;
 			rightText = module->auto_gain_
-				? string::f("%.1f dB", module->host_.gain_db())
+				? string::f("%.1f dB", BeadsMenuGainDb(module))
 				: string::f("%.1f dB ▸", module->manual_gain_db_);
 		}
 

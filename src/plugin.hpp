@@ -3,6 +3,8 @@
 #include <cmath>
 #include "host/controls.h"
 #include "loooop/LooperModuleDSP.hpp"
+#include "classic_mode.h"
+#include "particules/pitch_notch_map.hpp"
 
 using namespace rack;
 
@@ -24,11 +26,20 @@ struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
 	}
 };
 
-// Pitch knob of Particules and Retours: Beads' notched +-24 semitone law
-// (robotboy_beads::DetuneLaw), shown in semitones.
+// Pitch knob of Particules and Retours, shown in semitones: Beads' notched
+// +-24 semitone law (robotboy_beads::DetuneLaw), or in classic mode the v2.1
+// notch map (pitch_notch_map.hpp).
 struct PitchParamQuantity : ParamQuantity {
-	float getDisplayValue() override { return robotboy_beads::DetuneLaw(getValue()); }
-	void setDisplayValue(float semitones) override { setValue(robotboy_beads::InverseDetuneLaw(semitones)); }
+	bool classic() {
+		auto* s = dynamic_cast<robotboy::ClassicModeSource*>(module);
+		return s && s->classicMode();
+	}
+	float getDisplayValue() override {
+		return classic() ? pitchKnobToSemitones(getValue()) : robotboy_beads::DetuneLaw(getValue());
+	}
+	void setDisplayValue(float semitones) override {
+		setValue(classic() ? semitonesToPitchKnob(semitones) : robotboy_beads::InverseDetuneLaw(semitones));
+	}
 	std::string getDisplayValueString() override {
 		float st = getDisplayValue();
 		if (std::fabs(st - std::round(st)) < 0.05f) return string::f("%d", (int)std::round(st));
