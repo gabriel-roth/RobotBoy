@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0-beta.2] — 2026-10-12 (pre-release)
 
 - Classic mode (context menu) for Particules, Retours and Ondes brings back the engines from 2.1 and earlier. Patches made before 2.2 open in classic mode, so they sound as they did. Switching isn't allowed while Freeze or Slice is on, and in Particules and Retours it clears the buffer and mutes the output briefly.
   - Particules' "Grain trigger on R Out" option is gone: patches that used it should patch the Gate output instead. In classic mode the Seed button fires grains even with nothing patched to Seed.
