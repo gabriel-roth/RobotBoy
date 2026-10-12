@@ -29,7 +29,7 @@ __NOTE:__ Grain parameters are sampled **once, when each grain is born,** and he
 
 ### Grain generation
 
-*Density:* How often grains are born. **Straight up (12 o'clock) = silence.** Turning clockwise generates grains at a randomly modulated rate; counter-clockwise at a constant rate. The further from center, the shorter the gap, up to a continuous stream. (When a clock is patched into **Seed**, Density works differently — see **Seed input** below.)
+*Density:* How often grains are born. **Straight up (12 o'clock) = silence.** Turning clockwise generates grains at a randomly modulated rate; counter-clockwise at a constant rate. The further from center, the shorter the gap, up to a continuous stream. (When a clock is patched into **Seed**, or the Seed button is unlocked, Density works differently — see **Seed button and input** below.)
 
 - The white LED under the **Density** CV input flashes on every grain, brightening with the number of grains active.
 
