@@ -218,12 +218,3 @@ std::unique_ptr<RetoursEngine> MakeRetoursBeads(Retours& m) {
 	g_retours_beads_builds.fetch_add(1, std::memory_order_relaxed);
 	return std::unique_ptr<RetoursEngine>(new (std::nothrow) RetoursBeads(m, m.sample_rate_));
 }
-
-// Replaced by the classic engine in the next commit: until then, classic
-// mode runs the Beads engine.
-std::unique_ptr<RetoursEngine> MakeRetoursClassic(Retours& m) {
-	g_retours_classic_builds.fetch_add(1, std::memory_order_relaxed);
-	return std::unique_ptr<RetoursEngine>(new (std::nothrow) RetoursBeads(m, m.sample_rate_));
-}
-
-void AppendRetoursClassicMenu(Retours*, rack::ui::Menu*) {}
