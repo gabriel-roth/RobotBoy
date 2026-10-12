@@ -17,6 +17,10 @@
 
 // Seconds for the grain LED to fade after a flash.
 static constexpr float kGrainLedDecaySeconds = 0.08f;
+// Beads' Seed button (ui.cc): holding it this long re-locks it.
+static constexpr float kSeedLongPressSeconds = 4.f;
+// Period of the locked Seed light's slow pulse (ui.cc: a 2048 ms triangle).
+static constexpr float kSeedPulseSeconds = 2.048f;
 
 struct Particules;
 
@@ -43,6 +47,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		FEEDBACK_AMT_PARAM,
 		REVERB_AMT_PARAM,
 		DRY_WET_AMT_PARAM,
+		SEED_PARAM,   // added later; appended so older patches still load
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -71,6 +76,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		QUALITY_B_LIGHT,
 		FREEZE_BUTTON_LIGHT,
 		GRAIN_LIGHT,
+		SEED_LIGHT,
 		LIGHTS_LEN
 	};
 
@@ -85,7 +91,17 @@ struct Particules : Module, robotboy_beads::ControlSource {
 
 	// Module state
 	int quality_state_ = 0;   // 0-3: Bright, Cold, Sunny, Scorched
-	int seed_state_ = 0;      // 0=Triggers, 1=Gates
+	// Beads' Seed button. Locked (the default) is Beads' normal state:
+	// Density alone makes grains, and a patched Seed input is a clock to
+	// divide or a trigger to gate by probability. A press unlocks it and
+	// makes grains while held (with Seed patched, while either is high); a
+	// 4-second hold locks it again. Saved as "seedState": 0 = locked, 1 =
+	// unlocked (the old "Seed CV mode" menu's Triggers/Gates).
+	bool seed_locked_ = true;
+	bool seed_held_ = false;          // pressed and not yet long-pressed
+	bool prev_seed_button_ = false;
+	float seed_hold_seconds_ = 0.f;
+	float seed_pulse_phase_ = 0.f;
 	bool prev_quality_button_ = false;
 	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
 	dsp::SchmittTrigger seed_gate_;     // same for SEED
@@ -117,6 +133,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		// so FREEZE needs the explicit flag or Ctrl+R randomly latches freeze.
 		configSwitch(FREEZE_PARAM, 0.f, 1.f, 0.f, "Freeze", {"Off", "On"})
 			->randomizeEnabled = false;
+		configButton(SEED_PARAM, "Seed (hold 4 s to lock)");
 #ifdef METAMODULE
 		// MetaModule: a real 4-position switch so the firmware shows the mode
 		// name (the adapter can't label a momentary button). Desktop keeps the
@@ -202,7 +219,8 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		quality_state_       = 0;
-		seed_state_          = 0;
+		seed_locked_         = true;
+		seed_held_           = false;
 		pitch_scale_         = 0;
 		pitch_root_          = 0;
 		scale_dirty_.store(true, std::memory_order_release);
@@ -217,7 +235,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "qualityState", json_integer(quality_state_));
-		json_object_set_new(root, "seedState",    json_integer(seed_state_));
+		json_object_set_new(root, "seedState",    json_integer(seed_locked_ ? 0 : 1));
 		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
@@ -232,7 +250,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		if ((j = json_object_get(root, "qualityState")))
 			quality_state_ = clamp((int)json_integer_value(j), 0, 3);
 		if ((j = json_object_get(root, "seedState")))
-			seed_state_ = clamp((int)json_integer_value(j), 0, 1);
+			seed_locked_ = json_integer_value(j) == 0;
 		if ((j = json_object_get(root, "autoGain")))
 			auto_gain_ = json_boolean_value(j);
 		if ((j = json_object_get(root, "manualGainDb")))
@@ -310,15 +328,11 @@ struct Particules : Module, robotboy_beads::ControlSource {
 			reverb_cv_.Process(volts(REVERB_INPUT) * 0.2f), params[REVERB_AMT_PARAM].getValue());
 		c->mix.output_gate = false;
 
-		// Particules has no Seed button. "Triggers" is Beads with its Seed
-		// button locked (a patched Seed clocks a divider/probability gate);
-		// "Gates" is Beads unlocked (grains repeat while the gate is high).
-		// Unpatched, both behave as locked: Density alone, silent at noon.
-		const bool seed_patched = inputs[SEED_INPUT].isConnected();
-		c->seed_patched = seed_patched;
-		c->seed_button = (seed_state_ == 1 && seed_patched)
-			? beads::SEED_BUTTON_STATE_OFF
-			: beads::SEED_BUTTON_STATE_LOCKED;
+		// Seed button, exactly as beads.cc reports it to the DSP.
+		c->seed_patched = inputs[SEED_INPUT].isConnected();
+		c->seed_button = seed_locked_
+			? beads::SEED_BUTTON_STATE_LOCKED
+			: (seed_held_ ? beads::SEED_BUTTON_STATE_ON : beads::SEED_BUTTON_STATE_OFF);
 
 		c->gain_setting = auto_gain_ ? 0 : BeadsManualGainByte(manual_gain_db_);
 	}
@@ -332,6 +346,25 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		freeze_gate_.process(inputs[FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
 		bool frozen = freeze_button || freeze_gate_.isHigh();
 		seed_gate_.process(inputs[SEED_INPUT].getVoltage(), 0.1f, 1.f);
+
+		// Seed button (ui.cc): a press unlocks and holds; a 4 s hold locks
+		// again (and ends the hold, though the button is still down).
+		const bool seed_button = params[SEED_PARAM].getValue() > 0.5f;
+		if (seed_button && !prev_seed_button_) {
+			seed_locked_ = false;
+			seed_held_ = true;
+			seed_hold_seconds_ = 0.f;
+		}
+		if (seed_button && seed_held_) {
+			seed_hold_seconds_ += args.sampleTime;
+			if (seed_hold_seconds_ >= kSeedLongPressSeconds) {
+				seed_locked_ = true;
+				seed_held_ = false;
+			}
+		}
+		if (!seed_button)
+			seed_held_ = false;
+		prev_seed_button_ = seed_button;
 
 #ifdef METAMODULE
 		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
@@ -378,6 +411,14 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		if (++light_divider_ >= 32) {
 			light_divider_ = 0;
 			lights[GRAIN_LIGHT].setBrightness(grain_led_);
+			// Seed light (ui.cc): a slow pulse while locked; while unlocked,
+			// lit when the button or the Seed input is high.
+			seed_pulse_phase_ += 32.f * args.sampleTime / kSeedPulseSeconds;
+			seed_pulse_phase_ -= std::floor(seed_pulse_phase_);
+			const float triangle = 1.f - std::fabs(2.f * seed_pulse_phase_ - 1.f);
+			lights[SEED_LIGHT].setBrightness(seed_locked_
+				? 0.25f + 0.75f * triangle
+				: ((seed_held_ || seed_gate_.isHigh()) ? 1.f : 0.f));
 			lights[FREEZE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
 			if (quality_state_ != light_quality_state_) {
 				light_quality_state_ = quality_state_;
@@ -425,16 +466,6 @@ struct ParticulesWidget : ModuleWidget {
 
 		appendBeadsGainMenu(menu, module);
 		appendBeadsHissMenu(menu, module);
-
-		// --- SEED CV Mode ---
-		menu->addChild(createIndexSubmenuItem("SEED CV mode",
-			{"Triggers", "Gates"},
-			[=]() { return module->seed_state_; },
-			[=](int val) {
-				withMenuUndo(module, "change SEED CV mode",
-					[=]() { module->seed_state_ = val; });
-			}
-		));
 
 		// --- Pitch Lock ---
 		menu->addChild(createIndexSubmenuItem("Lock pitch",
@@ -523,7 +554,8 @@ struct ParticulesWidget : ModuleWidget {
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(46.6, 101.696)), module, Particules::REVERB_AMT_PARAM));
 
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.9, 15.875)), module, Particules::FREEZE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(59.845, 15.875)), module, Particules::SEED_INPUT));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(55.8, 15.875)), module, Particules::SEED_PARAM, Particules::SEED_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(64.3, 15.875)), module, Particules::SEED_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.6, 53.746)), module, Particules::TIME_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.6, 53.746)), module, Particules::PITCH_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(29.6, 53.746)), module, Particules::DENSITY_INPUT));

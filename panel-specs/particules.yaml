@@ -99,18 +99,19 @@ grids:
 
 elements:
   # --- Transport row: FREEZE (input + latch button), QUALITY (bezel), SEED
-  # (input) -- all at y=15.875, cpp's exact x values.
+  # (button + input) -- all at y=15.875, cpp's exact x values. The SEED pair
+  # mirrors the FREEZE pair about the 38.1mm center line, the same layout as
+  # Retours' CLOCK pair.
   - {name: FREEZE_INPUT, x: 11.9, y: 15.875}
   - {name: FREEZE_PARAM, widget: VCVButton, x: 20.4, y: 15.875}
   - {name: QUALITY_PARAM, widget: VCVBezel, x: 38.1, y: 15.875}
-  - {name: SEED_INPUT, x: 59.845, y: 15.875}
-  # Transport labels: FREEZE sits off the FREEZE_INPUT/FREEZE_PARAM pair's
-  # exact midpoint (16.15) at the shipped panel's own measured 15.67 -- taken
-  # as-is, not re-centered. QUALITY/SEED sit exactly over their own
-  # components.
-  - {text: FREEZE, x: 15.67, y: 24.0, size: 3.175}
+  - {name: SEED_PARAM, widget: VCVButton, x: 55.8, y: 15.875}
+  - {name: SEED_INPUT, x: 64.3, y: 15.875}
+  # Transport labels: FREEZE and SEED sit on their pairs' midpoints (16.15
+  # and 60.05), QUALITY over its bezel.
+  - {text: FREEZE, x: 16.15, y: 24.0, size: 3.175}
   - {text: QUALITY, x: 38.1, y: 24.05, size: 3.175}
-  - {text: SEED, x: 59.845, y: 24.0, size: 3.175}
+  - {text: SEED, x: 60.05, y: 24.0, size: 3.175}
 
   # --- Row 1: TIME / DENSITY / PITCH / SIZE knobs, each over its own CV
   # jack (no connecting bar -- cpp draws none, and neither did the

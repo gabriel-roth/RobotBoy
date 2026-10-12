@@ -33,7 +33,13 @@ __NOTE:__ Grain parameters are sampled **once, when each grain is born,** and he
 
 - The white LED under the **Density** CV input flashes on every grain, brightening with the number of grains active.
 
-*Seed input:* The clock/trigger/gate input for grains. When a clock or trigger is patched into Seed, **Density** becomes a divider/probability control: at 12 o'clock no grains fire. Turn clockwise to raise the *probability* (0–100%) that each incoming trigger spawns a grain; turn counter-clockwise to set the clock division (from 1/16 up to 1/1) at which grains are created. Each grain starts 2.5 ms after its trigger, as on Beads, so that a CV sent along with the trigger (to Pitch or Time, say) has settled by then.
+*Seed button and input:* Seed works as on Beads, and its button has two states.
+
+- **Locked** (the default; the Seed light pulses slowly): **Density** alone makes grains, as described above. A clock or trigger patched into the Seed input turns **Density** into a divider/probability control: at 12 o'clock no grains fire; turn clockwise to raise the *probability* (0–100%) that each incoming trigger spawns a grain, or counter-clockwise to set the clock division (from 1/16 up to 1/1).
+- **Unlocked** (press the Seed button once): grains are made only while the button is held or the Seed input is high, at the rate Density sets; at 12 o'clock each press, or each rising edge at the input, fires exactly one grain. The light shows when the button or the input is high. So after one short press, a Particules with nothing in its Seed input goes quiet until you hold the button.
+- **Hold the button for 4 seconds** to lock it again.
+
+Each grain starts 2.5 ms after its trigger, as on Beads, so that a CV sent along with the trigger (to Pitch or Time, say) has settled by then. The lock state is saved with the patch; patches saved with the old "Seed CV mode" menu set to Gates load unlocked.
 
 *Freeze:* Stops recording into the buffer so the grains gather sound from a frozen snapshot instead of the live input. The button latches; the **Freeze** gate input does the same when incoming CV goes above 1V.
 
@@ -85,7 +91,6 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Gain** — while auto gain is on, shows the gain it's currently applying. With auto gain off, opens a fixed input gain setting (0–32 dB, default 0 dB, which is unity). Turning auto gain off is useful when the source is silent or intermittent and auto gain would otherwise crank up the noise floor. In Sunny tape and Scorched cassette, a hot manual gain drives the input into soft saturation rather than hard clipping.
 - **Input** — a live readout of the input level in dB, shown next to the gain options; reads "silent" below −60 dB. On MetaModule it's captured when the menu opens rather than updating live.
 - **Tape hiss (Scorched cassette)** — on by default. Beads' Scorched cassette setting runs its audio converter at a low sample rate, which makes it hiss; this adds a similar quiet hiss to the input (and so to the dry signal too). Turn it off for a clean noise floor. It has no effect in the other Quality settings.
-- **Seed CV mode** — how the module responds to CV at the Seed input. In **Triggers** mode (default), each incoming trigger spawns a grain — or several, or the probability of one — depending on Density. In **Gates** mode, grains fire only while the gate is high, with **Density** setting their repetition rate during the gate; at 12 o'clock exactly one grain fires per gate. With nothing patched into Seed, both modes behave identically.
 - **Lock pitch** — quantize each grain's pitch (after CV and randomization): **Off**, **Octaves**, **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic**, or **Minor pentatonic**. The five scale modes quantize grain pitch to a 12-tone scale; a **Root** submenu (C through B, default C) sets the scale root, and applies only to those modes.
 - **Grain trigger on R output** — replaces the right output with a 10 V gate for every grain, while the left output carries a mono sum of the audio. Use this to clock other modules from the grain rate.
 - **Clear buffer** — empties the recording buffer.
