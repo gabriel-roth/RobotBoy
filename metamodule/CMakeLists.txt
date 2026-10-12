@@ -29,6 +29,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/particules/Ondes.cpp
     ${SRC}/src/Vespid.cpp
     ${SRC}/src/retours_delay/Retours.cpp
+    ${SRC}/src/retours_delay/RetoursBeads.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc

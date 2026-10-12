@@ -1,24 +1,18 @@
-#include "plugin.hpp"
+#include "Retours.hpp"
 #include "beads_menu.hpp"
-#include "metamodule_fpu.h"
 
 #include "host/controls.h"
-#include "host/engine_host.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
 
-// Retours is the delay mode of Mutable Instruments Beads (the mode Beads
-// enters with Size fully clockwise), running on the Beads source
-// (src/beads). Interval is Beads' Density knob in that mode, Slice is its
-// Freeze, and Clock is its Seed button and input.
+// Retours: the panel, saved settings and engine mode. The audio is done by
+// the active engine adapter: RetoursBeads (the delay mode of Mutable
+// Instruments Beads) or the classic v2.1 engine (RetoursClassic).
 
-// CLOCK_LIGHT flash decay time. The beat flash snaps to full brightness, then
-// decays over this long so each pulse spans many video frames and reads evenly.
-static constexpr float kClockFlashDecaySeconds = 0.08f;
-
-struct Retours;
+// Output mute after a live engine switch, as beads.cc's codec_transition.
+static constexpr float kModeSwitchMuteSeconds = 0.25f;
 
 // Filter knob tooltip: off at noon (Beads' dead band), otherwise how far
 // into the low-pass or high-pass side the knob is.
@@ -35,374 +29,176 @@ struct RetoursQualityParamQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
 };
 
-struct Retours : Module, robotboy_beads::ControlSource {
-	enum ParamId {
-		SLICE_PARAM,
-		QUALITY_PARAM,
-		CLOCK_PARAM,
-		TIME_PARAM,
-		INTERVAL_PARAM,
-		PITCH_PARAM,
-		SHAPE_PARAM,
-		FEEDBACK_PARAM,
-		DRY_WET_PARAM,
-		TIME_AR_PARAM,
-		PITCH_AR_PARAM,
-		SHAPE_AR_PARAM,
-		FEEDBACK_AR_PARAM,
-		DRY_WET_AR_PARAM,
-		// Added with the 15 HP panel; appended so older patches still load.
-		FILTER_PARAM,
-		FILTER_AR_PARAM,
-		REVERB_PARAM,
-		REVERB_AR_PARAM,
-		PARAMS_LEN
-	};
-	enum InputId {
-		IN_L_INPUT,
-		IN_R_INPUT,
-		SLICE_INPUT,
-		CLOCK_INPUT,
-		TIME_CV_INPUT,
-		INTERVAL_CV_INPUT,
-		PITCH_CV_INPUT,
-		SHAPE_CV_INPUT,
-		FEEDBACK_CV_INPUT,
-		DRY_WET_CV_INPUT,
-		FILTER_CV_INPUT,
-		REVERB_CV_INPUT,
-		INPUTS_LEN
-	};
-	enum OutputId {
-		OUT_L_OUTPUT,
-		OUT_R_OUTPUT,
-		GATE_OUTPUT,   // added later; appended so older patches still load
-		OUTPUTS_LEN
-	};
-	enum LightId {
-		QUALITY_R_LIGHT,
-		QUALITY_G_LIGHT,
-		QUALITY_B_LIGHT,
-		SLICE_BUTTON_LIGHT,
-		CLOCK_LIGHT,
-		LIGHTS_LEN
-	};
-
-	robotboy_beads::EngineHost host_;
-
-	// Beads' pot and CV conditioning (cv_reader.cc), run once per engine block.
-	robotboy_beads::PotChannel time_pot_, pitch_pot_, shape_pot_, interval_pot_, filter_pot_;
-	robotboy_beads::PotChannel time_ar_pot_, pitch_ar_pot_, shape_ar_pot_;
-	robotboy_beads::CvChannel time_cv_, pitch_cv_, shape_cv_, interval_cv_;
-	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_, reverb_cv_, filter_cv_;
-
-	// Module state
-	int quality_state_ = 0;   // 0-3, same encoding/colors as Particules
-	bool prev_quality_button_ = false;
-	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on SLICE gate
-	dsp::SchmittTrigger clock_gate_;     // same for CLOCK jack
-	bool prev_clock_button_ = false;
-	bool metamodule_fpu_configured_ = false;
-
-	// Tempo. Beads starts with its Seed button "locked": no tempo, Interval
-	// sets the time directly. A tap (or a clock tick) unlocks it, and the
-	// tempo then holds, even after the clock is unpatched, until "Clear saved
-	// tempo" locks it again. Taps and ticks are latched per sample and
-	// consumed once per engine block.
-	bool tempo_held_ = false;
-	bool tap_pending_ = false;
-	bool clock_tick_pending_ = false;
-	std::atomic<bool> clear_tempo_requested_{false};
-	std::atomic<bool> clear_requested_{false};
-
-	// Input gain (Beads' auto gain by default), shared menu with Particules.
-	std::atomic<bool> recalibrate_requested_{false};
-	bool auto_gain_ = true;
-	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
-	float manual_gain_db_ = 0.f;
-	float input_peak_ = 0.f;
-
-	bool prev_gate_ = false;
-	float clock_light_level_ = 0.f;
-	int light_divider_ = 0;
-	int light_quality_state_ = -1;
-
-	Retours() {
-		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-		// configSwitch does NOT disable randomization (only configButton does),
-		// so SLICE needs the explicit flag or Ctrl+R randomly latches freeze.
-		configSwitch(SLICE_PARAM, 0.f, 1.f, 0.f, "Slice", {"Off", "On"})
-			->randomizeEnabled = false;
+Retours::Retours() {
+	config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+	// configSwitch does NOT disable randomization (only configButton does),
+	// so SLICE needs the explicit flag or Ctrl+R randomly latches freeze.
+	configSwitch(SLICE_PARAM, 0.f, 1.f, 0.f, "Slice", {"Off", "On"})
+		->randomizeEnabled = false;
 #ifdef METAMODULE
-		// MetaModule: a real 4-position switch so the firmware shows the mode
-		// name (the adapter can't label a momentary button). Desktop keeps the
-		// momentary cycle button below.
-		configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
-			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"})
-			->randomizeEnabled = false;
+	// MetaModule: a real 4-position switch so the firmware shows the mode
+	// name (the adapter can't label a momentary button). Desktop keeps the
+	// momentary cycle button below.
+	configSwitch(QUALITY_PARAM, 0.f, 3.f, 0.f, "Quality",
+		{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"})
+		->randomizeEnabled = false;
 #else
-		configButton<RetoursQualityParamQuantity>(QUALITY_PARAM, "Quality");
+	configButton<RetoursQualityParamQuantity>(QUALITY_PARAM, "Quality");
 #endif
-		configParam(INTERVAL_PARAM, 0.f, 1.f, 0.35f, "Interval");
-		configParam(TIME_PARAM, 0.f, 1.f, 0.f, "Time");
-		configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
-		configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
-		configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
-		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet");
-		configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
-		configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
-		configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
-		configButton(CLOCK_PARAM, "Tap tempo");
-		configParam(FEEDBACK_AR_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
-		configParam(DRY_WET_AR_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
-		configParam<FilterParamQuantity>(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter");
-		configParam(FILTER_AR_PARAM, -1.f, 1.f, 0.f, "Filter CV amount");
-		configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
-		configParam(REVERB_AR_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
+	configParam(INTERVAL_PARAM, 0.f, 1.f, 0.35f, "Interval");
+	configParam(TIME_PARAM, 0.f, 1.f, 0.f, "Time");
+	configParam<PitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
+	configParam(SHAPE_PARAM, 0.f, 1.f, 0.f, "Shape");
+	configParam(FEEDBACK_PARAM, 0.f, 1.f, 0.f, "Feedback");
+	configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet");
+	configParam(TIME_AR_PARAM, -1.f, 1.f, 0.f, "Time AR");
+	configParam(PITCH_AR_PARAM, -1.f, 1.f, 0.f, "Pitch AR");
+	configParam(SHAPE_AR_PARAM, -1.f, 1.f, 0.f, "Shape AR");
+	configButton(CLOCK_PARAM, "Tap tempo");
+	configParam(FEEDBACK_AR_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
+	configParam(DRY_WET_AR_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
+	configParam<FilterParamQuantity>(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter");
+	configParam(FILTER_AR_PARAM, -1.f, 1.f, 0.f, "Filter CV amount");
+	configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
+	configParam(REVERB_AR_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
 
-		configInput(IN_L_INPUT, "Audio in L");
-		configInput(IN_R_INPUT, "Audio in R");
-		configInput(INTERVAL_CV_INPUT, "Interval CV");
-		configInput(TIME_CV_INPUT, "Time CV");
-		configInput(PITCH_CV_INPUT, "Pitch CV");
-		configInput(SHAPE_CV_INPUT, "Shape CV");
-		configInput(FEEDBACK_CV_INPUT, "Feedback CV");
-		configInput(DRY_WET_CV_INPUT, "Dry/wet CV");
-		configInput(FILTER_CV_INPUT, "Filter CV");
-		configInput(REVERB_CV_INPUT, "Reverb CV");
-		configInput(CLOCK_INPUT, "Clock");
-		configInput(SLICE_INPUT, "Slice gate");
-		configOutput(OUT_L_OUTPUT, "Audio out L");
-		configOutput(OUT_R_OUTPUT, "Audio out R");
-		configOutput(GATE_OUTPUT, "Repeat gate");
-		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
-		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
-		// SLICE and QUALITY lights are embedded in their button params (tooltips
-		// come from configParam); CLOCK_LIGHT is a standalone beat indicator.
-		configLight(CLOCK_LIGHT, "Clock");
+	configInput(IN_L_INPUT, "Audio in L");
+	configInput(IN_R_INPUT, "Audio in R");
+	configInput(INTERVAL_CV_INPUT, "Interval CV");
+	configInput(TIME_CV_INPUT, "Time CV");
+	configInput(PITCH_CV_INPUT, "Pitch CV");
+	configInput(SHAPE_CV_INPUT, "Shape CV");
+	configInput(FEEDBACK_CV_INPUT, "Feedback CV");
+	configInput(DRY_WET_CV_INPUT, "Dry/wet CV");
+	configInput(FILTER_CV_INPUT, "Filter CV");
+	configInput(REVERB_CV_INPUT, "Reverb CV");
+	configInput(CLOCK_INPUT, "Clock");
+	configInput(SLICE_INPUT, "Slice gate");
+	configOutput(OUT_L_OUTPUT, "Audio out L");
+	configOutput(OUT_R_OUTPUT, "Audio out R");
+	configOutput(GATE_OUTPUT, "Repeat gate");
+	configBypass(IN_L_INPUT, OUT_L_OUTPUT);
+	configBypass(IN_R_INPUT, OUT_R_OUTPUT);
+	// SLICE and QUALITY lights are embedded in their button params (tooltips
+	// come from configParam); CLOCK_LIGHT is a standalone beat indicator.
+	configLight(CLOCK_LIGHT, "Clock");
 
-		using robotboy_beads::PotLaw;
-		const float lp = robotboy_beads::kPotLp;
-		time_pot_.Init(PotLaw::kNormal, lp, robotboy_beads::kTimeHysteresis);
-		interval_pot_.Init(PotLaw::kNormal, lp, 0.f);
-		shape_pot_.Init(PotLaw::kNormal, lp, 0.f);
-		pitch_pot_.Init(PotLaw::kDetune, lp, 0.f);
-		time_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		pitch_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		shape_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		robotboy_beads::InitTimeSizeShapeCv(&time_cv_);
-		robotboy_beads::InitTimeSizeShapeCv(&shape_cv_);
-		robotboy_beads::InitPitchCv(&pitch_cv_);
-		robotboy_beads::InitDensityCv(&interval_cv_);
-		robotboy_beads::InitMixCv(&feedback_cv_);
-		robotboy_beads::InitMixCv(&dry_wet_cv_);
-		robotboy_beads::InitMixCv(&reverb_cv_);
-		// The filter is Beads' Size attenurandomizer in delay mode: same knob
-		// law (dead band at noon) and Size's CV conditioning.
-		filter_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
-		robotboy_beads::InitTimeSizeShapeCv(&filter_cv_);
-
-		// Delay mode only, with Beads' reverb.
-		if (!host_.Init(beads::Processor::MODE_DELAY, true,
-		                APP->engine->getSampleRate())) {
-			WARN("Retours: could not allocate the Beads delay memory");
-		}
+	sample_rate_ = APP->engine->getSampleRate();
+	classic_.store(false);
+	engine_ = MakeRetoursBeads(*this);
+	if (!engine_ || !engine_->ok()) {
+		// WARN is defined identically by both hosts' logger.hpp.
+		WARN("Retours: could not allocate the Beads delay memory");
 	}
+}
 
-	void onSampleRateChange(const SampleRateChangeEvent& e) override {
-		host_.SetHostRate(e.sampleRate);
-		metamodule_fpu_configured_ = false;
+void Retours::requestMode(bool classic) {   // UI thread
+	pending_mode_.store(kModeLive + (classic ? 1 : 0), std::memory_order_release);
+}
+
+void Retours::applyPendingMode(float sample_rate) {   // audio thread
+	const int pending = pending_mode_.exchange(kModeNone, std::memory_order_acq_rel);
+	if (pending < 0) return;
+	const bool want = (pending & 1) != 0;
+	const bool forced = pending >= kModeForced;
+	if (engine_ && want == classicMode()) return;
+	// A live switch is refused while sliced, like Quality. A load or undo
+	// is not: the module must run the mode its JSON says.
+	if (engine_ && !forced && engine_->frozen()) return;
+	classic_.store(want, std::memory_order_relaxed);
+	sample_rate_ = sample_rate;
+	engine_.reset();   // free first: peak RAM is the larger engine, not both
+	engine_ = want ? MakeRetoursClassic(*this) : MakeRetoursBeads(*this);
+	if (!engine_ || !engine_->ok())
+		WARN("Retours: could not allocate the %s engine", want ? "classic" : "Beads");
+	// A patch loaded straight into a mode switches before the first frame:
+	// nothing has played, so there is nothing to mute.
+	mute_seconds_ = processed_any_ ? kModeSwitchMuteSeconds : 0.f;
+}
+
+void Retours::process(const ProcessArgs& args) {
+	applyPendingMode(args.sampleRate);
+	processed_any_ = true;
+	if (engine_) {
+		engine_->process(args);
+		ui_frozen_.store(engine_->frozen(), std::memory_order_relaxed);
+		ui_clear_disabled_.store(engine_->clearDisabled(), std::memory_order_relaxed);
+		ui_clear_tempo_disabled_.store(engine_->clearTempoDisabled(), std::memory_order_relaxed);
+	} else {
+		mute_seconds_ = std::max(mute_seconds_, args.sampleTime);   // no engine: silence
+		ui_frozen_.store(false, std::memory_order_relaxed);
+		ui_clear_disabled_.store(true, std::memory_order_relaxed);
+		ui_clear_tempo_disabled_.store(true, std::memory_order_relaxed);
 	}
-
-	void onReset(const ResetEvent& e) override {
-		Module::onReset(e);
-		quality_state_ = 0;
-		auto_gain_ = true;
-		manual_gain_db_ = 0.f;
-		tape_hiss_ = true;
-		clear_requested_.store(true);
-		clear_tempo_requested_.store(true);   // initialize returns to free-running
-		recalibrate_requested_.store(true);
+	if (mute_seconds_ > 0.f) {
+		outputs[OUT_L_OUTPUT].setVoltage(0.f);
+		outputs[OUT_R_OUTPUT].setVoltage(0.f);
+		outputs[GATE_OUTPUT].setVoltage(0.f);
+		mute_seconds_ -= args.sampleTime;
 	}
+}
 
-	json_t* dataToJson() override {
-		json_t* root = json_object();
-		json_object_set_new(root, "qualityState", json_integer(quality_state_));
-		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
-		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
-		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
-		return root;
-	}
+void Retours::onSampleRateChange(const SampleRateChangeEvent& e) {
+	sample_rate_ = e.sampleRate;
+	if (engine_) engine_->onSampleRateChange(e.sampleRate);
+}
 
-	void dataFromJson(json_t* root) override {
-		json_t* j;
-		if ((j = json_object_get(root, "qualityState")))
-			quality_state_ = clamp((int)json_integer_value(j), 0, 3);
-		if ((j = json_object_get(root, "autoGain")))
-			auto_gain_ = json_boolean_value(j);
-		if ((j = json_object_get(root, "manualGainDb")))
-			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
-		if ((j = json_object_get(root, "tapeHiss")))
-			tape_hiss_ = json_boolean_value(j);
-		// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
-		// "envelopePreFeedback") from patches made before the Beads engine
-		// are ignored: Beads has one fixed time-change behaviour.
-	}
+void Retours::onReset(const ResetEvent& e) {
+	Module::onReset(e);
+	// Resets the settings, not the mode.
+	quality_state_ = 0;
+	auto_gain_ = true;
+	manual_gain_db_ = 0.f;
+	tape_hiss_ = true;
+	time_change_mode_ = 0;
+	clear_requested_.store(true);
+	clear_tempo_requested_.store(true);   // initialize returns to free-running
+	recalibrate_requested_.store(true);
+	if (engine_) engine_->onReset();   // runs under Rack's engine lock
+}
 
-	static beads::RandomizedParameter Randomized(float base, float attenuverter,
-	                                             bool has_cv, float cv) {
-		beads::RandomizedParameter r;
-		r.base = base;
-		r.attenuverter = attenuverter;
-		r.has_cv = has_cv;
-		r.cv = cv;
-		return r;
-	}
+json_t* Retours::dataToJson() {
+	json_t* root = json_object();
+	// A switch not yet applied is saved as the mode, so the menu's undo
+	// snapshot records it.
+	json_object_set_new(root, "classic",        json_boolean(displayedClassicMode()));
+	json_object_set_new(root, "qualityState",   json_integer(quality_state_));
+	json_object_set_new(root, "autoGain",       json_boolean(auto_gain_));
+	json_object_set_new(root, "manualGainDb",   json_real(manual_gain_db_));
+	json_object_set_new(root, "tapeHiss",       json_boolean(tape_hiss_));
+	json_object_set_new(root, "timeChangeMode", json_integer(time_change_mode_));
+	return root;
+}
 
-	// Called by the engine host at the start of every Beads block.
-	void ReadControls(robotboy_beads::BlockControls* c) override {
-		if (clear_requested_.exchange(false))
-			host_.RequestClear();
-		if (recalibrate_requested_.exchange(false))
-			host_.RecalibrateGain();
-		if (clear_tempo_requested_.exchange(false))
-			tempo_held_ = false;
+void Retours::dataFromJson(json_t* root) {
+	json_t* j;
+	json_t* classic_j = json_object_get(root, "classic");
+	const bool classic = robotboy::DetectClassic(
+		classic_j != nullptr, json_is_true(classic_j),
+		json_object_get(root, "tapeHiss") != nullptr,
+		robotboy::ClassicFingerprint::kAbsentTapeHiss);
 
-		auto attenuverter = [](float x) { return (x + 1.f) * 0.5f; };
-		auto volts = [this](int input) { return inputs[input].getVoltage(); };
+	if ((j = json_object_get(root, "qualityState")))
+		quality_state_ = clamp((int)json_integer_value(j), 0, 3);
+	if ((j = json_object_get(root, "autoGain")))
+		auto_gain_ = json_boolean_value(j);
+	if ((j = json_object_get(root, "manualGainDb")))
+		manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
+	if ((j = json_object_get(root, "tapeHiss")))
+		tape_hiss_ = json_boolean_value(j);
+	// Classic mode's time-change response, v2.1's key and meaning
+	// (retours_delay_dsp::TimeChangeMode: 0 = Tape, 1 = Crossfade).
+	if ((j = json_object_get(root, "timeChangeMode")))
+		time_change_mode_ = clamp((int)json_integer_value(j), 0, 1);
+	else
+		time_change_mode_ = 0;
+	// "inputTrimDb"/"slewSeconds"/"envelopePreFeedback" from older patches
+	// are ignored, as in v2.1.
 
-		const bool time_cv = inputs[TIME_CV_INPUT].isConnected();
-		const bool pitch_cv = inputs[PITCH_CV_INPUT].isConnected();
-		const bool shape_cv = inputs[SHAPE_CV_INPUT].isConnected();
-
-		c->parameters.time = Randomized(
-			time_pot_.Process(params[TIME_PARAM].getValue()),
-			time_ar_pot_.Process(attenuverter(params[TIME_AR_PARAM].getValue())),
-			time_cv, time_cv_.Process(volts(TIME_CV_INPUT) * 0.2f));
-		c->parameters.pitch = Randomized(
-			pitch_pot_.Process(params[PITCH_PARAM].getValue()),
-			pitch_ar_pot_.Process(attenuverter(params[PITCH_AR_PARAM].getValue())),
-			pitch_cv, pitch_cv_.Process(volts(PITCH_CV_INPUT) * 12.f));
-		c->parameters.shape = Randomized(
-			shape_pot_.Process(params[SHAPE_PARAM].getValue()),
-			shape_ar_pot_.Process(attenuverter(params[SHAPE_AR_PARAM].getValue())),
-			shape_cv, shape_cv_.Process(volts(SHAPE_CV_INPUT) * 0.2f));
-		// FILTER is Beads' delay-mode bandwidth filter, which Beads plays from
-		// its Size attenurandomizer: bandwidth = 0.5 * (1 + attenuverter) +
-		// Size CV (granular_processor.h). Noon is off, low-pass to the left,
-		// high-pass to the right. Retours scales the CV with its own trimpot.
-		// The Size knob itself only chooses the mode, which is pinned here.
-		const bool filter_cv = inputs[FILTER_CV_INPUT].isConnected();
-		c->parameters.size = Randomized(1.f,
-			filter_pot_.Process(params[FILTER_PARAM].getValue()),
-			filter_cv,
-			filter_cv_.Process(volts(FILTER_CV_INPUT) * 0.2f) * params[FILTER_AR_PARAM].getValue());
-		c->parameters.monophonic_mode = false;
-		c->parameters.pitch_lock = nullptr;
-
-		c->density.base = interval_pot_.Process(params[INTERVAL_PARAM].getValue());
-		c->density.cv = inputs[INTERVAL_CV_INPUT].isConnected()
-			? interval_cv_.Process(volts(INTERVAL_CV_INPUT) * 0.2f) : 0.f;
-
-		c->mix.feedback = robotboy_beads::MixParameter(params[FEEDBACK_PARAM].getValue(),
-			feedback_cv_.Process(volts(FEEDBACK_CV_INPUT) * 0.2f), params[FEEDBACK_AR_PARAM].getValue());
-		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
-			dry_wet_cv_.Process(volts(DRY_WET_CV_INPUT) * 0.2f), params[DRY_WET_AR_PARAM].getValue());
-		c->mix.reverb_amount = robotboy_beads::MixParameter(params[REVERB_PARAM].getValue(),
-			reverb_cv_.Process(volts(REVERB_CV_INPUT) * 0.2f), params[REVERB_AR_PARAM].getValue());
-		c->mix.output_gate = false;
-
-		// Clock = Beads' Seed. A tap is the Seed button pressed for one block
-		// (the first press from the locked state only unlocks, as on Beads).
-		// A patched clock goes to the Seed input; its first tick unlocks too,
-		// so the measured tempo survives unpatching.
-		const bool clock_patched = inputs[CLOCK_INPUT].isConnected();
-		if (clock_tick_pending_ && clock_patched)
-			tempo_held_ = true;
-		c->seed_patched = clock_patched;
-		// While the engine is muted after a reformat it isn't listening, so a
-		// tap waits for it.
-		if (tap_pending_ && !host_.muted()) {
-			c->seed_button = beads::SEED_BUTTON_STATE_ON;
-			tempo_held_ = true;
-			tap_pending_ = false;
-		} else {
-			c->seed_button = tempo_held_
-				? beads::SEED_BUTTON_STATE_OFF
-				: beads::SEED_BUTTON_STATE_LOCKED;
-		}
-		clock_tick_pending_ = false;
-
-		c->gain_setting = auto_gain_ ? 0 : BeadsManualGainByte(manual_gain_db_);
-	}
-
-	void process(const ProcessArgs& args) override {
-		if (!metamodule_fpu_configured_) {
-			metamodule_fpu_configured_ = true;
-			particules::EnableMetaModuleFlushToZero();
-		}
-		bool freeze_latch = params[SLICE_PARAM].getValue() > 0.5f;
-		freeze_gate_.process(inputs[SLICE_INPUT].getVoltage(), 0.1f, 1.f);
-		bool frozen = freeze_latch || freeze_gate_.isHigh();
-
-		clock_gate_.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
-		if (clock_gate_.isHigh())
-			clock_tick_pending_ = true;
-		bool clock_button = params[CLOCK_PARAM].getValue() > 0.5f;
-		if (clock_button && !prev_clock_button_)
-			tap_pending_ = true;
-		prev_clock_button_ = clock_button;
-
-#ifdef METAMODULE
-		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
-		quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
-#else
-		// Desktop: momentary button cycles the mode; blocked while sliced.
-		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
-		if (quality_pressed && !prev_quality_button_ && !frozen)
-			quality_state_ = (quality_state_ + 1) % 4;
-		prev_quality_button_ = quality_pressed;
-#endif
-		host_.SetQuality(static_cast<robotboy_beads::Quality>(quality_state_));
-		host_.SetHissEnabled(tape_hiss_);
-		host_.SetInputs(inputs[IN_L_INPUT].isConnected(), inputs[IN_R_INPUT].isConnected());
-
-		const float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
-		const float r = inputs[IN_R_INPUT].getVoltage() * 0.2f;
-		if (std::isfinite(l) && std::isfinite(r))
-			input_peak_ = std::max(std::max(std::fabs(l), std::fabs(r)),
-			                       input_peak_ * (1.f - 2.f * args.sampleTime));
-
-		const robotboy_beads::HostFrameOut out =
-			host_.Process({l, r, frozen, clock_gate_.isHigh()}, this);
-
-		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
-		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
-		// GATE: Beads' gate stream (what its gate-output mode puts on the
-		// right output), high for the first half of each repeat.
-		outputs[GATE_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
-
-		// Clock light: flashes at the start of each repeat (Beads' tap gate).
-		if (out.gate && !prev_gate_)
-			clock_light_level_ = 1.f;
-		prev_gate_ = out.gate;
-		clock_light_level_ = std::max(0.f,
-			clock_light_level_ - args.sampleTime / kClockFlashDecaySeconds);
-
-		if (++light_divider_ >= 32) {
-			light_divider_ = 0;
-			lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
-			lights[SLICE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
-			if (quality_state_ != light_quality_state_) {
-				light_quality_state_ = quality_state_;
-				lights[QUALITY_R_LIGHT].setBrightness(kQualityColors[quality_state_][0]);
-				lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
-				lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
-			}
-		}
-	}
-};
+	// The engine swap happens at the next process(), on the audio thread,
+	// forced: a load or undo applies even while sliced.
+	pending_mode_.store(kModeForced + (classic ? 1 : 0), std::memory_order_release);
+}
 
 std::string RetoursQualityParamQuantity::getDisplayValueString() {
 	Retours* m = dynamic_cast<Retours*>(module);
@@ -438,6 +234,22 @@ struct RetoursWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 
+		// --- Classic mode: the v2.1 engine ---
+		// Refused while sliced, like Quality: a switch would drop the frozen
+		// recording.
+		{
+			const bool frozen = module->ui_frozen_.load(std::memory_order_relaxed);
+			menu->addChild(createBoolMenuItem("Classic mode",
+				frozen ? "Unfreeze to switch" : "",
+				[=]() { return module->displayedClassicMode(); },
+				[=](bool on) {
+					withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
+						[=]() { module->requestMode(on); });
+				},
+				/*disabled=*/frozen
+			));
+		}
+
 		// --- Quality ---
 		// VCV only: on MetaModule Quality is a front-panel switch, which
 		// process() reads every sample, so a menu choice would be overwritten.
@@ -452,17 +264,22 @@ struct RetoursWidget : ModuleWidget {
 		));
 #endif
 
-		appendBeadsGainMenu(menu, module);
-		appendBeadsHissMenu(menu, module);
+		// The engine's own items, for the mode the toggle shows. Built from
+		// module state only: the UI thread never touches engine_.
+		if (module->displayedClassicMode())
+			AppendRetoursClassicMenu(module, menu);
+		else
+			AppendRetoursBeadsMenu(module, menu);
 
 		// --- Clear saved tempo ---
 		// A tempo from a tap or a clock holds after the clock is unpatched;
 		// this returns to free-running. Greyed out when there is nothing to
-		// clear, or while a clock is patched (it would set the tempo again).
+		// clear (and in Beads mode while a clock is patched, which would set
+		// the tempo again).
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear saved tempo", "",
 			[=]() { module->clear_tempo_requested_.store(true); },
-			/*disabled=*/!module->tempo_held_ || module->inputs[Retours::CLOCK_INPUT].isConnected()
+			/*disabled=*/module->ui_clear_tempo_disabled_.load(std::memory_order_relaxed)
 		));
 
 		// --- Clear Buffer ---
@@ -470,7 +287,7 @@ struct RetoursWidget : ModuleWidget {
 		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
 			[=]() { module->clear_requested_.store(true); },
-			/*disabled=*/module->host_.buffer_empty()
+			/*disabled=*/module->ui_clear_disabled_.load(std::memory_order_relaxed)
 		));
 	}
 
