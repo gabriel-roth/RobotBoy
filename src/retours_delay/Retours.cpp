@@ -76,6 +76,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	enum OutputId {
 		OUT_L_OUTPUT,
 		OUT_R_OUTPUT,
+		GATE_OUTPUT,   // added later; appended so older patches still load
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -118,7 +119,6 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	std::atomic<bool> recalibrate_requested_{false};
 	bool auto_gain_ = true;
 	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
-	bool repeat_gate_out_ = false;  // Out R carries Beads' per-repeat gate
 	float manual_gain_db_ = 0.f;
 	float input_peak_ = 0.f;
 
@@ -174,6 +174,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		configInput(SLICE_INPUT, "Slice gate");
 		configOutput(OUT_L_OUTPUT, "Audio out L");
 		configOutput(OUT_R_OUTPUT, "Audio out R");
+		configOutput(GATE_OUTPUT, "Repeat gate");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		// SLICE and QUALITY lights are embedded in their button params (tooltips
@@ -219,7 +220,6 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		auto_gain_ = true;
 		manual_gain_db_ = 0.f;
 		tape_hiss_ = true;
-		repeat_gate_out_ = false;
 		clear_requested_.store(true);
 		clear_tempo_requested_.store(true);   // initialize returns to free-running
 		recalibrate_requested_.store(true);
@@ -231,7 +231,6 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
-		json_object_set_new(root, "repeatGateOut", json_boolean(repeat_gate_out_));
 		return root;
 	}
 
@@ -245,8 +244,6 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
 		if ((j = json_object_get(root, "tapeHiss")))
 			tape_hiss_ = json_boolean_value(j);
-		if ((j = json_object_get(root, "repeatGateOut")))
-			repeat_gate_out_ = json_boolean_value(j);
 		// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
 		// "envelopePreFeedback") from patches made before the Beads engine
 		// are ignored: Beads has one fixed time-change behaviour.
@@ -379,15 +376,12 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		const robotboy_beads::HostFrameOut out =
 			host_.Process({l, r, frozen, clock_gate_.isHigh()}, this);
 
-		if (repeat_gate_out_) {
-			// Beads' gate-output mode: mono mix on L, a gate per repeat on R.
-			outputs[OUT_L_OUTPUT].setVoltage((out.l + out.r) * 0.5f * 5.f);
-			outputs[OUT_R_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
-		} else {
-			bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-			outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
-			outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
-		}
+		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
+		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
+		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
+		// GATE: Beads' gate stream (what its gate-output mode puts on the
+		// right output), high for the first half of each repeat.
+		outputs[GATE_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
 
 		// Clock light: flashes at the start of each repeat (Beads' tap gate).
 		if (out.gate && !prev_gate_)
@@ -460,15 +454,6 @@ struct RetoursWidget : ModuleWidget {
 
 		appendBeadsGainMenu(menu, module);
 		appendBeadsHissMenu(menu, module);
-
-		// --- Repeat gate on R output ---
-		menu->addChild(createBoolMenuItem("Repeat gate on R output", "",
-			[=]() { return module->repeat_gate_out_; },
-			[=](bool on) {
-				withMenuUndo(module, "toggle repeat gate output",
-					[=]() { module->repeat_gate_out_ = on; });
-			}
-		));
 
 		// --- Clear saved tempo ---
 		// A tempo from a tap or a clock holds after the clock is unpatched;
@@ -549,6 +534,7 @@ struct RetoursWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(24.95f, 114.3f)), module, Retours::IN_R_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.25f, 114.3f)), module, Retours::OUT_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(60.95f, 114.3f)), module, Retours::OUT_R_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.1f, 114.3f)), module, Retours::GATE_OUTPUT));
 	}
 };
 

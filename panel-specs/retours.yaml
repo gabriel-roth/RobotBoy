@@ -121,8 +121,12 @@ elements:
   - {name: IN_R_INPUT,   x: 24.95, y: 114.3}
   - {name: OUT_L_OUTPUT, x: 51.25, y: 114.3}
   - {name: OUT_R_OUTPUT, x: 60.95, y: 114.3}
+  # GATE: Beads' gate stream (one gate per grain on Particules, per repeat
+  # on Retours), centered between the I/O pairs on the panel's center line.
+  - {name: GATE_OUTPUT,  x: 38.1,  y: 114.3}
   - {text: IN,  x: 20.1, y: 123.0, size: 3.175}
   - {text: OUT, x: 56.1, y: 123.0, size: 3.175}
+  - {text: GATE, x: 38.1, y: 123.0, size: 3.175}
 
 glyphs:
   # Attenurandomizer marks (trimpot center x + 0.025, trimpot y - 3.297 in

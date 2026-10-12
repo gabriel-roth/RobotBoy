@@ -68,6 +68,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	enum OutputId {
 		OUT_L_OUTPUT,
 		OUT_R_OUTPUT,
+		GATE_OUTPUT,   // added later; appended so older patches still load
 		OUTPUTS_LEN
 	};
 	enum LightId {
@@ -114,7 +115,6 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	std::atomic<bool> scale_dirty_{true};
 	std::atomic<bool> clear_requested_{false};
 	std::atomic<bool> recalibrate_requested_{false};
-	bool grain_trigger_out_ = false;
 	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
 	bool auto_gain_ = true;
 	float manual_gain_db_ = 0.f;
@@ -174,6 +174,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		configInput(SEED_INPUT, "Seed/clock");
 		configOutput(OUT_L_OUTPUT, "Audio out L");
 		configOutput(OUT_R_OUTPUT, "Audio out R");
+		configOutput(GATE_OUTPUT, "Grain gate");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		// configLight() is intentionally omitted: the lights are embedded in
@@ -224,7 +225,6 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		pitch_scale_         = 0;
 		pitch_root_          = 0;
 		scale_dirty_.store(true, std::memory_order_release);
-		grain_trigger_out_   = false;
 		tape_hiss_ = true;
 		auto_gain_           = true;
 		manual_gain_db_      = 0.f;
@@ -240,7 +240,6 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 		json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
 		json_object_set_new(root, "pitchRoot",       json_integer(pitch_root_));
-		json_object_set_new(root, "grainTriggerOut", json_boolean(grain_trigger_out_));
 		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
 		return root;
 	}
@@ -259,11 +258,11 @@ struct Particules : Module, robotboy_beads::ControlSource {
 			pitch_scale_ = clamp((int)json_integer_value(j), 0, 7);
 		else if ((j = json_object_get(root, "pitchLock")))   // pre-scale patches
 			pitch_scale_ = clamp((int)json_integer_value(j), 0, 2);
+		// "grainTriggerOut" (the old Out-R grain-trigger option) is ignored:
+		// the grain gate now has its own GATE output.
 		if ((j = json_object_get(root, "pitchRoot")))
 			pitch_root_ = clamp((int)json_integer_value(j), 0, 11);
 		scale_dirty_.store(true, std::memory_order_release);
-		if ((j = json_object_get(root, "grainTriggerOut")))
-			grain_trigger_out_ = json_boolean_value(j);
 		if ((j = json_object_get(root, "tapeHiss")))
 			tape_hiss_ = json_boolean_value(j);
 	}
@@ -392,15 +391,12 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		const robotboy_beads::HostFrameOut out =
 			host_.Process({l, r, frozen, seed_gate_.isHigh()}, this);
 
-		if (grain_trigger_out_) {
-			// Beads' gate-output mode: mono mix on L, grain gate on R.
-			outputs[OUT_L_OUTPUT].setVoltage((out.l + out.r) * 0.5f * 5.f);
-			outputs[OUT_R_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
-		} else {
-			bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-			outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
-			outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
-		}
+		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
+		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
+		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
+		// GATE: Beads' gate stream (what its gate-output mode puts on the
+		// right output), high for the first half of each grain's trigger period.
+		outputs[GATE_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
 
 		// Grain LED: flash on each grain, brighter the more grains sound.
 		if (out.gate && !prev_gate_)
@@ -498,15 +494,6 @@ struct ParticulesWidget : ModuleWidget {
 			menu->addChild(rootItem);
 		}
 
-		// --- Grain Trigger Output ---
-		menu->addChild(createBoolMenuItem("Grain trigger on R Out", "",
-			[=]() { return module->grain_trigger_out_; },
-			[=](bool val) {
-				withMenuUndo(module, "toggle grain trigger output",
-					[=]() { module->grain_trigger_out_ = val; });
-			}
-		));
-
 		// --- Clear Buffer ---
 		// Deferred to the audio thread (process()) to avoid racing the DSP;
 		// takes effect at the next block boundary.
@@ -569,6 +556,7 @@ struct ParticulesWidget : ModuleWidget {
 
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.25, 114.3)), module, Particules::OUT_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(60.95, 114.3)), module, Particules::OUT_R_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.1f, 114.3f)), module, Particules::GATE_OUTPUT));
 	}
 };
 
