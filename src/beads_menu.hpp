@@ -86,44 +86,31 @@ struct BeadsManualGainSlider : ui::Slider {
 
 template <class M>
 inline void appendBeadsGainMenu(Menu* menu, M* module) {
-	// --- Auto Gain ---
-	struct AutoGainItem : MenuItem {
+	// --- Auto gain: a checkable toggle ---
+	// Turning it on (again) restarts Beads' level learning; turning it off
+	// switches to the manual gain below.
+	menu->addChild(createBoolMenuItem("Auto gain", "",
+		[=]() { return module->auto_gain_; },
+		[=](bool on) {
+			withMenuUndo(module, on ? "enable auto gain" : "disable auto gain",
+				[=]() { module->auto_gain_ = on; });
+			if (on) module->recalibrate_requested_.store(true);
+		}
+	));
+
+	// --- Gain: shows the auto gain, or sets the manual gain ---
+	// Disabled while auto gain is on (its right-hand text then shows the
+	// gain auto is applying); with auto gain off it opens the manual
+	// setting. MetaModule menus don't animate, so the state is also set at
+	// menu-open time, not only in step().
+	struct GainItem : MenuItem {
 		M* module;
 
-		void onAction(const event::Action& e) override {
-			if (!module->auto_gain_) {
-				withMenuUndo(module, "enable auto gain",
-					[this]() { module->auto_gain_ = true; });
-			}
-			module->recalibrate_requested_.store(true);
-		}
-
-		void step() override {
-			text = module->auto_gain_ ? "Auto gain" : "Enable auto gain";
-			if (module->auto_gain_) {
-				rightText = string::f("%.1f dB", module->host_.gain_db());
-			} else {
-				rightText = "";
-			}
-			MenuItem::step();
-		}
-	};
-	{
-		auto* item = new AutoGainItem;
-		item->text = "Enable auto gain";
-		item->module = module;
-		menu->addChild(item);
-	}
-
-	// --- Manual Gain / Disable Auto Gain ---
-	struct ManualGainItem : MenuItem {
-		M* module;
-
-		void onAction(const event::Action& e) override {
-			if (module->auto_gain_) {
-				withMenuUndo(module, "disable auto gain",
-					[this]() { module->auto_gain_ = false; });
-			}
+		void Refresh() {
+			disabled = module->auto_gain_;
+			rightText = module->auto_gain_
+				? string::f("%.1f dB", module->host_.gain_db())
+				: string::f("%.1f dB ▸", module->manual_gain_db_);
 		}
 
 		Menu* createChildMenu() override {
@@ -144,20 +131,15 @@ inline void appendBeadsGainMenu(Menu* menu, M* module) {
 		}
 
 		void step() override {
-			if (module->auto_gain_) {
-				text = "Disable auto gain";
-				rightText = "";
-			} else {
-				text = "Manual gain";
-				rightText = string::f("%.1f dB ▸", module->manual_gain_db_);
-			}
+			Refresh();
 			MenuItem::step();
 		}
 	};
 	{
-		auto* item = new ManualGainItem;
-		item->text = "Manual gain";
+		auto* item = new GainItem;
+		item->text = "Gain";
 		item->module = module;
+		item->Refresh();
 		menu->addChild(item);
 	}
 

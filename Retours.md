@@ -93,7 +93,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Quality** (VCV Rack only; on MetaModule, use the Quality switch) — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
-- **Auto gain / Manual gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details.
+- **Auto gain / Gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details. To pass the input at unity, as earlier versions of Retours did, turn **Auto gain** off and leave **Gain** at 0 dB.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
