@@ -1,7 +1,7 @@
 #pragma once
 #include <rack.hpp>
 #include <cmath>
-#include "particules/pitch_notch_map.hpp"
+#include "host/controls.h"
 #include "loooop/LooperModuleDSP.hpp"
 
 using namespace rack;
@@ -24,10 +24,11 @@ struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
 	}
 };
 
-// --- Shared helpers pulled from particules/plugin.hpp (needed by Particules.cpp) ---
+// Pitch knob of Particules and Retours: Beads' notched +-24 semitone law
+// (robotboy_beads::DetuneLaw), shown in semitones.
 struct PitchParamQuantity : ParamQuantity {
-	float getDisplayValue() override { return pitchKnobToSemitones(getValue()); }
-	void setDisplayValue(float semitones) override { setValue(semitonesToPitchKnob(semitones)); }
+	float getDisplayValue() override { return robotboy_beads::DetuneLaw(getValue()); }
+	void setDisplayValue(float semitones) override { setValue(robotboy_beads::InverseDetuneLaw(semitones)); }
 	std::string getDisplayValueString() override {
 		float st = getDisplayValue();
 		if (std::fabs(st - std::round(st)) < 0.05f) return string::f("%d", (int)std::round(st));

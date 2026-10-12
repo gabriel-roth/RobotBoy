@@ -1,35 +1,22 @@
 #include "plugin.hpp"
-#include "retours_delay_dsp/retours_dsp.h"
-#include "retours_block_runtime.h"
+#include "beads_menu.hpp"
 #include "metamodule_fpu.h"
+
+#include "host/controls.h"
+#include "host/engine_host.h"
 
 #include <algorithm>
 #include <atomic>
 #include <cmath>
-#include <cstdlib>
-#include <cstring>
-#ifdef METAMODULE
-#ifndef __APPLE__
-#include <malloc.h>
-#endif
-#endif
 
-// Same rationale as Particules: one block size for both hosts (identical CV
-// conditioning cadence, amortized SetParameters cost on VCV). 64 samples of
-// I/O latency (1.3 ms @ 48 kHz).
-static constexpr size_t kWrapperBlockSize = 64;
-static_assert(kWrapperBlockSize <= retours_delay_dsp::kMaxBlockSize,
-	"Retours wrapper block size must not exceed retours_delay_dsp::kMaxBlockSize");
+// Retours is the delay mode of Mutable Instruments Beads (the mode Beads
+// enters with Size fully clockwise), running on the Beads source
+// (src/beads). Interval is Beads' Density knob in that mode, Slice is its
+// Freeze, and Clock is its Seed button and input.
 
 // CLOCK_LIGHT flash decay time. The beat flash snaps to full brightness, then
-// decays over this long so each pulse spans many video frames and reads evenly
-// (a hard on/off flash is ~1-2 frames at fast tempos, which aliases against the
-// frame rate and looks uneven).
+// decays over this long so each pulse spans many video frames and reads evenly.
 static constexpr float kClockFlashDecaySeconds = 0.08f;
-// Precomputed 1/kClockFlashDecaySeconds (== 12.5f exactly) so the block-rate
-// decay can multiply instead of dividing every sample.
-static constexpr float kClockFlashDecayRate = 1.f / kClockFlashDecaySeconds;
-
 
 struct Retours;
 
@@ -37,7 +24,7 @@ struct RetoursQualityParamQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
 };
 
-struct Retours : Module {
+struct Retours : Module, robotboy_beads::ControlSource {
 	enum ParamId {
 		SLICE_PARAM,
 		QUALITY_PARAM,
@@ -82,50 +69,42 @@ struct Retours : Module {
 		LIGHTS_LEN
 	};
 
-	// DSP
-	retours_delay_dsp::RetoursProcessor processor_;
-	void* dsp_memory_ = nullptr;
+	robotboy_beads::EngineHost host_;
 
-	// Buffer pattern
-	RetoursBlockRuntime<kWrapperBlockSize> block_runtime_;
-	retours_delay_dsp::StereoFrame scratch_output_buf_[kWrapperBlockSize] = {};
-
-	// Cached params struct (populated by updateSlowParams, consumed by Process)
-	retours_delay_dsp::RetoursParameters params_;
+	// Beads' pot and CV conditioning (cv_reader.cc), run once per engine block.
+	robotboy_beads::PotChannel time_pot_, pitch_pot_, shape_pot_, interval_pot_;
+	robotboy_beads::PotChannel time_ar_pot_, pitch_ar_pot_, shape_ar_pot_;
+	robotboy_beads::CvChannel time_cv_, pitch_cv_, shape_cv_, interval_cv_;
 
 	// Module state
 	int quality_state_ = 0;   // 0-3, same encoding/colors as Particules
 	bool prev_quality_button_ = false;
 	dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on SLICE gate
 	dsp::SchmittTrigger clock_gate_;     // same for CLOCK jack
-	bool prev_clock_button_ = false;     // CLOCK momentary button edge detect
-	retours_delay_dsp::TimeChangeMode time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
+	bool prev_clock_button_ = false;
 	bool metamodule_fpu_configured_ = false;
-	// Menu "Clear buffer" is a UI-thread click; defer the actual ClearBuffer()
-	// call to the audio thread (process()) so it's not racing the DSP.
-	std::atomic<bool> clear_requested_{false};
-	// Same deferral for "Clear tapped tempo" (abandon a held tap/clock tempo).
-	std::atomic<bool> clear_tempo_requested_{false};
 
-	// Pitch knob cache: pitchKnobToSemitones() is a linear search; skip it when
-	// the knob hasn't moved (knobs are human-speed, not audio-rate).
-	float cached_pitch_knob_      = -999.f;
-	float cached_pitch_semitones_ = 0.f;
-	// Last quality state written to LEDs — skip redundant setBrightness calls.
-	int   light_quality_state_    = -1;
-	// Cable-connectivity cache (M7): isConnected() is a jack-pointer check,
-	// cheap on its own, but was being called every sample for a value that
-	// only needs re-evaluating once per 64-sample block. Refreshed in the
-	// BlockReady() branch; the output-fold (OUT_R) and mono-detect (IN_R)
-	// consumers already tolerate the resulting <=64-sample (1.3 ms) latency
-	// on a cable (dis)connect.
-	bool out_r_connected_ = false;
-	bool in_r_connected_  = false;
-	// CLOCK_LIGHT blink phase, advanced once per block by
-	// blockFrames / (period * sampleRate); wraps at 1.0.
-	float clock_light_phase_       = 0.f;
-	// Decaying brightness of the Clock light (see kClockFlashDecaySeconds).
-	float clock_light_level_       = 0.f;
+	// Tempo. Beads starts with its Seed button "locked": no tempo, Interval
+	// sets the time directly. A tap (or a clock tick) unlocks it, and the
+	// tempo then holds, even after the clock is unpatched, until "Clear saved
+	// tempo" locks it again. Taps and ticks are latched per sample and
+	// consumed once per engine block.
+	bool tempo_held_ = false;
+	bool tap_pending_ = false;
+	bool clock_tick_pending_ = false;
+	std::atomic<bool> clear_tempo_requested_{false};
+	std::atomic<bool> clear_requested_{false};
+
+	// Input gain (Beads' auto gain by default), shared menu with Particules.
+	std::atomic<bool> recalibrate_requested_{false};
+	bool auto_gain_ = true;
+	float manual_gain_db_ = 0.f;
+	float input_peak_ = 0.f;
+
+	bool prev_gate_ = false;
+	float clock_light_level_ = 0.f;
+	int light_divider_ = 0;
+	int light_quality_state_ = -1;
 
 	Retours() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -171,72 +150,50 @@ struct Retours : Module {
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		// SLICE and QUALITY lights are embedded in their button params (tooltips
-		// come from configParam); CLOCK_LIGHT is a standalone delay-tick indicator.
+		// come from configParam); CLOCK_LIGHT is a standalone beat indicator.
 		configLight(CLOCK_LIGHT, "Clock");
 
-		// DSP init — also called on sample rate change via onSampleRateChange()
-		float sampleRate = APP->engine->getSampleRate();
-		auto req = retours_delay_dsp::RetoursProcessor::GetMemoryRequirements(sampleRate);
-#if defined(METAMODULE) && !defined(SIMULATOR) && !defined(__APPLE__)
-		dsp_memory_ = memalign(req.alignment, req.total_bytes);
-#elif defined(_WIN32)
-		dsp_memory_ = _aligned_malloc(req.total_bytes, req.alignment);
-#else
-		if (posix_memalign(&dsp_memory_, req.alignment, req.total_bytes) != 0)
-			dsp_memory_ = nullptr;
-#endif
-		if (!dsp_memory_) {
-			// processor_.Init() below already no-ops safely on a null pointer,
-			// but a failed allocation of this size is worth surfacing instead
-			// of silently running with a dead DSP chain. WARN is defined
-			// identically by both hosts' logger.hpp (Rack SDK and MetaModule
-			// plugin SDK).
-			WARN("Retours: dsp_memory_ allocation failed (%zu bytes)", req.total_bytes);
-		}
-		processor_.Init(dsp_memory_, req.total_bytes, sampleRate);
-	}
+		using robotboy_beads::PotLaw;
+		const float lp = robotboy_beads::kPotLp;
+		time_pot_.Init(PotLaw::kNormal, lp, robotboy_beads::kTimeHysteresis);
+		interval_pot_.Init(PotLaw::kNormal, lp, 0.f);
+		shape_pot_.Init(PotLaw::kNormal, lp, 0.f);
+		pitch_pot_.Init(PotLaw::kDetune, lp, 0.f);
+		time_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
+		pitch_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
+		shape_ar_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
+		robotboy_beads::InitTimeSizeShapeCv(&time_cv_);
+		robotboy_beads::InitTimeSizeShapeCv(&shape_cv_);
+		robotboy_beads::InitPitchCv(&pitch_cv_);
+		robotboy_beads::InitDensityCv(&interval_cv_);
 
-	~Retours() {
-#ifdef _WIN32
-		_aligned_free(dsp_memory_);
-#else
-		std::free(dsp_memory_);
-#endif
+		// Delay mode only; Retours has no Reverb control.
+		if (!host_.Init(beads::Processor::MODE_DELAY, false,
+		                APP->engine->getSampleRate())) {
+			WARN("Retours: could not allocate the Beads delay memory");
+		}
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
-		// Memory requirements are sample-rate-independent (fixed frame budget),
-		// so we can reinitialize into the same allocation.
-		block_runtime_ = RetoursBlockRuntime<kWrapperBlockSize>{};
-		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
-		clock_light_phase_ = 0.f;
-		clock_light_level_ = 0.f;
-		// Re-arm so a possibly-new audio thread gets FTZ configured.
+		host_.SetHostRate(e.sampleRate);
 		metamodule_fpu_configured_ = false;
-		if (dsp_memory_) {
-			auto req = retours_delay_dsp::RetoursProcessor::GetMemoryRequirements(e.sampleRate);
-			processor_.Init(dsp_memory_, req.total_bytes, e.sampleRate);
-		}
 	}
 
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
-		quality_state_          = 0;
-		time_change_mode_       = retours_delay_dsp::TimeChangeMode::kTape;
-		block_runtime_          = RetoursBlockRuntime<kWrapperBlockSize>{};
-		std::memset(scratch_output_buf_, 0, sizeof(scratch_output_buf_));
-		clock_light_phase_       = 0.f;
-		clock_light_level_       = 0.f;
-		clear_requested_.store(false);   // reset clears now; drop any queued menu clear
-		clear_tempo_requested_.store(false);
-		processor_.ClearBuffer();
-		processor_.ClearTappedTempo();   // initialize returns to free-running
+		quality_state_ = 0;
+		auto_gain_ = true;
+		manual_gain_db_ = 0.f;
+		clear_requested_.store(true);
+		clear_tempo_requested_.store(true);   // initialize returns to free-running
+		recalibrate_requested_.store(true);
 	}
 
 	json_t* dataToJson() override {
 		json_t* root = json_object();
 		json_object_set_new(root, "qualityState", json_integer(quality_state_));
-		json_object_set_new(root, "timeChangeMode", json_integer(static_cast<int>(time_change_mode_)));
+		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
+		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 		return root;
 	}
 
@@ -244,70 +201,91 @@ struct Retours : Module {
 		json_t* j;
 		if ((j = json_object_get(root, "qualityState")))
 			quality_state_ = clamp((int)json_integer_value(j), 0, 3);
-		if ((j = json_object_get(root, "timeChangeMode")))
-			time_change_mode_ = static_cast<retours_delay_dsp::TimeChangeMode>(
-				clamp((int)json_integer_value(j), 0, 1));
-		else
-			time_change_mode_ = retours_delay_dsp::TimeChangeMode::kTape;
-		// "inputTrimDb"/"slewSeconds"/"envelopePreFeedback" from older patches
-		// are intentionally ignored: input trim is baked at 0 dB, the Doppler
-		// slew at kSlewSecondsDefault, and the feedback tap permanently
-		// post-envelope, with no UI to change any of them.
+		if ((j = json_object_get(root, "autoGain")))
+			auto_gain_ = json_boolean_value(j);
+		if ((j = json_object_get(root, "manualGainDb")))
+			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
+		// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
+		// "envelopePreFeedback") from patches made before the Beads engine
+		// are ignored: Beads has one fixed time-change behaviour.
 	}
 
-	void updateSlowParams(bool frozen) {
-		params_.density = params[INTERVAL_PARAM].getValue();
-		params_.time     = params[TIME_PARAM].getValue();
-		{
-			float raw = params[PITCH_PARAM].getValue();
-			if (raw != cached_pitch_knob_) {
-				cached_pitch_knob_      = raw;
-				cached_pitch_semitones_ = pitchKnobToSemitones(raw);
-			}
-			params_.pitch_semitones = cached_pitch_semitones_;
+	static beads::RandomizedParameter Randomized(float base, float attenuverter,
+	                                             bool has_cv, float cv) {
+		beads::RandomizedParameter r;
+		r.base = base;
+		r.attenuverter = attenuverter;
+		r.has_cv = has_cv;
+		r.cv = cv;
+		return r;
+	}
+
+	// Called by the engine host at the start of every Beads block.
+	void ReadControls(robotboy_beads::BlockControls* c) override {
+		if (clear_requested_.exchange(false))
+			host_.RequestClear();
+		if (recalibrate_requested_.exchange(false))
+			host_.RecalibrateGain();
+		if (clear_tempo_requested_.exchange(false))
+			tempo_held_ = false;
+
+		auto attenuverter = [](float x) { return (x + 1.f) * 0.5f; };
+		auto volts = [this](int input) { return inputs[input].getVoltage(); };
+
+		const bool time_cv = inputs[TIME_CV_INPUT].isConnected();
+		const bool pitch_cv = inputs[PITCH_CV_INPUT].isConnected();
+		const bool shape_cv = inputs[SHAPE_CV_INPUT].isConnected();
+
+		c->parameters.time = Randomized(
+			time_pot_.Process(params[TIME_PARAM].getValue()),
+			time_ar_pot_.Process(attenuverter(params[TIME_AR_PARAM].getValue())),
+			time_cv, time_cv_.Process(volts(TIME_CV_INPUT) * 0.2f));
+		c->parameters.pitch = Randomized(
+			pitch_pot_.Process(params[PITCH_PARAM].getValue()),
+			pitch_ar_pot_.Process(attenuverter(params[PITCH_AR_PARAM].getValue())),
+			pitch_cv, pitch_cv_.Process(volts(PITCH_CV_INPUT) * 12.f));
+		c->parameters.shape = Randomized(
+			shape_pot_.Process(params[SHAPE_PARAM].getValue()),
+			shape_ar_pot_.Process(attenuverter(params[SHAPE_AR_PARAM].getValue())),
+			shape_cv, shape_cv_.Process(volts(SHAPE_CV_INPUT) * 0.2f));
+		// In delay mode Beads' Size attenurandomizer sets a bandwidth filter
+		// on the repeats; Retours has no control for it, so it stays at noon
+		// (filter off). Size itself only chooses the mode, pinned here.
+		c->parameters.size = Randomized(1.f, 0.f, false, 0.f);
+		c->parameters.monophonic_mode = false;
+		c->parameters.pitch_lock = nullptr;
+
+		c->density.base = interval_pot_.Process(params[INTERVAL_PARAM].getValue());
+		c->density.cv = inputs[INTERVAL_CV_INPUT].isConnected()
+			? interval_cv_.Process(volts(INTERVAL_CV_INPUT) * 0.2f) : 0.f;
+
+		c->mix.feedback = robotboy_beads::MixParameter(params[FEEDBACK_PARAM].getValue(),
+			volts(FEEDBACK_CV_INPUT), params[FEEDBACK_AR_PARAM].getValue());
+		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
+			volts(DRY_WET_CV_INPUT), params[DRY_WET_AR_PARAM].getValue());
+		c->mix.reverb_amount = 0.f;
+		c->mix.output_gate = false;
+
+		// Clock = Beads' Seed. A tap is the Seed button pressed for one block
+		// (the first press from the locked state only unlocks, as on Beads).
+		// A patched clock goes to the Seed input; its first tick unlocks too,
+		// so the measured tempo survives unpatching.
+		const bool clock_patched = inputs[CLOCK_INPUT].isConnected();
+		if (clock_tick_pending_ && clock_patched)
+			tempo_held_ = true;
+		c->seed_patched = clock_patched;
+		if (tap_pending_) {
+			c->seed_button = beads::SEED_BUTTON_STATE_ON;
+			tempo_held_ = true;
+		} else {
+			c->seed_button = tempo_held_
+				? beads::SEED_BUTTON_STATE_OFF
+				: beads::SEED_BUTTON_STATE_LOCKED;
 		}
-		params_.shape    = params[SHAPE_PARAM].getValue();
-		params_.feedback = params[FEEDBACK_PARAM].getValue();
-		params_.dry_wet  = params[DRY_WET_PARAM].getValue();
+		tap_pending_ = false;
+		clock_tick_pending_ = false;
 
-		// All CVs are raw volts here: BaseTimeControl/ArModulator/the mix
-		// stages apply their own documented scaling (density_cv: -1 V/oct via
-		// exp2; feedback_cv/dry_wet_cv: /5 V direct add; time/pitch/shape_cv:
-		// consumed by ArModulator, also /5 V or *12 internally).
-		//
-		// getVoltage() can return NaN on a hostile/broken patch cable feed
-		// (e.g. another module divides by zero upstream); sanitize to 0 V
-		// here at the ingestion boundary rather than let it reach
-		// RetoursProcessor (which also guards, belt-and-braces, in
-		// SetParameters -- see retours_processor.cpp).
-		auto sanitizeVoltage = [](float v) { return std::isfinite(v) ? v : 0.f; };
-		params_.density_cv = sanitizeVoltage(inputs[INTERVAL_CV_INPUT].getVoltage());
-		params_.time_cv           = sanitizeVoltage(inputs[TIME_CV_INPUT].getVoltage());
-		params_.time_cv_connected = inputs[TIME_CV_INPUT].isConnected();
-		params_.pitch_cv           = sanitizeVoltage(inputs[PITCH_CV_INPUT].getVoltage());
-		params_.pitch_cv_connected = inputs[PITCH_CV_INPUT].isConnected();
-		params_.shape_cv           = sanitizeVoltage(inputs[SHAPE_CV_INPUT].getVoltage());
-		params_.shape_cv_connected = inputs[SHAPE_CV_INPUT].isConnected();
-		// Feedback/Dry-wet CV pass through their panel attenuverters (bipolar
-		// scale here; the DSP then applies its documented /5 V add).
-		params_.feedback_cv = sanitizeVoltage(inputs[FEEDBACK_CV_INPUT].getVoltage())
-			* params[FEEDBACK_AR_PARAM].getValue();
-		params_.dry_wet_cv  = sanitizeVoltage(inputs[DRY_WET_CV_INPUT].getVoltage())
-			* params[DRY_WET_AR_PARAM].getValue();
-
-		params_.time_ar  = params[TIME_AR_PARAM].getValue();
-		params_.pitch_ar = params[PITCH_AR_PARAM].getValue();
-		params_.shape_ar = params[SHAPE_AR_PARAM].getValue();
-
-		params_.clock_tick_offset = block_runtime_.TakeClockTickOffset();
-		params_.clock_connected   = inputs[CLOCK_INPUT].isConnected();
-		params_.freeze = frozen;
-
-		params_.quality = static_cast<retours_delay_dsp::QualityMode>(quality_state_);
-		params_.time_change_mode      = time_change_mode_;
-		// Baked, no UI: input trim fixed at 0 dB (unity), Doppler slew fixed.
-		params_.input_trim_db         = 0.f;
-		params_.slew_seconds          = retours_delay_dsp::kSlewSecondsDefault;
+		c->gain_setting = auto_gain_ ? 0 : BeadsManualGainByte(manual_gain_db_);
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -319,111 +297,57 @@ struct Retours : Module {
 		freeze_gate_.process(inputs[SLICE_INPUT].getVoltage(), 0.1f, 1.f);
 		bool frozen = freeze_latch || freeze_gate_.isHigh();
 
-		// CLOCK: jack rising edge (Schmitt) OR button rising edge both count
-		// as ticks; clock_connected reflects only the jack, so button-only
-		// taps take the core's tap-tempo path (see RetoursParameters comment).
-		bool clock_gate_was_high = clock_gate_.isHigh();
 		clock_gate_.process(inputs[CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
-		bool clock_jack_rising = clock_gate_.isHigh() && !clock_gate_was_high;
-
+		if (clock_gate_.isHigh())
+			clock_tick_pending_ = true;
 		bool clock_button = params[CLOCK_PARAM].getValue() > 0.5f;
-		bool clock_button_rising = clock_button && !prev_clock_button_;
+		if (clock_button && !prev_clock_button_)
+			tap_pending_ = true;
 		prev_clock_button_ = clock_button;
 
-		block_runtime_.NoteClockEdgeSample(clock_jack_rising || clock_button_rising,
-			block_runtime_.InputIndex());
-
-#ifndef METAMODULE
-		// Desktop: momentary button cycles the mode; blocked while frozen.
+#ifdef METAMODULE
+		// MetaModule: Quality is a 4-position switch, so the mode IS the param.
+		quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
+#else
+		// Desktop: momentary button cycles the mode; blocked while sliced.
 		bool quality_pressed = params[QUALITY_PARAM].getValue() > 0.5f;
 		if (quality_pressed && !prev_quality_button_ && !frozen)
 			quality_state_ = (quality_state_ + 1) % 4;
 		prev_quality_button_ = quality_pressed;
 #endif
+		host_.SetQuality(static_cast<robotboy_beads::Quality>(quality_state_));
+		host_.SetInputs(inputs[IN_L_INPUT].isConnected(), inputs[IN_R_INPUT].isConnected());
 
-		// Output from previously processed block
-		retours_delay_dsp::StereoFrame out = block_runtime_.ReadOutputSample();
-		outputs[OUT_L_OUTPUT].setVoltage((out_r_connected_ ? out.l : (out.l + out.r) * 0.5f) * 5.f);
+		const float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
+		const float r = inputs[IN_R_INPUT].getVoltage() * 0.2f;
+		if (std::isfinite(l) && std::isfinite(r))
+			input_peak_ = std::max(std::max(std::fabs(l), std::fabs(r)),
+			                       input_peak_ * (1.f - 2.f * args.sampleTime));
+
+		const robotboy_beads::HostFrameOut out =
+			host_.Process({l, r, frozen, clock_gate_.isHigh()}, this);
+
+		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
+		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
 		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
 
-		// Accumulate input
-		float l = inputs[IN_L_INPUT].getVoltage() * 0.2f;
-		if (!std::isfinite(l)) l = 0.f;
-		float r = in_r_connected_ ? inputs[IN_R_INPUT].getVoltage() * 0.2f : l;
-		if (!std::isfinite(r)) r = 0.f;
-		block_runtime_.PushInputSample({l, r});
-		// Mono detection: no IN_R cable means a mono source, so the recording
-		// buffer can drop to 1 channel and double its effective duration for
-		// the same byte pool (see RetoursParameters::mono_input).
-		params_.mono_input = !in_r_connected_;
+		// Clock light: flashes at the start of each repeat (Beads' tap gate).
+		if (out.gate && !prev_gate_)
+			clock_light_level_ = 1.f;
+		prev_gate_ = out.gate;
+		clock_light_level_ = std::max(0.f,
+			clock_light_level_ - args.sampleTime / kClockFlashDecaySeconds);
 
-		// Process when block is full
-		if (block_runtime_.BlockReady()) {
-			// Refresh the connectivity cache once per block (M7) -- see
-			// out_r_connected_'s comment.
-			out_r_connected_ = outputs[OUT_R_OUTPUT].isConnected();
-			in_r_connected_  = inputs[IN_R_INPUT].isConnected();
-			if (clear_requested_.exchange(false))
-				processor_.ClearBuffer();
-			if (clear_tempo_requested_.exchange(false))
-				processor_.ClearTappedTempo();
-#ifdef METAMODULE
-			// MetaModule: Quality is a 4-position switch, so the mode IS the
-			// param. Consumed only by updateSlowParams()/params_.quality below
-			// and the LED check further down, so read once per block.
-			quality_state_ = std::clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
-#endif
-			updateSlowParams(frozen);
-
-			processor_.SetParameters(params_);
-			processor_.Process(block_runtime_.InputBuffer(),
-							   scratch_output_buf_,
-							   kWrapperBlockSize);
-			block_runtime_.CommitProcessedBlock(scratch_output_buf_, kWrapperBlockSize);
-
-			// CLOCK_LIGHT blink. When clocked, it is a true clock indicator:
-			// one flash per measured beat, re-anchored to every incoming tick
-			// (like the Shape envelope's resync) so it visibly locks to the
-			// clock instead of free-running at the subdivided base Interval —
-			// which, at fast tempos on a subdivided knob, strobed too fast to
-			// read. When free-running there is no external beat, so it falls
-			// back to blinking at the base Interval (the effective repeat rate).
-			float beat_seconds = processor_.ClockBeatSeconds();  // 0 unless clocked
-			float period_seconds = (beat_seconds > 0.f) ? beat_seconds
-			                                             : processor_.BaseTimeSeconds();
-			float period_samples = std::max(period_seconds * args.sampleRate, 1.f);
-			// Re-anchor to the clock edge: a tick landed in this block if the
-			// core consumed a tick offset for it.
-			if (params_.clock_tick_offset >= 0)
-				clock_light_phase_ = 0.f;
-			clock_light_phase_ += static_cast<float>(kWrapperBlockSize) / period_samples;
-			if (clock_light_phase_ >= 1.f)
-				clock_light_phase_ -= std::floor(clock_light_phase_);
-
-			// Snap to full brightness during the flash window at the start of
-			// each beat, then decay smoothly (see kClockFlashDecaySeconds).
-			// Decay and publish now run once per block instead of every
-			// sample: kClockFlashDecayRate is exact, so the closed-form
-			// multiply reproduces the per-sample max(0, x - sampleTime/tau)
-			// result applied kWrapperBlockSize times (the flash/decay branch
-			// is already fixed for the whole block, since clock_light_phase_
-			// only changes here).
-			if (clock_light_phase_ < 0.1f)
-				clock_light_level_ = 1.f;
-			else
-				clock_light_level_ = std::max(0.f,
-					clock_light_level_ - kWrapperBlockSize * args.sampleTime * kClockFlashDecayRate);
+		if (++light_divider_ >= 32) {
+			light_divider_ = 0;
 			lights[CLOCK_LIGHT].setBrightness(clock_light_level_);
-		}
-
-		// Light updates
-		lights[SLICE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
-
-		if (quality_state_ != light_quality_state_) {
-			light_quality_state_ = quality_state_;
-			lights[QUALITY_R_LIGHT].setBrightness(kQualityColors[quality_state_][0]);
-			lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
-			lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
+			lights[SLICE_BUTTON_LIGHT].setBrightness(frozen ? 1.f : 0.f);
+			if (quality_state_ != light_quality_state_) {
+				light_quality_state_ = quality_state_;
+				lights[QUALITY_R_LIGHT].setBrightness(kQualityColors[quality_state_][0]);
+				lights[QUALITY_G_LIGHT].setBrightness(kQualityColors[quality_state_][1]);
+				lights[QUALITY_B_LIGHT].setBrightness(kQualityColors[quality_state_][2]);
+			}
 		}
 	}
 };
@@ -434,29 +358,6 @@ std::string RetoursQualityParamQuantity::getDisplayValueString() {
 	static const char* kNames[] = {"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"};
 	return kNames[m->quality_state_];
 }
-
-// Wrap a context-menu mutation in a whole-module undo snapshot. Because the
-// snapshot is the module's full JSON (params + data), one helper covers
-// every menu field with no per-item code. VCV-only: MetaModule has no undo
-// stack, so there it just runs the mutation.
-#ifndef METAMODULE
-template <typename F>
-static void withMenuUndo(Retours* module, const char* label, F&& mutate) {
-	json_t* oldJ = APP->engine->moduleToJson(module);
-	mutate();
-	history::ModuleChange* h = new history::ModuleChange;
-	h->name = label;
-	h->moduleId = module->id;
-	h->oldModuleJ = oldJ;
-	h->newModuleJ = APP->engine->moduleToJson(module);
-	APP->history->push(h);
-}
-#else
-template <typename F>
-static void withMenuUndo(Retours*, const char*, F&& mutate) {
-	mutate();
-}
-#endif
 
 #ifdef METAMODULE
 // MetaModule-only Quality control. The VCV→MM adapter turns a non-momentary
@@ -495,25 +396,16 @@ struct RetoursWidget : ModuleWidget {
 			}
 		));
 
-		// --- Time change response ---
-		menu->addChild(createIndexSubmenuItem("Time change response",
-			{"Tape (doppler)", "Crossfade"},
-			[=]() { return static_cast<int>(module->time_change_mode_); },
-			[=](int val) {
-				withMenuUndo(module, "change time-change response", [=]() {
-					module->time_change_mode_ = static_cast<retours_delay_dsp::TimeChangeMode>(val);
-				});
-			}
-		));
+		appendBeadsGainMenu(menu, module);
 
 		// --- Clear saved tempo ---
-		// A tempo held from a tap or a patched clock now sticks indefinitely;
-		// this is the way back to free-running. Deferred to the audio thread
-		// like Clear buffer, and greyed out when no tempo is saved.
+		// A tempo from a tap or a clock holds after the clock is unpatched;
+		// this returns to free-running. Greyed out when there is nothing to
+		// clear, or while a clock is patched (it would set the tempo again).
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear saved tempo", "",
 			[=]() { module->clear_tempo_requested_.store(true); },
-			/*disabled=*/!module->processor_.IsClocked()
+			/*disabled=*/!module->tempo_held_ || module->inputs[Retours::CLOCK_INPUT].isConnected()
 		));
 
 		// --- Clear Buffer ---
@@ -521,7 +413,7 @@ struct RetoursWidget : ModuleWidget {
 		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
 			[=]() { module->clear_requested_.store(true); },
-			/*disabled=*/module->processor_.BufferEmpty()
+			/*disabled=*/module->host_.buffer_empty()
 		));
 	}
 

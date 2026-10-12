@@ -1,13 +1,35 @@
 #include "plugin.hpp"
-#include "RackWavetableProvider.hpp"
-#include "WavetableFrame.hpp"
 #include "ondes_pitch_map.hpp"
-#include "dsp/src/wavetable/wavetable_oscillator.h"
+
+#include "stmlib/dsp/dsp.h"
+#include "beads/resources.h"
+#include "beads/dsp/frame.h"
+#include "beads/dsp/granular_player.h"
+#include "beads/dsp/wavetable_grain.h"   // table layout + InterpolateWaveHermite
+#include "beads/dsp/wavetable_voice.h"
+#include "stmlib/dsp/hysteresis_quantizer.h"
+
+#include <algorithm>
 #include <cmath>
 
+// Ondes is the wavetable voice of Mutable Instruments Beads (the oscillator
+// Beads plays when nothing is patched into its audio inputs), running on the
+// Beads source: 12 banks of 16 band-limited waves, with Position morphing
+// through a bank and Bank switching banks via a short crossfade.
+
+static constexpr int kOndesNumBanks = 12;  // beads/dsp/synth.h kNumBanks
+static_assert(WAV_INTEGRATED_WAVES_SIZE ==
+	kOndesNumBanks * beads::kNumWavesPerTable * (beads::kTableSize + 4),
+	"Beads wavetable layout");
+
+// Ondes keeps VCV's 0 V = C4 tuning; Beads' voice is rooted on C3.
+static constexpr float kOndesTuningSemitones = 12.f;
+// Beads' Digital (16-bit) setting; Ondes has no Quality control.
+static constexpr int kOndesBitShift = 16;
+
 // Ondes' own pitch-knob quantity: plain linear +-24 st (see
-// ondes_pitch_map.hpp), independent of the shared notched PitchParamQuantity
-// in plugin.hpp that Particules/Retours use.
+// ondes_pitch_map.hpp), independent of the notched PitchParamQuantity
+// that Particules/Retours use.
 struct OndesPitchParamQuantity : ParamQuantity {
     float getDisplayValue() override { return ondesKnobToSemitones(getValue()); }
     void setDisplayValue(float semitones) override { setValue(ondesSemitonesToKnob(semitones)); }
@@ -17,10 +39,6 @@ struct OndesPitchParamQuantity : ParamQuantity {
         return string::f("%.1f", st);
     }
     std::string getUnit() override { return " st"; }
-};
-
-static constexpr const char* kBankGroupNames[RackWavetableProvider::kNumBankGroups] = {
-    "1 - Sines", "2 - Formants", "3 - Braids"
 };
 
 struct Ondes : Module {
@@ -36,12 +54,13 @@ struct Ondes : Module {
     enum OutputId { OUT_OUTPUT, OUTPUTS_LEN };
     enum LightId { LIGHTS_LEN };
 
-    particules_dsp::WavetableOscillator osc_;
-    RackWavetableProvider wavetable_provider_;
+    beads::WavetableVoice voice_;
+    stmlib::HysteresisQuantizer2 bank_quantizer_;
+    beads::Parameters parameters_;
 
-    // Last post-CV bank/wave (0-1), read by the panel display. UI-thread read of
-    // an audio-thread write is a benign race (display only), as in Fundamental.
-    float lastBank = 0.f;
+    // Last bank (0-11) and position (0-1), read by the panel display. A
+    // UI-thread read of an audio-thread write is a benign race (display only).
+    int lastBank = 0;
     float lastWave = 0.f;
 
     Ondes() {
@@ -56,59 +75,77 @@ struct Ondes : Module {
         configInput(BANK_INPUT, "Bank CV");
         configOutput(OUT_OUTPUT, "Audio out");
 
-        osc_.Init(APP->engine->getSampleRate());
-        osc_.SetProvider(&wavetable_provider_);
+        // Position and pitch are computed here, so the voice sees plain
+        // values: no internal randomization, no CV path of its own.
+        auto plain = [](beads::RandomizedParameter* r) {
+            r->base = 0.f;
+            r->attenuverter = 0.f;
+            r->cv = 0.f;
+            r->has_cv = false;
+        };
+        plain(&parameters_.time);
+        plain(&parameters_.size);
+        plain(&parameters_.shape);
+        plain(&parameters_.pitch);
+        parameters_.monophonic_mode = false;
+        parameters_.pitch_lock = nullptr;
+
+        Init(APP->engine->getSampleRate());
+    }
+
+    void Init(float sample_rate) {
+        voice_.Init(sample_rate);
+        // Beads' synth: 12 banks, 0.048 of hysteresis between them.
+        bank_quantizer_.Init(kOndesNumBanks, 0.048f, false);
     }
 
     void onSampleRateChange(const SampleRateChangeEvent& e) override {
-        osc_.Init(e.sampleRate);
-        osc_.SetProvider(&wavetable_provider_);
+        Init(e.sampleRate);
     }
 
     void process(const ProcessArgs& args) override {
         float pitch = ondesKnobToSemitones(params[PITCH_PARAM].getValue())
-                    + inputs[VOCT_INPUT].getVoltage() * 12.f;
-        float position = clamp(
-            params[POSITION_PARAM].getValue()
-            + inputs[POSITION_INPUT].getVoltage() * 0.2f * params[POSITION_AMT_PARAM].getValue(),
-            0.f, 1.f);
-        float bank = clamp(
-            params[BANK_PARAM].getValue()
-            + inputs[BANK_INPUT].getVoltage() * 0.2f * params[BANK_AMT_PARAM].getValue(),
-            0.f, 1.f);
+                    + inputs[VOCT_INPUT].getVoltage() * 12.f
+                    + kOndesTuningSemitones;
+        // Beads' SemitonesToRatio table covers +-128 semitones.
+        pitch = std::isfinite(pitch) ? clamp(pitch, -120.f, 120.f) : 0.f;
+        float position = params[POSITION_PARAM].getValue()
+            + inputs[POSITION_INPUT].getVoltage() * 0.2f * params[POSITION_AMT_PARAM].getValue();
+        position = std::isfinite(position) ? clamp(position, 0.f, 1.f) : 0.f;
+        float bank = params[BANK_PARAM].getValue()
+            + inputs[BANK_INPUT].getVoltage() * 0.2f * params[BANK_AMT_PARAM].getValue();
+        bank = std::isfinite(bank) ? clamp(bank, 0.f, 1.f) : 0.f;
 
-        lastBank = bank;
+        parameters_.pitch.base = pitch;
+        parameters_.time.base = position;
+        const int bank_index = bank_quantizer_.Process(bank);
+        lastBank = bank_index;
         lastWave = position;
 
-        particules_dsp::StereoFrame out;
-        osc_.Process(pitch, bank, position, &out, 1);
-        outputs[OUT_OUTPUT].setVoltage(out.l * 5.f);  // oscillator is mono: out.l == out.r
-    }
-
-    json_t* dataToJson() override {
-        json_t* root = json_object();
-        json_t* groups = json_array();
-        for (int g = 0; g < RackWavetableProvider::kNumBankGroups; ++g)
-            json_array_append_new(groups, json_boolean(wavetable_provider_.isGroupEnabled(g)));
-        json_object_set_new(root, "bankGroupsEnabled", groups);
-        return root;
-    }
-
-    void dataFromJson(json_t* root) override {
-        json_t* groups = json_object_get(root, "bankGroupsEnabled");
-        if (groups && json_is_array(groups)) {
-            int n = (int)json_array_size(groups);
-            for (int g = 0; g < RackWavetableProvider::kNumBankGroups && g < n; ++g) {
-                json_t* v = json_array_get(groups, g);
-                wavetable_provider_.setGroupEnabled(g, json_boolean_value(v));
-            }
-            osc_.SetProvider(&wavetable_provider_);
-        }
+        beads::FloatFrame out;
+        out.l = out.r = 0.f;
+        const bool freeze = false;
+        voice_.Render(bank_index, kOndesBitShift, &freeze, parameters_, &out, 1);
+        outputs[OUT_OUTPUT].setVoltage(out.l * 5.f);
     }
 };
 
-// Draws the current bilinearly-interpolated wavetable frame as a cyan trace
-// that morphs as Bank/Position (and their CV) change. Bare trace, no text.
+// One cycle of the wave the voice is playing: Beads stores each wave
+// integrated, so the shape is the table's first difference.
+static float ondesWaveSample(int bank, float position, int i) {
+    float wave = clamp(position, 0.f, 1.f) * float(beads::kNumWavesPerTable - 1);
+    int wave_integral = std::min(int(wave), int(beads::kNumWavesPerTable) - 2);
+    float wave_fractional = wave - float(wave_integral);
+    const int16_t* a = beads::wav_integrated_waves
+        + (bank * beads::kNumWavesPerTable + wave_integral) * (beads::kTableSize + 4);
+    const int16_t* b = a + beads::kTableSize + 4;
+    float da = float(a[i + 2]) - float(a[i + 1]);
+    float db = float(b[i + 2]) - float(b[i + 1]);
+    return da + (db - da) * wave_fractional;
+}
+
+// Draws the current wave as a cyan trace that morphs as Bank/Position (and
+// their CV) change. Bare trace, no text.
 struct WavetableDisplay : LedDisplay {
     Ondes* module = nullptr;
 
@@ -116,20 +153,23 @@ struct WavetableDisplay : LedDisplay {
         if (layer == 1) {
             nvgScissor(args.vg, RECT_ARGS(args.clipBox));
 
-            float bank = module ? module->lastBank : 0.f;
-            float wave = module ? module->lastWave : 0.f;
-            static const RackWavetableProvider kFallbackProvider;  // module==nullptr: browser thumbnail
-            const RackWavetableProvider& provider =
-                module ? module->wavetable_provider_ : kFallbackProvider;
+            const int bank = module ? clamp(module->lastBank, 0, kOndesNumBanks - 1) : 0;
+            const float wave = module ? module->lastWave : 0.f;
+
+            const int n = beads::kTableSize;
+            float samples[beads::kTableSize];
+            float peak = 1e-6f;
+            for (int i = 0; i < n; ++i) {
+                samples[i] = ondesWaveSample(bank, wave, i);
+                peak = std::max(peak, std::fabs(samples[i]));
+            }
 
             Rect scope = Rect(Vec(0, 0), box.size).shrink(Vec(4, 5));
-            const int n = particules_dsp::kWavetableSize;
             nvgBeginPath(args.vg);
             for (int i = 0; i <= n; ++i) {
-                float s = robotboy::wavetableFrameSample(provider, bank, wave, i % n);
                 Vec p;
                 p.x = float(i) / n;
-                p.y = 0.5f - 0.5f * s;
+                p.y = 0.5f - 0.5f * samples[i % n] / peak;
                 p = scope.pos + scope.size.mult(p);
                 if (i == 0) nvgMoveTo(args.vg, VEC_ARGS(p));
                 else        nvgLineTo(args.vg, VEC_ARGS(p));
@@ -172,23 +212,6 @@ struct OndesWidget : ModuleWidget {
         display->box.size = mm2px(Vec(34.64, 24.5));
         display->module = module;
         addChild(display);
-    }
-
-    void appendContextMenu(Menu* menu) override {
-        auto* m = dynamic_cast<Ondes*>(module);
-        if (!m) return;
-
-        menu->addChild(new MenuSeparator);
-        menu->addChild(createMenuLabel("Waveform banks"));
-        for (int g = 0; g < RackWavetableProvider::kNumBankGroups; ++g) {
-            menu->addChild(createBoolMenuItem(kBankGroupNames[g], "",
-                [m, g] { return m->wavetable_provider_.isGroupEnabled(g); },
-                [m, g](bool v) {
-                    m->wavetable_provider_.setGroupEnabled(g, v);
-                    m->osc_.SetProvider(&m->wavetable_provider_);
-                },
-                /*disabled=*/!m->wavetable_provider_.canDisableGroup(g)));
-        }
     }
 };
 

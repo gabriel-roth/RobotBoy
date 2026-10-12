@@ -17,6 +17,8 @@
 
 namespace robotboy_beads {
 
+constexpr double kPi = 3.14159265358979323846;
+
 template <int num_channels>
 class Resampler {
  public:
@@ -50,7 +52,7 @@ class Resampler {
           const double arg = 2.0 * fc * x;
           const double sinc = x == 0.0
               ? 1.0
-              : std::sin(M_PI * arg) / (M_PI * arg);
+              : std::sin(kPi * arg) / (kPi * arg);
           const double window =
               BesselI0(kKaiserBeta * std::sqrt(1.0 - u * u)) / i0_beta;
           h = 2.0 * fc * sinc * window;

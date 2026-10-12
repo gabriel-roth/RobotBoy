@@ -274,3 +274,20 @@ index f01765b..99e413c 100644
    bool process_dry_;
    bool mono_;
    
+diff --git a/stmlib/stmlib.h b/stmlib/stmlib.h
+index a4fc9d5..3ec6d3c 100755
+--- a/stmlib/stmlib.h
++++ b/stmlib/stmlib.h
+@@ -28,6 +28,12 @@
+ #include <inttypes.h>
+ #include <stddef.h>
+ 
++// RobotBoy: strict -std=c++20 (MetaModule's newlib) hides M_PI.
++#include <cmath>
++#ifndef M_PI
++#define M_PI 3.14159265358979323846
++#endif  // M_PI
++
+ #ifndef NULL
+ #define NULL 0
+ #endif

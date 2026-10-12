@@ -3,11 +3,9 @@
 #include <cmath>
 #include <cstdint>
 
-// Tables for the unified "Lock pitch" selector. Modes 0-2 are the legacy
-// engine-side pitch_lock modes (particules_dsp::QuantizePitchLock); modes 3-7 load
-// the engine's PitchQuantizer with a 12-TET ratio table instead. The two
-// mechanisms are mutually exclusive by construction (the engine applies the
-// scale quantizer before pitch_lock, so setting both would double-quantize).
+// Tables for Particules' "Lock pitch" selector (applied to each grain by
+// robotboy_beads::ScalePitchLock). Modes 1-2 snap to octaves (and fifths);
+// modes 3-7 snap to a 12-tone scale above a chosen root.
 namespace particules {
 
 enum PitchScaleMode {
@@ -24,10 +22,9 @@ enum PitchScaleMode {
 
 constexpr uint32_t kMaxScaleNotes = 12;
 
-// Semitone degrees above the root, excluding the implicit 1/1 (degree 0)
-// and ending with the period (12 = octave) — the exact shape
-// PitchQuantizer::loadRatios expects after conversion to ratios.
-// Returns nullptr (count 0) for the legacy non-scale modes.
+// Semitone degrees above the root, excluding the implicit unison (degree 0)
+// and ending with the octave (12). Returns nullptr (count 0) for the
+// non-scale modes.
 inline const int* ScaleSemitones(int mode, uint32_t* count) {
     static const int kChromatic[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12};
     static const int kMajor[]     = {2, 4, 5, 7, 9, 11, 12};

@@ -32,39 +32,33 @@ target_sources(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
     ${SRC}/src/loooop/dsp/LoopEngine.cpp
     ${SRC}/src/loooop/display/LoopWaveformRenderer.cpp
-    # granular DSP engine (Particules)
-    ${SRC}/src/particules/dsp/src/particules_processor.cpp
-    ${SRC}/src/particules/dsp/src/buffer/recording_buffer.cpp
-    ${SRC}/src/particules/dsp/src/fx/reverb.cpp
-    ${SRC}/src/particules/dsp/src/fx/saturation.cpp
-    ${SRC}/src/particules/dsp/src/grain/grain_engine.cpp
-    ${SRC}/src/particules/dsp/src/grain/grain_scheduler.cpp
-    ${SRC}/src/particules/dsp/src/grain/grain.cpp
-    ${SRC}/src/particules/dsp/src/input/auto_gain.cpp
-    ${SRC}/src/particules/dsp/src/pitch/pitch_quantizer.cpp
-    ${SRC}/src/particules/dsp/src/quality/quality_processor.cpp
-    ${SRC}/src/particules/dsp/src/random/attenurandomizer.cpp
-    ${SRC}/src/particules/dsp/src/random/random.cpp
-    ${SRC}/src/particules/dsp/src/wavetable/wavetable_oscillator.cpp
-    # Retours delay DSP engine
-    ${SRC}/src/retours_delay/dsp/src/retours_processor.cpp
-    ${SRC}/src/retours_delay/dsp/src/time/base_time.cpp
-    ${SRC}/src/retours_delay/dsp/src/engine/echo_engine.cpp
-    ${SRC}/src/retours_delay/dsp/src/pitch/rotary_shifter.cpp
+    # Mutable Instruments Beads (vendored) + RobotBoy host adapter:
+    # Particules, Retours and Ondes (see src/beads/vendor/NOTICE.md)
+    ${SRC}/src/beads/vendor/beads/dsp/delay_clock.cc
+    ${SRC}/src/beads/vendor/beads/dsp/delay_controller.cc
+    ${SRC}/src/beads/vendor/beads/dsp/mu_law.cc
+    ${SRC}/src/beads/vendor/beads/dsp/processor.cc
+    ${SRC}/src/beads/vendor/beads/dsp/trigger_generator.cc
+    ${SRC}/src/beads/vendor/beads/resources.cc
+    ${SRC}/src/beads/vendor/stmlib/dsp/units.cc
+    ${SRC}/src/beads/vendor/stmlib/utils/random.cc
+    ${SRC}/src/beads/host/engine_host.cpp
+    ${SRC}/src/beads/host/gain_control.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
     ${SRC}/src/loooop
     ${SRC}/src/mf20
     ${SRC}/src/particules
-    ${SRC}/src/particules/dsp/include
-    ${SRC}/src/particules/dsp/src
     ${SRC}/src/retours_delay
-    ${SRC}/src/retours_delay/dsp/include
-    ${SRC}/src/retours_delay/dsp/src
+    ${SRC}/src/beads
+    ${SRC}/src/beads/vendor
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
+# Vendored Beads: portable stmlib code paths (TEST) and a private stmlib
+# namespace, so it can't collide with the simulator's own Mutable ports.
+target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib)
 # The headless simulator builds us as a built-in like the GUI simulator does,
 # but (unlike the GUI build) does not define SIMULATOR globally. register.cc
 # relies on SIMULATOR to suppress its init()/pluginInstance definitions, which

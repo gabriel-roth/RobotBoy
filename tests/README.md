@@ -22,30 +22,24 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 
 ## Test lanes
 
-This repo has three independent test lanes:
+This repo has two independent test lanes:
 
 - **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
   Particules, Onbetap, Vespid), plain-assert style, followed by a
   `python3 -m unittest discover` pass over `tests/test_*.py` (identity/build
   guard tests — plugin metadata, slug parity between `plugin.json` and
-  `metamodule/plugin-mm.json`, no-delay-mode symbol removal, and head-color
+  `metamodule/plugin-mm.json`, and head-color
   parity between `src/loooop/HeadColors.hpp` and `panel-specs/loooop.yaml`).
   Runs anywhere, no build system needed beyond a `python3` on `PATH`.
-- **Lane 2 — `tests/particules_dsp/run.sh`** — the Particules granular-DSP
-  Catch2 suite (CMake + CTest). Covers the granular / reverb / quality / pitch DSP
-  that powers Particules. Catch2 is vendored (amalgamated, v3.5.2),
-  so the lane builds and runs fully offline. Run it with:
+- **Lane 2 — `tests/beads_engine/run.sh`** — the Catch2 suite for the
+  Beads engine behind Particules, Retours and Ondes (CMake + CTest, vendored
+  Catch2 v3.5.2, fully offline): the vendored, patched `beads::Processor`,
+  the resampler, the engine host (native-rate streaming, triggers, freeze,
+  reconfiguration, NaN robustness, delay timing), the Beads knob laws, Lock
+  pitch and gain control, and Ondes' wavetable voice. Run it with:
 
   ```
-  ./tests/particules_dsp/run.sh
-  ```
-- **Lane 3 — `tests/retours_delay_dsp/run.sh`** — the Retours delay-DSP
-  Catch2 suite, same CMake + CTest + vendored-Catch2 setup as Lane 2. Covers
-  the echo engine, base-time/clocking, slicer, pitch shifter, envelope, and
-  quality modes that power Retours. Run it with:
-
-  ```
-  ./tests/retours_delay_dsp/run.sh
+  ./tests/beads_engine/run.sh
   ```
 
 ## What isn't covered here

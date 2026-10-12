@@ -28,6 +28,12 @@
 #include <inttypes.h>
 #include <stddef.h>
 
+// RobotBoy: strict -std=c++20 (MetaModule's newlib) hides M_PI.
+#include <cmath>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif  // M_PI
+
 #ifndef NULL
 #define NULL 0
 #endif

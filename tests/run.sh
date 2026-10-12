@@ -23,8 +23,8 @@ for d in mf20 loooop particules onbetap vespid; do
         [ -n "$line" ] && extra+=("$line")
       done < "$extra_file"
     fi
-    g++ -std=c++20 -O2 -I../src -I../src/loooop -I../src/mf20 -I../src/particules \
-        -I../src/particules/dsp/include -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
+    g++ -std=c++20 -O2 -I../src -I../src/loooop -I../src/mf20 -I../src/particules -I../src/beads -I../src/beads/vendor \
+        -DTEST -Dstmlib=robotboy_stmlib -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
   done
 done
 

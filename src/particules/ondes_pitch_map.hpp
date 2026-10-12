@@ -2,7 +2,7 @@
 #include <algorithm>
 
 // Plain linear knob-to-semitone mapping for Ondes' pitch knob. Unlike
-// Particules'/Retours' pitchKnobToSemitones (pitch_notch_map.hpp), Ondes has
+// Particules'/Retours' notched Beads law (robotboy_beads::DetuneLaw), Ondes has
 // no notch stretching around octave/fifth/unison landmarks -- turning the
 // knob moves pitch at a constant rate across the full +-24 semitone span.
 inline float ondesKnobToSemitones(float t) {
