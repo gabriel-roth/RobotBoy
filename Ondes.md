@@ -37,6 +37,19 @@ Beads' twelve banks, counter-clockwise to clockwise:
 
 ---
 
+## Classic mode
+
+Classic mode is the Ondes engine from version 2.1 and earlier, kept alongside the Beads-based engine. Patches saved before version 2.2 open in classic mode automatically, so they sound as they did. New modules start in Beads mode.
+
+To switch, open the context menu and tick or untick **Classic mode**. Ondes has no buffer, so it switches instantly, with no mute. Presets and undo always restore the mode that was saved with them.
+
+Differences from Beads mode:
+
+- Classic mode has the 24 banks from version 2.1, and **Bank** always spans all 24. The "Waveform banks" menu is gone, so a 2.1 patch that had some bank groups turned off now spreads Bank across all 24 banks and will sound different.
+- The display draws the wave the active engine is playing.
+
+---
+
 ## Patch ideas
 
 - Slow LFO into **Position CV** for evolving single-cycle movement.

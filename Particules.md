@@ -100,6 +100,22 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 ---
 
+## Classic mode
+
+Classic mode is the Particules engine from version 2.1 and earlier, kept alongside the Beads-based engine. Patches saved before version 2.2 open in classic mode automatically, so they sound as they did. New modules start in Beads mode.
+
+To switch, open the context menu and tick or untick **Classic mode**. You can't switch while Freeze or Slice is on: the item is greyed out and reads "Unfreeze to switch". A switch clears the recording buffer and mutes the output for a quarter of a second. Classic mode also uses more memory on MetaModule (\~1.62 MB per instance, against \~1.00 MB in Beads mode). Presets and undo always restore the mode that was saved with them.
+
+Differences from Beads mode:
+
+- The **Seed** button works even with nothing patched to the Seed input. In Triggers mode each press fires one grain; in Gates mode grains play while it's held. With Seed patched, a press acts like an extra pulse on the jack. The Seed light is lit while the button is held.
+- The **Seed CV mode** menu (Triggers or Gates) applies in classic mode, in place of Beads mode's lock and unlock behaviour.
+- The **Gate** output sends a 1 ms, 10 V pulse for each grain. Out L and Out R are always the stereo output; there is no "Grain trigger on R output" option. Version 2.1 patches that used that option should patch the Gate output instead.
+- There is no tape-hiss menu item: Scorched cassette sounds as it did in 2.1. **Clear buffer** is greyed out while the buffer is empty.
+- The Reverb tail is shorter at 96 kHz than at 48 kHz.
+
+---
+
 ## Patch ideas
 
 - **Scrubbing / timestretch:** patch a slow ramp-down LFO or a decaying envelope into **Time** CV to sweep through recorded time at whatever speed you like.
