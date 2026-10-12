@@ -330,3 +330,19 @@ TEST_CASE("Clear empties the buffer and the menu flag follows") {
   for (int i = 0; i < 24; ++i) host.Process({0.0f, 0.0f, false, false}, &controls);
   CHECK(host.buffer_empty());
 }
+
+TEST_CASE("Output is clipped to the codec's full scale, as in beads.cc") {
+  FixedControls controls;
+  controls.c.gain_setting = 255;      // +32 dB manual gain
+  controls.c.mix.feedback = 1.0f;
+  EngineHost host;
+  REQUIRE(host.Init(Processor::MODE_DELAY, false, 48000.0f));
+  host.SetInputs(true, true);
+  float peak = 0.0f;
+  for (int i = 0; i < 48000 * 2; ++i) {
+    const float x = (i % 4800 == 0) ? 1.0f : 0.0f;  // impulses: fast transients
+    const HostFrameOut out = host.Process({x, x, false, false}, &controls);
+    peak = std::max(peak, std::max(std::fabs(out.l), std::fabs(out.r)));
+  }
+  CHECK(peak <= 1.0f);
+}

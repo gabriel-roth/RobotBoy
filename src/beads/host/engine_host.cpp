@@ -262,9 +262,13 @@ void EngineHost::RunBlock(ControlSource* controls) {
     }
   }
 
+  // beads.cc clips to the codec's full scale before conversion; the
+  // limiters inside the processor are peak followers and let fast
+  // transients through.
   for (size_t i = 0; i < size; ++i) {
     PushOutputFrame(
-        Finite(out[i].l), Finite(out[i].r),
+        std::min(std::max(Finite(out[i].l), -1.0f), 0.999999f),
+        std::min(std::max(Finite(out[i].r), -1.0f), 0.999999f),
         processor_->gate_out(i) ? 1.0f : 0.0f);
   }
 }
