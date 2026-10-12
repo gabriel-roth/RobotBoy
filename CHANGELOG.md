@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Classic mode (context menu) for Particules, Retours and Ondes brings back the engines from 2.1 and earlier. Patches made before 2.2 open in classic mode, so they sound as they did. Switching isn't allowed while Freeze or Slice is on, and it clears the buffer and mutes the output briefly.
+- Classic mode (context menu) for Particules, Retours and Ondes brings back the engines from 2.1 and earlier. Patches made before 2.2 open in classic mode, so they sound as they did. Switching isn't allowed while Freeze or Slice is on, and in Particules and Retours it clears the buffer and mutes the output briefly.
   - Particules' "Grain trigger on R Out" option is gone: patches that used it should patch the Gate output instead. In classic mode the Seed button fires grains even with nothing patched to Seed.
   - In classic mode, Retours' new Filter and Reverb knobs work too. Feedback reaches unity at about 90%, not at the panel arrow.
   - Ondes patches that turned off some waveform bank groups now spread Bank across all 24 banks in classic mode.

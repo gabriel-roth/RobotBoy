@@ -109,12 +109,12 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 Classic mode is the Retours engine from version 2.1 and earlier, kept alongside the Beads-based engine. Patches saved before version 2.2 open in classic mode automatically, so they sound as they did. New modules start in Beads mode.
 
-To switch, open the context menu and tick or untick **Classic mode**. You can't switch while Freeze or Slice is on: the item is greyed out and reads "Unfreeze to switch". A switch clears the recording buffer and mutes the output for a quarter of a second. Classic mode also uses more memory on MetaModule (\~0.64 MB more per instance than Beads mode). Presets and undo always restore the mode that was saved with them.
+To switch, open the context menu and tick or untick **Classic mode**. You can't switch while Slice is on: the item is greyed out and reads "Turn off Slice to switch". A switch clears the recording buffer and mutes the output for a quarter of a second. Classic mode also uses more memory on MetaModule (\~0.64 MB more per instance than Beads mode). Presets and undo always restore the mode that was saved with them.
 
 Differences from Beads mode:
 
 - **Filter** and **Reverb** work in classic mode too. Both are off at their default positions (Filter at noon, Reverb at zero), so older patches start with both off. With a strong low-pass and high feedback, repeats can build up near the filter's resonance; a limiter keeps the level in bounds.
-- **Feedback** reaches unity at about \~90% rather than at the arrow on the panel, which marks Beads mode's \~82%.
+- **Feedback** reaches unity at about 90% rather than at the arrow on the panel, which marks Beads mode's \~82%.
 - The **Gate** output pulses once per delay tick.
 - The menu has Quality, Time change response, Clear saved tempo and Clear buffer; the Beads-only gain and tape-hiss items are hidden.
 - The Reverb tail is shorter at 96 kHz than at 48 kHz.

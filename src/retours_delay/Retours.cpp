@@ -240,7 +240,7 @@ struct RetoursWidget : ModuleWidget {
 		{
 			const bool frozen = module->ui_frozen_.load(std::memory_order_relaxed);
 			menu->addChild(createBoolMenuItem("Classic mode",
-				frozen ? "Unfreeze to switch" : "",
+				frozen ? "Turn off Slice to switch" : "",
 				[=]() { return module->displayedClassicMode(); },
 				[=](bool on) {
 					withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
