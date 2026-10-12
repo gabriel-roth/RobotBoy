@@ -83,6 +83,10 @@ The **Quality** button cycles through four recording characters, the same four a
 
 All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Going between stereo (both inputs patched) and mono, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Freeze is engaged, the Quality button refuses to cycle. (On MetaModule, where Quality is a four-position switch, the switch still changes the selection, but the reformat waits for Freeze to release.)
 
+### Gate output
+
+*Gate:* the jack between **In** and **Out** sends a 10 V gate for every grain, high for the first half of each grain's trigger period (Beads' gate stream). Use it to clock other modules from the grain rate, or to trigger envelopes in time with the cloud.
+
 ## Context-menu options
 
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
@@ -92,7 +96,6 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Input** — a live readout of the input level in dB, shown next to the gain options; reads "silent" below −60 dB. On MetaModule it's captured when the menu opens rather than updating live.
 - **Tape hiss (Scorched cassette)** — on by default. Beads' Scorched cassette setting runs its audio converter at a low sample rate, which makes it hiss; this adds a similar quiet hiss to the input (and so to the dry signal too). Turn it off for a clean noise floor. It has no effect in the other Quality settings.
 - **Lock pitch** — quantize each grain's pitch (after CV and randomization): **Off**, **Octaves**, **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic**, or **Minor pentatonic**. The five scale modes quantize grain pitch to a 12-tone scale; a **Root** submenu (C through B, default C) sets the scale root, and applies only to those modes.
-- **Grain trigger on R output** — replaces the right output with a 10 V gate for every grain, while the left output carries a mono sum of the audio. Use this to clock other modules from the grain rate.
 - **Clear buffer** — empties the recording buffer.
 
 ---

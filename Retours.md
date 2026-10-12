@@ -85,6 +85,7 @@ The **Filter**, **Feedback**, **Reverb** and **Dry/Wet** trimpots are plain atte
 
 - **In (L / R)** — audio in. Patch just L for mono; patch both for stereo.
 - **Out (L / R)** — stereo output. Leave **Out R** unpatched and both channels sum to **Out L**.
+- **Gate** (between In and Out) — a 10 V gate on every repeat, high for its first half. Use it to clock other modules from the echoes.
 - **Slice** — gate input, above 1 V; same as the button.
 - **Clock** — clock / trigger input for tempo sync.
 - **Time / Pitch / Shape CV** — scaled by their trimpots (above).
@@ -99,7 +100,6 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Quality** (VCV Rack only; on MetaModule, use the Quality switch) — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
 - **Auto gain / Gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details. To pass the input at unity, as earlier versions of Retours did, turn **Auto gain** off and leave **Gain** at 0 dB.
 - **Tape hiss (Scorched cassette)** — on by default. Beads' Scorched cassette setting runs its audio converter at a low sample rate, which makes it hiss; this adds a similar quiet hiss to the input (and so to the dry signal too). Turn it off for a clean noise floor. It has no effect in the other Quality settings.
-- **Repeat gate on R output** — replaces the right output with a 10 V gate that goes high at the start of every repeat and stays high for the first half of it, while the left output carries a mono sum of the audio. Use it to clock other modules from the echoes.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
