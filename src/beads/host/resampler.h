@@ -28,36 +28,46 @@ class Resampler {
   static constexpr int kZeroCrossings = 16;
   static constexpr float kCutoff = 0.45f;     // fraction of the lower rate
   static constexpr float kKaiserBeta = 7.0f;
-  static constexpr int kTablePointsPerSample = 64;
-  // Largest kernel half-width, in input samples: supports downsampling
-  // ratios up to 12:1 (e.g. a 288 kHz host into the 24 kHz engine).
-  static constexpr int kMaxHalfWidth = 180;
-  static constexpr int kRingSize = 512;  // power of two, > 2 * kMaxHalfWidth
+  // The kernel table is sampled per zero crossing, so its size doesn't
+  // depend on the ratio.
+  static constexpr int kTablePointsPerCrossing = 128;
+  static constexpr int kTableSize = kZeroCrossings * kTablePointsPerCrossing + 2;
+  // Largest kernel half-width, in input samples: covers downsampling by
+  // up to 32:1 (a 768 kHz host into the 24 kHz engine).
+  static constexpr int kMaxHalfWidth =
+      int(kZeroCrossings * 32 / (2 * kCutoff)) + 2;
+  static constexpr int kRingSize = 2048;  // power of two, > 2 * kMaxHalfWidth
 
+  // Rebuilds the kernel only when the rates change; always clears the
+  // stream (Init on the audio thread is cheap when the rates are the same).
   void Init(float in_rate, float out_rate) {
-    bypass_ = in_rate == out_rate;
-    step_ = double(in_rate) / double(out_rate);
-    if (!bypass_) {
-      // Cutoff in cycles per input sample.
-      const float fc = kCutoff * std::min(1.0f, out_rate / in_rate);
-      half_width_ = std::min(
-          kMaxHalfWidth, int(std::ceil(kZeroCrossings / (2.0f * fc))));
-      const int table_size = half_width_ * kTablePointsPerSample + 2;
-      const double i0_beta = BesselI0(kKaiserBeta);
-      for (int k = 0; k < table_size; ++k) {
-        const double x = double(k) / kTablePointsPerSample;
-        const double u = x / half_width_;
-        double h = 0.0;
-        if (u < 1.0) {
-          const double arg = 2.0 * fc * x;
-          const double sinc = x == 0.0
-              ? 1.0
-              : std::sin(kPi * arg) / (kPi * arg);
-          const double window =
-              BesselI0(kKaiserBeta * std::sqrt(1.0 - u * u)) / i0_beta;
-          h = 2.0 * fc * sinc * window;
+    if (in_rate != in_rate_ || out_rate != out_rate_) {
+      in_rate_ = in_rate;
+      out_rate_ = out_rate;
+      bypass_ = in_rate == out_rate;
+      step_ = double(in_rate) / double(out_rate);
+      if (!bypass_) {
+        // Cutoff in cycles per input sample.
+        fc_ = kCutoff * std::min(1.0f, out_rate / in_rate);
+        half_width_ = std::min(
+            kMaxHalfWidth, int(std::ceil(kZeroCrossings / (2.0f * fc_))));
+        // Kernel in units of zero crossings: z = 2 * fc * x.
+        const double i0_beta = BesselI0(kKaiserBeta);
+        for (int k = 0; k < kTableSize; ++k) {
+          const double z = double(k) / kTablePointsPerCrossing;
+          const double u = z / kZeroCrossings;
+          double h = 0.0;
+          if (u < 1.0) {
+            const double sinc = z == 0.0
+                ? 1.0
+                : std::sin(kPi * z) / (kPi * z);
+            const double window =
+                BesselI0(kKaiserBeta * std::sqrt(1.0 - u * u)) / i0_beta;
+            h = 2.0 * fc_ * sinc * window;
+          }
+          table_[k] = float(h);
         }
-        table_[k] = float(h);
+        index_scale_ = 2.0f * fc_ * float(kTablePointsPerCrossing);
       }
     }
     Reset();
@@ -112,7 +122,7 @@ class Resampler {
          j <= t_integral_ + half_width_; ++j) {
       // Distance from the output instant to input sample j.
       const float d = std::fabs(fractional + float(t_integral_ - j));
-      const float index = d * float(kTablePointsPerSample);
+      const float index = std::min(d * index_scale_, float(kTableSize - 2));
       const int index_integral = int(index);
       const float index_fractional = index - float(index_integral);
       const float h = table_[index_integral] + \
@@ -150,11 +160,15 @@ class Resampler {
     return sum;
   }
 
+  float in_rate_ = 0.0f;
+  float out_rate_ = 0.0f;
   bool bypass_ = true;
   double step_ = 1.0;
+  float fc_ = 0.45f;
+  float index_scale_ = 1.0f;
   int half_width_ = 1;
 
-  std::array<float, kMaxHalfWidth * kTablePointsPerSample + 2> table_ = {};
+  std::array<float, kTableSize> table_ = {};
   std::array<std::array<float, num_channels>, kRingSize> ring_ = {};
   int64_t in_count_ = 0;
   int64_t t_integral_ = 0;

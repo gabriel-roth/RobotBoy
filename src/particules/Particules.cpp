@@ -81,6 +81,7 @@ struct Particules : Module, robotboy_beads::ControlSource {
 	robotboy_beads::PotChannel time_pot_, size_pot_, shape_pot_, pitch_pot_, density_pot_;
 	robotboy_beads::PotChannel time_ar_pot_, size_ar_pot_, shape_ar_pot_, pitch_ar_pot_;
 	robotboy_beads::CvChannel time_cv_, size_cv_, shape_cv_, pitch_cv_, density_cv_;
+	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_, reverb_cv_;
 
 	// Module state
 	int quality_state_ = 0;   // 0-3: Bright, Cold, Sunny, Scorched
@@ -186,6 +187,9 @@ struct Particules : Module, robotboy_beads::ControlSource {
 		robotboy_beads::InitTimeSizeShapeCv(&shape_cv_);
 		robotboy_beads::InitPitchCv(&pitch_cv_);
 		robotboy_beads::InitDensityCv(&density_cv_);
+		robotboy_beads::InitMixCv(&feedback_cv_);
+		robotboy_beads::InitMixCv(&dry_wet_cv_);
+		robotboy_beads::InitMixCv(&reverb_cv_);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
@@ -294,11 +298,11 @@ struct Particules : Module, robotboy_beads::ControlSource {
 			? density_cv_.Process(volts(DENSITY_INPUT) * 0.2f) : 0.f;
 
 		c->mix.feedback = robotboy_beads::MixParameter(params[FEEDBACK_PARAM].getValue(),
-			volts(FEEDBACK_INPUT), params[FEEDBACK_AMT_PARAM].getValue());
+			feedback_cv_.Process(volts(FEEDBACK_INPUT) * 0.2f), params[FEEDBACK_AMT_PARAM].getValue());
 		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
-			volts(DRY_WET_INPUT), params[DRY_WET_AMT_PARAM].getValue());
+			dry_wet_cv_.Process(volts(DRY_WET_INPUT) * 0.2f), params[DRY_WET_AMT_PARAM].getValue());
 		c->mix.reverb_amount = robotboy_beads::MixParameter(params[REVERB_PARAM].getValue(),
-			volts(REVERB_INPUT), params[REVERB_AMT_PARAM].getValue());
+			reverb_cv_.Process(volts(REVERB_INPUT) * 0.2f), params[REVERB_AMT_PARAM].getValue());
 		c->mix.output_gate = false;
 
 		// Particules has no Seed button. "Triggers" is Beads with its Seed

@@ -112,3 +112,22 @@ TEST_CASE("Output frame count tracks the rate ratio over a long run") {
     CHECK_THAT(y, Catch::Matchers::WithinAbs(0.25f, 0.002f));  // DC gain ~1
   }
 }
+
+TEST_CASE("768 kHz host into the 24 kHz engine keeps full rejection") {
+  Resampler<1> down;
+  down.Init(768000.0f, 24000.0f);
+  // 20 kHz would alias to 4 kHz at 24 kHz.
+  const std::vector<float> in = Sine(20000.0f, 768000.0f, 0.5f, 1.0f);
+  const std::vector<float> out = Convert(down, in);
+  const float level_db = 20.0f * std::log10(
+      Rms(out, 2400, out.size() - 100) / Rms(in, 76800, in.size() - 100));
+  CHECK(level_db < -40.0f);
+  // and a passband tone survives
+  Resampler<1> down2;
+  down2.Init(768000.0f, 24000.0f);
+  const std::vector<float> tone = Sine(1000.0f, 768000.0f, 0.5f, 0.5f);
+  const std::vector<float> out2 = Convert(down2, tone);
+  const float gain_db = 20.0f * std::log10(
+      Rms(out2, 2400, out2.size() - 100) / Rms(tone, 76800, tone.size() - 100));
+  CHECK(std::fabs(gain_db) < 0.5f);
+}

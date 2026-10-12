@@ -1,6 +1,6 @@
 # Particules
 
-**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. Results range from lush self-generating clouds to tightly clocked rhythmic slicing. Particules is the granular mode of Mutable Instruments Beads, and runs on Beads' own DSP code.
+**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. Results range from lush self-generating clouds to tightly clocked rhythmic slicing. Particules is the granular mode of Beads, Émilie Gillet's texture synthesizer, running on its open-source DSP code.
 
 <img src="screenshots/Particules.png" alt="Particules module" height="500">
 
@@ -72,10 +72,10 @@ The **Quality** button cycles through four recording characters, the same four a
 
 - ***Bright digital*** (white LED) — 48 kHz, 16-bit. Cleanest and brightest. 4-second buffer.
 - ***Cold digital*** (cyan LED) — 32 kHz, 12-bit, gently saturated feedback. 8-second buffer.
-- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, with soft saturation on the input and in the feedback path. 10.7-second buffer.
-- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier saturation, wow and flutter. Crunchy lo-fi. 16-second buffer.
+- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gently saturated feedback, and soft saturation on the input when the gain is set manually. 10.7-second buffer.
+- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier feedback saturation (and input saturation when the gain is set manually), wow and flutter. Crunchy lo-fi. 16-second buffer.
 
-All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Patching or unpatching an input, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Freeze is engaged, the Quality button refuses to cycle. (On MetaModule, where Quality is a four-position switch, the switch still changes the selection, but the reformat waits for Freeze to release.)
+All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Going between stereo (both inputs patched) and mono, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Freeze is engaged, the Quality button refuses to cycle. (On MetaModule, where Quality is a four-position switch, the switch still changes the selection, but the reformat waits for Freeze to release.)
 
 ## Context-menu options
 

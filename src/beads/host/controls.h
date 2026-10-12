@@ -137,6 +137,9 @@ class CvChannel {
 inline void InitTimeSizeShapeCv(CvChannel* c) { c->Init(0.5f, -1.6f, 1.6f); }
 inline void InitDensityCv(CvChannel* c) { c->Init(1.0f, -1.0f, 1.0f); }
 inline void InitPitchCv(CvChannel* c) { c->Init(1.0f, -60.0f, 60.0f); }
+// Beads' assignable CV (it can drive Feedback, Dry/wet or Reverb): V/5,
+// smoothed a little more, +-1.
+inline void InitMixCv(CvChannel* c) { c->Init(0.1f, -1.0f, 1.0f); }
 
 // Beads' pot settings (cv_reader.cc): all pots smooth at 0.05 per block,
 // Time also has 0.001 of hysteresis.
@@ -144,11 +147,11 @@ constexpr float kPotLp = 0.05f;
 constexpr float kTimeHysteresis = 0.001f;
 
 // Feedback / Dry-wet / Reverb: Beads scales the pot by 1.005 so the end stop
-// reaches 1.0, then adds its assignable CV. RobotBoy has one CV input per
-// parameter, each with its own attenuverter.
-inline float MixParameter(float knob, float cv_volts, float amount) {
-  if (!std::isfinite(cv_volts)) cv_volts = 0.0f;
-  float v = knob * 1.005f + cv_volts * 0.2f * amount;
+// reaches 1.0, then adds its assignable CV (conditioned by a CvChannel set up
+// with InitMixCv). RobotBoy has one CV input per parameter, each with its own
+// attenuverter.
+inline float MixParameter(float knob, float cv, float amount) {
+  float v = knob * 1.005f + cv * amount;
   CONSTRAIN(v, 0.0f, 1.0f);
   return v;
 }

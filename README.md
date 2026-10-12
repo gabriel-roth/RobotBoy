@@ -2,7 +2,7 @@
 
 **Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It contains:
 
-* Mutable Instruments Beads, split into three modules and running on Beads' own source code:
+* Three modules built on the open-source code of Émilie Gillet's Beads texture synthesizer:
 	* **[Particules](Particules.md):** A granular texture processor.
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.

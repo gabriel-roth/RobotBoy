@@ -1,6 +1,6 @@
 # Ondes
 
-**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule): the hidden oscillator Mutable Instruments Beads plays when nothing is patched into its inputs, running on Beads' own code and wavetables. There are 12 banks of 16 band-limited waveforms. **Position** sweeps smoothly through the waveforms in the current bank, interpolating between neighbours; **Bank** switches between banks with a short crossfade.
+**Ondes** is a morphing wavetable oscillator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule): the hidden oscillator that Beads, Émilie Gillet's texture synthesizer, plays when nothing is patched into its inputs, running on Beads' open-source code and wavetables. There are 12 banks of 16 band-limited waveforms. **Position** sweeps smoothly through the waveforms in the current bank, interpolating between neighbours; **Bank** switches between banks with a short crossfade.
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="500">
 

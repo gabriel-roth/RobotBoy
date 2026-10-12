@@ -1,6 +1,6 @@
 # Retours
 
-**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. Retours is the delay mode hidden inside Mutable Instruments Beads, and runs on Beads' own DSP code.
+**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. Retours is the delay mode hidden inside Beads, Émilie Gillet's texture synthesizer, running on its open-source DSP code.
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
@@ -63,10 +63,10 @@ The **Quality** button (top center, with the multicolor LED) cycles through four
 
 - ***Bright digital*** (white LED) — 48 kHz, 16-bit. Cleanest and brightest. 4-second buffer.
 - ***Cold digital*** (cyan LED) — 32 kHz, 12-bit, gently saturated feedback. 8-second buffer.
-- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, with soft saturation on the input and in the feedback path. 10.7-second buffer.
-- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier saturation, wow and flutter. Crunchy lo-fi. 16-second buffer.
+- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gently saturated feedback, and soft saturation on the input when the gain is set manually. 10.7-second buffer.
+- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier feedback saturation (and input saturation when the gain is set manually), wow and flutter. Crunchy lo-fi. 16-second buffer.
 
-All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Patching or unpatching an input, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
+All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Going between stereo (both inputs patched) and mono, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
 
 ### The trimpots (Time · Pitch · Shape)
 
@@ -92,7 +92,7 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
-- **Quality** — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
+- **Quality** (VCV Rack only; on MetaModule, use the Quality switch) — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
 - **Auto gain / Manual gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.

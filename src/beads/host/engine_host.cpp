@@ -183,7 +183,10 @@ void EngineHost::RunBlock(ControlSource* controls) {
     return;  // streams were reset; this block's input is discarded
   }
 
-  BlockControls c;
+  // Controls are read every block, as beads.cc reads its pots even while
+  // the codec restarts; a source with one-shot controls should hold them
+  // while muted() (the processor doesn't run then).
+  BlockControls c{};
   controls->ReadControls(&c);
 
   if (clear_requested_) {
@@ -313,8 +316,10 @@ HostFrameOut EngineHost::Process(const HostFrameIn& in,
     } else {
       const auto& f = output_fifo_[fifo_read_];
       fifo_read_ = (fifo_read_ + 1) % kOutputFifoSize;
-      result.l = f[0];
-      result.r = f[1];
+      // Clip again at the host rate: resampling clipped material can
+      // overshoot full scale by a few percent between samples.
+      result.l = std::min(std::max(f[0], -1.0f), 1.0f);
+      result.r = std::min(std::max(f[1], -1.0f), 1.0f);
       result.gate = f[2] > 0.5f;
     }
   }

@@ -68,9 +68,14 @@ TEST_CASE("Pot channel starts at its first reading, then smooths") {
 
 TEST_CASE("Mix parameter: knob scaling, attenuverted CV, clamping") {
   CHECK(MixParameter(1.0f, 0.0f, 0.0f) == 1.0f);
-  CHECK_THAT(MixParameter(0.2f, 2.5f, 0.5f), WithinAbs(0.201f + 0.25f, 1e-5));
-  CHECK(MixParameter(0.5f, NAN, 1.0f) == 0.5025f);
-  CHECK(MixParameter(0.2f, -10.0f, 1.0f) == 0.0f);
+  CHECK_THAT(MixParameter(0.2f, 0.5f, 0.5f), WithinAbs(0.201f + 0.25f, 1e-5));
+  CHECK(MixParameter(0.2f, -2.0f, 1.0f) == 0.0f);
+  CvChannel mix;
+  InitMixCv(&mix);
+  CHECK_THAT(mix.Process(10.0f * 0.2f), WithinAbs(0.2f, 1e-6));  // 0.1 one-pole
+  for (int i = 0; i < 200; ++i) mix.Process(10.0f * 0.2f);
+  CHECK(mix.value() == 1.0f);                                     // clamped
+  CHECK(std::isfinite(mix.Process(NAN)));                         // NaN reads 0
 }
 
 TEST_CASE("Pitch lock modes") {

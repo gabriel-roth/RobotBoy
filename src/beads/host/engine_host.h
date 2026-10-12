@@ -97,6 +97,9 @@ class EngineHost {
   bool ok() const { return processor_ != nullptr; }
   float gain_db() const;
   bool buffer_empty() const { return buffer_empty_; }
+  // True during the 0.25 s of silence after a reformat, when the processor
+  // isn't running.
+  bool muted() const { return transition_blocks_ > 0; }
   int active_grains() const { return active_grains_; }
   Quality requested_quality() const { return requested_quality_; }
   Quality active_quality() const { return quality_; }

@@ -75,6 +75,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	robotboy_beads::PotChannel time_pot_, pitch_pot_, shape_pot_, interval_pot_;
 	robotboy_beads::PotChannel time_ar_pot_, pitch_ar_pot_, shape_ar_pot_;
 	robotboy_beads::CvChannel time_cv_, pitch_cv_, shape_cv_, interval_cv_;
+	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_;
 
 	// Module state
 	int quality_state_ = 0;   // 0-3, same encoding/colors as Particules
@@ -166,6 +167,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		robotboy_beads::InitTimeSizeShapeCv(&shape_cv_);
 		robotboy_beads::InitPitchCv(&pitch_cv_);
 		robotboy_beads::InitDensityCv(&interval_cv_);
+		robotboy_beads::InitMixCv(&feedback_cv_);
+		robotboy_beads::InitMixCv(&dry_wet_cv_);
 
 		// Delay mode only; Retours has no Reverb control.
 		if (!host_.Init(beads::Processor::MODE_DELAY, false,
@@ -260,9 +263,9 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			? interval_cv_.Process(volts(INTERVAL_CV_INPUT) * 0.2f) : 0.f;
 
 		c->mix.feedback = robotboy_beads::MixParameter(params[FEEDBACK_PARAM].getValue(),
-			volts(FEEDBACK_CV_INPUT), params[FEEDBACK_AR_PARAM].getValue());
+			feedback_cv_.Process(volts(FEEDBACK_CV_INPUT) * 0.2f), params[FEEDBACK_AR_PARAM].getValue());
 		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
-			volts(DRY_WET_CV_INPUT), params[DRY_WET_AR_PARAM].getValue());
+			dry_wet_cv_.Process(volts(DRY_WET_CV_INPUT) * 0.2f), params[DRY_WET_AR_PARAM].getValue());
 		c->mix.reverb_amount = 0.f;
 		c->mix.output_gate = false;
 
@@ -274,15 +277,17 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		if (clock_tick_pending_ && clock_patched)
 			tempo_held_ = true;
 		c->seed_patched = clock_patched;
-		if (tap_pending_) {
+		// While the engine is muted after a reformat it isn't listening, so a
+		// tap waits for it.
+		if (tap_pending_ && !host_.muted()) {
 			c->seed_button = beads::SEED_BUTTON_STATE_ON;
 			tempo_held_ = true;
+			tap_pending_ = false;
 		} else {
 			c->seed_button = tempo_held_
 				? beads::SEED_BUTTON_STATE_OFF
 				: beads::SEED_BUTTON_STATE_LOCKED;
 		}
-		tap_pending_ = false;
 		clock_tick_pending_ = false;
 
 		c->gain_setting = auto_gain_ ? 0 : BeadsManualGainByte(manual_gain_db_);
@@ -387,6 +392,9 @@ struct RetoursWidget : ModuleWidget {
 		menu->addChild(new MenuSeparator);
 
 		// --- Quality ---
+		// VCV only: on MetaModule Quality is a front-panel switch, which
+		// process() reads every sample, so a menu choice would be overwritten.
+#ifndef METAMODULE
 		menu->addChild(createIndexSubmenuItem("Quality",
 			{"Bright digital", "Cold digital", "Sunny tape", "Scorched cassette"},
 			[=]() { return module->quality_state_; },
@@ -395,6 +403,7 @@ struct RetoursWidget : ModuleWidget {
 					[=]() { module->quality_state_ = val; });
 			}
 		));
+#endif
 
 		appendBeadsGainMenu(menu, module);
 
