@@ -75,3 +75,47 @@ TEST_CASE("the response doesn't depend on the host rate") {
         for (float hz : {200.f, 1000.f, 5000.f})
             REQUIRE(SineGain(bw, hz, 96000.f) == Catch::Approx(SineGain(bw, hz, 48000.f)).margin(0.05));
 }
+
+// The -3 dB point (against the passband) of the engaged filter, found by a
+// log-spaced sweep with linear interpolation between neighbouring tones.
+static float MinusThreeDbHz(float bandwidth, bool high_pass) {
+    const float sr = 48000.f;
+    const float ref = SineGain(bandwidth, high_pass ? 20000.f : 20.f, sr);
+    const float target = ref * 0.70710678f;
+    float prev_hz = 0.f, prev_g = 0.f;
+    bool have_prev = false;
+    // LP: sweep up until the gain falls below target; HP: sweep up until it rises above.
+    for (float hz = 20.f; hz < 20000.f; hz *= 1.02f) {
+        const float g = SineGain(bandwidth, hz, sr);
+        if (have_prev && (high_pass ? (g >= target && prev_g < target)
+                                    : (g <= target && prev_g > target))) {
+            const float t = (target - prev_g) / (g - prev_g);
+            return prev_hz + t * (hz - prev_hz);
+        }
+        prev_hz = hz; prev_g = g; have_prev = true;
+    }
+    return 0.f;
+}
+
+// Beads states the cutoff as 0.49 * 2^octave of its 48 kHz rate (LP: -7..-2
+// octaves, HP: -8..-3), with Q = 1 + 16 * amount * f. The -3 dB point of a
+// second-order section sits at x * fc, where x depends on that Q.
+static float ExpectedMinusThreeDbHz(float bandwidth) {
+    const bool hp = bandwidth >= 0.5f;
+    const float amount = std::fabs(2.f * bandwidth - 1.f);
+    const float octave = hp ? -8.f + (bandwidth - 0.5f) * 10.f : -7.f + bandwidth * 10.f;
+    const float f48 = 0.49f * std::exp2(octave);
+    const float q = 1.f + 16.f * amount * f48;
+    const float a = 2.f - 1.f / (q * q);
+    const float x = std::sqrt((a + std::sqrt(a * a + 4.f)) / 2.f);
+    return f48 * 48000.f * (hp ? 1.f / x : x);
+}
+
+TEST_CASE("the cutoff follows Beads' formula at 48 kHz") {
+    for (float bw : {0.1f, 0.9f}) {
+        const float got = MinusThreeDbHz(bw, bw >= 0.5f);
+        const float want = ExpectedMinusThreeDbHz(bw);
+        INFO("bandwidth " << bw << ": measured " << got << " Hz, expected " << want << " Hz");
+        REQUIRE(got == Catch::Approx(want).epsilon(0.10));
+    }
+}
