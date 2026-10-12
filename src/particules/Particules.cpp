@@ -72,7 +72,7 @@ Particules::Particules() {
 	// Adding separate light labels would show a second overlapping tooltip.
 
 	sample_rate_ = APP->engine->getSampleRate();
-	classic_ = false;
+	classic_.store(false);
 	engine_ = MakeParticulesBeads(*this);
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
@@ -81,20 +81,24 @@ Particules::Particules() {
 }
 
 void Particules::requestMode(bool classic) {   // UI thread
-	pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
+	pending_mode_.store(kModeLive + (classic ? 1 : 0), std::memory_order_release);
 }
 
 void Particules::applyPendingMode(float sample_rate) {   // audio thread
-	const int want = pending_mode_.exchange(-1, std::memory_order_acq_rel);
-	if (want < 0) return;
-	if (engine_ && bool(want) == classic_) return;
-	if (engine_ && engine_->frozen()) return;   // refused, like Quality
-	classic_ = want;
+	const int pending = pending_mode_.exchange(kModeNone, std::memory_order_acq_rel);
+	if (pending < 0) return;
+	const bool want = (pending & 1) != 0;
+	const bool forced = pending >= kModeForced;
+	if (engine_ && want == classicMode()) return;
+	// A live switch is refused while frozen, like Quality. A load or undo
+	// is not: the module must run the mode its JSON says.
+	if (engine_ && !forced && engine_->frozen()) return;
+	classic_.store(want, std::memory_order_relaxed);
 	sample_rate_ = sample_rate;
 	engine_.reset();   // free first: peak RAM is the larger engine, not both
-	engine_ = classic_ ? MakeParticulesClassic(*this) : MakeParticulesBeads(*this);
+	engine_ = want ? MakeParticulesClassic(*this) : MakeParticulesBeads(*this);
 	if (!engine_ || !engine_->ok())
-		WARN("Particules: could not allocate the %s engine", classic_ ? "classic" : "Beads");
+		WARN("Particules: could not allocate the %s engine", want ? "classic" : "Beads");
 	scale_dirty_.store(true, std::memory_order_release);
 	// A patch loaded straight into a mode switches before the first frame:
 	// nothing has played, so there is nothing to mute.
@@ -106,8 +110,12 @@ void Particules::process(const ProcessArgs& args) {
 	processed_any_ = true;
 	if (engine_) {
 		engine_->process(args);
+		ui_frozen_.store(engine_->frozen(), std::memory_order_relaxed);
+		ui_clear_disabled_.store(engine_->clearDisabled(), std::memory_order_relaxed);
 	} else {
 		mute_seconds_ = std::max(mute_seconds_, args.sampleTime);   // no engine: silence
+		ui_frozen_.store(false, std::memory_order_relaxed);
+		ui_clear_disabled_.store(true, std::memory_order_relaxed);
 	}
 	if (mute_seconds_ > 0.f) {
 		outputs[OUT_L_OUTPUT].setVoltage(0.f);
@@ -135,7 +143,8 @@ void Particules::onReset(const ResetEvent& e) {
 	auto_gain_           = true;
 	manual_gain_db_      = 0.f;
 	recalibrate_requested_.store(true);
-	if (engine_) engine_->onReset();
+	clear_requested_.store(true);
+	if (engine_) engine_->onReset();   // runs under Rack's engine lock
 }
 
 void Particules::onPortChange(const PortChangeEvent& e) {
@@ -196,8 +205,9 @@ void Particules::dataFromJson(json_t* root) {
 	if ((j = json_object_get(root, "tapeHiss")))
 		tape_hiss_ = json_boolean_value(j);
 
-	// The engine swap happens at the next process(), on the audio thread.
-	pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
+	// The engine swap happens at the next process(), on the audio thread,
+	// forced: a load or undo applies even while frozen.
+	pending_mode_.store(kModeForced + (classic ? 1 : 0), std::memory_order_release);
 }
 
 std::string QualityParamQuantity::getDisplayValueString() {
@@ -238,7 +248,7 @@ struct ParticulesWidget : ModuleWidget {
 		// Refused while frozen, like Quality: a switch would drop the frozen
 		// recording.
 		{
-			const bool frozen = module->engine_ && module->engine_->frozen();
+			const bool frozen = module->ui_frozen_.load(std::memory_order_relaxed);
 			menu->addChild(createBoolMenuItem("Classic mode",
 				frozen ? "Unfreeze to switch" : "",
 				[=]() { return module->displayedClassicMode(); },
@@ -250,8 +260,10 @@ struct ParticulesWidget : ModuleWidget {
 			));
 		}
 
-		if (module->engine_)
-			module->engine_->appendMenu(menu);
+		// The engine's own items, for the mode the toggle shows. Built from
+		// module state only: the UI thread never touches engine_.
+		if (!module->displayedClassicMode())
+			AppendParticulesBeadsMenu(module, menu);
 
 		// --- Pitch Lock ---
 		menu->addChild(createIndexSubmenuItem("Lock pitch",
@@ -288,8 +300,8 @@ struct ParticulesWidget : ModuleWidget {
 		// Deferred to the audio thread (process()) to avoid racing the DSP;
 		// takes effect at the next block boundary.
 		menu->addChild(createMenuItem("Clear buffer", "",
-			[=]() { if (module->engine_) module->engine_->requestClear(); },
-			/*disabled=*/!module->engine_ || module->engine_->clearDisabled()
+			[=]() { module->clear_requested_.store(true); },
+			/*disabled=*/module->ui_clear_disabled_.load(std::memory_order_relaxed)
 		));
 
 	}

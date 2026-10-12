@@ -52,12 +52,11 @@ void ParticulesBeads::onSampleRateChange(float sample_rate) {
 
 void ParticulesBeads::onReset() {
 	seed_held_ = false;
-	clear_requested_.store(true);
 }
 
-void ParticulesBeads::appendMenu(rack::ui::Menu* menu) {
-	appendBeadsGainMenu(menu, &m_);
-	appendBeadsHissMenu(menu, &m_);
+void AppendParticulesBeadsMenu(Particules* m, rack::ui::Menu* menu) {
+	appendBeadsGainMenu(menu, m);
+	appendBeadsHissMenu(menu, m);
 }
 
 beads::RandomizedParameter ParticulesBeads::Randomized(float base, float attenuverter,
@@ -73,7 +72,7 @@ beads::RandomizedParameter ParticulesBeads::Randomized(float base, float attenuv
 void ParticulesBeads::ReadControls(robotboy_beads::BlockControls* c) {
 	if (m_.scale_dirty_.exchange(false, std::memory_order_acquire))
 		pitch_lock_.Set(m_.pitch_scale_, m_.pitch_root_);
-	if (clear_requested_.exchange(false))
+	if (m_.clear_requested_.exchange(false))
 		host_.RequestClear();
 	if (m_.recalibrate_requested_.exchange(false))
 		host_.RecalibrateGain();

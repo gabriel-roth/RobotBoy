@@ -18,10 +18,8 @@ class ParticulesBeads : public ParticulesEngine, public robotboy_beads::ControlS
 	void process(const rack::Module::ProcessArgs& args) override;
 	void onSampleRateChange(float sample_rate) override;
 	void onReset() override;
-	void requestClear() override { clear_requested_.store(true); }
 	bool clearDisabled() const override { return host_.buffer_empty(); }
 	bool frozen() const override { return frozen_; }
-	void appendMenu(rack::ui::Menu* menu) override;
 
 	// Called by the engine host at the start of every Beads block.
 	void ReadControls(robotboy_beads::BlockControls* c) override;
@@ -52,7 +50,6 @@ class ParticulesBeads : public ParticulesEngine, public robotboy_beads::ControlS
 	float seed_pulse_phase_ = 0.f;
 	rack::dsp::SchmittTrigger freeze_gate_;   // 0.1 V / 1 V hysteresis on FREEZE gate
 	rack::dsp::SchmittTrigger seed_gate_;     // same for SEED
-	std::atomic<bool> clear_requested_{false};
 	bool metamodule_fpu_configured_ = false;
 
 	// Grain LED. (The input-level readout, input_peak_, is on the module.)
