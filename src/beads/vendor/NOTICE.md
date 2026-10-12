@@ -13,7 +13,8 @@ All local changes are in `robotboy.patch` and are marked `// RobotBoy:` in the s
 1. `Processor` can pin granular or delay mode (`set_mode_lock`) instead of following the Size knob, skip the reverb (`set_reverb_enabled`), clear the active buffer (`ClearBuffer`), and report its active grain count (`num_active_grains`) and the per-frame gate of the last block (`gate_out`).
 2. `Parameters::pitch_lock`: an optional quantizer applied to each grain's pitch, in semitones, when the grain starts.
 3. The packed 12-bit delay-line items force the GCC bitfield layout on MinGW, and every item size is checked with a `static_assert`.
-4. `stmlib.h` defines `M_PI` when a strict `-std=c++20` C library (MetaModule's newlib) hides it.
+4. `Tap` skips the delay-line reads of a tap whose gain is zero (it still advances its pitch-shifter phase). The output is bit-identical; delay mode costs much less CPU, because most of its 16 taps are silent at any moment.
+5. `stmlib.h` defines `M_PI` when a strict `-std=c++20` C library (MetaModule's newlib) hides it.
 
 ## Build notes
 

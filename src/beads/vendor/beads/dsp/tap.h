@@ -59,6 +59,10 @@ class Tap {
       return;
     }
     if (window_size == 1) {
+      // RobotBoy: a silent tap adds exactly nothing; skip the read.
+      if (gain == 0.0f) {
+        return;
+      }
       *out += gain * delay_line->template Read<INTERPOLATION_HERMITE>(delay);
       return;
     }
@@ -71,6 +75,14 @@ class Tap {
       phase_ -= full_window_size;
     } else if (phase_ < 0) {
       phase_ += full_window_size;
+    }
+    
+    // RobotBoy: the phase above must keep running, but a silent tap adds
+    // exactly nothing (the delay line holds integers, never NaN); skip the
+    // two reads. Most taps are silent: the pitch-shifted set whenever Pitch
+    // is at unison, and every tap whose ratio or interval is faded out.
+    if (gain == 0.0f) {
+      return;
     }
     
     delay = std::max(full_window_size + 1, delay + half_window_size);
