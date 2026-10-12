@@ -106,3 +106,7 @@ jobs:
           files: artifacts/**/*.vcvplugin
           generate_release_notes: true
           fail_on_unmatched_files: true
+          # A tag with a suffix (v2.2.0-beta.1) publishes a pre-release that
+          # never becomes Latest; plain version tags publish normally.
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          make_latest: ${{ !contains(github.ref_name, '-') }}
