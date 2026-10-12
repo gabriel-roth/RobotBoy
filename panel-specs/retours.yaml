@@ -1,107 +1,34 @@
 # Retours panel spec (vcv-panel-gen) — generates res/Retours.svg.
-# LIKE Particules, the panel this replaces was a HAND-BUILT Inkscape
-# original, not a generated SVG, so panel-path byte parity is NOT the goal
-# here. Component-CENTER parity IS mandatory (the firmware's
-# mm2px(Vec(...)) coordinates in src/retours_delay/Retours.cpp are locked to
-# it, and MetaModule's coordinate sync depends on it). Regenerate with (see panel-specs/README.md for setup):
+# Regenerate with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/retours.yaml --out res/Retours.svg
 #
-# Every x/y below is copied verbatim from Retours.cpp's
-# createParamCentered/createInputCentered/createOutputCentered/
-# createLightCentered mm2px(Vec(...)) call sites (module code comment: "mm
-# centers of the components in res/Retours.svg, carried verbatim into these
-# mm2px(Vec(...)) calls") — these are the ground truth, cross-checked
-# against the hand-built original's own (bare-id, non-true-radius)
-# components layer: every center matched to the mm.
+# 15 HP, laid out on Particules' grid (same columns, rows, label baselines,
+# plate and I/O positions -- see particules.yaml), so the two Beads-derived
+# panels read as siblings. Retours is Beads' delay mode, and the two controls
+# added in the 15 HP redesign sit where Beads keeps them relative to
+# Particules' layout:
+#   - FILTER takes Particules' SIZE slot (top right): on Beads, delay mode's
+#     filter is played from the Size attenurandomizer.
+#   - REVERB takes Particules' REVERB slot.
+# Both have a CV jack and a plain attenuverter trimpot (no randomizer mark),
+# like FEEDBACK and DRY/WET.
 #
-# Eight documented name-only exceptions, all at cpp-identical positions (same
-# pattern as Particules' DENSITY_AR_PARAM/GRAIN_LIGHT footnote — a stale name
-# baked into the hand-built SVG's invisible components layer, left over from
-# an earlier naming scheme, that never matched any tracked cpp history):
-# hand-built TIME_INPUT/DENSITY_INPUT/PITCH_INPUT/SHAPE_INPUT/FEEDBACK_INPUT/
-# DRY_WET_INPUT (no "_CV_" infix) correspond to cpp's TIME_CV_INPUT/
-# INTERVAL_CV_INPUT/PITCH_CV_INPUT/SHAPE_CV_INPUT/FEEDBACK_CV_INPUT/
-# DRY_WET_CV_INPUT (DENSITY_CV_INPUT before the delay-mode rename below),
-# and hand-built FEEDBACK_AMT_PARAM/DRY_WET_AMT_PARAM
-# ("_AMT_") correspond to cpp's FEEDBACK_AR_PARAM/DRY_WET_AR_PARAM ("_AR_").
-# This spec follows cpp throughout (matching the module's actual current
-# param/input ids).
+# Every x/y here must match the mm2px(Vec(...)) centers in
+# src/retours_delay/Retours.cpp, which are carried verbatim from this spec.
 #
-# Widget classes: cpp wraps SLICE_PARAM and QUALITY_PARAM (desktop build) in
-# light-capable templates (VCVLightLatch<MediumSimpleLight<WhiteLight>>,
-# VCVLightBezel<RedGreenBlueLight>) and CLOCK_PARAM is a plain VCVButton;
-# QUALITY_PARAM has a MetaModule-only alternate widget (QualityMmSwitch)
-# behind #ifdef METAMODULE that this SVG, shared by both builds, doesn't
-# need to represent (same precedent as Particules' QUALITY_PARAM). Per
-# Particules' precedent, the light-capable templates collapse to their base
-# components.yaml shape class: SLICE_PARAM/CLOCK_PARAM -> VCVButton (d=6.1),
-# QUALITY_PARAM -> VCVBezel (d=7.2).
+# Transport row: SLICE (input + latch button) on the left and CLOCK (tap
+# button + input) on the right are mirror images about the panel center
+# (38.1mm), with QUALITY centered between them. Each pair's label sits on
+# the pair's midpoint.
 #
-# One documented radius-only discrepancy (not a centers/gate concern —
-# components_of never reads r, only cx/cy): the hand-built original's
-# SHAPE_PARAM/FEEDBACK_PARAM/DRY_WET_PARAM circles are drawn at r=3.67, but
-# cpp's createParamCentered<RoundBlackKnob> calls for all three are the same
-# RoundBlackKnob widget (d=9.6, r=4.8) as the primary knobs row -- the
-# hand-built artist apparently drew the secondary row's marker circles
-# smaller for visual hierarchy even though the code has always used a
-# same-size knob there. This spec follows cpp (uniform RoundBlackKnob,
-# panel-gen's default widget for a _PARAM-suffixed name, no override needed).
-#
-# One deliberate visual departure from the original hand-built panel: the
-# audio I/O is labelled as true stereo pairs, IN / OUT, each
-# centered on its own pair's midpoint -- not the original's per-channel
-# "L IN R" / "L OUT R" lettering -- matching how every other RobotBoy module
-# labels its stereo jacks.
-#
-# Label positions/baselines: measured directly from the hand-built
-# original's own panel-layer <path> bounding boxes (max-y = baseline,
-# tools/extract_reference.py) — approximate, since a path bbox includes
-# Bezier control points and can overshoot a curved glyph's true rendered
-# baseline by a few hundredths of a mm (see that tool's own docstring); the
-# three-label rows (TIME/DENSITY/PITCH, SHAPE/FEEDBACK/DRY-WET) each measured
-# slightly differently letter-to-letter for exactly that reason, so one
-# representative baseline is used per row rather than hunting for false
-# per-letter precision. Not byte-exact (panel-path parity isn't asserted for
-# this hand-built module) but visually faithful to the shipped panel.
-#
-# CORRECTED (post-migration review, folding in a transform extract_reference.py
-# does not account for): the hand-built original's row-1 label paths
-# (TIME/DENSITY/PITCH) each carry `transform="translate(0,1.142)"`, and its
-# row-2 label paths (SHAPE/FEEDBACK/DRY-WET) each carry
-# `transform="translate(0,-1.142)"` — tools/extract_reference.py's
-# `_path_bbox` reads only the raw `d` coordinates and ignores `transform`
-# entirely, so the first migration pass baked in the untransformed
-# (pre-render) baselines: row-1 measured ~33.4 raw, but the transform pushes
-# it down 1.142mm at render time -> true baseline 34.542; row-2 measured
-# ~75.61 raw, but its transform pushes it up 1.142mm -> true baseline
-# 74.468. Both grids.labels rows below now carry the transform-corrected
-# (true rendered) baseline instead of the raw untransformed one. The
-# hand-built original set DRY/WET's baseline +0.71mm below its row-mates
-# (FEEDBACK/SHAPE) — a one-off quirk (Particules' own DRY/WET has the same
-# kind, +0.32mm there) — but that misaligns the row, so DRY/WET now shares
-# its row-mates' row2 baseline (no per-label dy) rather than reproducing it.
-#
-# No connector bars: every primary/secondary knob stacks its own CV jack
-# below it with no bar between them (the original draws none, and neither
-# does cpp's addChild sequence — no rects in its panel layer besides the
-# background and the grey control-plate zone). The clock LED occupies the
-# INTERVAL column's attenuverter slot in row 1 (no attenuverter trimpot
-# there — INTERVAL_PARAM has none in cpp's ParamId enum).
-#
-# RENAME (delay-mode labels): the FREEZE control was renamed SLICE and the
-# DENSITY control renamed INTERVAL, to match their delay-mode function (SLICE
-# freezes the buffer and loops a slice; INTERVAL sets the base repeat interval
-# that TIME multiplies). cpp enum ids, tooltips, and these element names/labels
-# all follow the new names. The historical measurement-provenance comments
-# above still say FREEZE/DENSITY where they describe the ORIGINAL hand-built
-# panel's actual lettering — that lettering really was FREEZE/DENSITY, so those
-# notes are left as-is for accuracy.
+# Knob-surround glyphs keep the offsets they had from their knobs on the
+# 11 HP panel: shape legend around SHAPE, the tap-count ticks and the new
+# low-/high-pass curves on the 45-degree diagonals below INTERVAL and FILTER,
+# the unity-gain arrow at 82% of FEEDBACK's travel, and attenurandomizer
+# marks above the TIME, PITCH and SHAPE trimpots.
 slug: Retours
 name: RETOURS
-hp: 11
-side_margin: 3.04   # vestigial: every grid column below is an explicit
-                     # literal (the 11.34/27.94/44.54mm columns were derived
-                     # from this 3.04mm side margin).
+hp: 15
 
 title:
   size: 6.35
@@ -111,171 +38,109 @@ title:
     - {pair: OU, em: -0.01}   # a hair
     - {pair: UR, em: 0.02}    # straight+straight — open a hair
     - {pair: RS, em: -0.04}   # R's diagonal leg meets S's curve
-  # The default baseline formula (valign: baseline -> size + 1.0 = 7.35)
-  # doesn't match this panel; dy shifts it to the shipped panel's measured
-  # baseline (bbox max-y of the "RETOURS" text path = 8.000).
-  dy: 0.65
+  # Same title baseline as Particules (8.561mm, its shipped panel's measured
+  # value) so the two 15 HP panels line up side by side; the default formula
+  # (size + 1.0 = 7.35) sits 1.211mm higher.
+  dy: 1.211
 
 theme:
   screws: none    # the module widget draws its own ScrewBlack corners.
 
-# Opaque grey control plate behind the knob cluster (the original has no
-# opacity set on this rect -- fully opaque, unlike Particules' translucent
-# tint zone).
+# Opaque grey control plate (Retours' colour) at Particules' plate size.
 zones:
-  - {x: 1.5, y: 29.142, w: 52.88, h: 78.458, rx: 2, fill: "#888888", opacity: 1.0}
+  - {x: 1.5, y: 28, w: 73.2, h: 79.6, rx: 2, fill: "#888888", opacity: 1.0}
 
 grids:
-  # 3-column knob/CV/attenuverter grid. Columns and rows are the exact cpp
-  # mm2px coordinates (see header comment).
+  # Particules' 4-column knob/CV/attenuverter grid.
   main:
-    cols: [11.34, 27.94, 44.54]
+    cols: [12.6, 29.6, 46.6, 63.6]
     rows:
       knob1: 42.088
-      cv1: 53.217
-      atten1: 62.219
+      cv1: 53.746
+      atten1: 62.746
       knob2: 82.096
-      cv2: 93.225
-      atten2: 102.227
+      cv2: 92.696
+      atten2: 101.696
 
-  # Label baselines above each knob row (measured from the hand-built
-  # original; see header comment for the bbox-overshoot caveat AND the
-  # transform-correction note -- these are the transform-corrected true
-  # rendered baselines, not extract_reference.py's raw untransformed
-  # measurements: row1 = 33.4 raw + 1.142 (path's own translate(0,1.142));
-  # row2 = 75.61 raw - 1.142 (path's own translate(0,-1.142)). The
-  # hand-built original applied these as SVG `transform` attributes on the
-  # label paths themselves, which extract_reference.py's bbox scan does not
-  # read.
   labels:
-    cols: [11.34, 27.94, 44.54]
+    cols: [12.6, 29.6, 46.6, 63.6]
     rows:
-      row1: 34.542
+      row1: 33.96
       row2: 74.468
 
 elements:
-  # --- Transport row: SLICE (input + latch button), QUALITY (bezel),
-  # CLOCK (button + input) -- all at y=15.875, cpp's exact x values. Labels
-  # sit at each pair's/component's own measured x center (all within
-  # ~0.1mm of the exact midpoint -- no deliberate off-center nudge here,
-  # unlike Particules' FREEZE label).
-  - {name: SLICE_INPUT, x: 6.94, y: 15.875}
-  - {name: SLICE_PARAM, widget: VCVButton, x: 15.94, y: 15.875}
-  - {name: QUALITY_PARAM, widget: VCVBezel, x: 27.94, y: 15.875}
-  - {name: CLOCK_PARAM, widget: VCVButton, x: 39.94, y: 15.875}
-  - {name: CLOCK_INPUT, x: 48.94, y: 15.875}
-  - {text: SLICE, x: 11.44, y: 24.0, size: 3.175}
-  - {text: QUALITY, x: 27.94, y: 24.096, size: 3.175}
-  - {text: CLOCK, x: 44.44, y: 24.045, size: 3.175}
+  # --- Transport row, mirrored about the 38.1mm center line.
+  - {name: SLICE_INPUT, x: 11.9, y: 15.875}
+  - {name: SLICE_PARAM, widget: VCVButton, x: 20.4, y: 15.875}
+  - {name: QUALITY_PARAM, widget: VCVBezel, x: 38.1, y: 15.875}
+  - {name: CLOCK_PARAM, widget: VCVButton, x: 55.8, y: 15.875}
+  - {name: CLOCK_INPUT, x: 64.3, y: 15.875}
+  - {text: SLICE, x: 16.15, y: 24.0, size: 3.175}
+  - {text: QUALITY, x: 38.1, y: 24.05, size: 3.175}
+  - {text: CLOCK, x: 60.05, y: 24.0, size: 3.175}
 
-  # --- Row 1: TIME / INTERVAL / PITCH knobs, each over its own CV jack (no
-  # connecting bar -- cpp draws none, and neither did the original).
-  # INTERVAL's attenuverter slot instead holds the CLOCK_LIGHT indicator
-  # (cpp's INTERVAL_PARAM has no attenuverter); TIME/PITCH keep their
-  # trimpots.
-  - {text: TIME,    grid: labels, col: 1, row: row1, size: 3.175}
+  # --- Row 1: TIME / INTERVAL / PITCH / FILTER. INTERVAL's trimpot slot
+  # holds the clock light, as before.
+  - {text: TIME,     grid: labels, col: 1, row: row1, size: 3.175}
   - {text: INTERVAL, grid: labels, col: 2, row: row1, size: 3.175}
-  - {text: PITCH,   grid: labels, col: 3, row: row1, size: 3.175}
-  - {name: TIME_PARAM,    grid: main, col: 1, row: knob1}
+  - {text: PITCH,    grid: labels, col: 3, row: row1, size: 3.175}
+  - {text: FILTER,   grid: labels, col: 4, row: row1, size: 3.175}
+  - {name: TIME_PARAM,     grid: main, col: 1, row: knob1}
   - {name: INTERVAL_PARAM, grid: main, col: 2, row: knob1}
-  - {name: PITCH_PARAM,   grid: main, col: 3, row: knob1}
+  - {name: PITCH_PARAM,    grid: main, col: 3, row: knob1}
+  - {name: FILTER_PARAM,   grid: main, col: 4, row: knob1}
   - {name: TIME_CV_INPUT,     grid: main, col: 1, row: cv1}
-  - {name: INTERVAL_CV_INPUT,  grid: main, col: 2, row: cv1}
+  - {name: INTERVAL_CV_INPUT, grid: main, col: 2, row: cv1}
   - {name: PITCH_CV_INPUT,    grid: main, col: 3, row: cv1}
-  - {name: TIME_AR_PARAM,  widget: Trimpot, grid: main, col: 1, row: atten1}
-  - {name: CLOCK_LIGHT,    widget: "MediumLight<WhiteLight>", grid: main, col: 2, row: atten1}
-  - {name: PITCH_AR_PARAM, widget: Trimpot, grid: main, col: 3, row: atten1}
+  - {name: FILTER_CV_INPUT,   grid: main, col: 4, row: cv1}
+  - {name: TIME_AR_PARAM,   widget: Trimpot, grid: main, col: 1, row: atten1}
+  - {name: CLOCK_LIGHT,     widget: "MediumLight<WhiteLight>", grid: main, col: 2, row: atten1}
+  - {name: PITCH_AR_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten1}
+  - {name: FILTER_AR_PARAM, widget: Trimpot, grid: main, col: 4, row: atten1}
 
-  # --- Row 2: SHAPE / FEEDBACK / DRY_WET knobs, each over its own CV jack
-  # and its own attenuverter trimpot.
-  - {text: SHAPE,    grid: labels, col: 1, row: row2, size: 3.175}
-  - {text: FEEDBACK, grid: labels, col: 2, row: row2, size: 3.175}
-  # DRY/WET shares the row2 baseline with SHAPE/FEEDBACK (the original's
-  # +0.71mm drop dropped -- see header comment -- so the row aligns).
-  - {text: "DRY/WET", grid: labels, col: 3, row: row2, size: 3.175}
+  # --- Row 2: SHAPE / FEEDBACK / REVERB / DRY/WET.
+  - {text: SHAPE,     grid: labels, col: 1, row: row2, size: 3.175}
+  - {text: FEEDBACK,  grid: labels, col: 2, row: row2, size: 3.175}
+  - {text: REVERB,    grid: labels, col: 3, row: row2, size: 3.175}
+  - {text: "DRY/WET", grid: labels, col: 4, row: row2, size: 3.175}
   - {name: SHAPE_PARAM,    grid: main, col: 1, row: knob2}
   - {name: FEEDBACK_PARAM, grid: main, col: 2, row: knob2}
-  - {name: DRY_WET_PARAM,  grid: main, col: 3, row: knob2}
+  - {name: REVERB_PARAM,   grid: main, col: 3, row: knob2}
+  - {name: DRY_WET_PARAM,  grid: main, col: 4, row: knob2}
   - {name: SHAPE_CV_INPUT,    grid: main, col: 1, row: cv2}
   - {name: FEEDBACK_CV_INPUT, grid: main, col: 2, row: cv2}
-  - {name: DRY_WET_CV_INPUT,  grid: main, col: 3, row: cv2}
+  - {name: REVERB_CV_INPUT,   grid: main, col: 3, row: cv2}
+  - {name: DRY_WET_CV_INPUT,  grid: main, col: 4, row: cv2}
   - {name: SHAPE_AR_PARAM,    widget: Trimpot, grid: main, col: 1, row: atten2}
   - {name: FEEDBACK_AR_PARAM, widget: Trimpot, grid: main, col: 2, row: atten2}
-  - {name: DRY_WET_AR_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
+  - {name: REVERB_AR_PARAM,   widget: Trimpot, grid: main, col: 3, row: atten2}
+  - {name: DRY_WET_AR_PARAM,  widget: Trimpot, grid: main, col: 4, row: atten2}
 
-  # --- Stereo audio I/O, one shared label per pair centered on the pair's
-  # own midpoint -- see header comment on the IN/OUT-vs-per-channel
-  # departure from the original. Pair geometry copies Particules: 9.7mm
-  # between L/R centers (the stereo-pair rule) and label baseline 8.7mm
-  # below the jack row (114.3 + 8.7 = 123.0), replacing the hand-built
-  # original's wider 11.112mm pairs sized for its per-channel "L IN R"
-  # lettering. Each pair keeps its original midpoint (IN 14.088, OUT
-  # 41.792 -- symmetric about the 27.94 panel centerline), so L/R centers
-  # are midpoint ∓ 4.85. Retours.cpp's mm2px calls were updated in the
-  # same change (these are still cpp-verbatim, just no longer the
-  # hand-built original's values).
-  - {name: IN_L_INPUT,   x: 9.238,  y: 114.3}
-  - {name: IN_R_INPUT,   x: 18.938, y: 114.3}
-  - {name: OUT_L_OUTPUT, x: 36.942, y: 114.3}
-  - {name: OUT_R_OUTPUT, x: 46.642, y: 114.3}
-  - {text: IN,  x: 14.088, y: 123.0, size: 3.175}
-  - {text: OUT, x: 41.792, y: 123.0, size: 3.175}
+  # --- Stereo audio I/O at Particules' positions, one label per pair.
+  - {name: IN_L_INPUT,   x: 15.25, y: 114.3}
+  - {name: IN_R_INPUT,   x: 24.95, y: 114.3}
+  - {name: OUT_L_OUTPUT, x: 51.25, y: 114.3}
+  - {name: OUT_R_OUTPUT, x: 60.95, y: 114.3}
+  - {text: IN,  x: 20.1, y: 123.0, size: 3.175}
+  - {text: OUT, x: 56.1, y: 123.0, size: 3.175}
 
-# Knob-surround marks, ported from Particules (panel-specs/glyphs/particules/)
-# and verified against Retours' own DSP -- shared white-stroke assets copied
-# into panel-specs/glyphs/retours/.
-#
-# --- Attenurandomizer marks (the squiggle-into-arrow above a trimpot) ---
-# Retours' TIME/PITCH/SHAPE trimpots are true attenurandomizers, identical in
-# kind to Particules' TIME/SIZE/SHAPE/PITCH: each drives a slow-random LFO
-# (retours_processor.cpp ar_time/ar_pitch/ar_shape, lines 88-90/182-218), so
-# each gets the mark. FEEDBACK/DRY_WET are PLAIN attenuverters (no LFO -- see
-# Retours.cpp:292/294) and stay bare, exactly as Particules leaves its
-# FEEDBACK/REVERB/DRY-WET trimpots bare. Placement copies Particules' own
-# glyph-to-trimpot offset verbatim: (+0.025, -3.297) for the row-1 pair and
-# (+0.025, -3.310) for the SHAPE trimpot. The trimpot-to-CV-jack gap is 9.00mm
-# on both modules, so no knob repositioning was needed.
-#
-# --- Shape-legend icons around the SHAPE knob ---
-# Retours' SHAPE morph (repeat_envelope.h Gain(): off -> gate -> Hann bell ->
-# reversed ramp) shares only THREE of Particules' four grain-envelope shapes
-# (grain.cpp: rectangle -> snappy-decay -> bell -> reversed). The gate reads as
-# the pulse icon, the Hann bell as the wave icon, the reversed ramp as the
-# caret icon; Particules' "snappy-decay" curve icon has NO Retours counterpart
-# and is dropped. The min (lower-left) slot instead gets a purpose-drawn FLAT
-# line: Retours' SHAPE minimum is "off / no envelope" (repeat_envelope.h
-# returns a constant 1.0 gain at shape<=0.001 -- echoes pass through unshaped,
-# a plain delay), and a flat line is the honest icon for that, so all four
-# corners now read. The icons sit at Particules' own corner offsets from the
-# knob center (±~4.76mm diagonal), so they read the same distance off the knob
-# edge, following the CW sweep from the min: flat lower-left (off) -> pulse
-# upper-left (gate) -> wave upper-right (bell) -> caret lower-right (reversed).
 glyphs:
-  # Attenurandomizer marks (Time / Pitch / Shape trimpots).
-  - {src: glyphs/retours/atten-random.svg, at: [11.365, 58.922]}
-  - {src: glyphs/retours/atten-random.svg, at: [44.565, 58.922]}
-  - {src: glyphs/retours/atten-random.svg, at: [11.365, 98.917]}
-  # Shape-legend icons around the SHAPE knob (11.340, 82.096), CW from the min.
-  - {src: glyphs/retours/shape-flat.svg,  at: [6.540,  86.858]}
-  - {src: glyphs/retours/shape-pulse.svg, at: [6.584,  77.333]}
-  - {src: glyphs/retours/shape-wave.svg,  at: [16.109, 77.333]}
-  - {src: glyphs/retours/shape-caret.svg, at: [16.065, 86.858]}
-  # Unity-gain marker on the FEEDBACK knob (27.94, 82.096): a small triangle
-  # pointing inward at 82% of travel, where Beads' delay-mode feedback
-  # (1.5 * fb^2 small-signal loop gain, fb = 1.005 * knob) reaches unity --
-  # measured at 81-82% across all four Quality settings. RoundBlackKnob sweeps
-  # +/-149.4deg, so 82% = 95.62deg CW from 12 o'clock -> outward unit
-  # vector (0.9952, 0.0979). The asset is authored pre-rotated (glyphs have no
-  # rotation param); its viewBox center is the arrow's axis midpoint, placed
-  # at knob r 4.8 + 0.8 gap + 0.9 half-length = 6.5mm out along the radial.
-  - {src: glyphs/retours/feedback-unity-arrow.svg, at: [34.409, 82.732]}
-  # Tap-count legend flanking the INTERVAL knob (27.94, 42.088): turning CCW
-  # shortens the interval as a single delay tap, turning CW shortens it into a
-  # busier multi-tapped pattern, so the left glyph shows one tap per period and
-  # the right the same period with an extra tap inside it. Placed on the same
-  # 45deg diagonal the SHAPE legend uses (4.7625mm out, 4.762mm down -> 6.73mm
-  # from the knob center, 1.93mm clear of a RoundBlackKnob's 4.8mm edge); the
-  # SHAPE icons' own -4.800/+4.725 asymmetry is a hand-built artefact and is
-  # not reproduced here.
-  - {src: glyphs/retours/interval-single-tap.svg, at: [23.178, 46.850]}
-  - {src: glyphs/retours/interval-extra-tap.svg,  at: [32.703, 46.850]}
+  # Attenurandomizer marks (trimpot center x + 0.025, trimpot y - 3.297 in
+  # row 1, - 3.31 in row 2).
+  - {src: glyphs/retours/atten-random.svg, at: [12.625, 59.449]}
+  - {src: glyphs/retours/atten-random.svg, at: [46.625, 59.449]}
+  - {src: glyphs/retours/atten-random.svg, at: [12.625, 98.386]}
+  # Shape legend around SHAPE (12.6, 82.096), CW from the min.
+  - {src: glyphs/retours/shape-flat.svg,  at: [7.800,  86.858]}
+  - {src: glyphs/retours/shape-pulse.svg, at: [7.844,  77.333]}
+  - {src: glyphs/retours/shape-wave.svg,  at: [17.369, 77.333]}
+  - {src: glyphs/retours/shape-caret.svg, at: [17.325, 86.858]}
+  # Unity-gain arrow at 82% of FEEDBACK's (29.6, 82.096) travel; see
+  # feedback-unity-arrow.svg for the angle and the 6.5mm radial placement.
+  - {src: glyphs/retours/feedback-unity-arrow.svg, at: [36.069, 82.732]}
+  # Tap-count legend on INTERVAL (29.6, 42.088) and low-/high-pass legend on
+  # FILTER (63.6, 42.088): 45-degree diagonals 4.762mm out and down.
+  - {src: glyphs/retours/interval-single-tap.svg, at: [24.838, 46.850]}
+  - {src: glyphs/retours/interval-extra-tap.svg,  at: [34.363, 46.850]}
+  - {src: glyphs/retours/filter-lowpass.svg,      at: [58.838, 46.850]}
+  - {src: glyphs/retours/filter-highpass.svg,     at: [68.363, 46.850]}

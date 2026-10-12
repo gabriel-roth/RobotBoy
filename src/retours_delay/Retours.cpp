@@ -20,6 +20,17 @@ static constexpr float kClockFlashDecaySeconds = 0.08f;
 
 struct Retours;
 
+// Filter knob tooltip: off at noon (Beads' dead band), otherwise how far
+// into the low-pass or high-pass side the knob is.
+struct FilterParamQuantity : ParamQuantity {
+	std::string getDisplayValueString() override {
+		const float amount = robotboy_beads::AttenuverterLaw(getValue());
+		if (amount == 0.f) return "Off";
+		return string::f("%s %.0f%%", amount < 0.f ? "Low-pass" : "High-pass",
+			std::fabs(amount) * 100.f);
+	}
+};
+
 struct RetoursQualityParamQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
 };
@@ -40,6 +51,11 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		SHAPE_AR_PARAM,
 		FEEDBACK_AR_PARAM,
 		DRY_WET_AR_PARAM,
+		// Added with the 15 HP panel; appended so older patches still load.
+		FILTER_PARAM,
+		FILTER_AR_PARAM,
+		REVERB_PARAM,
+		REVERB_AR_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -53,6 +69,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		SHAPE_CV_INPUT,
 		FEEDBACK_CV_INPUT,
 		DRY_WET_CV_INPUT,
+		FILTER_CV_INPUT,
+		REVERB_CV_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -72,10 +90,10 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	robotboy_beads::EngineHost host_;
 
 	// Beads' pot and CV conditioning (cv_reader.cc), run once per engine block.
-	robotboy_beads::PotChannel time_pot_, pitch_pot_, shape_pot_, interval_pot_;
+	robotboy_beads::PotChannel time_pot_, pitch_pot_, shape_pot_, interval_pot_, filter_pot_;
 	robotboy_beads::PotChannel time_ar_pot_, pitch_ar_pot_, shape_ar_pot_;
 	robotboy_beads::CvChannel time_cv_, pitch_cv_, shape_cv_, interval_cv_;
-	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_;
+	robotboy_beads::CvChannel feedback_cv_, dry_wet_cv_, reverb_cv_, filter_cv_;
 
 	// Module state
 	int quality_state_ = 0;   // 0-3, same encoding/colors as Particules
@@ -100,6 +118,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 	std::atomic<bool> recalibrate_requested_{false};
 	bool auto_gain_ = true;
 	bool tape_hiss_ = true;   // Scorched cassette's synthetic hiss
+	bool repeat_gate_out_ = false;  // Out R carries Beads' per-repeat gate
 	float manual_gain_db_ = 0.f;
 	float input_peak_ = 0.f;
 
@@ -136,6 +155,10 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		configButton(CLOCK_PARAM, "Tap tempo");
 		configParam(FEEDBACK_AR_PARAM, -1.f, 1.f, 0.f, "Feedback CV amount");
 		configParam(DRY_WET_AR_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
+		configParam<FilterParamQuantity>(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter");
+		configParam(FILTER_AR_PARAM, -1.f, 1.f, 0.f, "Filter CV amount");
+		configParam(REVERB_PARAM, 0.f, 1.f, 0.f, "Reverb");
+		configParam(REVERB_AR_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
 
 		configInput(IN_L_INPUT, "Audio in L");
 		configInput(IN_R_INPUT, "Audio in R");
@@ -145,6 +168,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		configInput(SHAPE_CV_INPUT, "Shape CV");
 		configInput(FEEDBACK_CV_INPUT, "Feedback CV");
 		configInput(DRY_WET_CV_INPUT, "Dry/wet CV");
+		configInput(FILTER_CV_INPUT, "Filter CV");
+		configInput(REVERB_CV_INPUT, "Reverb CV");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(SLICE_INPUT, "Slice gate");
 		configOutput(OUT_L_OUTPUT, "Audio out L");
@@ -170,9 +195,14 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		robotboy_beads::InitDensityCv(&interval_cv_);
 		robotboy_beads::InitMixCv(&feedback_cv_);
 		robotboy_beads::InitMixCv(&dry_wet_cv_);
+		robotboy_beads::InitMixCv(&reverb_cv_);
+		// The filter is Beads' Size attenurandomizer in delay mode: same knob
+		// law (dead band at noon) and Size's CV conditioning.
+		filter_pot_.Init(PotLaw::kAttenuverter, lp, 0.f);
+		robotboy_beads::InitTimeSizeShapeCv(&filter_cv_);
 
-		// Delay mode only; Retours has no Reverb control.
-		if (!host_.Init(beads::Processor::MODE_DELAY, false,
+		// Delay mode only, with Beads' reverb.
+		if (!host_.Init(beads::Processor::MODE_DELAY, true,
 		                APP->engine->getSampleRate())) {
 			WARN("Retours: could not allocate the Beads delay memory");
 		}
@@ -189,6 +219,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		auto_gain_ = true;
 		manual_gain_db_ = 0.f;
 		tape_hiss_ = true;
+		repeat_gate_out_ = false;
 		clear_requested_.store(true);
 		clear_tempo_requested_.store(true);   // initialize returns to free-running
 		recalibrate_requested_.store(true);
@@ -200,6 +231,7 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 		json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 		json_object_set_new(root, "tapeHiss",     json_boolean(tape_hiss_));
+		json_object_set_new(root, "repeatGateOut", json_boolean(repeat_gate_out_));
 		return root;
 	}
 
@@ -213,6 +245,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
 		if ((j = json_object_get(root, "tapeHiss")))
 			tape_hiss_ = json_boolean_value(j);
+		if ((j = json_object_get(root, "repeatGateOut")))
+			repeat_gate_out_ = json_boolean_value(j);
 		// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
 		// "envelopePreFeedback") from patches made before the Beads engine
 		// are ignored: Beads has one fixed time-change behaviour.
@@ -256,10 +290,16 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			shape_pot_.Process(params[SHAPE_PARAM].getValue()),
 			shape_ar_pot_.Process(attenuverter(params[SHAPE_AR_PARAM].getValue())),
 			shape_cv, shape_cv_.Process(volts(SHAPE_CV_INPUT) * 0.2f));
-		// In delay mode Beads' Size attenurandomizer sets a bandwidth filter
-		// on the repeats; Retours has no control for it, so it stays at noon
-		// (filter off). Size itself only chooses the mode, pinned here.
-		c->parameters.size = Randomized(1.f, 0.f, false, 0.f);
+		// FILTER is Beads' delay-mode bandwidth filter, which Beads plays from
+		// its Size attenurandomizer: bandwidth = 0.5 * (1 + attenuverter) +
+		// Size CV (granular_processor.h). Noon is off, low-pass to the left,
+		// high-pass to the right. Retours scales the CV with its own trimpot.
+		// The Size knob itself only chooses the mode, which is pinned here.
+		const bool filter_cv = inputs[FILTER_CV_INPUT].isConnected();
+		c->parameters.size = Randomized(1.f,
+			filter_pot_.Process(params[FILTER_PARAM].getValue()),
+			filter_cv,
+			filter_cv_.Process(volts(FILTER_CV_INPUT) * 0.2f) * params[FILTER_AR_PARAM].getValue());
 		c->parameters.monophonic_mode = false;
 		c->parameters.pitch_lock = nullptr;
 
@@ -271,7 +311,8 @@ struct Retours : Module, robotboy_beads::ControlSource {
 			feedback_cv_.Process(volts(FEEDBACK_CV_INPUT) * 0.2f), params[FEEDBACK_AR_PARAM].getValue());
 		c->mix.dry_wet = robotboy_beads::MixParameter(params[DRY_WET_PARAM].getValue(),
 			dry_wet_cv_.Process(volts(DRY_WET_CV_INPUT) * 0.2f), params[DRY_WET_AR_PARAM].getValue());
-		c->mix.reverb_amount = 0.f;
+		c->mix.reverb_amount = robotboy_beads::MixParameter(params[REVERB_PARAM].getValue(),
+			reverb_cv_.Process(volts(REVERB_CV_INPUT) * 0.2f), params[REVERB_AR_PARAM].getValue());
 		c->mix.output_gate = false;
 
 		// Clock = Beads' Seed. A tap is the Seed button pressed for one block
@@ -338,9 +379,15 @@ struct Retours : Module, robotboy_beads::ControlSource {
 		const robotboy_beads::HostFrameOut out =
 			host_.Process({l, r, frozen, clock_gate_.isHigh()}, this);
 
-		bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
-		outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
-		outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
+		if (repeat_gate_out_) {
+			// Beads' gate-output mode: mono mix on L, a gate per repeat on R.
+			outputs[OUT_L_OUTPUT].setVoltage((out.l + out.r) * 0.5f * 5.f);
+			outputs[OUT_R_OUTPUT].setVoltage(out.gate ? 10.f : 0.f);
+		} else {
+			bool r_connected = outputs[OUT_R_OUTPUT].isConnected();
+			outputs[OUT_L_OUTPUT].setVoltage((r_connected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
+			outputs[OUT_R_OUTPUT].setVoltage(out.r * 5.f);
+		}
 
 		// Clock light: flashes at the start of each repeat (Beads' tap gate).
 		if (out.gate && !prev_gate_)
@@ -414,6 +461,15 @@ struct RetoursWidget : ModuleWidget {
 		appendBeadsGainMenu(menu, module);
 		appendBeadsHissMenu(menu, module);
 
+		// --- Repeat gate on R output ---
+		menu->addChild(createBoolMenuItem("Repeat gate on R output", "",
+			[=]() { return module->repeat_gate_out_; },
+			[=](bool on) {
+				withMenuUndo(module, "toggle repeat gate output",
+					[=]() { module->repeat_gate_out_ = on; });
+			}
+		));
+
 		// --- Clear saved tempo ---
 		// A tempo from a tap or a clock holds after the clock is unpatched;
 		// this returns to free-running. Greyed out when there is nothing to
@@ -443,50 +499,56 @@ struct RetoursWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		// Panel layout: mm centers of the components in res/Retours.svg,
-		// carried verbatim into these mm2px(Vec(...)) calls.
+		// carried verbatim from panel-specs/retours.yaml (Particules' grid).
 		// --- Top row: slice jack/button, quality, tap-tempo button, clock jack ---
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(6.940f, 15.875f)), module, Retours::SLICE_INPUT));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(15.940f, 15.875f)), module, Retours::SLICE_PARAM, Retours::SLICE_BUTTON_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.9f, 15.875f)), module, Retours::SLICE_INPUT));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(20.4f, 15.875f)), module, Retours::SLICE_PARAM, Retours::SLICE_BUTTON_LIGHT));
 #ifdef METAMODULE
-		addParam(createParamCentered<QualityMmSwitch>(mm2px(Vec(27.940f, 15.875f)), module, Retours::QUALITY_PARAM));
+		addParam(createParamCentered<QualityMmSwitch>(mm2px(Vec(38.1f, 15.875f)), module, Retours::QUALITY_PARAM));
 #else
-		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(27.940f, 15.875f)), module, Retours::QUALITY_PARAM, Retours::QUALITY_R_LIGHT));
+		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(38.1f, 15.875f)), module, Retours::QUALITY_PARAM, Retours::QUALITY_R_LIGHT));
 #endif
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(39.940f, 15.875f)), module, Retours::CLOCK_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.940f, 15.875f)), module, Retours::CLOCK_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(55.8f, 15.875f)), module, Retours::CLOCK_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(64.3f, 15.875f)), module, Retours::CLOCK_INPUT));
 
-		// --- Primary knobs, CV inputs, attenuverters (Interval has no attenuverter;
-		// the clock-tick light sits in that column) ---
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.340f, 42.088f)), module, Retours::TIME_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(27.940f, 42.088f)), module, Retours::INTERVAL_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(44.540f, 42.088f)), module, Retours::PITCH_PARAM));
+		// --- Row 1: Time / Interval / Pitch / Filter (Interval has no
+		// trimpot; the clock light sits in that slot) ---
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.6f, 42.088f)), module, Retours::TIME_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(29.6f, 42.088f)), module, Retours::INTERVAL_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(46.6f, 42.088f)), module, Retours::PITCH_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(63.6f, 42.088f)), module, Retours::FILTER_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.340f, 53.217f)), module, Retours::TIME_CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.940f, 53.217f)), module, Retours::INTERVAL_CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(44.540f, 53.217f)), module, Retours::PITCH_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.6f, 53.746f)), module, Retours::TIME_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(29.6f, 53.746f)), module, Retours::INTERVAL_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.6f, 53.746f)), module, Retours::PITCH_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(63.6f, 53.746f)), module, Retours::FILTER_CV_INPUT));
 
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.340f, 62.219f)), module, Retours::TIME_AR_PARAM));
-		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(27.940f, 62.219f)), module, Retours::CLOCK_LIGHT));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(44.540f, 62.219f)), module, Retours::PITCH_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(12.6f, 62.746f)), module, Retours::TIME_AR_PARAM));
+		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(29.6f, 62.746f)), module, Retours::CLOCK_LIGHT));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(46.6f, 62.746f)), module, Retours::PITCH_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(63.6f, 62.746f)), module, Retours::FILTER_AR_PARAM));
 
-		// --- Secondary knobs, CV inputs, attenuverters ---
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.340f, 82.096f)), module, Retours::SHAPE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(27.940f, 82.096f)), module, Retours::FEEDBACK_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(44.540f, 82.096f)), module, Retours::DRY_WET_PARAM));
+		// --- Row 2: Shape / Feedback / Reverb / Dry-wet ---
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.6f, 82.096f)), module, Retours::SHAPE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(29.6f, 82.096f)), module, Retours::FEEDBACK_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(46.6f, 82.096f)), module, Retours::REVERB_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(63.6f, 82.096f)), module, Retours::DRY_WET_PARAM));
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.340f, 93.225f)), module, Retours::SHAPE_CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(27.940f, 93.225f)), module, Retours::FEEDBACK_CV_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(44.540f, 93.225f)), module, Retours::DRY_WET_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.6f, 92.696f)), module, Retours::SHAPE_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(29.6f, 92.696f)), module, Retours::FEEDBACK_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.6f, 92.696f)), module, Retours::REVERB_CV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(63.6f, 92.696f)), module, Retours::DRY_WET_CV_INPUT));
 
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.340f, 102.227f)), module, Retours::SHAPE_AR_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(27.940f, 102.227f)), module, Retours::FEEDBACK_AR_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(44.540f, 102.227f)), module, Retours::DRY_WET_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(12.6f, 101.696f)), module, Retours::SHAPE_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(29.6f, 101.696f)), module, Retours::FEEDBACK_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(46.6f, 101.696f)), module, Retours::REVERB_AR_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(63.6f, 101.696f)), module, Retours::DRY_WET_AR_PARAM));
 
 		// --- Audio I/O ---
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.238f, 114.300f)), module, Retours::IN_L_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(18.938f, 114.300f)), module, Retours::IN_R_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(36.942f, 114.300f)), module, Retours::OUT_L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(46.642f, 114.300f)), module, Retours::OUT_R_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(15.25f, 114.3f)), module, Retours::IN_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(24.95f, 114.3f)), module, Retours::IN_R_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(51.25f, 114.3f)), module, Retours::OUT_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(60.95f, 114.3f)), module, Retours::OUT_R_OUTPUT));
 	}
 };
 
