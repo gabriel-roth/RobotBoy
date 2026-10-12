@@ -1,0 +1,247 @@
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/catch_approx.hpp>
+
+#include "particules_block_runtime.h"
+
+using Catch::Approx;
+
+TEST_CASE("ParticulesBlockRuntime: outputs samples in processed-block order", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    REQUIRE(runtime.OutputIndex() == 0);
+    REQUIRE(runtime.InputIndex() == 0);
+
+    runtime.PushInputSample({1.0f, 10.0f});
+    REQUIRE(runtime.BlockReady() == false);
+    // OutputIndex() is advanced only by ReadOutputSample()/CommitProcessedBlock();
+    // PushInputSample() no longer writes it (that assignment was a dead
+    // write always overwritten by the real caller's Read-before-Push order,
+    // and was transiently out-of-range at the last index before wraparound).
+    REQUIRE(runtime.OutputIndex() == 0);
+
+    runtime.PushInputSample({2.0f, 20.0f});
+    runtime.PushInputSample({3.0f, 30.0f});
+    runtime.PushInputSample({4.0f, 40.0f});
+    REQUIRE(runtime.BlockReady() == true);
+
+    particules_dsp::StereoFrame processed[4] = {
+        {0.1f, 1.1f},
+        {0.2f, 1.2f},
+        {0.3f, 1.3f},
+        {0.4f, 1.4f},
+    };
+    runtime.CommitProcessedBlock(processed, 4);
+
+    particules_dsp::StereoFrame out = runtime.ReadOutputSample();
+    REQUIRE(out.l == Approx(0.1f));
+    REQUIRE(out.r == Approx(1.1f));
+
+    out = runtime.ReadOutputSample();
+    REQUIRE(out.l == Approx(0.2f));
+    REQUIRE(out.r == Approx(1.2f));
+
+    out = runtime.ReadOutputSample();
+    REQUIRE(out.l == Approx(0.3f));
+    REQUIRE(out.r == Approx(1.3f));
+
+    out = runtime.ReadOutputSample();
+    REQUIRE(out.l == Approx(0.4f));
+    REQUIRE(out.r == Approx(1.4f));
+}
+
+TEST_CASE("ParticulesBlockRuntime: block-ready goes true only on the final sample", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == true);
+}
+
+TEST_CASE("ParticulesBlockRuntime: trigger pulse countdown remains sample accurate across block boundaries", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+    runtime.StartGrainTriggerPulse(6);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == true);
+    REQUIRE(runtime.BlockReady() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.PushInputSample({0.0f, 0.0f}) == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: block-rate LED decay matches per-sample exponential", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+    runtime.ConfigureSampleRate(48000.0f);
+    runtime.SetGrainLed(1.0f);
+
+    float expected = 1.0f;
+    for (int block = 0; block < 3; ++block) {
+        runtime.DecayGrainLed();
+        for (int i = 0; i < 4; ++i) {
+            expected *= 0.9999f;
+        }
+    }
+
+    REQUIRE(runtime.GrainLed() == Approx(expected).margin(0.000001f));
+}
+
+TEST_CASE("ParticulesBlockRuntime: LED decay duration is sample-rate independent", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<64> at48;
+    ParticulesBlockRuntime<64> at96;
+    at48.ConfigureSampleRate(48000.0f);
+    at96.ConfigureSampleRate(96000.0f);
+    at48.SetGrainLed(1.0f);
+    at96.SetGrainLed(1.0f);
+    for (int i = 0; i < 750; ++i) at48.DecayGrainLed();
+    for (int i = 0; i < 1500; ++i) at96.DecayGrainLed();
+    REQUIRE(at48.GrainLed() == Approx(at96.GrainLed()).margin(0.00001f));
+}
+
+TEST_CASE("ParticulesBlockRuntime: reassignment discards sample-rate configuration", "[particules_block_runtime]") {
+    // Hosts reset the runtime by reassignment (runtime = {};). That discards
+    // the configured decay factor, so every reassignment site must re-call
+    // ConfigureSampleRate. This test pins that invariant.
+    ParticulesBlockRuntime<64> configured;
+    configured.ConfigureSampleRate(48000.0f);   // decay = 0.9999^64, not the flat default
+
+    ParticulesBlockRuntime<64> defaulted;       // flat default decay = 0.9999
+
+    configured.SetGrainLed(1.0f);
+    defaulted.SetGrainLed(1.0f);
+    configured.DecayGrainLed();
+    defaulted.DecayGrainLed();
+
+    // Configured decay must actually differ from the default-constructed one.
+    REQUIRE(configured.GrainLed() != Approx(defaulted.GrainLed()).margin(0.0001f));
+    const float default_decay = defaulted.GrainLed();
+
+    // Reassignment reverts to the flat default: decay matches the
+    // default-constructed runtime again until ConfigureSampleRate is re-called.
+    configured = ParticulesBlockRuntime<64>{};
+    configured.SetGrainLed(1.0f);
+    configured.DecayGrainLed();
+    REQUIRE(configured.GrainLed() == Approx(default_decay).margin(0.0000001f));
+    REQUIRE(configured.GrainLed() == Approx(0.9999f).margin(0.0000001f));
+}
+
+TEST_CASE("ParticulesBlockRuntime: seed gate latch captures a mid-block pulse",
+          "[block_runtime]") {
+    ParticulesBlockRuntime<64> rt;
+    for (int i = 0; i < 64; ++i) {
+        rt.NoteSeedGateSample(i == 20);   // 1-sample trigger mid-block
+        rt.ReadOutputSample();
+        rt.PushInputSample({0.f, 0.f});
+    }
+    REQUIRE(rt.BlockReady());
+    REQUIRE(rt.ConsumeSeedGateLatch() == true);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);   // consume clears
+}
+
+TEST_CASE("ParticulesBlockRuntime: seed gate latch is per-sample passthrough at block 1",
+          "[block_runtime]") {
+    ParticulesBlockRuntime<1> rt;
+    rt.NoteSeedGateSample(false);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);
+    rt.NoteSeedGateSample(true);
+    REQUIRE(rt.ConsumeSeedGateLatch() == true);
+    rt.NoteSeedGateSample(false);
+    REQUIRE(rt.ConsumeSeedGateLatch() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: back-to-back trigger pulses get one separating low sample", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(3);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+
+    // Retrigger while the first pulse still has one sample to run.
+    runtime.StartGrainTriggerPulse(3);
+
+    // Current pulse runs down...
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    // ...then exactly one forced low sample...
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+    // ...then the pending pulse runs in full.
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: single trigger pulse behavior is unchanged", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(2);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+
+    // A pulse started when idle starts immediately (no spurious gap).
+    runtime.StartGrainTriggerPulse(1);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: retrigger during the gap replaces the pending pulse", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    runtime.StartGrainTriggerPulse(2);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    runtime.StartGrainTriggerPulse(5);   // queued: pulse still running
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);   // first pulse drains
+    runtime.StartGrainTriggerPulse(3);   // arrives in the gap window: replaces the 5
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);  // the single gap sample
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == true);
+    REQUIRE(runtime.ConsumeTriggerPulseSample() == false);
+}
+
+TEST_CASE("ParticulesBlockRuntime: grain LED scales with active grain count", "[particules_block_runtime]") {
+    ParticulesBlockRuntime<4> runtime;
+
+    // One grain: visible floor.
+    runtime.NoteGrainActivity(1, true);
+    REQUIRE(runtime.GrainLed() == Approx(0.25f + 0.75f / 10.0f));
+
+    // Ten or more grains: full bright, clamped at 1.
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(10, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(30, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+
+    // Triggered this block but count snapshot is 0 (grain died within the
+    // block): still registers at the floor.
+    runtime.SetGrainLed(0.0f);
+    runtime.NoteGrainActivity(0, true);
+    REQUIRE(runtime.GrainLed() == Approx(0.25f));
+
+    // No activity at all: LED untouched.
+    runtime.SetGrainLed(0.1f);
+    runtime.NoteGrainActivity(0, false);
+    REQUIRE(runtime.GrainLed() == Approx(0.1f));
+
+    // Never dims a brighter LED (decay machinery owns dimming).
+    runtime.SetGrainLed(1.0f);
+    runtime.NoteGrainActivity(1, true);
+    REQUIRE(runtime.GrainLed() == Approx(1.0f));
+}

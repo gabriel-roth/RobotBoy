@@ -44,6 +44,25 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/beads/vendor/stmlib/utils/random.cc
     ${SRC}/src/beads/host/engine_host.cpp
     ${SRC}/src/beads/host/gain_control.cpp
+    # granular DSP engine (Particules)
+    ${SRC}/src/particules/dsp/src/particules_processor.cpp
+    ${SRC}/src/particules/dsp/src/buffer/recording_buffer.cpp
+    ${SRC}/src/particules/dsp/src/fx/reverb.cpp
+    ${SRC}/src/particules/dsp/src/fx/saturation.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain_engine.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain_scheduler.cpp
+    ${SRC}/src/particules/dsp/src/grain/grain.cpp
+    ${SRC}/src/particules/dsp/src/input/auto_gain.cpp
+    ${SRC}/src/particules/dsp/src/pitch/pitch_quantizer.cpp
+    ${SRC}/src/particules/dsp/src/quality/quality_processor.cpp
+    ${SRC}/src/particules/dsp/src/random/attenurandomizer.cpp
+    ${SRC}/src/particules/dsp/src/random/random.cpp
+    ${SRC}/src/particules/dsp/src/wavetable/wavetable_oscillator.cpp
+    # Retours delay DSP engine
+    ${SRC}/src/retours_delay/dsp/src/retours_processor.cpp
+    ${SRC}/src/retours_delay/dsp/src/time/base_time.cpp
+    ${SRC}/src/retours_delay/dsp/src/engine/echo_engine.cpp
+    ${SRC}/src/retours_delay/dsp/src/pitch/rotary_shifter.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
@@ -53,6 +72,10 @@ target_include_directories(RobotBoy PRIVATE
     ${SRC}/src/retours_delay
     ${SRC}/src/beads
     ${SRC}/src/beads/vendor
+    ${SRC}/src/particules/dsp/include
+    ${SRC}/src/particules/dsp/src
+    ${SRC}/src/retours_delay/dsp/include
+    ${SRC}/src/retours_delay/dsp/src
     ${CMAKE_CURRENT_LIST_DIR}/loooop
 )
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)

@@ -37,6 +37,15 @@ SOURCES += ../src/beads/vendor/beads/dsp/delay_clock.cc \
            ../src/beads/vendor/stmlib/utils/random.cc
 SOURCES += $(wildcard ../src/beads/host/*.cpp)
 
+# Classic mode: the pre-Beads (v2.1) engines, kept frozen for old patches.
+# Retours' engine reaches into particules_dsp/src's internal headers.
+FLAGS += -I../src/particules/dsp/include -I../src/particules/dsp/src \
+         -I../src/retours_delay/dsp/include -I../src/retours_delay/dsp/src
+SOURCES += $(wildcard ../src/particules/dsp/src/*.cpp)
+SOURCES += $(wildcard ../src/particules/dsp/src/*/*.cpp)
+SOURCES += $(wildcard ../src/retours_delay/dsp/src/*.cpp)
+SOURCES += $(wildcard ../src/retours_delay/dsp/src/*/*.cpp)
+
 DISTRIBUTABLES += res plugin.json
 
 include $(RACK_DIR)/plugin.mk
