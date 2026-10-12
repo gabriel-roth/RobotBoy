@@ -1,6 +1,6 @@
 # Particules
 
-**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. Results range from lush self-generating clouds to tightly clocked rhythmic slicing. Particules is the granular mode of Beads, Émilie Gillet's texture synthesizer, running on its open-source DSP code.
+**Particules** is a granular texture processor for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It continuously records your incoming audio into a buffer, then plays back a swarm of short overlapping fragments — *grains* — each with its own position, pitch, length, and envelope. Results range from lush self-generating clouds to tightly clocked rhythmic slicing. Particules is the granular mode of Mutable Instruments Beads, and runs on Beads' own DSP code.
 
 <img src="screenshots/Particules.png" alt="Particules module" height="500">
 

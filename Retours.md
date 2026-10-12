@@ -1,6 +1,6 @@
 # Retours
 
-**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. Retours is the delay mode hidden inside Beads, Émilie Gillet's texture synthesizer, running on its open-source DSP code.
+**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. Retours is the delay mode hidden inside Mutable Instruments Beads, and runs on Beads' own DSP code.
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
