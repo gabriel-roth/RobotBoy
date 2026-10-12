@@ -2,7 +2,7 @@
 
 **Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It contains:
 
-* A recreation of Mutable Instruments Beads in three modules:
+* Mutable Instruments Beads, split into three modules and running on Beads' own source code:
 	* **[Particules](Particules.md):** A granular texture processor.
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
@@ -15,25 +15,25 @@
 	* **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** An emulation of the EDP Wasp state-variable filter.
 ---
 
-## Imitation Beads
+## Beads, in three modules
 
 ### Particules
 
 <img src="screenshots/Particules.png" alt="Particules module" height="300">
 
-A granular texture processor: it records your input and plays back a swarm of short overlapping grains, from lush self-generating clouds to tightly clocked rhythmic slicing. [**[Manual]**](Particules.md)
+Beads’s granular texture processor: it records your input and plays back a swarm of short overlapping grains, from lush self-generating clouds to tightly clocked rhythmic slicing. [**[Manual]**](Particules.md)
 
 ### Retours
 
 <img src="screenshots/Retours.png" alt="Retours module" height="300">
 
-A delay and beat-slicer based on Beads’s hidden delay mode, with manual, clocked, or tap-tempo delay times down to audio rates. [**[Manual]**](Retours.md)
+Beads’s hidden delay mode as a standalone delay and beat-slicer, with manual, clocked, or tap-tempo delay times down to audio rates. [**[Manual]**](Retours.md)
 
 ### Ondes
 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
 
-A simple VCO based on Beads’s secret morphing wavetable oscillator: two knobs sweep across a two-dimensional set of 24 banks of 8 waveforms each. [**[Manual]**](Ondes.md)
+A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob picks one of 12 banks, another sweeps through its 16 waveforms. [**[Manual]**](Ondes.md)
 
 ## Loooop + Löp
 

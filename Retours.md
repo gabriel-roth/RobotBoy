@@ -1,6 +1,6 @@
 # Retours
 
-**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. It's based on the delay mode hidden inside Mutable Instruments Beads and shares its recording engine with Particules.
+**Retours** is a stereo delay and beat-slicer for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its repeat time runs from several seconds down to audio rates, so it can sound like a rhythmic delay, a slapback echo, or a plucked resonator. Along the way it can freeze and loop a slice of what it just heard, transpose every repeat, and reshape the echoes in time with a clock. Retours is the delay mode hidden inside Mutable Instruments Beads, and runs on Beads' own DSP code.
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
@@ -10,7 +10,7 @@
 
 Retours is always recording your input onto a short loop of tape. A playback head follows behind the record head at a distance you set, and what it reads is your delayed signal — move it further back for a longer echo.
 
-Feedback sends the delayed signal back to be recorded again, so it repeats and decays. In the feedback path sits a **pitch shifter**, so each repeat can come back higher or lower. A tempo-synced **envelope** can chop or swell each repeat. **Slice** stops the tape entirely to loop one frozen recording.
+Feedback sends the delayed signal back to be recorded again, so it repeats and decays. The playback heads are **pitch shifters**, so each repeat can come back higher or lower than the last. A tempo-synced **envelope** can chop or swell each repeat. **Slice** stops the tape entirely to loop one frozen recording.
 
 Like Particules, Retours records through one of four **Quality** characters — from clean digital to grungy 8-bit cassette — and the feedback path picks up that same character, so dirt compounds with feedback.
 
@@ -29,23 +29,23 @@ Like Particules, Retours records through one of four **Quality** characters — 
 
 ### Delay time
 
-*Interval:* The base spacing between repeats. **Straight up (12 o'clock) is the longest delay** — the whole recording buffer (up to about 4 seconds in the cleanest Quality mode). Turn **counter-clockwise** to shorten it as a single delay tap; turn **clockwise** to shorten it into a busier, multi-tapped pattern. Go far enough in either direction and the interval drops into audio rates (down to \~2 ms): the repeats fuse into a pitch and Retours becomes a Karplus-Strong-style string, playable in volts-per-octave from **Interval CV.**
+*Interval:* The base spacing between repeats. **Straight up (12 o'clock) is the longest delay** — the whole recording buffer (about 4 seconds in the cleanest Quality mode). Turn **counter-clockwise** to shorten it as a single delay tap; turn **clockwise** to shorten it into a busier, multi-tapped pattern. Go far enough in either direction and the interval drops into audio rates (down to about 1.5 ms): the repeats fuse into a pitch and Retours becomes a Karplus-Strong-style string, playable in volts-per-octave from **Interval CV.** (Near noon, Interval CV simply turns the knob; toward either end it becomes a 1 V/octave pitch control.)
 
-* When a clock is patched or you set a tap tempo, Interval becomes a **musical divider/multiplier** of the clock tempo: straight up is one repeat per beat, counter-clockwise gives 1/2, 1/4, 1/8, and 1/16, and clockwise adds triplet and other subdivisions (1/3, 1/6, 1/12, and finer).
+* When a clock is patched or you set a tap tempo, Interval becomes a **musical divider** of the clock tempo: straight up is one repeat per beat, counter-clockwise gives 1/2, 1/4, 1/8 and 1/16, and clockwise gives 1/2, 1/3, 1/4, 1/6, 1/8, 1/10, 1/12 and 1/16, crossfading between neighbouring divisions as you turn.
 
-*Clock:* A **tap-tempo** button: tap it a couple of times to set the delay tempo by hand. A tempo, once set — by tapping or from a patched clock — holds indefinitely. To return to free-running, use **Clear saved tempo** in the context menu, or establish a new tempo.
+*Clock:* A **tap-tempo** button. As on Beads, the first press switches Retours from free-running to tempo mode; after that, each tap sets the tempo from the time since the previous one (taps more than 4 seconds apart are ignored). A patched clock sets the tempo in the same way and tolerates a little jitter. A tempo, once set, holds even after you unpatch the clock; to return to free-running, use **Clear saved tempo** in the context menu. Tempo changes crossfade between the old and new delay times rather than gliding.
 
-* When **clocked** it blinks once per clock beat (or per tapped beat). When **free-running** it blinks once per base Interval, before the Time multiplier — matching the full delay period when Time is at 1×.
+* The light under Interval flashes at the start of each repeat.
 
-*Time:* A multiplier on top of Interval, from 1× up to 16×. Use Interval to set the ballpark and Time to stretch it out. When Retours is clocked, Time snaps to musical multiples (1, 2, 3, 4, 6, 8, 12, 16). When Slice is engaged, Time chooses which slice of the buffer loops (see Slice below).
+*Time:* A multiplier on top of Interval, from 1× up to 16×. Use Interval to set the ballpark and Time to stretch it out. Time steps through whole multiples, crossfading from one to the next. When Slice is engaged, Time chooses which slice of the buffer loops (see Slice below).
 
 ### Repeat character
 
-*Pitch:* Transposes the signal in the feedback path, roughly −24 to +24 semitones, with gentle notches at the octave, fifth, and unison.
+*Pitch:* Transposes the repeats, −24 to +24 semitones; with feedback, each repeat is transposed again. The knob has flat spots at unison, 1, 3, 4 and 7 semitones, the octave and two octaves, in both directions.
 
-*Shape:* A tempo-synced amplitude envelope applied to each repeat. Fully counter-clockwise (off) leaves the echoes untouched. Turning it up morphs the envelope through three stages: first a **gate** that truncates the repeat’s tail, then a smooth **swell,** and finally a **slow ramp.**
+*Shape:* A tempo-synced amplitude envelope applied to each repeat. Fully counter-clockwise (off) leaves the echoes untouched. Turning it up morphs the envelope through three stages: first a percussive **decay** that cuts each repeat's tail, then a symmetric **swell,** and finally a **slow ramp** up to the next repeat.
 
-*Feedback:* How much of the delayed signal is fed back to be recorded again. The small arrow at the **90% position** marks exact unity gain.
+*Feedback:* How much of the delayed signal is fed back to be recorded again. The small arrow at about **82% of the knob's travel** marks unity gain; past it, the echoes build up until the limiter holds them.
 
 ### Slice
 
@@ -59,14 +59,14 @@ Feedback, Dry/Wet, Time, Pitch, and Shape each have their own **CV input** and a
 
 ### Quality
 
-The **Quality** button (top center, with the multicolor LED) cycles through four recording characters — the same four as Particules. Each changes the recording sample rate, bit depth, and buffer length. (Cold and Sunny also color the feedback limiter — see Feedback above.) Because the feedback loop re-records through this stage on every pass, the lower-quality modes get dirtier the longer the echoes last. The recording rate is a fixed division of your engine's sample rate, and the buffer holds a fixed number of frames, so the figures below are what both work out to at 48 kHz (at 96 kHz, every length halves):
+The **Quality** button (top center, with the multicolor LED) cycles through four recording characters — the same four as Particules. Each changes the recording sample rate, bit depth, and buffer length. Because the feedback loop re-records through this stage on every pass, the lower-quality modes get dirtier the longer the echoes last. Retours converts to and from your engine's sample rate, so these figures hold whatever rate VCV or MetaModule runs at:
 
-- ***Bright digital*** (white LED) — full rate (48 kHz), 16-bit or better. Cleanest and brightest. 4-second buffer.
-- ***Cold digital*** (cyan LED) — 24 kHz, 12-bit. The classic Mutable *Clouds* grain. 8-second buffer.
-- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, gentle wow and flutter. 16-second buffer.
-- ***Scorched cassette*** (magenta LED) — 24 kHz, true 8-bit µ-law, tape hiss, wow and flutter. Crunchy lo-fi. 32-second buffer.
+- ***Bright digital*** (white LED) — 48 kHz, 16-bit. Cleanest and brightest. 4-second buffer.
+- ***Cold digital*** (cyan LED) — 32 kHz, 12-bit, gently saturated feedback. 8-second buffer.
+- ***Sunny tape*** (amber LED) — 24 kHz, 12-bit, with soft saturation on the input and in the feedback path. 10.7-second buffer.
+- ***Scorched cassette*** (magenta LED) — 24 kHz, 8-bit µ-law, heavier saturation, wow and flutter. Crunchy lo-fi. 16-second buffer.
 
-All buffer lengths double when the input is mono (nothing patched into IN R): 8, 16, 32, and 64 seconds respectively. Patching or unpatching IN R re-formats the recording buffer, briefly muting the delayed signal and clearing recorded audio. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
+All buffer lengths double when the input is mono (only one input patched): 8, 16, 21 and 32 seconds respectively. Patching or unpatching an input, or changing the Quality setting, re-formats the recording buffer, clearing recorded audio and muting the output for a quarter of a second. While Slice is engaged, the Quality button refuses to cycle; choosing a quality from the context menu (or the MetaModule switch) changes the selection, but the buffer reformat waits until Slice releases — either way the frozen slice is protected.
 
 ### The trimpots (Time · Pitch · Shape)
 
@@ -93,8 +93,8 @@ The **Feedback** and **Dry/Wet** trimpots are plain attenuverters for their CV i
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Quality** — the same four recording characters as the front-panel button (**Bright digital**, **Cold digital**, **Sunny tape**, **Scorched cassette**).
-- **Time change response** — how the delay reacts when you move the delay time. **Tape (doppler)** (default) glides the playback head like real tape, bending the pitch of anything already in the buffer as it moves. **Crossfade** jumps cleanly to the new time with a short crossfade and no pitch bend; each jump lands on a waveform-aligned spot near the new time, so even fast Interval sweeps stay clean rather than garbling.
-- **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved.
+- **Auto gain / Manual gain / Input** — Retours sets its input gain the way Beads does, and the way Particules does; see [Particules' context menu](Particules.md#context-menu-options) for details.
+- **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
 
 ---
@@ -106,7 +106,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Beat slicer:** play a drum loop in, patch its clock into **Clock**, turn Feedback down and Dry/Wet up, and gate **Slice** from your sequencer. While sliced, **Interval** sets the slice length in beat divisions and **Time** picks which slice plays — sequence **Time CV** with stepped random to rearrange the loop in tempo.
 - **Gated rhythmic delay:** clock Retours, then turn up **Shape** to gate each repeat — the echoes become a rhythmic pattern locked to your tempo.
 - **Runaway tape:** choose **Scorched cassette**, push Feedback past unity, and ride Dry/Wet — the loop degrades a little more on every pass into a collapsing wall of lo-fi noise.
-- **Dive-bomb sweeps:** in **Tape** time-change mode, sweep **Interval** by hand or with a slow LFO for pitch-bending delay swoops.
+- **Dive-bomb sweeps:** with nothing patched into Clock, sweep **Interval** by hand or with a slow LFO for pitch-bending delay swoops.
 
 ___
-_Retours is inspired by Mutable Instruments Beads, designed by Émilie Gillet. It uses some code from [No Such Texture](https://github.com/thorinside/nosuch_texture) by Neal Sanche._
+_Retours runs on the source code of [Mutable Instruments Beads](https://github.com/pichenettes/eurorack/tree/master/beads), designed and written by Émilie Gillet and released under the MIT licence._
