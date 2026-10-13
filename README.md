@@ -4,6 +4,7 @@
 
 * Mutable Instruments Beads, split into three modules and running on Beads' own source code:
 	* **[Particules](Particules.md):** A granular texture processor.
+	* **[Lucarne](Lucarne.md):** A display for Particules' buffer and grains.
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 
@@ -34,6 +35,10 @@ Beads’s hidden delay mode as a standalone delay and beat-slicer, with manual, 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
 
 A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob picks one of 12 banks, another sweeps through its 16 waveforms. [**[Manual]**](Ondes.md)
+
+### Lucarne
+
+A display expander for Particules: it shows the buffer as a waveform with the write head sweeping across it, and draws every grain as a line whose height is its pitch and whose length is the stretch of buffer it plays. [**[Manual]**](Lucarne.md)
 
 ## Loooop + Löp
 

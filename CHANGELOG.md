@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- New: Lucarne, a display expander for Particules. Place it to the right of Particules (on MetaModule, attach it from Particules' Expanders menu) to watch the buffer and every grain: where it reads, how long it is, its pitch, and its playback.
+
 ## [2.2.0-beta.2] — 2026-10-12 (pre-release)
 
 - Classic mode (context menu) for Particules, Retours and Ondes brings back the engines from 2.1 and earlier. Patches made before 2.2 open in classic mode, so they sound as they did. Switching isn't allowed while Freeze or Slice is on, and in Particules and Retours it clears the buffer and mutes the output briefly.
