@@ -1,11 +1,20 @@
-# Lucarne panel spec (vcv-panel-gen) — generates res/Lucarne.svg. Regenerate
+# Lucarne panel spec (vcv-panel-gen) — generates res/Lucarne.svg (VCV). Regenerate
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne.yaml --out res/Lucarne.svg
 #
-# Lucarne is a display-only expander for Particules: a wordmark and one
-# 16:9 screen (54 x 30.375 mm, centred: (60.96 - 54) / 2 = 3.48). No params,
-# ports or lights. Keep the SCREEN rect in sync with kScreen* in
-# src/lucarne/Lucarne.cpp.
+# Lucarne is a display-only expander for Particules: a wordmark, one screen
+# and a key. No params, ports or lights. The MetaModule faceplate comes from
+# lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
+#
+# Screen: full usable width (54 mm, centred: (60.96 - 54) / 2 = 3.48), 60 mm
+# tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
+#
+# Key: 2 columns x 3 rows of cells under the screen, each a glyph over a
+# two-line caption (property on the display / what it shows). Columns sit
+# 13.5 mm either side of the panel centre (30.48), so each cell has \~25 mm.
+# Rows: screen ends at 74; first glyph centre 81 (top \~78.5, a 4.5 mm gap),
+# then every 15 mm. Captions: line 1 baseline glyph + 5.0, line 2 + 7.6, cap
+# size 1.8. Last caption baseline 118.6, clear of the 125.5 screw line.
 slug: Lucarne
 name: LUCARNE
 hp: 12
@@ -19,5 +28,40 @@ title:
   # Same title baseline as Particules/Retours so the panels line up.
   dy: 1.211
 
+grids:
+  key:
+    cols: [16.98, 43.98]
+    rows:
+      glyph1: 81
+      cap1a: 86
+      cap1b: 88.6
+      glyph2: 96
+      cap2a: 101
+      cap2b: 103.6
+      glyph3: 111
+      cap3a: 116
+      cap3b: 118.6
+
 elements:
-  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 30.375}}
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
+
+  - row: {grid: key, at: cap1a}
+    place: [{text: Length, size: 1.8}, {text: Cursor, size: 1.8}]
+  - row: {grid: key, at: cap1b}
+    place: [{text: Audio it reads, size: 1.8, color: "#b0b0b0"}, {text: Playback, size: 1.8, color: "#b0b0b0"}]
+  - row: {grid: key, at: cap2a}
+    place: [{text: Height, size: 1.8}, {text: Colour, size: 1.8}]
+  - row: {grid: key, at: cap2b}
+    place: [{text: Pitch, size: 1.8, color: "#b0b0b0"}, {text: Stereo pan, size: 1.8, color: "#b0b0b0"}]
+  - row: {grid: key, at: cap3a}
+    place: [{text: Brightness, size: 1.8}, {text: Line, size: 1.8}]
+  - row: {grid: key, at: cap3b}
+    place: [{text: Envelope, size: 1.8, color: "#b0b0b0"}, {text: Write head, size: 1.8, color: "#b0b0b0"}]
+
+glyphs:
+  - {src: glyphs/lucarne/length.svg,    at: [16.98, 81]}
+  - {src: glyphs/lucarne/cursor.svg,    at: [43.98, 81]}
+  - {src: glyphs/lucarne/pitch.svg,     at: [16.98, 95.8], scale: 0.8}   # taller glyph: shrunk to clear its caption
+  - {src: glyphs/lucarne/pan.svg,       at: [43.98, 96]}
+  - {src: glyphs/lucarne/envelope.svg,  at: [16.98, 111]}
+  - {src: glyphs/lucarne/writehead.svg, at: [43.98, 111]}

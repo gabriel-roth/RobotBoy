@@ -1,0 +1,23 @@
+# Lucarne MetaModule faceplate spec (vcv-panel-gen). MetaModule shows the
+# display 16:9 (it opens fullscreen at 320 x 180) and has no room for the
+# VCV panel's key, so its faceplate is just the wordmark. Regenerate with:
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne-mm.yaml --out <scratch>/Lucarne.svg
+#   python3 ~/Dev/metamodule-plugin-sdk/scripts/SvgToPng.py --input <scratch>/Lucarne.svg --output metamodule/assets/ --layer panel
+# (the SVG must be named Lucarne.svg so the PNG lands as Lucarne.png).
+#
+# Screen: 54 x 30.375 mm (16:9) at (3.48, 14). Keep in sync with the
+# METAMODULE kScreen* values in src/lucarne/Lucarne.cpp.
+slug: Lucarne
+name: LUCARNE
+hp: 12
+
+theme:
+  screws: none    # the module widget draws its own ScrewBlack corners.
+
+title:
+  size: 6.35
+  tracking: 0.661458
+  dy: 1.211
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 30.375}}

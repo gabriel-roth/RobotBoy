@@ -50,6 +50,21 @@ int main() {
     check(near(L.RowY(-1, 0), 108.f + 3.f), "row 0 below sits on the band");
     check(near(L.RowY(+1, 11), 72.f - 69.f), "row 11 above at the top");
 
+    // A taller display (VCV: 54 x 60) keeps the 16:9 band and row height
+    // and gains rows: 160 x 177.8 -> band 18, row 3, 26 rows per side.
+    {
+        GrainLayout T; T.SetSize(160.f, 177.8f);
+        check(L.rows_per_side() == 12, "16:9 display: 12 rows per side");
+        check(T.rows_per_side() == 26, "tall display: 26 rows per side");
+        check(near(T.RowY(+1, 0), (177.8f - 18.f) * 0.5f - 1.5f), "tall display: thin band, same row height");
+        check(GrainLayout::PreferredRow(4.f, 26) == 25, "+24 st: top row of 26");
+        GrainLiveFrame f = Frame();
+        Live(f, 0, 1, 600);
+        GrainStartEvent e{1, 0, 600, 2.f, 100.f};   // +12 st -> row round(0.5 * 25) = 13
+        T.Update(In(&f, &e, 1));
+        check(T.grains()[0].row == 13, "tall display: +12 st lands on row 13");
+    }
+
     // Pitch -> side and row.
     check(GrainLayout::SideFor(1.f) == +1 && GrainLayout::PreferredRow(1.f) == 0, "unison: above, row 0");
     check(GrainLayout::SideFor(4.f) == +1 && GrainLayout::PreferredRow(4.f) == 11, "+24 st: top row");

@@ -52,10 +52,15 @@ void GrainLayout::Clear() {
 void GrainLayout::SetSize(float w, float h) {
 	w_ = std::max(w, 1.f);
 	h_ = std::max(h, 1.f);
+	rows_ = std::max(1, int((h_ - BandHeight()) / (2.f * RowHeight()) + 1e-3f));
 }
 
-float GrainLayout::BandHeight() const { return h_ * kBandFraction; }
-float GrainLayout::RowHeight() const { return (h_ - BandHeight()) / (2.f * kRowsPerSide); }
+// The display's height if it were 16:9, capped at its real height.
+static float NominalHeight(float w, float h) { return std::min(h, w * 9.f / 16.f); }
+float GrainLayout::BandHeight() const { return NominalHeight(w_, h_) * kBandFraction; }
+float GrainLayout::RowHeight() const {
+	return (NominalHeight(w_, h_) - BandHeight()) / (2.f * kRowsPerSide);
+}
 
 float GrainLayout::XForIndex(int32_t index, int32_t max_delay) const {
 	return float(max_delay - 1 - index) / float(max_delay) * w_;
@@ -68,8 +73,8 @@ float GrainLayout::RowY(int side, int row) const {
 	return side > 0 ? band_top - offset : band_bottom + offset;
 }
 
-int GrainLayout::PreferredRow(float speed) {
-	return int(std::lround(std::fabs(Semitones(speed)) / kMaxSemitones * (kRowsPerSide - 1)));
+int GrainLayout::PreferredRow(float speed, int rows_per_side) {
+	return int(std::lround(std::fabs(Semitones(speed)) / kMaxSemitones * (rows_per_side - 1)));
 }
 
 int GrainLayout::SideFor(float speed) { return Semitones(speed) >= 0.f ? +1 : -1; }
@@ -84,7 +89,7 @@ int GrainLayout::ChooseRow(int side, int preferred, float x0, float span) const 
 		}
 		return false;
 	};
-	for (int r = preferred; r < kRowsPerSide; ++r) if (!taken(r)) return r;
+	for (int r = preferred; r < rows_; ++r) if (!taken(r)) return r;
 	for (int r = preferred - 1; r >= 0; --r) if (!taken(r)) return r;
 	return preferred;
 }
@@ -117,7 +122,7 @@ void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	g.x0 = XForIndex(start, m);
 	g.span = std::min(std::max(e.speed * e.duration / float(m) * w_, -w_), w_);
 	g.side = SideFor(e.speed);
-	g.row = ChooseRow(g.side, PreferredRow(e.speed), g.x0, g.span);
+	g.row = ChooseRow(g.side, PreferredRow(e.speed, rows_), g.x0, g.span);
 	const auto& slot = f.slots[g.slot];
 	if (slot.serial == e.serial && !slot.done) {
 		g.ended = false;

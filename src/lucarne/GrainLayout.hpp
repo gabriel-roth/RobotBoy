@@ -40,6 +40,9 @@ struct VisualGrain {
 
 class GrainLayout {
 public:
+	// Rows per side on a 16:9 display. Band and row heights are sized from
+	// the width as if the display were 16:9, so a taller display (VCV) keeps
+	// a thin band and the same row height, and gains rows: finer pitch.
 	static constexpr int kRowsPerSide = 12;
 	static constexpr int kMaxGrains = 64;
 	static constexpr float kFadeSeconds = 0.15f;
@@ -65,7 +68,8 @@ public:
 
 	float XForIndex(int32_t index, int32_t max_delay) const;
 	float RowY(int side, int row) const;   // centre of the row
-	static int PreferredRow(float speed);
+	static int PreferredRow(float speed, int rows_per_side = kRowsPerSide);
+	int rows_per_side() const { return rows_; }
 	static int SideFor(float speed);
 	// Grain colour for a stereo position: blue at hard left, warm white at
 	// centre, orange at hard right.
@@ -80,6 +84,7 @@ private:
 	void AddSpan(float x, float len, float y, float h, Rgb c);
 
 	float w_ = 1.f, h_ = 1.f;
+	int rows_ = kRowsPerSide;
 	uint32_t epoch_ = 0;
 	bool have_epoch_ = false;
 	std::vector<VisualGrain> grains_;

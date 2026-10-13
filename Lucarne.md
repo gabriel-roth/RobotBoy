@@ -16,6 +16,8 @@
 - *Brightness and fade.* Lines brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
 - *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 
+In VCV, a key under the display sums this up. On MetaModule the display is smaller (16:9, to fill the screen when you tap it) and the faceplate has no key.
+
 Changing Quality, switching between mono and stereo input, or clearing the buffer clears the display, which then fills in again as Particules records.
 
 ---
