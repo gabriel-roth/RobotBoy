@@ -121,6 +121,9 @@ class Processor {
   enum { kMaxGateBlockSize = 32 };
   inline bool gate_out(size_t i) const { return gate_out_[i]; }
   
+  // RobotBoy: read-only access to the delay controller (play heads), for Lucarne.
+  inline const DelayController& delay_controller() const { return delay_controller_; }
+
   // RobotBoy: read-only access to the active granular processor, for the
   // grain display: calls v(processor, mono).
   template<typename Visitor>

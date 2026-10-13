@@ -1,3 +1,66 @@
+diff --git a/beads/dsp/delay_controller.h b/beads/dsp/delay_controller.h
+index caf878a..3f3f529 100644
+--- a/beads/dsp/delay_controller.h
++++ b/beads/dsp/delay_controller.h
+@@ -47,7 +47,7 @@ struct DelayTap {
+ 
+ class PlayHead {
+  public:
+-  PlayHead() { }
++  PlayHead() : serial_(0) { }  // RobotBoy: serial_ starts at 0
+   ~PlayHead() { }
+   
+   inline void Init() {
+@@ -57,6 +57,7 @@ class PlayHead {
+     phase_ = 0.0f;
+     phase_increment_ = 0.0f;
+     gain_ = 0.0f;
++    duration_ = 0;  // RobotBoy: (serial_ deliberately not reset)
+   }
+   
+   inline bool done() const { return remaining_ == 0; }
+@@ -64,6 +65,11 @@ class PlayHead {
+     return remaining_ && (remaining_ == mid_point_);
+   }
+   inline float phase() const { return phase_; }
++  // RobotBoy: read-only state for Lucarne.
++  inline int start() const { return start_; }
++  inline int duration() const { return duration_; }
++  inline int remaining() const { return remaining_; }
++  inline uint32_t serial() const { return serial_; }
+ 
+   inline void Start(int start, int duration, float gain) {
+     start_ = start;
+@@ -72,6 +78,8 @@ class PlayHead {
+     phase_ = 0.0f;
+     phase_increment_ = 1.0f / float(duration);
+     gain_ = gain;
++    duration_ = duration;  // RobotBoy
++    ++serial_;             // RobotBoy
+   }
+ 
+   static inline float Triangle(float phase, float pw) {
+@@ -117,6 +125,8 @@ class PlayHead {
+   float phase_;
+   float phase_increment_;
+   float gain_;
++  int duration_;      // RobotBoy
++  uint32_t serial_;   // RobotBoy
+ 
+   DISALLOW_COPY_AND_ASSIGN(PlayHead);
+ };
+@@ -197,6 +207,11 @@ class DelayController {
+       const RandomizedParameter& shape,
+       Output* out,
+       size_t size);
++
++  // RobotBoy: read-only play-head access for Lucarne.
++  inline const PlayHead& play_head(int h) const { return play_head_[h]; }
++  inline const PlayHead& slave_play_head(int h) const { return slave_play_head_[h]; }
++  inline bool frozen() const { return freeze_; }
+   
+  private:
+   template<bool synchronized>
 diff --git a/beads/dsp/delay_grain.h b/beads/dsp/delay_grain.h
 index 8a1663d..1919428 100644
 --- a/beads/dsp/delay_grain.h
@@ -215,10 +278,37 @@ index 2823848..a3b8c46 100644
    inline void Tick() {
      ++grain_interval_;
 diff --git a/beads/dsp/granular_processor.h b/beads/dsp/granular_processor.h
-index 8b1039e..84b63e2 100644
+index 8b1039e..5dc0b42 100644
 --- a/beads/dsp/granular_processor.h
 +++ b/beads/dsp/granular_processor.h
-@@ -83,6 +83,22 @@ class GranularProcessor {
+@@ -46,6 +46,11 @@ class GranularProcessor {
+  public:
+   GranularProcessor() { }
+   ~GranularProcessor() { }
++
++  // RobotBoy: Lucarne reads the taps of the last block (delay mode).
++  static constexpr int kDownsampleRatio = ratio;
++  inline bool tap_mode() const { return tap_mode_; }
++  inline const DelayController::Output& last_taps() const { return last_taps_; }
+   
+   inline void Init(
+       float sample_rate,
+@@ -62,6 +67,14 @@ class GranularProcessor {
+     speed_ = 0.0f;
+     bandwidth_ = 0.0f;
+     previous_sample_ = 0.0f;
++
++    // RobotBoy: no taps rendered yet.
++    tap_mode_ = false;
++    for (int i = 0; i < DelayController::NUM_TAPS; ++i) {
++      last_taps_.tap[i].delay = 0;
++      last_taps_.tap[i].gain = 0.0f;
++    }
++    last_taps_.gate = false;
+     
+     for (size_t i = 0; i < 2; ++i) {
+       dc_blocker_[i].Init();
+@@ -83,6 +96,22 @@ class GranularProcessor {
      multitap_delay_.Reset();
    }
    
@@ -241,7 +331,7 @@ index 8b1039e..84b63e2 100644
    inline int max_delay_times_ratio() const {
      return max_delay * ratio;
    }
-@@ -133,6 +149,7 @@ class GranularProcessor {
+@@ -133,6 +162,7 @@ class GranularProcessor {
      p.pitch.has_cv = false;
      
      p.monophonic_mode = false;
@@ -249,6 +339,37 @@ index 8b1039e..84b63e2 100644
  
      FloatFrame out;
      out.l = 0.0f;
+@@ -160,6 +190,9 @@ class GranularProcessor {
+     if (ratio == 1) {
+       ProcessInternal(
+           triggers, taps, freeze, parameters, feedback, mono, in, out, size);
++      // RobotBoy: remember the last tap frame rendered, for Lucarne.
++      tap_mode_ = taps != NULL;
++      if (taps) last_taps_ = taps[size - 1];
+     } else {
+       size_t d_size = size / size_t(ratio);
+ 
+@@ -196,6 +229,9 @@ class GranularProcessor {
+           d_freeze,
+           parameters, feedback,
+           mono, d_in, d_out, d_size);
++      // RobotBoy: remember the last tap frame rendered, for Lucarne.
++      tap_mode_ = taps != NULL;
++      if (taps) last_taps_ = d_taps[d_size - 1];
+       
+       for (size_t channel = 0; channel < 2; ++channel) {
+         for (size_t i = 0; i < d_size; ++i) {
+@@ -389,6 +425,10 @@ class GranularProcessor {
+   float speed_;
+   float bandwidth_;
+   FloatFrame previous_sample_;
++
++  // RobotBoy: last block's tap state, for Lucarne.
++  bool tap_mode_;
++  DelayController::Output last_taps_;
+   
+   stmlib::Svf dc_blocker_[2];
+   
 diff --git a/beads/dsp/processor.cc b/beads/dsp/processor.cc
 index 1bcd1ce..1e4f6f1 100644
 --- a/beads/dsp/processor.cc
@@ -323,7 +444,7 @@ index 1bcd1ce..1e4f6f1 100644
  }  // namespace beads
 \ No newline at end of file
 diff --git a/beads/dsp/processor.h b/beads/dsp/processor.h
-index f01765b..722edda 100644
+index f01765b..8c90a15 100644
 --- a/beads/dsp/processor.h
 +++ b/beads/dsp/processor.h
 @@ -62,6 +62,14 @@ class Processor {
@@ -341,7 +462,7 @@ index f01765b..722edda 100644
    struct MixParameters {
      float feedback;
      float dry_wet;
-@@ -72,6 +80,68 @@ class Processor {
+@@ -72,6 +80,71 @@ class Processor {
    void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
    void Configure(Media media, bool mono);
    
@@ -386,6 +507,9 @@ index f01765b..722edda 100644
 +  enum { kMaxGateBlockSize = 32 };
 +  inline bool gate_out(size_t i) const { return gate_out_[i]; }
 +  
++  // RobotBoy: read-only access to the delay controller (play heads), for Lucarne.
++  inline const DelayController& delay_controller() const { return delay_controller_; }
++
 +  // RobotBoy: read-only access to the active granular processor, for the
 +  // grain display: calls v(processor, mono).
 +  template<typename Visitor>
@@ -410,7 +534,7 @@ index f01765b..722edda 100644
    inline Media media() const { return media_; }
    inline bool mono() const { return mono_; }
    
-@@ -192,6 +262,9 @@ class Processor {
+@@ -192,6 +265,9 @@ class Processor {
    DelayController delay_controller_;
    
    Media media_;

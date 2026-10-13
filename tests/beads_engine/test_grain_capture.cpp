@@ -92,6 +92,19 @@ TEST_CASE("Particules' Beads output matches the pre-display fingerprint") {
   CHECK(h == 13996010712326909390ull);  // baseline recorded on the unmodified vendor tree
 }
 
+TEST_CASE("Retours' Beads output matches the pre-tap-display fingerprint") {
+  Controls controls;
+  controls.c.parameters.size = Knob(1.0f);   // delay mode's own knob position
+  controls.c.density.base = 0.7f;            // Interval: a second ratio fades in
+  controls.c.mix.feedback = 0.5f;
+  EngineHost host;
+  REQUIRE(host.Init(Processor::MODE_DELAY, true, 48000.0f));
+  host.SetInputs(true, true);
+  const uint64_t h = Fingerprint(host, controls, 48000 * 2);
+  INFO("fingerprint " << h);
+  CHECK(h == 5147439100107793283ull);  // baseline on the unmodified vendor tree
+}
+
 TEST_CASE("Grain accessors: serials count starts, write pointer moves") {
   std::vector<uint8_t> delay(3 * 262144);
   std::vector<uint16_t> reverb(32768, 0);
@@ -311,4 +324,71 @@ TEST_CASE("Capture leaves the audio bit-identical") {
   watched.SetGrainFeed(&feed);
   feed.attached.store(true);
   CHECK(Fingerprint(plain, c1, 48000 * 2) == Fingerprint(watched, c2, 48000 * 2));
+}
+
+namespace {
+struct TapProbe {
+  bool tap_mode = false;
+  int ratio = 0;
+  beads::DelayController::Output taps{};
+  template <typename GP> void operator()(const GP& gp, bool) {
+    tap_mode = gp.tap_mode();
+    ratio = GP::kDownsampleRatio;
+    taps = gp.last_taps();
+  }
+};
+}  // namespace
+
+TEST_CASE("Tap accessors: delay mode exposes taps and play heads") {
+  std::vector<uint8_t> delay(3 * 262144);
+  std::vector<uint16_t> reverb(32768, 0);
+  auto proc = std::make_unique<Processor>();
+  Processor& p = *proc;
+  uint8_t* banks[3] = {&delay[0], &delay[262144], &delay[2 * 262144]};
+  p.Init(banks, reverb.data());
+  p.set_mode_lock(Processor::MODE_DELAY);
+  p.Configure(Processor::MEDIA_DIGITAL, true);
+  Controls controls;
+  controls.c.parameters.size = Knob(1.0f);
+  bool freeze[12] = {};
+  auto run = [&](int blocks) {
+    for (int b = 0; b < blocks; ++b) {
+      beads::FloatFrame in[12], out[12];
+      for (int i = 0; i < 12; ++i) in[i].l = in[i].r = Sine(size_t(b * 12 + i));
+      p.Process(controls.c.seed_button, nullptr, freeze, controls.c.density,
+                controls.c.parameters, controls.c.mix, in, out, 12);
+    }
+  };
+  run(4000);
+  TapProbe t;
+  p.VisitGranular(t);
+  CHECK(t.tap_mode);
+  CHECK(t.ratio == 1);   // MEDIA_DIGITAL runs at the engine rate
+  int audible = 0;
+  for (int i = 0; i < beads::DelayController::NUM_TAPS; ++i)
+    if (t.taps.tap[i].gain > 0.0f && t.taps.tap[i].delay > 0) ++audible;
+  CHECK(audible >= 1);
+  CHECK_FALSE(p.delay_controller().frozen());
+
+  for (bool& f : freeze) f = true;
+  run(4000);
+  CHECK(p.delay_controller().frozen());
+  uint32_t serials = 0;
+  for (int h = 0; h < 4; ++h) {
+    serials += p.delay_controller().play_head(h).serial() + p.delay_controller().slave_play_head(h).serial();
+    const auto& ph = p.delay_controller().play_head(h);
+    if (!ph.done()) {
+      CHECK(ph.duration() > 0);
+      CHECK(ph.remaining() <= ph.duration());
+    }
+  }
+  CHECK(serials > 0);
+
+  // Granular mode never reports tap mode.
+  p.set_mode_lock(Processor::MODE_GRANULAR);
+  for (bool& f : freeze) f = false;
+  run(4000);
+  TapProbe g;
+  p.VisitGranular(g);
+  CHECK_FALSE(g.tap_mode);
 }

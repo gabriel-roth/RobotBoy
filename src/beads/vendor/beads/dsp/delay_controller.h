@@ -47,7 +47,7 @@ struct DelayTap {
 
 class PlayHead {
  public:
-  PlayHead() { }
+  PlayHead() : serial_(0) { }  // RobotBoy: serial_ starts at 0
   ~PlayHead() { }
   
   inline void Init() {
@@ -57,6 +57,7 @@ class PlayHead {
     phase_ = 0.0f;
     phase_increment_ = 0.0f;
     gain_ = 0.0f;
+    duration_ = 0;  // RobotBoy: (serial_ deliberately not reset)
   }
   
   inline bool done() const { return remaining_ == 0; }
@@ -64,6 +65,11 @@ class PlayHead {
     return remaining_ && (remaining_ == mid_point_);
   }
   inline float phase() const { return phase_; }
+  // RobotBoy: read-only state for Lucarne.
+  inline int start() const { return start_; }
+  inline int duration() const { return duration_; }
+  inline int remaining() const { return remaining_; }
+  inline uint32_t serial() const { return serial_; }
 
   inline void Start(int start, int duration, float gain) {
     start_ = start;
@@ -72,6 +78,8 @@ class PlayHead {
     phase_ = 0.0f;
     phase_increment_ = 1.0f / float(duration);
     gain_ = gain;
+    duration_ = duration;  // RobotBoy
+    ++serial_;             // RobotBoy
   }
 
   static inline float Triangle(float phase, float pw) {
@@ -117,6 +125,8 @@ class PlayHead {
   float phase_;
   float phase_increment_;
   float gain_;
+  int duration_;      // RobotBoy
+  uint32_t serial_;   // RobotBoy
 
   DISALLOW_COPY_AND_ASSIGN(PlayHead);
 };
@@ -197,6 +207,11 @@ class DelayController {
       const RandomizedParameter& shape,
       Output* out,
       size_t size);
+
+  // RobotBoy: read-only play-head access for Lucarne.
+  inline const PlayHead& play_head(int h) const { return play_head_[h]; }
+  inline const PlayHead& slave_play_head(int h) const { return slave_play_head_[h]; }
+  inline bool frozen() const { return freeze_; }
   
  private:
   template<bool synchronized>

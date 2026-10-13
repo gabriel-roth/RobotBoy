@@ -46,6 +46,11 @@ class GranularProcessor {
  public:
   GranularProcessor() { }
   ~GranularProcessor() { }
+
+  // RobotBoy: Lucarne reads the taps of the last block (delay mode).
+  static constexpr int kDownsampleRatio = ratio;
+  inline bool tap_mode() const { return tap_mode_; }
+  inline const DelayController::Output& last_taps() const { return last_taps_; }
   
   inline void Init(
       float sample_rate,
@@ -62,6 +67,14 @@ class GranularProcessor {
     speed_ = 0.0f;
     bandwidth_ = 0.0f;
     previous_sample_ = 0.0f;
+
+    // RobotBoy: no taps rendered yet.
+    tap_mode_ = false;
+    for (int i = 0; i < DelayController::NUM_TAPS; ++i) {
+      last_taps_.tap[i].delay = 0;
+      last_taps_.tap[i].gain = 0.0f;
+    }
+    last_taps_.gate = false;
     
     for (size_t i = 0; i < 2; ++i) {
       dc_blocker_[i].Init();
@@ -177,6 +190,9 @@ class GranularProcessor {
     if (ratio == 1) {
       ProcessInternal(
           triggers, taps, freeze, parameters, feedback, mono, in, out, size);
+      // RobotBoy: remember the last tap frame rendered, for Lucarne.
+      tap_mode_ = taps != NULL;
+      if (taps) last_taps_ = taps[size - 1];
     } else {
       size_t d_size = size / size_t(ratio);
 
@@ -213,6 +229,9 @@ class GranularProcessor {
           d_freeze,
           parameters, feedback,
           mono, d_in, d_out, d_size);
+      // RobotBoy: remember the last tap frame rendered, for Lucarne.
+      tap_mode_ = taps != NULL;
+      if (taps) last_taps_ = d_taps[d_size - 1];
       
       for (size_t channel = 0; channel < 2; ++channel) {
         for (size_t i = 0; i < d_size; ++i) {
@@ -406,6 +425,10 @@ class GranularProcessor {
   float speed_;
   float bandwidth_;
   FloatFrame previous_sample_;
+
+  // RobotBoy: last block's tap state, for Lucarne.
+  bool tap_mode_;
+  DelayController::Output last_taps_;
   
   stmlib::Svf dc_blocker_[2];
   
