@@ -13,7 +13,7 @@
 - *Height shows pitch.* Unison sits just above the band; higher pitches sit further up, and lower pitches go below the band. The display covers ±2 octaves; anything beyond that pins to the edge.
 - *A brighter cursor* moves along the line as the grain plays.
 - *Colour and fade.* Lines are tinted with the current Quality colour and brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
-- *Direction.* Reversed grains (Size below about 9 o'clock) run right to left.
+- *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 
 Changing Quality, switching between mono and stereo input, or clearing the buffer clears the display, which then fills in again as Particules records.
 
