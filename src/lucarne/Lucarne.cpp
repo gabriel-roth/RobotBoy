@@ -41,12 +41,13 @@ struct LucarneDisplay : widget::Widget {
 		frame.write_index = 30000;
 		frame.max_delay = 384000;
 		static const float kSpeeds[6] = {1.f, 1.5f, 2.f, 0.5f, 0.75f, -1.f};
+		static const float kPans[6] = {0.5f, 0.15f, 0.8f, 0.35f, 0.95f, 0.6f};
 		lucarne::GrainLayout::Input in;
 		int n = 0;
 		if (!demo_primed) {
 			for (int i = 0; i < 6; ++i) {
 				const int32_t start = 60000 + i * 50000;
-				events[size_t(i)] = {1, i, start, kSpeeds[i], 24000.f};
+				events[size_t(i)] = {1, i, start, kSpeeds[i], 24000.f, kPans[i]};
 				++n;
 			}
 			demo_primed = true;
@@ -60,7 +61,6 @@ struct LucarneDisplay : widget::Widget {
 		in.frame = &frame;
 		in.events = events.data();
 		in.num_events = n;
-		in.quality = 1;
 		return in;
 	}
 
@@ -102,7 +102,6 @@ struct LucarneDisplay : widget::Widget {
 				in.frame = have ? &frame : nullptr;
 				in.events = events.data();
 				in.num_events = have ? n_events : 0;
-				in.quality = p->quality_state_;
 			}
 			in.dt = dt;
 			if (message)

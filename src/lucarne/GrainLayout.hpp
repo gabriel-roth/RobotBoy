@@ -27,6 +27,7 @@ struct VisualGrain {
 	int32_t start_index;
 	float speed;
 	float duration;
+	float pan;     // 0 = left, 0.5 = centre, 1 = right; picks the colour
 	float x0;      // start x
 	float span;    // signed length in x; negative = reversed
 	int side;      // +1 above the band, -1 below
@@ -53,7 +54,6 @@ public:
 		const robotboy_beads::GrainStartEvent* events = nullptr;
 		int num_events = 0;
 		float dt = 0.f;       // seconds since the last Update
-		int quality = 0;      // 0..3, picks the grain colour
 	};
 
 	void SetSize(float w, float h);
@@ -67,6 +67,9 @@ public:
 	float RowY(int side, int row) const;   // centre of the row
 	static int PreferredRow(float speed);
 	static int SideFor(float speed);
+	// Grain colour for a stereo position: blue at hard left, warm white at
+	// centre, orange at hard right.
+	static Rgb PanColor(float pan);
 
 private:
 	float BandHeight() const;

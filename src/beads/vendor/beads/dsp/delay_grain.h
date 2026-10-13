@@ -79,6 +79,7 @@ class DelayGrain : public Grain {
       float gain,
       float pan,
       float fractional_sample) {
+    pan_ = pan;  // RobotBoy: kept for the grain display (pan is rescaled below)
     float consumption_speed = speed - (delay_line->frozen() ? 0.0f : 1.0f);
     delay -= fractional_sample * consumption_speed;
 
@@ -230,9 +231,12 @@ class DelayGrain : public Grain {
     }
   }
 
-  // RobotBoy: read-only position and speed (Q10) for the grain display.
+  // RobotBoy: read-only position and speed (Q10), and the stereo position
+  // (0 = left, 0.5 = centre, 1 = right) the grain started with, for the
+  // grain display.
   inline int32_t delay() const { return delay_; }
   inline int32_t speed() const { return speed_; }
+  inline float pan() const { return pan_; }
   
  private:
   float gain_[2][2];
@@ -240,6 +244,7 @@ class DelayGrain : public Grain {
   int32_t delay_;
   int32_t speed_;
   int32_t initial_delay_;
+  float pan_ = 0.5f;  // RobotBoy: see pan()
 
   DISALLOW_COPY_AND_ASSIGN(DelayGrain);
 };

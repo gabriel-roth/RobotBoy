@@ -33,7 +33,7 @@ static GrainLayout::Input In(const GrainLiveFrame* f, const GrainStartEvent* e, 
                              float dt = 0.f, uint32_t epoch = 1) {
     GrainLayout::Input in;
     in.epoch = epoch; in.peak_lo = lo; in.peak_hi = hi;
-    in.frame = f; in.events = e; in.num_events = n; in.dt = dt; in.quality = 0;
+    in.frame = f; in.events = e; in.num_events = n; in.dt = dt;
     return in;
 }
 
@@ -171,6 +171,25 @@ int main() {
         G.Update(In(&f, &e, 1));
         G.Clear();
         check(G.grains().empty() && G.draw_list().marks.empty(), "Clear empties grains and marks");
+    }
+
+    // Colour follows pan: blue left, warm white centre, orange right.
+    {
+        const Rgb l = GrainLayout::PanColor(0.f), c = GrainLayout::PanColor(0.5f), r = GrainLayout::PanColor(1.f);
+        check(l.r == 0x3F && l.g == 0xA9 && l.b == 0xF5, "hard left is blue");
+        check(c.r == 0xE8 && c.g == 0xE4 && c.b == 0xDA, "centre is warm white");
+        check(r.r == 0xFF && r.g == 0x8A && r.b == 0x3D, "hard right is orange");
+        const Rgb nearL = GrainLayout::PanColor(0.45f);   // 10% left -> sqrt: 32% of the way
+        check(nearL.b > c.b && nearL.r < c.r - 40, "small offsets are visibly tinted");
+        GrainLayout G; G.SetSize(320.f, 180.f);
+        GrainLiveFrame f = Frame();
+        Live(f, 0, 1, 600);   // level 1: full brightness
+        GrainStartEvent e{1, 0, 600, 1.f, 100.f, 1.f};
+        G.Update(In(&f, &e, 1));
+        bool found = false;
+        for (const Rect& m : G.draw_list().marks)
+            if (m.y < 72.f && m.h < 4.f && m.color.r == r.r && m.color.g == r.g && m.color.b == r.b) found = true;
+        check(found, "a hard-right live grain draws orange");
     }
 
     // Waveform: one rect per column, sized by the peaks.

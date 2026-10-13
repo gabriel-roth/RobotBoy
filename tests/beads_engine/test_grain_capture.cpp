@@ -177,6 +177,37 @@ TEST_CASE("Capture publishes start events that match the controls") {
     if (events[i].slot == events[i - 1].slot) CHECK(events[i].serial > events[i - 1].serial);
 }
 
+TEST_CASE("Pan: centred for a steady pulse, spread for a random cloud") {
+  auto pans = [](float density, float randomness) {
+    Run r;
+    r.controls.c.parameters.time = Knob(0.5f, randomness);
+    r.controls.c.parameters.size = Knob(0.6f);
+    r.controls.c.parameters.shape = Knob(0.5f);
+    r.controls.c.parameters.pitch = Knob(0.0f);
+    r.controls.c.density.base = density;
+    r.Seconds(1.5f);
+    uint32_t cursor = r.feed.event_write() - 20;
+    std::vector<float> out;
+    for (const auto& e : r.Events(&cursor)) out.push_back(e.pan);
+    return out;
+  };
+  // Density counter-clockwise (steady pulse), no attenurandomizer: Beads'
+  // spread is zero, so every grain is dead centre.
+  const auto steady = pans(0.2f, 0.0f);
+  REQUIRE(steady.size() == 20);
+  for (float p : steady) CHECK(p == 0.5f);
+  // Density clockwise (random cloud): full spread, pans scatter.
+  const auto cloud = pans(0.85f, 0.0f);
+  REQUIRE(cloud.size() == 20);
+  float widest = 0.0f;
+  for (float p : cloud) {
+    CHECK(p >= 0.0f);
+    CHECK(p <= 1.0f);
+    widest = std::max(widest, std::fabs(p - 0.5f));
+  }
+  CHECK(widest > 0.1f);
+}
+
 TEST_CASE("Peaks fill where audio was written; a clear empties them") {
   Run r;
   r.Seconds(1.0f);

@@ -1,5 +1,5 @@
 diff --git a/beads/dsp/delay_grain.h b/beads/dsp/delay_grain.h
-index 8a1663d..4978d10 100644
+index 8a1663d..2f15d5e 100644
 --- a/beads/dsp/delay_grain.h
 +++ b/beads/dsp/delay_grain.h
 @@ -66,6 +66,7 @@ class DelayGrain : public Grain {
@@ -10,7 +10,15 @@ index 8a1663d..4978d10 100644
    }
    
    template<typename DelayLineType>
-@@ -126,6 +127,9 @@ class DelayGrain : public Grain {
+@@ -78,6 +79,7 @@ class DelayGrain : public Grain {
+       float gain,
+       float pan,
+       float fractional_sample) {
++    pan_ = pan;  // RobotBoy: kept for the grain display (pan is rescaled below)
+     float consumption_speed = speed - (delay_line->frozen() ? 0.0f : 1.0f);
+     delay -= fractional_sample * consumption_speed;
+ 
+@@ -126,6 +128,9 @@ class DelayGrain : public Grain {
      
      envelope_.Start(duration, shape, fractional_sample);
      remaining_samples_ = int(duration);
@@ -20,7 +28,7 @@ index 8a1663d..4978d10 100644
      
      voice_stealing_envelope_.ResetAndPause();
    }
-@@ -212,7 +216,10 @@ class DelayGrain : public Grain {
+@@ -212,7 +217,10 @@ class DelayGrain : public Grain {
        }
      }
      
@@ -32,17 +40,28 @@ index 8a1663d..4978d10 100644
  
      in_out->l += sample.l * gain_[0][0] + sample.r * gain_[0][1];
      in_out->r += sample.l * gain_[1][0] + sample.r * gain_[1][1];
-@@ -222,6 +229,10 @@ class DelayGrain : public Grain {
+@@ -222,6 +230,13 @@ class DelayGrain : public Grain {
        remaining_samples_ = 0;
      }
    }
 +
-+  // RobotBoy: read-only position and speed (Q10) for the grain display.
++  // RobotBoy: read-only position and speed (Q10), and the stereo position
++  // (0 = left, 0.5 = centre, 1 = right) the grain started with, for the
++  // grain display.
 +  inline int32_t delay() const { return delay_; }
 +  inline int32_t speed() const { return speed_; }
++  inline float pan() const { return pan_; }
    
   private:
    float gain_[2][2];
+@@ -229,6 +244,7 @@ class DelayGrain : public Grain {
+   int32_t delay_;
+   int32_t speed_;
+   int32_t initial_delay_;
++  float pan_ = 0.5f;  // RobotBoy: see pan()
+ 
+   DISALLOW_COPY_AND_ASSIGN(DelayGrain);
+ };
 diff --git a/beads/dsp/delay_granular_player.h b/beads/dsp/delay_granular_player.h
 index 4d91ed4..4dddd3f 100644
 --- a/beads/dsp/delay_granular_player.h

@@ -1,5 +1,4 @@
 #include "GrainLayout.hpp"
-#include "particules/quality_colors.h"
 
 #include <algorithm>
 #include <cmath>
@@ -20,10 +19,9 @@ Rgb Lighten(Rgb c, float t) {   // t of the way to white
 	return {uint8_t(c.r + (255 - c.r) * t + 0.5f), uint8_t(c.g + (255 - c.g) * t + 0.5f),
 	        uint8_t(c.b + (255 - c.b) * t + 0.5f)};
 }
-Rgb QualityColor(int q) {
-	q = std::min(std::max(q, 0), 3);
-	return {uint8_t(kQualityColors[q][0] * 255.f), uint8_t(kQualityColors[q][1] * 255.f),
-	        uint8_t(kQualityColors[q][2] * 255.f)};
+Rgb Mix(Rgb a, Rgb b, float t) {
+	return {uint8_t(a.r + (b.r - a.r) * t + 0.5f), uint8_t(a.g + (b.g - a.g) * t + 0.5f),
+	        uint8_t(a.b + (b.b - a.b) * t + 0.5f)};
 }
 float Semitones(float speed) {
 	const float s = 12.f * std::log2(std::max(std::fabs(speed), 1e-6f));
@@ -38,6 +36,9 @@ bool Overlaps(float a, float la, float b, float lb, float w) {
 
 constexpr Rgb kWriteHead{0xC0, 0xC8, 0xD0};
 constexpr Rgb kWriteHeadFrozen{0x50, 0x58, 0x60};
+constexpr Rgb kPanLeft{0x3F, 0xA9, 0xF5};
+constexpr Rgb kPanCentre{0xE8, 0xE4, 0xDA};
+constexpr Rgb kPanRight{0xFF, 0x8A, 0x3D};
 
 }  // namespace
 
@@ -88,6 +89,14 @@ int GrainLayout::ChooseRow(int side, int preferred, float x0, float span) const 
 	return preferred;
 }
 
+Rgb GrainLayout::PanColor(float pan) {
+	// Beads bunches pans around the centre (BoundedRandomFloat), so the
+	// square root stretches small offsets into visible colour.
+	const float t = std::min(std::max((pan - 0.5f) * 2.f, -1.f), 1.f);
+	const float shaped = std::sqrt(std::fabs(t));
+	return t < 0.f ? Mix(kPanCentre, kPanLeft, shaped) : Mix(kPanCentre, kPanRight, shaped);
+}
+
 void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	if (int(grains_.size()) >= kMaxGrains) {
 		// Make room: the ended grain closest to vanishing, else the oldest.
@@ -104,6 +113,7 @@ void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	g.start_index = start;
 	g.speed = e.speed;
 	g.duration = e.duration;
+	g.pan = e.pan;
 	g.x0 = XForIndex(start, m);
 	g.span = std::min(std::max(e.speed * e.duration / float(m) * w_, -w_), w_);
 	g.side = SideFor(e.speed);
@@ -184,11 +194,11 @@ void GrainLayout::Build(const Input& in) {
 		list_.marks.push_back({x, mid - band * 0.5f, std::max(col_w * 0.75f, w_ * 0.003f), band,
 		                       in.frame->frozen ? kWriteHeadFrozen : kWriteHead});
 	}
-	const Rgb base = QualityColor(in.quality);
 	const float row_h = RowHeight();
 	const float thick = row_h * 0.5f;
 	const float min_len = w_ / 160.f;   // 2 px at MetaModule's 320-wide fullscreen
 	for (const VisualGrain& g : grains_) {
+		const Rgb base = PanColor(g.pan);
 		const float k = g.ended ? 0.6f * (g.fade / kFadeSeconds) : 0.35f + 0.65f * g.level;
 		const float y = RowY(g.side, g.row);
 		const float len = std::max(std::fabs(g.span), min_len);

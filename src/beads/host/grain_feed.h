@@ -20,6 +20,7 @@ struct GrainStartEvent {
   int32_t start_index;  // delay-line index where the grain began reading
   float speed;          // playback ratio; negative = reversed
   float duration;       // in delay-line samples
+  float pan = 0.5f;     // stereo position: 0 = left, 0.5 = centre, 1 = right
 };
 
 struct GrainSlotState {
