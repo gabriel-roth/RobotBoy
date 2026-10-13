@@ -41,7 +41,7 @@ A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob
 
 <img src="screenshots/Lucarne.png" alt="Lucarne module" height="300">
 
-A display expander for Particules: it shows the buffer as a waveform with the write head sweeping across it, and draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose colour is its stereo position. [**[Manual]**](Lucarne.md)
+A display expander for Particules: it shows the buffer as a waveform with the write head sweeping across it, and draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position. [**[Manual]**](Lucarne.md)
 
 ## Loooop + Löp
 

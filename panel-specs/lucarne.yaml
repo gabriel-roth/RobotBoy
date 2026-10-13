@@ -6,13 +6,13 @@
 # and a key. No params, ports or lights. The MetaModule faceplate comes from
 # lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
 #
-# Screen: full usable width (54 mm, centred: (60.96 - 54) / 2 = 3.48), 60 mm
+# Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Length, Height / Colour, Brightness),
+# Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
 # each a glyph over a two-line caption (property on the display / what it
 # shows). The cursor and write-head line are self-explanatory, so they have
-# no cells. Columns sit 13.5 mm either side of the panel centre (30.48), so
+# no cells. Columns sit 13.5 mm either side of the panel center (30.48), so
 # each cell has \~25 mm. A cell spans glyph top (y - 1.5) to caption line 2
 # (y + 7.6) = 9.1 mm; the band from the screen bottom (74) to the screw line
 # (125.5) is 51.5 mm, so the leftover 33.3 mm splits into 3 gaps of 11.1:
@@ -50,7 +50,7 @@ elements:
   - row: {grid: key, at: cap1b}
     place: [{text: Buffer segment, size: 1.8, color: "#b0b0b0"}, {text: Pitch, size: 1.8, color: "#b0b0b0"}]
   - row: {grid: key, at: cap2a}
-    place: [{text: Colour, size: 1.8}, {text: Brightness, size: 1.8}]
+    place: [{text: Color, size: 1.8}, {text: Brightness, size: 1.8}]
   - row: {grid: key, at: cap2b}
     place: [{text: Stereo pan, size: 1.8, color: "#b0b0b0"}, {text: Envelope, size: 1.8, color: "#b0b0b0"}]
 

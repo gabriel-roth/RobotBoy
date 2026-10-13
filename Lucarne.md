@@ -12,7 +12,7 @@
 
 - *Height shows pitch.* Unison sits just above the band; higher pitches sit further up, and lower pitches go below the band. The display covers ±2 octaves; anything beyond that pins to the edge.
 - *A brighter cursor* moves along the line as the grain plays.
-- *Colour shows stereo position.* Each grain is coloured by where Particules pans it: blue for hard left, warm white for centre, orange for hard right. Beads picks a random pan for each grain, within a range that widens as more grains overlap and as you add randomness (the attenurandomizers, or Density clockwise of 12 o'clock). With a steady pulse of grains and no randomness, every grain is centred and the display is all white; as you add randomness, the colours fan out.
+- *Color shows stereo position.* Each grain is colored by where Particules pans it: blue for hard left, warm white for center, orange for hard right. Beads picks a random pan for each grain, within a range that widens as more grains overlap and as you add randomness (the attenurandomizers, or Density clockwise of 12 o'clock). With a steady pulse of grains and no randomness, every grain is centered and the display is all white; as you add randomness, the colors fan out.
 - *Brightness and fade.* Lines brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
 - *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 

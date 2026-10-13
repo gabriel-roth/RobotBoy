@@ -45,7 +45,7 @@ int main() {
     check(near(L.XForIndex(M - 1, M), 0.f), "x: oldest index at left");
     check(near(L.XForIndex(0, M), 320.f * (M - 1) / M), "x: index 0 near right");
 
-    // Rows: band is 36 tall centred at 90; rows are (180-36)/24 = 6 tall.
+    // Rows: band is 36 tall centered at 90; rows are (180-36)/24 = 6 tall.
     check(near(L.RowY(+1, 0), 72.f - 3.f), "row 0 above sits on the band");
     check(near(L.RowY(-1, 0), 108.f + 3.f), "row 0 below sits on the band");
     check(near(L.RowY(+1, 11), 72.f - 69.f), "row 11 above at the top");
@@ -188,11 +188,11 @@ int main() {
         check(G.grains().empty() && G.draw_list().marks.empty(), "Clear empties grains and marks");
     }
 
-    // Colour follows pan: blue left, warm white centre, orange right.
+    // Color follows pan: blue left, warm white center, orange right.
     {
         const Rgb l = GrainLayout::PanColor(0.f), c = GrainLayout::PanColor(0.5f), r = GrainLayout::PanColor(1.f);
         check(l.r == 0x3F && l.g == 0xA9 && l.b == 0xF5, "hard left is blue");
-        check(c.r == 0xE8 && c.g == 0xE4 && c.b == 0xDA, "centre is warm white");
+        check(c.r == 0xE8 && c.g == 0xE4 && c.b == 0xDA, "center is warm white");
         check(r.r == 0xFF && r.g == 0x8A && r.b == 0x3D, "hard right is orange");
         const Rgb nearL = GrainLayout::PanColor(0.45f);   // 10% left -> sqrt: 32% of the way
         check(nearL.b > c.b && nearL.r < c.r - 40, "small offsets are visibly tinted");
@@ -223,7 +223,7 @@ int main() {
             near_bg &= std::abs(m.color.r - bg.r) <= 4 && std::abs(m.color.g - bg.g) <= 4 && std::abs(m.color.b - bg.b) <= 4;
         }
         check(never_darker, "fading grain is never darker than the background");
-        check(near_bg, "an almost-faded grain is almost the background colour");
+        check(near_bg, "an almost-faded grain is almost the background color");
     }
 
     // Waveform: one rect per column, sized by the peaks.

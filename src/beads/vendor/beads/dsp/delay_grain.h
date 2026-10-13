@@ -232,7 +232,7 @@ class DelayGrain : public Grain {
   }
 
   // RobotBoy: read-only position and speed (Q10), and the stereo position
-  // (0 = left, 0.5 = centre, 1 = right) the grain started with, for the
+  // (0 = left, 0.5 = center, 1 = right) the grain started with, for the
   // grain display.
   inline int32_t delay() const { return delay_; }
   inline int32_t speed() const { return speed_; }

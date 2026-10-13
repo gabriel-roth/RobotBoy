@@ -147,7 +147,7 @@ struct LucarneDisplay : widget::Widget {
 			if (font) {
 				nvgFontFaceId(vg, font->handle);
 				// Sized from the width so both display shapes match; wrapped
-				// to 86% of the width and centred vertically.
+				// to 86% of the width and centered vertically.
 				nvgFontSize(vg, box.size.x * 0.05f);
 				nvgFillColor(vg, nvgRGB(0x80, 0x8a, 0x94));
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);

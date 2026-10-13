@@ -25,7 +25,7 @@
 
 namespace robotboy_beads {
 
-// RobotBoy's Quality order (front-panel colours: white, cyan, amber,
+// RobotBoy's Quality order (front-panel colors: white, cyan, amber,
 // magenta), mapped onto Beads' media in MediaForQuality().
 enum class Quality { kBright = 0, kCold, kSunny, kScorched };
 

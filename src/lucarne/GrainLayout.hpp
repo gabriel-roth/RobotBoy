@@ -27,7 +27,7 @@ struct VisualGrain {
 	int32_t start_index;
 	float speed;
 	float duration;
-	float pan;     // 0 = left, 0.5 = centre, 1 = right; picks the colour
+	float pan;     // 0 = left, 0.5 = center, 1 = right; picks the color
 	float x0;      // start x
 	float span;    // signed length in x; negative = reversed
 	int side;      // +1 above the band, -1 below
@@ -67,12 +67,12 @@ public:
 	const std::vector<VisualGrain>& grains() const { return grains_; }
 
 	float XForIndex(int32_t index, int32_t max_delay) const;
-	float RowY(int side, int row) const;   // centre of the row
+	float RowY(int side, int row) const;   // center of the row
 	static int PreferredRow(float speed, int rows_per_side = kRowsPerSide);
 	int rows_per_side() const { return rows_; }
 	static int SideFor(float speed);
-	// Grain colour for a stereo position: blue at hard left, warm white at
-	// centre, orange at hard right.
+	// Grain color for a stereo position: blue at hard left, warm white at
+	// center, orange at hard right.
 	static Rgb PanColor(float pan);
 
 private:

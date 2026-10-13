@@ -33,7 +33,7 @@ bool Overlaps(float a, float la, float b, float lb, float w) {
 constexpr Rgb kWriteHead{0xC0, 0xC8, 0xD0};
 constexpr Rgb kWriteHeadFrozen{0x50, 0x58, 0x60};
 constexpr Rgb kPanLeft{0x3F, 0xA9, 0xF5};
-constexpr Rgb kPanCentre{0xE8, 0xE4, 0xDA};
+constexpr Rgb kPanCenter{0xE8, 0xE4, 0xDA};
 constexpr Rgb kPanRight{0xFF, 0x8A, 0x3D};
 
 }  // namespace
@@ -91,11 +91,11 @@ int GrainLayout::ChooseRow(int side, int preferred, float x0, float span) const 
 }
 
 Rgb GrainLayout::PanColor(float pan) {
-	// Beads bunches pans around the centre (BoundedRandomFloat), so the
-	// square root stretches small offsets into visible colour.
+	// Beads bunches pans around the center (BoundedRandomFloat), so the
+	// square root stretches small offsets into visible color.
 	const float t = std::min(std::max((pan - 0.5f) * 2.f, -1.f), 1.f);
 	const float shaped = std::sqrt(std::fabs(t));
-	return t < 0.f ? Mix(kPanCentre, kPanLeft, shaped) : Mix(kPanCentre, kPanRight, shaped);
+	return t < 0.f ? Mix(kPanCenter, kPanLeft, shaped) : Mix(kPanCenter, kPanRight, shaped);
 }
 
 void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {

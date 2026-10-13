@@ -242,7 +242,7 @@ std::string QualityParamQuantity::getDisplayValueString() {
 #ifdef METAMODULE
 // MetaModule-only Quality control. The VCV→MM adapter turns a non-momentary
 // SvgSwitch with >=3 frames plus a configSwitch into a labeled FlipSwitch, so
-// MM shows the mode name in the Adjust popup and the per-mode colour comes from
+// MM shows the mode name in the Adjust popup and the per-mode color comes from
 // the frame image (metamodule/assets/quality_*.png, reached via the .svg->.png
 // asset rule). The desktop build keeps its momentary RGB bezel instead — see the
 // #ifndef METAMODULE branch in ParticulesWidget and Particules(). The referenced

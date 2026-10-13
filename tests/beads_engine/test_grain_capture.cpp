@@ -177,7 +177,7 @@ TEST_CASE("Capture publishes start events that match the controls") {
     if (events[i].slot == events[i - 1].slot) CHECK(events[i].serial > events[i - 1].serial);
 }
 
-TEST_CASE("Pan: centred for a steady pulse, spread for a random cloud") {
+TEST_CASE("Pan: centered for a steady pulse, spread for a random cloud") {
   auto pans = [](float density, float randomness) {
     Run r;
     r.controls.c.parameters.time = Knob(0.5f, randomness);
@@ -192,7 +192,7 @@ TEST_CASE("Pan: centred for a steady pulse, spread for a random cloud") {
     return out;
   };
   // Density counter-clockwise (steady pulse), no attenurandomizer: Beads'
-  // spread is zero, so every grain is dead centre.
+  // spread is zero, so every grain is dead center.
   const auto steady = pans(0.2f, 0.0f);
   REQUIRE(steady.size() == 20);
   for (float p : steady) CHECK(p == 0.5f);

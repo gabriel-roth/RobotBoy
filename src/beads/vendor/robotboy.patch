@@ -1,5 +1,5 @@
 diff --git a/beads/dsp/delay_grain.h b/beads/dsp/delay_grain.h
-index 8a1663d..2f15d5e 100644
+index 8a1663d..1919428 100644
 --- a/beads/dsp/delay_grain.h
 +++ b/beads/dsp/delay_grain.h
 @@ -66,6 +66,7 @@ class DelayGrain : public Grain {
@@ -46,7 +46,7 @@ index 8a1663d..2f15d5e 100644
    }
 +
 +  // RobotBoy: read-only position and speed (Q10), and the stereo position
-+  // (0 = left, 0.5 = centre, 1 = right) the grain started with, for the
++  // (0 = left, 0.5 = center, 1 = right) the grain started with, for the
 +  // grain display.
 +  inline int32_t delay() const { return delay_; }
 +  inline int32_t speed() const { return speed_; }
