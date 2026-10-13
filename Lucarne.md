@@ -30,8 +30,8 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 - *A bright cursor* sits at the read point, where the tap picks up the audio.
 - *Brightness follows the tap's level,* and pulses with Shape.
-- *Color shows the tap's ratio.* Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
-- *Height shows the row.* Each side of the band has two rows (lanes): main-ratio taps sit in the upper row and second-ratio taps in the lower. Each ratio has two taps (adjacent multipliers that crossfade as Time turns), and each tap keeps its own row, so a line stays put while you play.
+- *Color shows the tap's ratio.* Taps of the main ratio are warm white and sit above the band; taps of the second ratio are green and sit below it. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
+- *Height shows the row.* Each side of the band has two rows, one for each tap of that ratio (the two taps are adjacent multipliers that crossfade as Time turns). A tap keeps its row as you turn Time, so a line stays put while you play.
 
 **Slice.** With Slice on, the tape stops and each looping play head draws as a line over the slice it plays, with a cursor running along it. Turn Slice off and the display goes back to the running taps.
 
