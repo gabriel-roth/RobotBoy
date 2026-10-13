@@ -116,6 +116,19 @@ Differences from Beads mode:
 
 ---
 
+## Lucarne display
+
+**[Lucarne](Lucarne.md)** is a display expander for Particules. It shows the recording buffer as a waveform, with the write head sweeping across it, and draws every grain as it plays:
+
+- **Position and length:** each grain is a line over the stretch of buffer it reads, so **Time** moves grains across the display and **Size** and **Pitch** set how long the lines are.
+- **Height:** pitch. Unison sits just above the waveform, higher grains further up, lower grains below it (±2 octaves).
+- **Color:** stereo position, from blue (left) through white to orange (right). With **Density** counter-clockwise and the attenurandomizers at noon, every grain is centered and white; turning Density clockwise or adding randomness fans the colors out.
+- **Brightness:** each grain's envelope (**Shape**). A cursor runs along each line as the grain plays.
+
+In VCV Rack, place Lucarne directly to the right of Particules. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Particules' **Expanders…** menu; tap the display to see it fullscreen. Lucarne works in Beads mode only, and has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
+
+---
+
 ## Patch ideas
 
 - **Scrubbing / timestretch:** patch a slow ramp-down LFO or a decaying envelope into **Time** CV to sweep through recorded time at whatever speed you like.
