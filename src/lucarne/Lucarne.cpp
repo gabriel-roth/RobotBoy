@@ -89,13 +89,19 @@ struct LucarneDisplay : widget::Widget {
 					event_cursor = f.event_write();
 				}
 				f.ReadPeaks(lo, hi);
+				// Events first, then the frame: the frame is at least as new, so
+				// every event's grain is already in it. Without a frame, leave the
+				// events unread.
+				const uint32_t before = event_cursor;
+				const int n_events = f.ReadEvents(&event_cursor, events.data(), int(events.size()));
 				const bool have = f.ReadFrame(&frame);
+				if (!have) event_cursor = before;
 				in.epoch = f.epoch();
 				in.peak_lo = lo;
 				in.peak_hi = hi;
 				in.frame = have ? &frame : nullptr;
 				in.events = events.data();
-				in.num_events = f.ReadEvents(&event_cursor, events.data(), int(events.size()));
+				in.num_events = have ? n_events : 0;
 				in.quality = p->quality_state_;
 			}
 			in.dt = dt;
