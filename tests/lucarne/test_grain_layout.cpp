@@ -25,8 +25,9 @@ static GrainLiveFrame Frame() {
     f.max_delay = M;
     return f;
 }
-static void Live(GrainLiveFrame& f, int slot, uint32_t serial, int32_t pos, float level = 1.f) {
-    f.slots[slot] = {serial, pos, level, false};
+static void Live(GrainLiveFrame& f, int slot, uint32_t serial, int32_t pos, float elapsed = 0.f,
+                 float level = 1.f) {
+    f.slots[slot] = {serial, pos, level, false, elapsed};
 }
 static GrainLayout::Input In(const GrainLiveFrame* f, const GrainStartEvent* e, int n,
                              float dt = 0.f, uint32_t epoch = 1) {
@@ -68,7 +69,7 @@ int main() {
         check(near(g.x0, 320.f * (M - 1 - 600) / M), "start x from start index");
         check(near(g.span, 320.f * 100.f / M), "span = speed*duration in x");
         check(!g.ended && near(g.cursor, 0.f), "live at start");
-        Live(f, 3, 7, 550);                         // moved 50 of 100
+        Live(f, 3, 7, 550, 50.f);                   // played 50 of 100
         G.Update(In(&f, nullptr, 0, 0.02f));
         check(near(G.grains()[0].cursor, 0.5f), "cursor halfway");
         f.slots[3].done = true;
@@ -80,11 +81,23 @@ int main() {
         check(G.grains().empty(), "gone after 150 ms");
     }
 
+    // A grain spanning more than half the buffer: the cursor must not wrap.
+    {
+        GrainLayout G; G.SetSize(320.f, 180.f);
+        GrainLiveFrame f = Frame();
+        Live(f, 0, 1, 800);
+        GrainStartEvent e{1, 0, 800, 1.f, 800.f};   // speed 1, 0.8 of the buffer
+        G.Update(In(&f, &e, 1));
+        Live(f, 0, 1, 200, 600.f);                  // 600 of 800 played
+        G.Update(In(&f, nullptr, 0, 0.02f));
+        check(!G.grains()[0].ended && near(G.grains()[0].cursor, 0.75f), "cursor past half the buffer");
+    }
+
     // A grain that ended before its event was read is born ended, cursor at 1.
     {
         GrainLayout G; G.SetSize(320.f, 180.f);
         GrainLiveFrame f = Frame();
-        f.slots[2] = {9, 100, 0.f, true};
+        f.slots[2] = {9, 100, 0.f, true, 0.f};
         GrainStartEvent e{8, 2, 300, 1.f, 50.f};
         G.Update(In(&f, &e, 1));
         check(G.grains().size() == 1 && G.grains()[0].ended && near(G.grains()[0].cursor, 1.f),

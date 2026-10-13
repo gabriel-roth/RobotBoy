@@ -29,13 +29,6 @@ float Semitones(float speed) {
 	const float s = 12.f * std::log2(std::max(std::fabs(speed), 1e-6f));
 	return std::min(std::max(s, -GrainLayout::kMaxSemitones), GrainLayout::kMaxSemitones);
 }
-// Wraps a signed index distance into (-n/2, n/2].
-int32_t Centered(int64_t d, int32_t n) {
-	int64_t r = d % n;
-	if (r < 0) r += n;
-	if (r > n / 2) r -= n;
-	return int32_t(r);
-}
 // Do [a, a+la) and [b, b+lb) overlap on a ring of width w?
 bool Overlaps(float a, float la, float b, float lb, float w) {
 	for (float shift : {-w, 0.f, w})
@@ -142,15 +135,12 @@ void GrainLayout::Update(const Input& in) {
 	if (in.frame) {
 		const GrainLiveFrame& f = *in.frame;
 		for (int i = 0; i < in.num_events; ++i) Birth(in.events[i], f);
-		const int32_t m = std::max<int32_t>(f.max_delay, 1);
 		for (size_t i = 0; i < grains_.size(); ++i) {
 			VisualGrain& g = grains_[i];
 			if (g.ended) continue;
 			const auto& slot = f.slots[g.slot];
 			if (slot.serial == g.serial && !slot.done) {
-				const float total = g.speed * g.duration;
-				const float moved = float(Centered(int64_t(g.start_index) - slot.position_index, m));
-				g.cursor = total != 0.f ? std::min(std::max(moved / total, 0.f), 1.f) : 1.f;
+				g.cursor = g.duration > 0.f ? std::min(std::max(slot.elapsed / g.duration, 0.f), 1.f) : 1.f;
 				g.level = slot.level;
 			} else {
 				g.ended = true;

@@ -53,7 +53,7 @@ struct LucarneDisplay : widget::Widget {
 		}
 		for (int i = 0; i < 6; ++i) {
 			const int32_t start = 60000 + i * 50000;
-			frame.slots[i] = {1, start - int32_t(kSpeeds[i] * 12000.f), 0.9f, false};
+			frame.slots[i] = {1, start - int32_t(kSpeeds[i] * 12000.f), 0.9f, false, 12000.f};
 		}
 		in.peak_lo = lo;
 		in.peak_hi = hi;

@@ -27,6 +27,7 @@ struct GrainSlotState {
   int32_t position_index;  // delay-line index of the read head
   float level;             // envelope, 0..1
   bool done;
+  float elapsed;           // samples played so far (duration - remaining)
 };
 
 struct GrainLiveFrame {

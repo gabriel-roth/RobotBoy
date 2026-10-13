@@ -93,7 +93,8 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
                         Wrap(int64_t(position) + std::lround(speed * elapsed), max_delay),
                         speed, float(g.duration())});
     }
-    frame.slots[s] = {g.serial(), position, g.level(), g.done()};
+    frame.slots[s] = {g.serial(), position, g.level(), g.done(),
+                      float(g.duration() - g.remaining_samples())};
   }
   feed_->EndFrame();
 }
