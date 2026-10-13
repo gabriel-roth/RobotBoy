@@ -4,6 +4,8 @@
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
+The [Lucarne](Lucarne.md) display expander can sit to the right of Retours (or attach from its Expanders menu on MetaModule) to show the buffer, each delay tap and the looping slices under Slice.
+
 ---
 
 ## How it works

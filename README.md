@@ -7,7 +7,7 @@
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 
-* **[Lucarne](Lucarne.md):** A display expander for Particules' buffer and grains.
+* **[Lucarne](Lucarne.md):** A display expander for Particules' and Retours' buffers, grains and delay taps.
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads, and its smaller sibling **[Löp](Loooop.md#löp)**.
 
@@ -41,7 +41,7 @@ A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob
 
 <img src="screenshots/Lucarne.png" alt="Lucarne module" height="300">
 
-A display expander for Particules: it shows the buffer as a waveform with the write head sweeping across it, and draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position. [**[Manual]**](Lucarne.md)
+A display expander for Particules and Retours: it shows the buffer as a waveform with the write head sweeping across it. With Particules it draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position; with Retours it draws each delay tap as a line from where it reads to the write head. [**[Manual]**](Lucarne.md)
 
 ## Loooop + Löp
 

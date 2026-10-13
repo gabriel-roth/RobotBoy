@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Lucarne now works with Retours too: it shows Retours' buffer, each delay tap as a line from where it reads to the write head, and the looping slices under Slice. The key under the VCV display changes to match the module it's attached to.
+
 ## [2.2.0-beta.3] — 2026-10-13 (pre-release)
 
 - New: Lucarne, a display expander for Particules. Place it to the right of Particules (on MetaModule, attach it from Particules' Expanders menu) to watch the buffer and every grain: where it reads, how long it is, its pitch, its stereo position, and its playback. On MetaModule, attaching it needs firmware 2.4 or later.

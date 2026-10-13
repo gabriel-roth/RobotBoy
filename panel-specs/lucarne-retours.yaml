@@ -5,7 +5,7 @@
 # Twin of lucarne.yaml for Lucarne attached to Retours: keep everything except the key captions and glyphs in sync with it.
 # LucarneWidget swaps to this panel while Retours sits on the left.
 #
-# Lucarne is a display-only expander for Particules: a wordmark, one screen
+# Lucarne is a display-only expander for Particules and Retours: a wordmark, one screen
 # and a key. No params, ports or lights. The MetaModule faceplate comes from
 # lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
 #
