@@ -87,7 +87,7 @@ struct LucarneDisplay : widget::Widget {
 				message = kNoParticules;
 				feed = nullptr;
 			} else if (p->grain_feed_.classic.load(std::memory_order_relaxed)) {
-				message = "Beads mode only";
+				message = "Particules is set to Classic mode. Lucarne only works in Beads mode.";
 				feed = nullptr;
 			} else {
 				auto& f = p->grain_feed_;
@@ -146,10 +146,17 @@ struct LucarneDisplay : widget::Widget {
 				APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 			if (font) {
 				nvgFontFaceId(vg, font->handle);
-				nvgFontSize(vg, box.size.y * 0.09f);
+				// Sized from the width so both display shapes match; wrapped
+				// to 86% of the width and centred vertically.
+				nvgFontSize(vg, box.size.x * 0.05f);
 				nvgFillColor(vg, nvgRGB(0x80, 0x8a, 0x94));
-				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-				nvgText(vg, box.size.x * 0.5f, box.size.y * 0.5f, message, nullptr);
+				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+				const float wrap = box.size.x * 0.86f;
+				const float left = (box.size.x - wrap) * 0.5f;
+				float bounds[4];
+				nvgTextBoxBounds(vg, left, 0.f, wrap, message, nullptr, bounds);
+				const float top = (box.size.y - (bounds[3] - bounds[1])) * 0.5f;
+				nvgTextBox(vg, left, top, wrap, message, nullptr);
 			}
 		}
 		nvgRestore(vg);

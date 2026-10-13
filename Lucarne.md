@@ -31,5 +31,5 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 ## Notes
 
-- Lucarne works with Particules in Beads mode only. In classic mode it shows "Beads mode only".
+- Lucarne works with Particules in Beads mode only. In classic mode it shows "Particules is set to Classic mode. Lucarne only works in Beads mode."
 - It is display-only: it doesn't change Particules' sound in any way.
