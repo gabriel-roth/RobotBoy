@@ -65,6 +65,8 @@ elements:
 
 glyphs:
   - {src: glyphs/lucarne/length.svg,   at: [16.98, 86.6]}
+  # pitch.svg's band is a lighter blue (#7d9ab5) than the display's waveform
+  # (#51667a), which disappears against the lavender backdrop.
   - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 86.4], scale: 0.8}   # taller glyph: shrunk to clear its caption
   - {src: glyphs/lucarne/pan.svg,      at: [16.98, 106.8]}
   - {src: glyphs/lucarne/envelope.svg, at: [43.98, 106.8]}
