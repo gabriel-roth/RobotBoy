@@ -1,8 +1,8 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0-beta.3] — 2026-10-13 (pre-release)
 
-- New: Lucarne, a display expander for Particules. Place it to the right of Particules (on MetaModule, attach it from Particules' Expanders menu) to watch the buffer and every grain: where it reads, how long it is, its pitch, its stereo position, and its playback.
+- New: Lucarne, a display expander for Particules. Place it to the right of Particules (on MetaModule, attach it from Particules' Expanders menu) to watch the buffer and every grain: where it reads, how long it is, its pitch, its stereo position, and its playback. On MetaModule, attaching it needs firmware 2.4 or later.
 
 ## [2.2.0-beta.2] — 2026-10-12 (pre-release)
 
