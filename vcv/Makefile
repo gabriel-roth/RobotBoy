@@ -20,6 +20,7 @@ SOURCES += ../src/loooop/dsp/LoopEngine.cpp
 SOURCES += ../src/loooop/display/LoopWaveformRenderer.cpp
 SOURCES += $(wildcard ../src/mf20/*.cpp)
 SOURCES += $(wildcard ../src/particules/*.cpp)
+SOURCES += $(wildcard ../src/lucarne/*.cpp)
 SOURCES += $(wildcard ../src/retours_delay/*.cpp)
 
 # Mutable Instruments Beads (vendored, src/beads/vendor/NOTICE.md) and the

@@ -107,7 +107,7 @@ void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	const int32_t start = std::min(std::max<int32_t>(e.start_index, 0), m - 1);
 	VisualGrain g{};
 	g.serial = e.serial;
-	g.slot = std::min(std::max(e.slot, 0), GrainFeed::kSlots - 1);
+	g.slot = std::min(std::max<int>(e.slot, 0), GrainFeed::kSlots - 1);
 	g.start_index = start;
 	g.speed = e.speed;
 	g.duration = e.duration;

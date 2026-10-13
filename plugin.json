@@ -15,6 +15,7 @@
     { "slug": "Particules", "name": "Particules", "description": "Granular texture synthesizer built on the open-source Beads code.", "tags": ["Granular", "Reverb", "Sampler", "Effect"] },
     { "slug": "Ondes", "name": "Ondes", "description": "Wavetable oscillator built on the open-source Beads code.", "tags": ["Oscillator", "Wavetable"] },
     { "slug": "Vespid", "name": "Vespid", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] },
-    { "slug": "Retours", "name": "Retours", "description": "Clockable, freezable, pitch-shifting delay built on the open-source Beads code.", "tags": ["Delay", "Effect"] }
+    { "slug": "Retours", "name": "Retours", "description": "Clockable, freezable, pitch-shifting delay built on the open-source Beads code.", "tags": ["Delay", "Effect"] },
+    { "slug": "Lucarne", "name": "Lucarne", "description": "Expander for Particules that shows its buffer and grains.", "tags": ["Visual", "Expander"] }
   ]
 }

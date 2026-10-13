@@ -33,6 +33,8 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/retours_delay/Retours.cpp
     ${SRC}/src/retours_delay/RetoursBeads.cpp
     ${SRC}/src/retours_delay/RetoursClassic.cpp
+    ${SRC}/src/lucarne/Lucarne.cpp
+    ${SRC}/src/lucarne/GrainLayout.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc

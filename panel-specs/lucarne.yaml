@@ -1,0 +1,23 @@
+# Lucarne panel spec (vcv-panel-gen) — generates res/Lucarne.svg. Regenerate
+# with (see panel-specs/README.md for setup):
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne.yaml --out res/Lucarne.svg
+#
+# Lucarne is a display-only expander for Particules: a wordmark and one
+# 16:9 screen (54 x 30.375 mm, centred: (60.96 - 54) / 2 = 3.48). No params,
+# ports or lights. Keep the SCREEN rect in sync with kScreen* in
+# src/lucarne/Lucarne.cpp.
+slug: Lucarne
+name: LUCARNE
+hp: 12
+
+theme:
+  screws: none    # the module widget draws its own ScrewBlack corners.
+
+title:
+  size: 6.35
+  tracking: 0.661458
+  # Same title baseline as Particules/Retours so the panels line up.
+  dy: 1.211
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 30.375}}
