@@ -20,6 +20,7 @@
 #include "stmlib/utils/gate_flags.h"
 
 #include "host/gain_control.h"
+#include "host/grain_capture.h"
 #include "host/resampler.h"
 
 namespace robotboy_beads {
@@ -94,6 +95,10 @@ class EngineHost {
 
   void RequestClear() { clear_requested_ = true; }
   void RecalibrateGain() { recalibrate_requested_ = true; }
+
+  // Lucarne's grain display: capture into feed after each block while
+  // feed->attached is set. nullptr (the default) turns it off.
+  void SetGrainFeed(GrainFeed* feed) { capture_.Attach(feed); }
 
   HostFrameOut Process(const HostFrameIn& in, ControlSource* controls);
 
@@ -177,6 +182,7 @@ class EngineHost {
   bool recalibrate_requested_ = false;
   bool buffer_empty_ = true;
   int active_grains_ = 0;
+  GrainCapture capture_;
 
   // Host-rate output FIFO (L, R, gate).
   std::array<std::array<float, 3>, kOutputFifoSize> output_fifo_;

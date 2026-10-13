@@ -49,6 +49,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/beads/vendor/stmlib/dsp/units.cc
     ${SRC}/src/beads/vendor/stmlib/utils/random.cc
     ${SRC}/src/beads/host/engine_host.cpp
+    ${SRC}/src/beads/host/grain_capture.cpp
     ${SRC}/src/beads/host/gain_control.cpp
     # granular DSP engine (Particules)
     ${SRC}/src/particules/dsp/src/particules_processor.cpp

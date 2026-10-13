@@ -127,6 +127,7 @@ void EngineHost::Reconfigure(bool reset_gain, bool apply_quality) {
       reset_gain);
   transition_blocks_ = kTransitionBlocks;
   buffer_empty_ = true;
+  capture_.Invalidate();
   configured_ = true;
   ResetStreams();
 }
@@ -193,6 +194,7 @@ void EngineHost::RunBlock(ControlSource* controls) {
     clear_requested_ = false;
     processor_->ClearBuffer();
     buffer_empty_ = true;
+    capture_.Invalidate();
   }
   if (recalibrate_requested_) {
     recalibrate_requested_ = false;
@@ -275,6 +277,7 @@ void EngineHost::RunBlock(ControlSource* controls) {
       out,
       size);
   active_grains_ = processor_->num_active_grains();
+  capture_.AfterBlock(*processor_);
 
 
   // beads.cc clips to the codec's full scale before conversion; the
