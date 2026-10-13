@@ -179,18 +179,47 @@ struct LucarneDisplay : widget::Widget {
 };
 
 struct LucarneWidget : ModuleWidget {
+#ifndef METAMODULE
+	// Two VCV panels, identical but for the printed key: Lucarne.svg describes
+	// the Particules view (also shown with nothing attached and in the module
+	// browser), Lucarne-Retours.svg the Retours view. step() swaps them when
+	// the display's source changes. MetaModule's faceplate has no key.
+	std::shared_ptr<window::Svg> particules_svg, retours_svg;
+	LucarneDisplay* display = nullptr;
+	bool showing_retours = false;
+
+	void step() override {
+		const bool want = display && display->source == Source::Retours;
+		if (want != showing_retours) {
+			showing_retours = want;
+			if (auto* panel = dynamic_cast<SvgPanel*>(getPanel())) {
+				panel->setBackground(want ? retours_svg : particules_svg);
+				panel->fb->setDirty();   // the SDK headers don't promise setBackground redraws
+			}
+		}
+		ModuleWidget::step();
+	}
+#endif
+
 	LucarneWidget(Lucarne* module) {
 		setModule(module);
+#ifndef METAMODULE
+		particules_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne.svg"));
+		retours_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Retours.svg"));
+#endif
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne.svg")));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		auto* display = new LucarneDisplay();
-		display->module = module;
-		display->box.pos = mm2px(Vec(kScreenX, kScreenY));
-		display->box.size = mm2px(Vec(kScreenW, kScreenH));
-		addChild(display);
+		auto* screen = new LucarneDisplay();
+		screen->module = module;
+		screen->box.pos = mm2px(Vec(kScreenX, kScreenY));
+		screen->box.size = mm2px(Vec(kScreenW, kScreenH));
+		addChild(screen);
+#ifndef METAMODULE
+		display = screen;
+#endif
 	}
 };
 
