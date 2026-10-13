@@ -105,20 +105,25 @@ class GrainFeed {
     return false;
   }
 
-  // Copies the events after *cursor (at most max) and advances it. If the
-  // reader fell more than kEvents behind, it skips to the oldest event
-  // still in the ring.
+  // Copies the events after *cursor (at most max) and advances it. Only the
+  // newest kEvents - 1 events are ever returned: the slot of the oldest ring
+  // entry is the one a concurrent PushEvent would overwrite, so the reader
+  // never starts on it, and any entry the producer may have reached during
+  // the copy is dropped. Every returned event is intact.
   int ReadEvents(uint32_t* cursor, GrainStartEvent* out, int max) const {
     const uint32_t w = event_write_.load(std::memory_order_acquire);
     uint32_t c = *cursor;
-    if (w - c > uint32_t(kEvents)) c = w - kEvents;
+    if (w - c > uint32_t(kEvents - 1)) c = w - (kEvents - 1);
     const uint32_t first = c;
     int n = 0;
     for (; c != w && n < max; ++c) out[n++] = events_[c % kEvents];
-    // Entries the producer overwrote during the copy are dropped.
-    const uint32_t w2 = event_write_.load(std::memory_order_acquire);
-    if (w2 - first > uint32_t(kEvents)) {
-      const int skip = std::min(n, int(w2 - first - kEvents));
+    // Order the copy above before re-reading the write index.
+    std::atomic_thread_fence(std::memory_order_acquire);
+    const uint32_t w2 = event_write_.load(std::memory_order_relaxed);
+    // While event_write_ reads w2, the producer may be mid-write on the slot
+    // of index w2 - kEvents, so that entry and everything older is suspect.
+    if (w2 - first >= uint32_t(kEvents)) {
+      const int skip = std::min(n, int(w2 - first - kEvents + 1));
       std::memmove(out, out + skip, sizeof(GrainStartEvent) * size_t(n - skip));
       n -= skip;
     }

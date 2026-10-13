@@ -242,8 +242,8 @@ TEST_CASE("Event ring overrun skips to the newest") {
   uint32_t cursor = 0;
   std::vector<GrainStartEvent> out(GrainFeed::kEvents);
   const int n = feed.ReadEvents(&cursor, out.data(), GrainFeed::kEvents);
-  CHECK(n == GrainFeed::kEvents);
-  CHECK(out[0].serial == 300 - GrainFeed::kEvents);
+  CHECK(n == GrainFeed::kEvents - 1);  // the oldest ring slot is never trusted
+  CHECK(out[0].serial == 300 - (GrainFeed::kEvents - 1));
   CHECK(out[n - 1].serial == 299);
   CHECK(cursor == 300);
 }
