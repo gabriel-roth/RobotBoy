@@ -39,10 +39,38 @@ void GrainCapture::AfterBlock(const beads::Processor& processor) {
   processor.VisitGranular(visit);
 }
 
+// After a resync the peaks are empty and the write head only fills columns
+// as it passes (never, while frozen). Fill one column per block from the
+// audio already in the buffer: at most max_delay / 256 reads each.
+template <typename Line>
+void GrainCapture::Backfill(const Line& line, int32_t write, int32_t max_delay) {
+  if (backfill_ >= GrainFeed::kColumns) return;
+  const int c = backfill_++;
+  // The live path owns the column the write head is in, unless it's stopped.
+  if (!line.frozen() && c == Column(write, max_delay)) return;
+  const int64_t m = max_delay, k = GrainFeed::kColumns;
+  const int64_t d0 = (c * m + k - 1) / k;
+  const int64_t d1 = ((c + 1) * m + k - 1) / k - 1;   // Column(i) == c for d in [d0, d1]
+  float lo = 0.0f, hi = 0.0f;
+  bool first = true;
+  for (int64_t d = d0; d <= d1 && d < m; ++d) {
+    const beads::FloatFrame f = line.LoadAt(int32_t(m - 1 - d));
+    const float l = std::min(f.l, f.r), h = std::max(f.l, f.r);
+    lo = first ? l : std::min(lo, l);
+    hi = first ? h : std::max(hi, h);
+    first = false;
+  }
+  if (!first) feed_->StoreColumn(c, lo, hi);
+}
+
 template <typename Line, typename Player>
 void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
   const int32_t max_delay = Line::MAX_DELAY;
   const int32_t write = line.write_ptr();
+  // A block is at most 12 samples (times the resampling ratio); anything
+  // far beyond that means we missed blocks, so resync instead of looping.
+  constexpr int32_t kMaxWritten = 64;
+  if (synced_ && Wrap(int64_t(last_write_) - write, max_delay) > kMaxWritten) synced_ = false;
   if (!synced_ || mono != mono_ || max_delay != max_delay_) {
     feed_->Reset();
     synced_ = true;
@@ -50,6 +78,7 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
     max_delay_ = max_delay;
     last_write_ = write;
     column_ = -1;
+    backfill_ = 0;
     // Grains already playing at a resync are not announced.
     for (int s = 0; s < GrainFeed::kSlots; ++s) serial_[s] = player.grain(s).serial();
   }
@@ -75,6 +104,7 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
     feed_->StoreColumn(c, column_lo_, column_hi_);
   }
   last_write_ = write;
+  Backfill(line, write, max_delay);
 
   GrainLiveFrame& frame = feed_->BeginFrame();
   frame.write_index = write;

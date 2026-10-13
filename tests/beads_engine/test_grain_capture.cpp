@@ -191,6 +191,20 @@ TEST_CASE("Peaks fill where audio was written; a clear empties them") {
   CHECK(r.feed.epoch() != epoch);
 }
 
+TEST_CASE("Attaching to a frozen buffer backfills the waveform") {
+  Run r;
+  r.feed.attached.store(false);
+  r.Seconds(1.5f);
+  r.Seconds(0.1f, /*freeze=*/true);
+  r.feed.attached.store(true);
+  r.Seconds(0.3f, true);
+  int8_t lo[GrainFeed::kColumns], hi[GrainFeed::kColumns];
+  r.feed.ReadPeaks(lo, hi);
+  int loud = 0;
+  for (int c = 0; c < GrainFeed::kColumns; ++c) loud += hi[c] > 20 && lo[c] < -20;
+  CHECK(loud > 15);
+}
+
 TEST_CASE("Freeze stops peak updates but not grains") {
   Run r;
   r.Seconds(1.0f);

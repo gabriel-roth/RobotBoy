@@ -33,12 +33,16 @@ class GrainCapture {
   template <typename Line, typename Player>
   void Capture(const Line& line, const Player& player, bool mono);
 
+  template <typename Line>
+  void Backfill(const Line& line, int32_t write, int32_t max_delay);
+
   GrainFeed* feed_ = nullptr;
   bool synced_ = false;
   bool mono_ = false;
   int32_t max_delay_ = 0;
   int32_t last_write_ = 0;
   int column_ = -1;
+  int backfill_ = 0;  // next peak column to fill from the buffer after a resync
   float column_lo_ = 0.0f;
   float column_hi_ = 0.0f;
   uint32_t serial_[GrainFeed::kSlots] = {};
