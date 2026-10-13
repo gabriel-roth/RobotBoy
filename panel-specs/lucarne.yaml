@@ -31,13 +31,13 @@ title:
   # Same title baseline as Particules/Retours so the panels line up.
   dy: 1.211
 
-# Key backdrop: a dark zone behind the key, in the house zone style (1.5 mm
+# Key backdrop: an olive zone behind the key, in the house zone style (1.5 mm
 # from the panel edges, rx 2, like Particules). y 79 to 121: 5 mm below the
 # screen, clear of the bottom screws (125.5), and centered on the key's
 # content (glyph tops 85.1 to last caption 114.4, midpoint 99.75).
-# Black at 0.35 over #3d3d3d resolves to #282828.
+# Dusty dark olive at 0.55 over #3d3d3d resolves to #56563e.
 zones:
-  - {x: 1.5, y: 79, w: 57.96, h: 42, rx: 2, fill: "#000000", opacity: 0.35}
+  - {x: 1.5, y: 79, w: 57.96, h: 42, rx: 2, fill: "#6b6a3e", opacity: 0.55}
 
 grids:
   key:
