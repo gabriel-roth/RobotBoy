@@ -42,7 +42,14 @@ class GrainCapture {
   int32_t max_delay_ = 0;
   int32_t last_write_ = 0;
   int column_ = -1;
-  int backfill_ = 0;  // next peak column to fill from the buffer after a resync
+  // Backfill after a resync: columns done (of kColumns), the column the
+  // write head was in at the resync (filled newest-first from there), and
+  // the partly read column carried across blocks.
+  int backfill_done_ = GrainFeed::kColumns;
+  int backfill_start_ = 0;
+  int64_t backfill_next_ = -1;  // next delay offset to read; -1 = start a column
+  float backfill_lo_ = 0.0f;
+  float backfill_hi_ = 0.0f;
   float column_lo_ = 0.0f;
   float column_hi_ = 0.0f;
   uint32_t serial_[GrainFeed::kSlots] = {};

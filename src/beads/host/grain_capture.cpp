@@ -40,27 +40,47 @@ void GrainCapture::AfterBlock(const beads::Processor& processor) {
 }
 
 // After a resync the peaks are empty and the write head only fills columns
-// as it passes (never, while frozen). Fill one column per block from the
-// audio already in the buffer: at most max_delay / 256 reads each.
+// as it passes (never, while frozen). Fill them from the audio already in
+// the buffer, newest first, reading at most kBackfillReads samples per
+// block so the audio thread's cost stays flat: a full ring takes 0.5 s
+// (Bright mono) to 2 s (Scorched mono).
+constexpr int kBackfillReads = 192;
+
 template <typename Line>
 void GrainCapture::Backfill(const Line& line, int32_t write, int32_t max_delay) {
-  if (backfill_ >= GrainFeed::kColumns) return;
-  const int c = backfill_++;
-  // The live path owns the column the write head is in, unless it's stopped.
-  if (!line.frozen() && c == Column(write, max_delay)) return;
-  const int64_t m = max_delay, k = GrainFeed::kColumns;
-  const int64_t d0 = (c * m + k - 1) / k;
-  const int64_t d1 = ((c + 1) * m + k - 1) / k - 1;   // Column(i) == c for d in [d0, d1]
-  float lo = 0.0f, hi = 0.0f;
-  bool first = true;
-  for (int64_t d = d0; d <= d1 && d < m; ++d) {
-    const beads::FloatFrame f = line.LoadAt(int32_t(m - 1 - d));
-    const float l = std::min(f.l, f.r), h = std::max(f.l, f.r);
-    lo = first ? l : std::min(lo, l);
-    hi = first ? h : std::max(hi, h);
-    first = false;
+  const int k = GrainFeed::kColumns;
+  const int64_t m = max_delay;
+  int budget = kBackfillReads;
+  while (budget > 0 && backfill_done_ < k) {
+    // Newest audio is just left of the write head's column; that column
+    // itself comes last.
+    const int c = ((backfill_start_ - 1 - backfill_done_) % k + k) % k;
+    // The live path owns the column the write head is in, unless it's stopped.
+    if (!line.frozen() && c == Column(write, max_delay)) {
+      ++backfill_done_;
+      backfill_next_ = -1;
+      continue;
+    }
+    const int64_t d0 = (c * m + k - 1) / k;
+    const int64_t d1 = std::min(((c + 1) * m + k - 1) / k - 1, m - 1);   // Column(i) == c for d in [d0, d1]
+    if (backfill_next_ < 0) {
+      backfill_next_ = d0;
+      backfill_lo_ = 0.0f;
+      backfill_hi_ = 0.0f;
+    }
+    for (; backfill_next_ <= d1 && budget > 0; ++backfill_next_, --budget) {
+      const beads::FloatFrame f = line.LoadAt(int32_t(m - 1 - backfill_next_));
+      const float l = std::min(f.l, f.r), h = std::max(f.l, f.r);
+      const bool first = backfill_next_ == d0;
+      backfill_lo_ = first ? l : std::min(backfill_lo_, l);
+      backfill_hi_ = first ? h : std::max(backfill_hi_, h);
+    }
+    if (backfill_next_ > d1) {
+      if (d1 >= d0) feed_->StoreColumn(c, backfill_lo_, backfill_hi_);
+      ++backfill_done_;
+      backfill_next_ = -1;
+    }
   }
-  if (!first) feed_->StoreColumn(c, lo, hi);
 }
 
 template <typename Line, typename Player>
@@ -78,7 +98,9 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
     max_delay_ = max_delay;
     last_write_ = write;
     column_ = -1;
-    backfill_ = 0;
+    backfill_done_ = 0;
+    backfill_start_ = Column(write, max_delay);
+    backfill_next_ = -1;
     // Grains already playing at a resync are not announced.
     for (int s = 0; s < GrainFeed::kSlots; ++s) serial_[s] = player.grain(s).serial();
   }

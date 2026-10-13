@@ -197,8 +197,15 @@ TEST_CASE("Attaching to a frozen buffer backfills the waveform") {
   r.Seconds(1.5f);
   r.Seconds(0.1f, /*freeze=*/true);
   r.feed.attached.store(true);
-  r.Seconds(0.3f, true);
   int8_t lo[GrainFeed::kColumns], hi[GrainFeed::kColumns];
+  // Gradual: one block reads 192 samples, less than one 1500-sample column.
+  r.Seconds(24.0f / 48000.0f, true);
+  r.feed.ReadPeaks(lo, hi);
+  int filled = 0;
+  for (int c = 0; c < GrainFeed::kColumns; ++c) filled += lo[c] != 0 || hi[c] != 0;
+  CHECK(filled == 0);
+  // Newest first: 0.3 s covers the 1.25 s of recorded audio.
+  r.Seconds(0.3f, true);
   r.feed.ReadPeaks(lo, hi);
   int loud = 0;
   for (int c = 0; c < GrainFeed::kColumns; ++c) loud += hi[c] > 20 && lo[c] < -20;
