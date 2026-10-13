@@ -20,6 +20,7 @@ std::atomic<int> g_particules_classic_builds{0};
 ParticulesBeads::ParticulesBeads(Particules& m, float sample_rate) : m_(m) {
 	InitControlChannels();
 	ok_ = host_.Init(beads::Processor::MODE_GRANULAR, true, sample_rate);
+	host_.SetGrainFeed(&m.grain_feed_);
 }
 
 void ParticulesBeads::InitControlChannels() {

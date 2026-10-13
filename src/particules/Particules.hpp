@@ -2,6 +2,7 @@
 #include "plugin.hpp"
 #include "classic_mode.h"
 #include "ParticulesEngine.hpp"
+#include "host/grain_feed.h"
 
 #include <atomic>
 #include <memory>
@@ -65,6 +66,11 @@ struct Particules : Module, robotboy::ClassicModeSource {
 	};
 
 	// --- Shared state: settings both engines use ---
+	// Lucarne's display feed. Lives on the module (an engine switch destroys
+	// the engine); the Beads engine captures into it while a Lucarne sits to
+	// the right. The UI thread reads it from Lucarne's widget.
+	robotboy_beads::GrainFeed grain_feed_;
+	int expander_check_ = 0;
 	int quality_state_ = 0;   // 0-3: Bright, Cold, Sunny, Scorched
 	bool prev_quality_button_ = false;
 	// Lock pitch: 0 = off, 1-2 = octaves (+ fifths), 3-7 = scales (see
