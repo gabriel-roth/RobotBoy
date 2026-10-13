@@ -23,6 +23,8 @@ float Semitones(float speed) {
 	const float s = 12.f * std::log2(std::max(std::fabs(speed), 1e-6f));
 	return std::min(std::max(s, -GrainLayout::kMaxSemitones), GrainLayout::kMaxSemitones);
 }
+int32_t Wrap(int32_t x, int32_t m) { return ((x % m) + m) % m; }
+int32_t ClampIndex(int32_t i, int32_t m) { return std::min(std::max<int32_t>(i, 0), m - 1); }
 // Do [a, a+la) and [b, b+lb) overlap on a ring of width w?
 bool Overlaps(float a, float la, float b, float lb, float w) {
 	for (float shift : {-w, 0.f, w})
@@ -98,7 +100,19 @@ Rgb GrainLayout::PanColor(float pan) {
 	return t < 0.f ? Mix(kPanCenter, kPanLeft, shaped) : Mix(kPanCenter, kPanRight, shaped);
 }
 
-void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
+Rgb GrainLayout::TapColor(int slot) { return (slot / 2) % 2 == 0 ? PanColor(0.5f) : kRatioGreen; }
+int GrainLayout::TapSide(int slot) { return (slot / 2) % 2 == 0 ? +1 : -1; }
+int GrainLayout::TapLane(int slot) { return slot & 1; }
+
+float GrainLayout::LaneY(int side, int lane) const {
+	const float band_top = (h_ - BandHeight()) * 0.5f;
+	const float band_bottom = band_top + BandHeight();
+	const float lane_h = band_top * 0.5f;   // each side's height split in two
+	const float offset = (lane + 0.5f) * lane_h;
+	return side > 0 ? band_top - offset : band_bottom + offset;
+}
+
+void GrainLayout::MakeRoom() {
 	if (int(grains_.size()) >= kMaxGrains) {
 		// Make room: the ended grain closest to vanishing, else the oldest.
 		auto victim = grains_.end();
@@ -106,6 +120,10 @@ void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 			if (it->ended && (victim == grains_.end() || it->fade < victim->fade)) victim = it;
 		grains_.erase(victim != grains_.end() ? victim : grains_.begin());
 	}
+}
+
+void GrainLayout::Birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
+	MakeRoom();
 	const int32_t m = std::max<int32_t>(f.max_delay, 1);
 	const int32_t start = std::min(std::max<int32_t>(e.start_index, 0), m - 1);
 	VisualGrain g{};
@@ -138,12 +156,27 @@ void GrainLayout::Update(const Input& in) {
 		epoch_ = in.epoch;
 		have_epoch_ = true;
 	}
+	if (in.frame) {
+		const GrainLiveFrame& f = *in.frame;
+		View v = View::Grains;
+		if (f.tap_mode) {
+			v = View::Running;
+			for (const auto& t : f.taps)
+				if (t.slice) v = View::Slice;
+		}
+		if (v != view_) {
+			grains_.clear();   // the old view's visuals go at once, no fade
+			view_ = v;
+		}
+	}
 	for (VisualGrain& g : grains_)
 		if (g.ended) g.fade -= in.dt;
 	grains_.erase(std::remove_if(grains_.begin(), grains_.end(),
 	                             [](const VisualGrain& g) { return g.ended && g.fade <= 0.f; }),
 	              grains_.end());
-	if (in.frame) {
+	if (in.frame && view_ == View::Slice) {
+		TapBirthsAndEnds(*in.frame);
+	} else if (in.frame && view_ == View::Grains) {
 		const GrainLiveFrame& f = *in.frame;
 		for (int i = 0; i < in.num_events; ++i) Birth(in.events[i], f);
 		for (size_t i = 0; i < grains_.size(); ++i) {
@@ -160,6 +193,55 @@ void GrainLayout::Update(const Input& in) {
 		}
 	}
 	Build(in);
+}
+
+void GrainLayout::TapBirthsAndEnds(const GrainLiveFrame& f) {
+	const int32_t m = std::max<int32_t>(f.max_delay, 1);
+	// Progress of a head through its slice. The read index can sit a sample
+	// past the slice's newer end, and head and tap fields can disagree for a
+	// frame, so clamp rather than trust the bounds.
+	auto cursor = [m](const robotboy_beads::TapState& t) {
+		if (t.slice_length <= 0) return 1.f;
+		const int32_t done = Wrap(ClampIndex(t.slice_start, m) - ClampIndex(t.read_index, m), m);
+		return std::min(std::max(float(done) / float(t.slice_length), 0.f), 1.f);
+	};
+	for (VisualGrain& g : grains_) {
+		if (g.ended) continue;
+		const auto& t = f.taps[g.slot];
+		if (t.slice && t.serial == g.serial && t.level > kTapMinLevel) {
+			g.cursor = cursor(t);
+			g.level = t.level;
+		} else {
+			g.ended = true;   // restarted, or silent after having been audible
+			g.fade = kFadeSeconds;
+		}
+	}
+	for (int i = 0; i < GrainLiveFrame::kTaps; ++i) {
+		const auto& t = f.taps[i];
+		if (!t.slice || t.level <= kTapMinLevel) continue;
+		bool known = false;
+		for (const VisualGrain& g : grains_)
+			if (g.slot == i && g.serial == t.serial) known = true;
+		if (known) continue;
+		MakeRoom();
+		const int32_t start = ClampIndex(t.slice_start, m);
+		const float length = float(std::max<int32_t>(t.slice_length, 0));
+		VisualGrain g{};
+		g.serial = t.serial;
+		g.slot = i;
+		g.start_index = start;
+		g.speed = 1.f;
+		g.duration = length;
+		g.pan = 0.5f;
+		g.x0 = XForIndex(start, m);
+		g.span = std::min(length / float(m) * w_, w_);
+		g.side = TapSide(i);
+		g.row = TapLane(i);
+		g.cursor = cursor(t);
+		g.level = t.level;
+		g.ended = false;
+		grains_.push_back(g);
+	}
 }
 
 void GrainLayout::AddSpan(float x, float len, float y, float h, Rgb c) {
@@ -195,6 +277,10 @@ void GrainLayout::Build(const Input& in) {
 		list_.marks.push_back({x, mid - band * 0.5f, std::max(col_w * 0.75f, w_ * 0.003f), band,
 		                       in.frame->frozen ? kWriteHeadFrozen : kWriteHead});
 	}
+	if (view_ != View::Grains) {
+		BuildTaps(in);
+		return;
+	}
 	const float row_h = RowHeight();
 	const float thick = row_h * 0.5f;
 	const float min_len = w_ / 160.f;   // 2 px at MetaModule's 320-wide fullscreen
@@ -212,6 +298,45 @@ void GrainLayout::Build(const Input& in) {
 		const float cw = std::max(w_ * 0.008f, thick);
 		const float fade = g.ended ? g.fade / kFadeSeconds : 1.f;
 		AddSpan(cx - cw * 0.5f, cw, y - row_h * 0.45f, row_h * 0.9f, Mix(bg, Lighten(base, 0.5f), std::min(std::max(fade, 0.f), 1.f)));
+	}
+}
+
+void GrainLayout::BuildTaps(const Input& in) {
+	// Lines twice the grain line's thickness; cursors as wide as grain
+	// cursors and half a lane tall.
+	const float thick = RowHeight();
+	const float lane_h = (h_ - BandHeight()) * 0.25f;
+	const float cursor_h = lane_h * 0.5f;
+	const float cw = std::max(w_ * 0.008f, RowHeight() * 0.5f);
+	const float min_len = w_ / 160.f;
+	const Rgb bg = list_.background;
+	if (view_ == View::Running && in.frame) {
+		// Drawn straight from the live frame: no state, no fade.
+		const GrainLiveFrame& f = *in.frame;
+		const int32_t m = std::max<int32_t>(f.max_delay, 1);
+		const int32_t write = ClampIndex(f.write_index, m);
+		for (int i = 0; i < GrainLiveFrame::kTaps; ++i) {
+			const auto& t = f.taps[i];
+			if (t.level <= kTapMinLevel) continue;
+			const int32_t read = ClampIndex(t.read_index, m);
+			const float x = XForIndex(read, m);
+			const float len = std::max(float(Wrap(read - write, m)) / float(m) * w_, min_len);
+			const float y = LaneY(TapSide(i), TapLane(i));
+			const Rgb base = TapColor(i);
+			AddSpan(x, len, y - thick * 0.5f, thick, Mix(bg, base, 0.15f + 0.85f * std::min(t.level, 1.f)));
+			AddSpan(x - cw * 0.5f, cw, y - cursor_h * 0.5f, cursor_h, Lighten(base, 0.5f));
+		}
+	} else if (view_ == View::Slice) {
+		for (const VisualGrain& g : grains_) {
+			const Rgb base = TapColor(g.slot);
+			const float k = g.ended ? 0.6f * (g.fade / kFadeSeconds) : 0.35f + 0.65f * g.level;
+			const float y = LaneY(g.side, g.row);
+			AddSpan(g.x0, std::max(g.span, min_len), y - thick * 0.5f, thick,
+			        Mix(bg, base, std::min(std::max(k, 0.f), 1.f)));
+			const float fade = g.ended ? g.fade / kFadeSeconds : 1.f;
+			AddSpan(g.x0 + g.span * g.cursor - cw * 0.5f, cw, y - cursor_h * 0.5f, cursor_h,
+			        Mix(bg, Lighten(base, 0.5f), std::min(std::max(fade, 0.f), 1.f)));
+		}
 	}
 }
 

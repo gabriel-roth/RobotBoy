@@ -75,6 +75,17 @@ public:
 	// center, orange at hard right.
 	static Rgb PanColor(float pan);
 
+	// Tap view (Retours delay mode): one line per tap, in two lanes on each
+	// side of the band. Tap slot i: ratio (i / 2) % 2 picks the side and
+	// color, bit i & 1 the lane.
+	static constexpr Rgb kRatioGreen{0x8F, 0xD3, 0xA0};
+	static constexpr float kTapMinLevel = 0.01f;   // at or below: silent, not drawn
+	static Rgb TapColor(int slot);
+	static int TapSide(int slot);   // +1 above (ratio 0), -1 below (ratio 1)
+	static int TapLane(int slot);   // 0 = nearer the band
+	float LaneY(int side, int lane) const;   // center of the lane
+	bool tap_view() const { return view_ != View::Grains; }
+
 private:
 	float BandHeight() const;
 	float RowHeight() const;
@@ -82,6 +93,13 @@ private:
 	int ChooseRow(int side, int preferred, float x0, float span) const;
 	void Build(const Input& in);
 	void AddSpan(float x, float len, float y, float h, Rgb c);
+	void MakeRoom();
+	// Slice heads live in grains_ (slot = tap slot, row = lane).
+	void TapBirthsAndEnds(const robotboy_beads::GrainLiveFrame& f);
+	void BuildTaps(const Input& in);
+
+	enum class View { Grains, Running, Slice };
+	View view_ = View::Grains;
 
 	float w_ = 1.f, h_ = 1.f;
 	int rows_ = kRowsPerSide;

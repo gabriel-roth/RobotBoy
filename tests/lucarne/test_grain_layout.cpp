@@ -37,6 +37,19 @@ static GrainLayout::Input In(const GrainLiveFrame* f, const GrainStartEvent* e, 
     return in;
 }
 
+static GrainLiveFrame TapFrame(bool slice = false) {
+    GrainLiveFrame f = Frame();          // write 500, M = 1000
+    f.tap_mode = true;
+    for (auto& s : f.slots) s.done = true;
+    for (auto& t : f.taps) { t = {}; t.read_index = 500; t.slice = slice; }
+    return f;
+}
+static int CountColor(const DrawList& l, Rgb c) {
+    int n = 0;
+    for (const Rect& r : l.marks) if (r.color.r == c.r && r.color.g == c.g && r.color.b == c.b) ++n;
+    return n;
+}
+
 int main() {
     GrainLayout L;
     L.SetSize(320.f, 180.f);
@@ -234,6 +247,96 @@ int main() {
         check(G.draw_list().wave.size() == 256, "256 waveform columns");
         const Rect& r = G.draw_list().wave[10];
         check(near(r.y, 72.f) && near(r.h, 36.f), "full-scale column fills the band");
+    }
+
+    // --- Tap view (Retours) ---
+    {   // slot -> side, lane, color
+        check(GrainLayout::TapSide(0) == +1 && GrainLayout::TapSide(1) == +1, "ratio 0 above");
+        check(GrainLayout::TapSide(2) == -1 && GrainLayout::TapSide(7) == -1, "ratio 1 below");
+        check(GrainLayout::TapLane(4) == 0 && GrainLayout::TapLane(5) == 1, "lane = slot bit");
+        const Rgb g = GrainLayout::TapColor(2), w = GrainLayout::TapColor(0);
+        check(g.r == 0x8F && g.g == 0xD3 && g.b == 0xA0, "ratio 1 is green");
+        const Rgb c = GrainLayout::PanColor(0.5f);
+        check(w.r == c.r && w.g == c.g && w.b == c.b, "ratio 0 is warm white");
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        check(L.LaneY(+1, 0) > L.LaneY(+1, 1), "above: lane 0 nearer band");
+        check(L.LaneY(-1, 0) < L.LaneY(-1, 1), "below: lane 0 nearer band");
+        check(L.LaneY(+1, 1) > 0.f && L.LaneY(-1, 1) < 180.f, "lanes inside display");
+    }
+    {   // running tap: span from read point to write head, at full level
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = TapFrame();
+        f.taps[0].read_index = 700; f.taps[0].level = 1.f;   // 200 samples behind write 500
+        L.Update(In(&f, nullptr, 0));
+        check(L.tap_view(), "tap view on");
+        const float x_read = L.XForIndex(700, M), x_write = L.XForIndex(500, M);
+        bool found = false;
+        for (const Rect& r : L.draw_list().marks)
+            if (near(r.x, x_read, 0.5f) && near(r.w, x_write - x_read, 0.5f)) found = true;
+        check(found, "running tap spans read point to write head");
+    }
+    {   // running tap span wraps
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = TapFrame();
+        f.write_index = 950; f.taps[1].read_index = 50; f.taps[1].level = 1.f;   // delay 100, wraps
+        L.Update(In(&f, nullptr, 0));
+        // At level 1 the line is exactly TapColor; the cursor is lighter.
+        check(CountColor(L.draw_list(), GrainLayout::TapColor(1)) == 2, "running tap span wraps into two pieces");
+    }
+    {   // silent taps are not drawn
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = TapFrame();
+        L.Update(In(&f, nullptr, 0));
+        check(L.draw_list().marks.size() == 1, "only the write head when all taps silent");
+    }
+    {   // out-of-range indices are clamped
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = TapFrame();
+        f.taps[0].read_index = 5000; f.taps[0].level = 1.f;
+        f.taps[2].read_index = -7; f.taps[2].level = 1.f;
+        L.Update(In(&f, nullptr, 0));
+        bool inside = true;
+        for (const Rect& r : L.draw_list().marks) if (r.x < -0.01f || r.x + r.w > 320.01f) inside = false;
+        check(inside, "clamped taps stay inside the display");
+    }
+    {   // slice head: line of the slice's length, cursor, fade after serial change
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = TapFrame(true);
+        f.taps[0] = {650, 0.8f, true, 1, 700, 100};   // read 650 inside slice 700 -> 600
+        L.Update(In(&f, nullptr, 0, 0.01f));
+        check(L.grains().size() == 1, "one slice visual");
+        const VisualGrain& g = L.grains()[0];
+        check(near(g.x0, L.XForIndex(700, M), 0.5f), "slice starts at its oldest end");
+        check(near(g.span, 100.f / M * 320.f, 0.5f), "slice spans its length rightward");
+        check(near(g.cursor, 0.5f, 0.02f), "cursor halfway");
+        f.taps[0] = {700, 0.8f, true, 2, 700, 100};   // restarted
+        L.Update(In(&f, nullptr, 0, 0.01f));
+        int ended = 0, live = 0;
+        for (const VisualGrain& v : L.grains()) (v.ended ? ended : live)++;
+        check(ended == 1 && live == 1, "restart ends the old slice and births a new one");
+        L.Update(In(&f, nullptr, 0, 0.2f));
+        check(L.grains().size() == 1, "old slice gone after the fade");
+    }
+    {   // running <-> slice switch drops the old view
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame s = TapFrame(true);
+        s.taps[0] = {650, 0.8f, true, 1, 700, 100};
+        L.Update(In(&s, nullptr, 0, 0.01f));
+        GrainLiveFrame r = TapFrame();
+        r.taps[0].read_index = 700; r.taps[0].level = 1.f;
+        L.Update(In(&r, nullptr, 0, 0.01f));
+        check(L.grains().empty(), "slice visuals dropped when Slice ends");
+    }
+    {   // grain -> tap switch clears grains
+        GrainLayout L; L.SetSize(320.f, 180.f);
+        GrainLiveFrame f = Frame();
+        Live(f, 0, 1, 400);
+        GrainStartEvent e{1, 0, 400, 1.f, 100.f, 0.5f};
+        L.Update(In(&f, &e, 1));
+        check(L.grains().size() == 1, "a grain before the switch");
+        GrainLiveFrame t = TapFrame();
+        L.Update(In(&t, nullptr, 0));
+        check(L.grains().empty() && L.tap_view(), "grains cleared in tap view");
     }
 
     std::printf(g_failures ? "\n%d FAILED\n" : "\nall passed\n", g_failures);
