@@ -38,6 +38,7 @@ RetoursBeads::RetoursBeads(Retours& m, float sample_rate) : m_(m) {
 
 	// Delay mode only, with Beads' reverb.
 	ok_ = host_.Init(beads::Processor::MODE_DELAY, true, sample_rate);
+	host_.SetGrainFeed(&m.grain_feed_);
 }
 
 void RetoursBeads::onSampleRateChange(float sample_rate) {

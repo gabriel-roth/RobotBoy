@@ -1,5 +1,6 @@
 #include "Retours.hpp"
 #include "beads_menu.hpp"
+#include "lucarne/Lucarne.hpp"
 
 #include "host/controls.h"
 
@@ -86,6 +87,7 @@ Retours::Retours() {
 	sample_rate_ = APP->engine->getSampleRate();
 	classic_.store(false);
 	engine_ = MakeRetoursBeads(*this);
+	grain_feed_.Reset();   // the old engine's buffer is gone
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
 		WARN("Retours: could not allocate the Beads delay memory");
@@ -114,6 +116,7 @@ void Retours::applyPendingMode(float sample_rate) {   // audio thread
 	sample_rate_ = sample_rate;
 	engine_.reset();   // free first: peak RAM is the larger engine, not both
 	engine_ = want ? MakeRetoursClassic(*this) : MakeRetoursBeads(*this);
+	grain_feed_.Reset();   // the old engine's buffer is gone
 	if (!engine_ || !engine_->ok())
 		WARN("Retours: could not allocate the %s engine", want ? "classic" : "Beads");
 	// A patch loaded straight into a mode switches before the first frame:
@@ -125,6 +128,14 @@ void Retours::applyPendingMode(float sample_rate) {   // audio thread
 void Retours::process(const ProcessArgs& args) {
 	applyPendingMode(args.sampleRate);
 	processed_any_ = true;
+	// Every 256 samples: is a Lucarne attached on the right? dynamic_cast,
+	// not model ==: MetaModule SDK < 2.4 leaves model unset on adapter modules.
+	if (++expander_check_ >= 256) {
+		expander_check_ = 0;
+		grain_feed_.attached.store(dynamic_cast<Lucarne*>(rightExpander.module) != nullptr,
+		                           std::memory_order_relaxed);
+		grain_feed_.classic.store(classicMode(), std::memory_order_relaxed);
+	}
 	if (engine_) {
 		engine_->process(args);
 		ui_frozen_.store(engine_->frozen(), std::memory_order_relaxed);

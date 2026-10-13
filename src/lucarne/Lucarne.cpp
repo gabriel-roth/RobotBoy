@@ -1,6 +1,7 @@
 #include "Lucarne.hpp"
 #include "GrainLayout.hpp"
 #include "particules/Particules.hpp"
+#include "retours_delay/Retours.hpp"
 
 #include <cmath>
 #include <vector>
@@ -17,16 +18,27 @@ static constexpr float kScreenH = 60.f;
 #endif
 
 #ifdef METAMODULE
-static const char* const kNoParticules = "Add from Particules' Expanders menu";
+static const char* const kNoSource = "Add from the Expanders menu of Particules or Retours";
 #else
-static const char* const kNoParticules = "Place right of Particules";
+static const char* const kNoSource = "Place right of Particules or Retours";
 #endif
+
+enum class Source { None, Particules, Retours };
+
+// The module on Lucarne's left, if it is one Lucarne can show.
+static Source FindSource(Module* left, robotboy_beads::GrainFeed** feed) {
+	if (auto* p = dynamic_cast<Particules*>(left)) { *feed = &p->grain_feed_; return Source::Particules; }
+	if (auto* r = dynamic_cast<Retours*>(left)) { *feed = &r->grain_feed_; return Source::Retours; }
+	*feed = nullptr;
+	return Source::None;
+}
 
 struct LucarneDisplay : widget::Widget {
 	Lucarne* module = nullptr;
 	lucarne::GrainLayout layout;
 	const robotboy_beads::GrainFeed* feed = nullptr;   // the feed event_cursor belongs to
 	uint32_t event_cursor = 0;
+	Source source = Source::None;   // what sits on the left; the panel swap reads it
 	double last_time = -1.0;
 	int8_t lo[robotboy_beads::GrainFeed::kColumns] = {};
 	int8_t hi[robotboy_beads::GrainFeed::kColumns] = {};
@@ -80,18 +92,21 @@ struct LucarneDisplay : widget::Widget {
 
 			const char* message = nullptr;
 			lucarne::GrainLayout::Input in;
-			Particules* p = module ? dynamic_cast<Particules*>(module->leftExpander.module) : nullptr;
+			robotboy_beads::GrainFeed* src_feed = nullptr;
+			source = module ? FindSource(module->leftExpander.module, &src_feed) : Source::None;
 			if (!module) {
 				in = demoInput();
-			} else if (!p) {
-				message = kNoParticules;
+			} else if (source == Source::None) {
+				message = kNoSource;
 				feed = nullptr;
-			} else if (p->grain_feed_.classic.load(std::memory_order_relaxed)) {
-				message = "Particules is set to Classic mode. Lucarne only works in Beads mode.";
+			} else if (src_feed->classic.load(std::memory_order_relaxed)) {
+				message = source == Source::Retours
+					? "Retours is set to Classic mode. Lucarne only works in Beads mode."
+					: "Particules is set to Classic mode. Lucarne only works in Beads mode.";
 				feed = nullptr;
 			} else {
-				auto& f = p->grain_feed_;
-				if (feed != &f) {   // new Particules: start at its newest event
+				auto& f = *src_feed;
+				if (feed != &f) {   // new source: start at its newest event
 					feed = &f;
 					event_cursor = f.event_write();
 				}
