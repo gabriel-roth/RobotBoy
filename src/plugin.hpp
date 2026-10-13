@@ -56,6 +56,4 @@ struct SpeedParamQuantity : ParamQuantity {
 	void setDisplayValue(float v) override { setValue(v); }
 };
 
-static constexpr float kQualityColors[4][3] = {
-	{1.f, 1.f, 1.f}, {0.f, 1.f, 1.f}, {1.f, 0.5f, 0.f}, {1.f, 0.f, 1.f},
-};
+#include "particules/quality_colors.h"
