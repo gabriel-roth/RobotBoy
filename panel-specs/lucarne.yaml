@@ -16,7 +16,8 @@
 # each cell has \~25 mm. A cell spans glyph top (y - 1.5) to caption line 2
 # (y + 7.6) = 9.1 mm; the band from the screen bottom (74) to the screw line
 # (125.5) is 51.5 mm, so the leftover 33.3 mm splits into 3 gaps of 11.1:
-# glyph rows at 86.6 and 106.8. Captions: line 1 baseline glyph + 5.0,
+# glyph rows at 86.6 and 106.8; then pulled 1 mm each toward the middle
+# (rows 18.2 mm apart, user choice) to 87.6 and 105.8. Captions: line 1 baseline glyph + 5.0,
 # line 2 + 7.6, cap size 1.8.
 slug: Lucarne
 name: LUCARNE
@@ -44,12 +45,12 @@ grids:
   key:
     cols: [16.98, 43.98]
     rows:
-      glyph1: 86.6
-      cap1a: 91.6
-      cap1b: 94.2
-      glyph2: 106.8
-      cap2a: 111.8
-      cap2b: 114.4
+      glyph1: 87.6
+      cap1a: 92.6
+      cap1b: 95.2
+      glyph2: 105.8
+      cap2a: 110.8
+      cap2b: 113.4
 
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
@@ -64,9 +65,9 @@ elements:
     place: [{text: Stereo pan, size: 1.8, color: "#b0b0b0"}, {text: Envelope, size: 1.8, color: "#b0b0b0"}]
 
 glyphs:
-  - {src: glyphs/lucarne/length.svg,   at: [16.98, 86.6]}
+  - {src: glyphs/lucarne/length.svg,   at: [16.98, 87.6]}
   # pitch.svg's band is a lighter blue (#7d9ab5) than the display's waveform
   # (#51667a), which disappears against the lavender backdrop.
-  - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 86.4], scale: 0.8}   # taller glyph: shrunk to clear its caption
-  - {src: glyphs/lucarne/pan.svg,      at: [16.98, 106.8]}
-  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 106.8]}
+  - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 87.4], scale: 0.8}   # taller glyph: shrunk to clear its caption
+  - {src: glyphs/lucarne/pan.svg,      at: [16.98, 105.8]}
+  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8]}
