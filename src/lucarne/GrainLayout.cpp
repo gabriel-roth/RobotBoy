@@ -11,10 +11,6 @@ using robotboy_beads::GrainStartEvent;
 
 namespace {
 
-Rgb Scale(Rgb c, float k) {
-	k = std::min(std::max(k, 0.f), 1.f);
-	return {uint8_t(c.r * k + 0.5f), uint8_t(c.g * k + 0.5f), uint8_t(c.b * k + 0.5f)};
-}
 Rgb Lighten(Rgb c, float t) {   // t of the way to white
 	return {uint8_t(c.r + (255 - c.r) * t + 0.5f), uint8_t(c.g + (255 - c.g) * t + 0.5f),
 	        uint8_t(c.b + (255 - c.b) * t + 0.5f)};
@@ -208,11 +204,14 @@ void GrainLayout::Build(const Input& in) {
 		const float y = RowY(g.side, g.row);
 		const float len = std::max(std::fabs(g.span), min_len);
 		const float start = g.span >= 0.f ? g.x0 : g.x0 - len;
-		AddSpan(start, len, y - thick * 0.5f, thick, Scale(base, k));
+		// Dim and fade toward the background, not black, so a fading grain
+		// never shows darker than the display behind it.
+		const Rgb bg = list_.background;
+		AddSpan(start, len, y - thick * 0.5f, thick, Mix(bg, base, std::min(std::max(k, 0.f), 1.f)));
 		const float cx = g.x0 + g.span * g.cursor;
 		const float cw = std::max(w_ * 0.008f, thick);
 		const float fade = g.ended ? g.fade / kFadeSeconds : 1.f;
-		AddSpan(cx - cw * 0.5f, cw, y - row_h * 0.45f, row_h * 0.9f, Scale(Lighten(base, 0.5f), fade));
+		AddSpan(cx - cw * 0.5f, cw, y - row_h * 0.45f, row_h * 0.9f, Mix(bg, Lighten(base, 0.5f), std::min(std::max(fade, 0.f), 1.f)));
 	}
 }
 

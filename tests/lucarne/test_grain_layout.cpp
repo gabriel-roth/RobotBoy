@@ -207,6 +207,25 @@ int main() {
         check(found, "a hard-right live grain draws orange");
     }
 
+    // A fading grain fades into the background, never darker than it.
+    {
+        GrainLayout G; G.SetSize(320.f, 180.f);
+        GrainLiveFrame f = Frame();
+        f.slots[0] = {1, 600, 0.f, true};
+        GrainStartEvent e{1, 0, 600, 1.f, 100.f, 1.f};   // born ended, hard right
+        G.Update(In(&f, &e, 1));
+        G.Update(In(&f, nullptr, 0, 0.149f));            // 1 ms of fade left
+        const Rgb bg = G.draw_list().background;
+        bool never_darker = true, near_bg = true;
+        for (const Rect& m : G.draw_list().marks) {
+            if (m.y >= 72.f) continue;                    // grain marks only (above the band)
+            never_darker &= m.color.r >= bg.r && m.color.g >= bg.g && m.color.b >= bg.b;
+            near_bg &= std::abs(m.color.r - bg.r) <= 4 && std::abs(m.color.g - bg.g) <= 4 && std::abs(m.color.b - bg.b) <= 4;
+        }
+        check(never_darker, "fading grain is never darker than the background");
+        check(near_bg, "an almost-faded grain is almost the background colour");
+    }
+
     // Waveform: one rect per column, sized by the peaks.
     {
         GrainLayout G; G.SetSize(320.f, 180.f);
