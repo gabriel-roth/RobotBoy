@@ -75,7 +75,6 @@ Particules::Particules() {
 	sample_rate_ = APP->engine->getSampleRate();
 	classic_.store(false);
 	engine_ = MakeParticulesBeads(*this);
-	grain_feed_.Reset();   // the old engine's buffer is gone
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
 		WARN("Particules: could not allocate the Beads delay memory");
@@ -104,6 +103,7 @@ void Particules::applyPendingMode(float sample_rate) {   // audio thread
 	sample_rate_ = sample_rate;
 	engine_.reset();   // free first: peak RAM is the larger engine, not both
 	engine_ = want ? MakeParticulesClassic(*this) : MakeParticulesBeads(*this);
+	grain_feed_.Reset();   // the old engine's buffer is gone
 	if (!engine_ || !engine_->ok())
 		WARN("Particules: could not allocate the %s engine", want ? "classic" : "Beads");
 	scale_dirty_.store(true, std::memory_order_release);

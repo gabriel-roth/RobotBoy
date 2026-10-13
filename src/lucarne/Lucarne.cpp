@@ -130,7 +130,7 @@ struct LucarneDisplay : widget::Widget {
 			nvgFill(vg);
 		}
 		if (message) {
-			std::shared_ptr<window::Font> font =
+			auto font =
 				APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 			if (font) {
 				nvgFontFaceId(vg, font->handle);
