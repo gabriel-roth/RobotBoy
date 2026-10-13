@@ -31,12 +31,27 @@ struct GrainSlotState {
   float elapsed;           // samples played so far (duration - remaining)
 };
 
+// One delay tap or Slice play head (delay mode). Slot meaning: interval =
+// i / 4, ratio = (i / 2) % 2, lane bit = i & 1 (Slice: 0 = main play head,
+// 1 = its overlapping second head).
+struct TapState {
+  int32_t read_index = 0;    // delay-line index the tap reads (nominal delay)
+  float level = 0.0f;        // gain the tap rendered with (envelope and crossfades included)
+  bool slice = false;        // a Slice play head: the fields below are valid
+  uint32_t serial = 0;       // play head start counter
+  int32_t slice_start = 0;   // index where the slice starts playing (its oldest end)
+  int32_t slice_length = 0;  // in line samples
+};
+
 struct GrainLiveFrame {
   static constexpr int kSlots = 32;
+  static constexpr int kTaps = 8;
   int32_t write_index = 0;
   int32_t max_delay = 1;  // delay-line length in samples
   bool frozen = false;
+  bool tap_mode = false;  // delay mode: taps[] valid, slots all done, no events
   GrainSlotState slots[kSlots] = {};
+  TapState taps[kTaps] = {};
 };
 
 class GrainFeed {

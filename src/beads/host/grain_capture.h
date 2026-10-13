@@ -30,8 +30,17 @@ class GrainCapture {
   static int Column(int32_t index, int32_t max_delay);
 
  private:
+  // The delay controller's current taps, when the processor is in delay mode.
+  struct TapSource {
+    const beads::DelayController::Output* out;
+    const beads::DelayController* controller;
+    int ratio;
+  };
+
+  // taps is nullptr in granular mode.
   template <typename Line, typename Player>
-  void Capture(const Line& line, const Player& player, bool mono);
+  void Capture(const Line& line, const Player& player, bool mono,
+               const TapSource* taps);
 
   template <typename Line>
   void Backfill(const Line& line, int32_t write, int32_t max_delay);

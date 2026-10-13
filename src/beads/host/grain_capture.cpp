@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <type_traits>
 
 namespace robotboy_beads {
 
@@ -29,11 +30,15 @@ void GrainCapture::AfterBlock(const beads::Processor& processor) {
     synced_ = false;
     return;
   }
-  auto visit = [this](const auto& granular, bool mono) {
+  auto visit = [this, &processor](const auto& granular, bool mono) {
+    using GP = std::decay_t<decltype(granular)>;
+    TapSource src{&granular.last_taps(), &processor.delay_controller(),
+                  GP::kDownsampleRatio};
+    const TapSource* taps = granular.tap_mode() ? &src : nullptr;
     if (mono) {
-      Capture(granular.mono_delay_line(), granular.granular_player(), true);
+      Capture(granular.mono_delay_line(), granular.granular_player(), true, taps);
     } else {
-      Capture(granular.stereo_delay_line(), granular.granular_player(), false);
+      Capture(granular.stereo_delay_line(), granular.granular_player(), false, taps);
     }
   };
   processor.VisitGranular(visit);
@@ -84,7 +89,8 @@ void GrainCapture::Backfill(const Line& line, int32_t write, int32_t max_delay) 
 }
 
 template <typename Line, typename Player>
-void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
+void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
+                           const TapSource* taps) {
   const int32_t max_delay = Line::MAX_DELAY;
   const int32_t write = line.write_ptr();
   // A block is at most 12 samples (times the resampling ratio); anything
@@ -132,21 +138,49 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono) {
   frame.write_index = write;
   frame.max_delay = max_delay;
   frame.frozen = line.frozen();
-  for (int s = 0; s < GrainFeed::kSlots; ++s) {
-    const auto& g = player.grain(s);
-    const int32_t position = ReadIndex(write, g.delay(), max_delay);
-    if (g.serial() != serial_[s]) {
-      serial_[s] = g.serial();
-      // A grain's read index moves by -speed per sample, so it started
-      // speed * elapsed above where it is now.
-      const float speed = float(g.speed()) / 1024.0f;
-      const float elapsed = float(g.duration() - g.remaining_samples());
-      feed_->PushEvent({g.serial(), s,
-                        Wrap(int64_t(position) + std::lround(speed * elapsed), max_delay),
-                        speed, float(g.duration()), g.pan()});
+  frame.tap_mode = taps != nullptr;
+  if (taps) {
+    const bool sliced = taps->controller->frozen();
+    for (int i = 0; i < GrainLiveFrame::kTaps; ++i) {
+      const beads::DelayTap& t = taps->out->tap[i];
+      TapState& s = frame.taps[i];
+      s.read_index = t.delay > 0 ? ReadIndex(write, t.delay, max_delay) : write;
+      s.level = t.delay > 0 ? t.gain : 0.0f;
+      s.slice = sliced;
+      if (sliced) {
+        const int h = i / 2;
+        const beads::PlayHead& ph = (i & 1) ? taps->controller->slave_play_head(h)
+                                            : taps->controller->play_head(h);
+        s.serial = ph.serial();
+        s.slice_length = ph.duration() / taps->ratio;
+        s.slice_start = ReadIndex(
+            write, int32_t((int64_t(ph.start() + ph.duration()) << 10) / taps->ratio),
+            max_delay);
+      } else {
+        s.serial = 0;
+        s.slice_start = s.slice_length = 0;
+      }
     }
-    frame.slots[s] = {g.serial(), position, g.level(), g.done(),
-                      float(g.duration() - g.remaining_samples())};
+    for (int s = 0; s < GrainFeed::kSlots; ++s) {
+      frame.slots[s] = {serial_[s], write, 0.0f, true, 0.0f};
+    }
+  } else {
+    for (int s = 0; s < GrainFeed::kSlots; ++s) {
+      const auto& g = player.grain(s);
+      const int32_t position = ReadIndex(write, g.delay(), max_delay);
+      if (g.serial() != serial_[s]) {
+        serial_[s] = g.serial();
+        // A grain's read index moves by -speed per sample, so it started
+        // speed * elapsed above where it is now.
+        const float speed = float(g.speed()) / 1024.0f;
+        const float elapsed = float(g.duration() - g.remaining_samples());
+        feed_->PushEvent({g.serial(), s,
+                          Wrap(int64_t(position) + std::lround(speed * elapsed), max_delay),
+                          speed, float(g.duration()), g.pan()});
+      }
+      frame.slots[s] = {g.serial(), position, g.level(), g.done(),
+                        float(g.duration() - g.remaining_samples())};
+    }
   }
   feed_->EndFrame();
 }

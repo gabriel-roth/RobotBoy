@@ -105,6 +105,7 @@ class EngineHost {
   // Status, for menus and lights. Safe to read from another thread (values
   // may be one block stale).
   bool ok() const { return processor_ != nullptr; }
+  const beads::Processor& processor() const { return *processor_; }
   float gain_db() const;
   bool buffer_empty() const { return buffer_empty_; }
   // True during the 0.25 s of silence after a reformat, when the processor

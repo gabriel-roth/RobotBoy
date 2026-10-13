@@ -392,3 +392,117 @@ TEST_CASE("Tap accessors: delay mode exposes taps and play heads") {
   p.VisitGranular(g);
   CHECK_FALSE(g.tap_mode);
 }
+
+namespace {
+struct DelayRun {
+  Controls controls;
+  EngineHost host;
+  GrainFeed feed;
+  size_t n = 0;
+  DelayRun() {
+    controls.c.parameters.size = Knob(1.0f);
+    controls.c.density.base = 0.7f;
+    controls.c.mix.feedback = 0.5f;
+    REQUIRE(host.Init(Processor::MODE_DELAY, true, 48000.0f));
+    host.SetInputs(true, false);
+    host.SetGrainFeed(&feed);
+    feed.attached.store(true);
+    robotboy_stmlib::Random::Seed(5);
+  }
+  void Seconds(float s, bool freeze = false) {
+    const size_t end = n + size_t(s * 48000.0f);
+    for (; n < end; ++n) host.Process({Sine(n), Sine(n), freeze, false}, &controls);
+  }
+};
+}  // namespace
+
+TEST_CASE("Delay mode publishes taps, not grains") {
+  DelayRun r;
+  const uint32_t events_before = r.feed.event_write();
+  r.Seconds(1.5f);
+  CHECK(r.feed.event_write() == events_before);
+  GrainLiveFrame f;
+  REQUIRE(r.feed.ReadFrame(&f));
+  CHECK(f.tap_mode);
+  int audible = 0;
+  for (const TapState& t : f.taps) {
+    CHECK_FALSE(t.slice);
+    CHECK(t.read_index >= 0);
+    CHECK(t.read_index < f.max_delay);
+    if (t.level > 0.0f) ++audible;
+  }
+  CHECK(audible >= 1);
+  for (const auto& s : f.slots) CHECK(s.done);
+}
+
+TEST_CASE("Tap read index matches the rendered delay") {
+  DelayRun r;
+  r.Seconds(1.0f);
+  GrainLiveFrame f;
+  REQUIRE(r.feed.ReadFrame(&f));
+  struct Got {
+    beads::DelayController::Output taps;
+    int32_t write = 0, max_delay = 0;
+  } g;
+  auto get = [&g](const auto& gp, bool mono) {
+    g.taps = gp.last_taps();
+    if (mono) {
+      g.write = gp.mono_delay_line().write_ptr();
+      g.max_delay = std::remove_reference_t<decltype(gp.mono_delay_line())>::MAX_DELAY;
+    } else {
+      g.write = gp.stereo_delay_line().write_ptr();
+      g.max_delay = std::remove_reference_t<decltype(gp.stereo_delay_line())>::MAX_DELAY;
+    }
+  };
+  r.host.processor().VisitGranular(get);
+  REQUIRE(g.max_delay == f.max_delay);
+  CHECK(f.write_index == g.write);
+  for (int i = 0; i < 8; ++i)
+    if (g.taps.tap[i].delay > 0)
+      CHECK(f.taps[i].read_index == GrainCapture::ReadIndex(g.write, g.taps.tap[i].delay, g.max_delay));
+}
+
+TEST_CASE("Slice: play heads publish slices whose serials advance") {
+  DelayRun r;
+  r.Seconds(1.0f);
+  r.Seconds(0.2f, true);
+  GrainLiveFrame a;
+  REQUIRE(r.feed.ReadFrame(&a));
+  REQUIRE(a.tap_mode);
+  uint32_t sa = 0;
+  int slices = 0;
+  for (const TapState& t : a.taps) {
+    sa += t.serial;
+    if (t.slice && t.level > 0.0f) {
+      ++slices;
+      CHECK(t.slice_length > 0);
+      CHECK(t.slice_length <= a.max_delay);
+      CHECK(t.slice_start >= 0);
+      CHECK(t.slice_start < a.max_delay);
+    }
+  }
+  CHECK(slices >= 1);
+  r.Seconds(1.0f, true);
+  GrainLiveFrame b;
+  REQUIRE(r.feed.ReadFrame(&b));
+  uint32_t sb = 0;
+  for (const TapState& t : b.taps) sb += t.serial;
+  CHECK(sb > sa);
+}
+
+TEST_CASE("Tap capture leaves Retours' audio bit-identical") {
+  auto fp = [](bool attach) {
+    Controls c;
+    c.c.parameters.size = Knob(1.0f);
+    c.c.density.base = 0.7f;
+    c.c.mix.feedback = 0.5f;
+    EngineHost host;
+    GrainFeed feed;
+    REQUIRE(host.Init(Processor::MODE_DELAY, true, 48000.0f));
+    host.SetInputs(true, true);
+    host.SetGrainFeed(&feed);
+    feed.attached.store(attach);
+    return Fingerprint(host, c, 48000 * 2);
+  };
+  CHECK(fp(true) == fp(false));
+}
