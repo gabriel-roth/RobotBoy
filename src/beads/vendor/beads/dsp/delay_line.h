@@ -258,6 +258,10 @@ class DelayLine {
   }
   
   inline int* mutable_write_ptr() { return &write_ptr_; }
+
+  // RobotBoy: read-only access for the grain display.
+  inline int write_ptr() const { return write_ptr_; }
+  inline FloatFrame LoadAt(int i) const { return Load(i); }
   
   inline void Reset(bool clear) {
     write_ptr_ = 0;

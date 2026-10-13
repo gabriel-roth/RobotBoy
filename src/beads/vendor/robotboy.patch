@@ -1,3 +1,48 @@
+diff --git a/beads/dsp/delay_grain.h b/beads/dsp/delay_grain.h
+index 8a1663d..4978d10 100644
+--- a/beads/dsp/delay_grain.h
++++ b/beads/dsp/delay_grain.h
+@@ -66,6 +66,7 @@ class DelayGrain : public Grain {
+     envelope_.Init(sample_rate);
+     voice_stealing_envelope_.Init();
+     remaining_samples_ = 0;
++    level_ = 0.0f;  // RobotBoy
+   }
+   
+   template<typename DelayLineType>
+@@ -126,6 +127,9 @@ class DelayGrain : public Grain {
+     
+     envelope_.Start(duration, shape, fractional_sample);
+     remaining_samples_ = int(duration);
++    // RobotBoy: grain display bookkeeping.
++    duration_ = remaining_samples_;
++    ++serial_;
+     
+     voice_stealing_envelope_.ResetAndPause();
+   }
+@@ -212,7 +216,10 @@ class DelayGrain : public Grain {
+       }
+     }
+     
+-    sample *= envelope_.Render() * voice_stealing_envelope_.Render();
++    // RobotBoy: keep the envelope value for the grain display (same product,
++    // so the output is unchanged).
++    level_ = envelope_.Render() * voice_stealing_envelope_.Render();
++    sample *= level_;
+ 
+     in_out->l += sample.l * gain_[0][0] + sample.r * gain_[0][1];
+     in_out->r += sample.l * gain_[1][0] + sample.r * gain_[1][1];
+@@ -222,6 +229,10 @@ class DelayGrain : public Grain {
+       remaining_samples_ = 0;
+     }
+   }
++
++  // RobotBoy: read-only position and speed (Q10) for the grain display.
++  inline int32_t delay() const { return delay_; }
++  inline int32_t speed() const { return speed_; }
+   
+  private:
+   float gain_[2][2];
 diff --git a/beads/dsp/delay_granular_player.h b/beads/dsp/delay_granular_player.h
 index 4d91ed4..4dddd3f 100644
 --- a/beads/dsp/delay_granular_player.h
@@ -21,7 +66,7 @@ index 4d91ed4..4dddd3f 100644
            p.shape.value(),
            amplitude, pan,
 diff --git a/beads/dsp/delay_line.h b/beads/dsp/delay_line.h
-index 8d16bfd..ab85149 100644
+index 8d16bfd..7c118a9 100644
 --- a/beads/dsp/delay_line.h
 +++ b/beads/dsp/delay_line.h
 @@ -40,6 +40,15 @@
@@ -73,8 +118,48 @@ index 8d16bfd..ab85149 100644
  enum Interpolation {
    INTERPOLATION_ZOH,
    INTERPOLATION_LINEAR,
+@@ -241,6 +258,10 @@ class DelayLine {
+   }
+   
+   inline int* mutable_write_ptr() { return &write_ptr_; }
++
++  // RobotBoy: read-only access for the grain display.
++  inline int write_ptr() const { return write_ptr_; }
++  inline FloatFrame LoadAt(int i) const { return Load(i); }
+   
+   inline void Reset(bool clear) {
+     write_ptr_ = 0;
+diff --git a/beads/dsp/grain.h b/beads/dsp/grain.h
+index 33c14b4..bcf46d0 100644
+--- a/beads/dsp/grain.h
++++ b/beads/dsp/grain.h
+@@ -48,6 +48,13 @@ class Grain {
+   inline int remaining_samples() const {
+     return remaining_samples_;
+   }
++
++  // RobotBoy: read-only state for the grain display. serial_ counts the
++  // grains this slot has started; duration_ is the last grain's length in
++  // delay-line samples; level_ is its last envelope value.
++  inline uint32_t serial() const { return serial_; }
++  inline int duration() const { return duration_; }
++  inline float level() const { return level_; }
+   
+   inline void FadeOut(int duration) {
+     if (remaining_samples_ > duration) {
+@@ -61,6 +68,10 @@ class Grain {
+ 
+  protected:
+   int remaining_samples_;
++  // RobotBoy: grain display bookkeeping (see serial()).
++  uint32_t serial_ = 0;
++  int duration_ = 0;
++  float level_ = 0.0f;
+   
+   GrainEnvelope envelope_;
+   VoiceStealingEnvelope voice_stealing_envelope_;
 diff --git a/beads/dsp/granular_player.h b/beads/dsp/granular_player.h
-index 2823848..09e3906 100644
+index 2823848..a3b8c46 100644
 --- a/beads/dsp/granular_player.h
 +++ b/beads/dsp/granular_player.h
 @@ -44,12 +44,22 @@ const float kInstantCrossfadeTime = 0.005f;
@@ -100,11 +185,21 @@ index 2823848..09e3906 100644
  };
  
  template<typename T, int num_grains>
+@@ -127,6 +137,9 @@ class GranularPlayer {
+   }
+   
+   inline T* new_grain() { return grain_priority_list_[0]; }
++
++  // RobotBoy: read-only access for the grain display.
++  inline const T& grain(int i) const { return grain_[i]; }
+   
+   inline void Tick() {
+     ++grain_interval_;
 diff --git a/beads/dsp/granular_processor.h b/beads/dsp/granular_processor.h
-index 8b1039e..eb4422d 100644
+index 8b1039e..84b63e2 100644
 --- a/beads/dsp/granular_processor.h
 +++ b/beads/dsp/granular_processor.h
-@@ -83,6 +83,11 @@ class GranularProcessor {
+@@ -83,6 +83,22 @@ class GranularProcessor {
      multitap_delay_.Reset();
    }
    
@@ -112,11 +207,22 @@ index 8b1039e..eb4422d 100644
 +  inline int num_active_grains() const {
 +    return granular_player_.CountActiveGrains();
 +  }
++
++  // RobotBoy: read-only views for the grain display.
++  inline const DelayGranularPlayer& granular_player() const {
++    return granular_player_;
++  }
++  inline const DelayLine<resolution, max_delay, 2>& stereo_delay_line() const {
++    return stereo_delay_line_;
++  }
++  inline const DelayLine<resolution, max_delay * 2, 1>& mono_delay_line() const {
++    return mono_delay_line_;
++  }
 +  
    inline int max_delay_times_ratio() const {
      return max_delay * ratio;
    }
-@@ -133,6 +138,7 @@ class GranularProcessor {
+@@ -133,6 +149,7 @@ class GranularProcessor {
      p.pitch.has_cv = false;
      
      p.monophonic_mode = false;
@@ -198,7 +304,7 @@ index 1bcd1ce..1e4f6f1 100644
  }  // namespace beads
 \ No newline at end of file
 diff --git a/beads/dsp/processor.h b/beads/dsp/processor.h
-index f01765b..99e413c 100644
+index f01765b..722edda 100644
 --- a/beads/dsp/processor.h
 +++ b/beads/dsp/processor.h
 @@ -62,6 +62,14 @@ class Processor {
@@ -216,7 +322,7 @@ index f01765b..99e413c 100644
    struct MixParameters {
      float feedback;
      float dry_wet;
-@@ -72,6 +80,47 @@ class Processor {
+@@ -72,6 +80,68 @@ class Processor {
    void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
    void Configure(Media media, bool mono);
    
@@ -261,10 +367,31 @@ index f01765b..99e413c 100644
 +  enum { kMaxGateBlockSize = 32 };
 +  inline bool gate_out(size_t i) const { return gate_out_[i]; }
 +  
++  // RobotBoy: read-only access to the active granular processor, for the
++  // grain display: calls v(processor, mono).
++  template<typename Visitor>
++  inline void VisitGranular(Visitor& v) const {
++    switch (media_) {
++      case MEDIA_DIRTY_TAPE:
++        v(processor_dirty_tape_, mono_);
++        break;
++      case MEDIA_CLEAN_TAPE:
++        v(processor_clean_tape_, mono_);
++        break;
++      case MEDIA_VINTAGE_DIGITAL:
++        v(processor_vintage_digital_, mono_);
++        break;
++      case MEDIA_DIGITAL:
++      default:
++        v(processor_digital_, mono_);
++        break;
++    }
++  }
++
    inline Media media() const { return media_; }
    inline bool mono() const { return mono_; }
    
-@@ -192,6 +241,9 @@ class Processor {
+@@ -192,6 +262,9 @@ class Processor {
    DelayController delay_controller_;
    
    Media media_;

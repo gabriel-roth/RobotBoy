@@ -66,6 +66,7 @@ class DelayGrain : public Grain {
     envelope_.Init(sample_rate);
     voice_stealing_envelope_.Init();
     remaining_samples_ = 0;
+    level_ = 0.0f;  // RobotBoy
   }
   
   template<typename DelayLineType>
@@ -126,6 +127,9 @@ class DelayGrain : public Grain {
     
     envelope_.Start(duration, shape, fractional_sample);
     remaining_samples_ = int(duration);
+    // RobotBoy: grain display bookkeeping.
+    duration_ = remaining_samples_;
+    ++serial_;
     
     voice_stealing_envelope_.ResetAndPause();
   }
@@ -212,7 +216,10 @@ class DelayGrain : public Grain {
       }
     }
     
-    sample *= envelope_.Render() * voice_stealing_envelope_.Render();
+    // RobotBoy: keep the envelope value for the grain display (same product,
+    // so the output is unchanged).
+    level_ = envelope_.Render() * voice_stealing_envelope_.Render();
+    sample *= level_;
 
     in_out->l += sample.l * gain_[0][0] + sample.r * gain_[0][1];
     in_out->r += sample.l * gain_[1][0] + sample.r * gain_[1][1];
@@ -222,6 +229,10 @@ class DelayGrain : public Grain {
       remaining_samples_ = 0;
     }
   }
+
+  // RobotBoy: read-only position and speed (Q10) for the grain display.
+  inline int32_t delay() const { return delay_; }
+  inline int32_t speed() const { return speed_; }
   
  private:
   float gain_[2][2];

@@ -121,6 +121,27 @@ class Processor {
   enum { kMaxGateBlockSize = 32 };
   inline bool gate_out(size_t i) const { return gate_out_[i]; }
   
+  // RobotBoy: read-only access to the active granular processor, for the
+  // grain display: calls v(processor, mono).
+  template<typename Visitor>
+  inline void VisitGranular(Visitor& v) const {
+    switch (media_) {
+      case MEDIA_DIRTY_TAPE:
+        v(processor_dirty_tape_, mono_);
+        break;
+      case MEDIA_CLEAN_TAPE:
+        v(processor_clean_tape_, mono_);
+        break;
+      case MEDIA_VINTAGE_DIGITAL:
+        v(processor_vintage_digital_, mono_);
+        break;
+      case MEDIA_DIGITAL:
+      default:
+        v(processor_digital_, mono_);
+        break;
+    }
+  }
+
   inline Media media() const { return media_; }
   inline bool mono() const { return mono_; }
   

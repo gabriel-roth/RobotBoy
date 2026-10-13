@@ -137,6 +137,9 @@ class GranularPlayer {
   }
   
   inline T* new_grain() { return grain_priority_list_[0]; }
+
+  // RobotBoy: read-only access for the grain display.
+  inline const T& grain(int i) const { return grain_[i]; }
   
   inline void Tick() {
     ++grain_interval_;

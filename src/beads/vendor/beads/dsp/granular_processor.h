@@ -87,6 +87,17 @@ class GranularProcessor {
   inline int num_active_grains() const {
     return granular_player_.CountActiveGrains();
   }
+
+  // RobotBoy: read-only views for the grain display.
+  inline const DelayGranularPlayer& granular_player() const {
+    return granular_player_;
+  }
+  inline const DelayLine<resolution, max_delay, 2>& stereo_delay_line() const {
+    return stereo_delay_line_;
+  }
+  inline const DelayLine<resolution, max_delay * 2, 1>& mono_delay_line() const {
+    return mono_delay_line_;
+  }
   
   inline int max_delay_times_ratio() const {
     return max_delay * ratio;

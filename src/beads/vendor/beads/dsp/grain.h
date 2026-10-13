@@ -48,6 +48,13 @@ class Grain {
   inline int remaining_samples() const {
     return remaining_samples_;
   }
+
+  // RobotBoy: read-only state for the grain display. serial_ counts the
+  // grains this slot has started; duration_ is the last grain's length in
+  // delay-line samples; level_ is its last envelope value.
+  inline uint32_t serial() const { return serial_; }
+  inline int duration() const { return duration_; }
+  inline float level() const { return level_; }
   
   inline void FadeOut(int duration) {
     if (remaining_samples_ > duration) {
@@ -61,6 +68,10 @@ class Grain {
 
  protected:
   int remaining_samples_;
+  // RobotBoy: grain display bookkeeping (see serial()).
+  uint32_t serial_ = 0;
+  int duration_ = 0;
+  float level_ = 0.0f;
   
   GrainEnvelope envelope_;
   VoiceStealingEnvelope voice_stealing_envelope_;

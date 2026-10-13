@@ -15,6 +15,7 @@ All local changes are in `robotboy.patch` and are marked `// RobotBoy:` in the s
 3. The packed 12-bit delay-line items force the GCC bitfield layout on MinGW, and every item size is checked with a `static_assert`.
 4. `Tap` skips the delay-line reads of a tap whose gain is zero (it still advances its pitch-shifter phase). The output is bit-identical; delay mode costs much less CPU, because most of its 16 taps are silent at any moment.
 5. `stmlib.h` defines `M_PI` when a strict `-std=c++20` C library (MetaModule's newlib) hides it.
+6. Read-only accessors for Lucarne's grain display: the delay line's write pointer and samples, each grain's position, speed, envelope level, length and a per-slot start counter, and the active granular processor (`Processor::VisitGranular`). The output is bit-identical.
 
 ## Build notes
 
