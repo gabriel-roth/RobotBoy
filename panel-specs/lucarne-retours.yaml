@@ -15,14 +15,15 @@
 #
 # Key: 2 x 2 cells under the screen (Scroll, Marker / Color, Brightness),
 # each a glyph over a two-line caption (property on the display / what it
-# shows). The cursor and write-head line are self-explanatory, so they have
-# no cells. Columns sit 13.5 mm either side of the panel center (30.48), so
-# each cell has \~25 mm. A cell spans glyph top (y - 1.5) to caption line 2
-# (y + 7.6) = 9.1 mm; the band from the screen bottom (74) to the screw line
-# (125.5) is 51.5 mm, so the leftover 33.3 mm splits into 3 gaps of 11.1:
-# glyph rows at 86.6 and 106.8; then pulled 1 mm each toward the middle
-# (rows 18.2 mm apart, user choice) to 87.6 and 105.8. Captions: line 1 baseline glyph + 5.0,
-# line 2 + 7.6, cap size 1.8.
+# shows). The scope's tap lines and bars are explained by the Marker and
+# Brightness cells, so the write head and cursors have no cells of their own.
+# Columns sit 13.5 mm either side of the panel center (30.48), so each cell
+# has \~25 mm. Glyphs are 4.8 mm tall (half-height 2.4, top at y - 2.4); a cell
+# spans glyph top to caption line 2 (y + 7.6) = 10.0 mm. The band from the
+# screen bottom (74) to the screw line (125.5) is 51.5 mm, so the leftover
+# 31.5 mm splits into 3 gaps of 10.5: glyph rows at 86.9 and 107.4; then
+# pulled toward the middle (rows 18.2 mm apart, user choice) to 87.6 and 105.8. Captions: line 1 baseline
+# glyph + 5.0, line 2 + 7.6, cap size 1.8.
 slug: Lucarne
 name: LUCARNE
 hp: 12

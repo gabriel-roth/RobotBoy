@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Lucarne now works with Retours too: it shows Retours' buffer, each delay tap as a line from where it reads to the write head, and the looping slices under Slice. The key under the VCV display changes to match the module it's attached to.
+- Lucarne now works with Retours too: it shows Retours' recent audio scrolling past a marker for each echo, which flashes as you hear it, and the looping slices under Slice. The key under the VCV display changes to match the module it's attached to.
 
 ## [2.2.0-beta.3] — 2026-10-13 (pre-release)
 

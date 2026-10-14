@@ -1,6 +1,6 @@
 # Lucarne
 
-**Lucarne** is a display expander for [Particules](Particules.md) and [Retours](Retours.md), for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It shows what the module is doing with its buffer: the recorded audio, the write head, and either every grain as it plays (Particules) or every delay tap (Retours). It has no controls and no jacks.
+**Lucarne** is a display expander for [Particules](Particules.md) and [Retours](Retours.md), for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It shows what the module is doing with its buffer: the recorded audio, and either every grain as it plays with the write head (Particules) or a scrolling scope of every delay tap (Retours). It has no controls and no jacks.
 
 ---
 
@@ -24,18 +24,16 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 ## What it shows with Retours
 
-**The buffer.** The waveform band and the write head work as with Particules, and Slice dims and stops the line in the same way.
+**The scope.** While Retours is running, Lucarne shows Retours' recent audio as a waveform scrolling from right to left, with the newest sound at the right edge. The waveform fills about 70% of the display height.
 
-**The delay taps.** Each audible delay tap is a line above or below the band, running from the point where that tap reads the buffer to the write head, so its length is the delay time. Turn Time and the lines stretch and shrink.
+**The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
 
-- *A bright cursor* sits at the read point, where the tap picks up the audio.
-- *Brightness follows the tap's level,* and pulses with Shape.
-- *Color shows the tap's ratio.* Taps of the main ratio are warm white and sit above the band; taps of the second ratio are green and sit below it. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
-- *Height shows the row.* Each side of the band has two rows, one for each tap of that ratio (the two taps are adjacent multipliers that crossfade as Time turns). A tap keeps its row as you turn Time, so a line stays put while you play.
+- *Each line flashes as sound passes it.* The line brightens and a short bar appears on it as the audio reaches that tap, so you see each echo as you hear it. The bar's height follows that tap's output level.
+- *The view zooms to fit.* The longest audible echo sits near the left edge, and the view glides smoothly to a new zoom when you change Time or Interval.
 
-**Slice.** With Slice on, the tape stops and each looping play head draws as a line over the slice it plays, with a cursor running along it. Turn Slice off and the display goes back to the running taps.
+**Slice.** With Slice on, the tape stops and the display switches to the slice view: each looping play head draws as a line over the slice it plays, with a cursor running along it. Turn Slice off and the display goes back to the scrolling scope.
 
-In VCV, the key under the display changes to match the module Lucarne is attached to: Length shows delay or slice, Height shows one row per tap, Color shows the tap ratio, and Brightness shows level. On MetaModule there is no key.
+In VCV, the key under the display changes to match the module Lucarne is attached to: Scroll shows that the newest audio is at the right, Marker shows one line per tap, Color shows the tap ratio, and Brightness shows the tap's output. On MetaModule there is no key.
 
 ---
 
