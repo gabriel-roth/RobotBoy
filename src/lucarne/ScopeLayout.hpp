@@ -15,6 +15,12 @@ public:
 	static constexpr float kZoomMargin = 1.15f;    // window = longest audible delay x this
 	static constexpr float kMinWindowSeconds = 0.05f;
 	static constexpr float kZoomTau = 0.08f;       // seconds; ~0.25 s to settle
+	// The dry playhead: "now" sits this fraction of the width in from the
+	// right edge (the strip to its right stays empty, like the space past a
+	// tape head), and flashes with the input of the last kDryWindowSeconds.
+	static constexpr float kNowInset = 0.06f;
+	static constexpr float kDryWindowSeconds = 0.005f;
+	static constexpr Rgb kDryColor{0xC0, 0xC8, 0xD0};   // the ring view's write head
 
 	struct Tap { float delay; float level; int slot; };   // delay in line samples
 	struct Input {
@@ -35,8 +41,10 @@ public:
 	void Clear();   // forget the zoom (next Update snaps)
 	const DrawList& draw_list() const { return list_; }
 	float window() const { return window_; }   // current window, line samples
-	float XForAge(float age) const;            // age 0 (newest) -> w, age window -> 0
+	float NowX() const { return w_ * (1.f - kNowInset); }
+	float XForAge(float age) const;            // age 0 (newest) -> NowX(), age window -> 0
 	static float TapOutput(const Input& in, float delay, float level);   // 0..1
+	static float DryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds
 
 private:
 	float w_ = 1.f, h_ = 1.f;

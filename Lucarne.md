@@ -24,7 +24,9 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 ## What it shows with Retours
 
-**The scope.** While Retours is running, Lucarne shows Retours' recent audio as a waveform scrolling from right to left, with the newest sound at the right edge. The waveform fills about 70% of the display height.
+**The scope.** While Retours is running, Lucarne shows Retours' recent audio as a waveform scrolling from right to left. The waveform fills about 70% of the display height.
+
+**The dry playhead.** A light gray-blue line just in from the right edge marks "now": the audio coming into Retours, which you hear as the dry sound. New audio appears there and scrolls away to the left. Like the tap lines, it brightens and shows a bar with the level of the incoming sound. It shows the input, so it still flashes with Mix turned fully wet.
 
 **The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
 
@@ -34,7 +36,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 **Slice.** With Slice on, the tape stops and the display switches to the slice view: each looping play head draws as a line over the slice it plays, with a cursor running along it. Turn Slice off and the display goes back to the scrolling scope.
 
-In VCV, the key under the display changes to match the module Lucarne is attached to: Scroll shows that the newest audio is at the right, Marker shows one line per tap, Color shows the tap ratio, and Brightness shows the tap's output. On MetaModule there is no key.
+In VCV, the key under the display changes to match the module Lucarne is attached to: Scroll shows that audio enters at the right and moves left, Marker shows one line per tap, Color shows the tap ratio, and Brightness shows the tap's output. On MetaModule there is no key.
 
 ---
 

@@ -19,7 +19,7 @@ void ScopeLayout::Clear() {
 }
 
 float ScopeLayout::XForAge(float age) const {
-	return (1.f - age / std::max(window_, 1e-3f)) * w_;
+	return (1.f - age / std::max(window_, 1e-3f)) * NowX();
 }
 
 float ScopeLayout::TapOutput(const Input& in, float delay, float level) {
@@ -30,6 +30,16 @@ float ScopeLayout::TapOutput(const Input& in, float delay, float level) {
 	const int i = std::min(std::max(int(idx), 0), in.entries - 1);
 	const int peak = std::max(std::abs(int(in.lo[i])), std::abs(int(in.hi[i])));
 	return std::min(float(peak) / 127.f, 1.f) * std::min(std::max(level, 0.f), 1.f);
+}
+
+float ScopeLayout::DryOutput(const Input& in) {
+	if (!in.lo || !in.hi || in.entries <= 0) return 0.f;
+	const float spe = float(std::max<int32_t>(in.samples_per_entry, 1));
+	const int n = std::min(std::max(int(std::ceil(kDryWindowSeconds * in.line_rate / spe)), 1), in.entries);
+	int peak = 0;
+	for (int i = 0; i < n; ++i)
+		peak = std::max({peak, std::abs(int(in.lo[i])), std::abs(int(in.hi[i]))});
+	return std::min(float(peak) / 127.f, 1.f);
 }
 
 void ScopeLayout::Update(const Input& in) {
@@ -61,7 +71,7 @@ void ScopeLayout::Update(const Input& in) {
 	const float mid = h_ * 0.5f;
 	const float full = kWaveFraction * h_;
 	const float hair = full * 0.02f;
-	const float col_w = w_ / kColumns;
+	const float col_w = NowX() / kColumns;
 	const float spe = float(std::max<int32_t>(in.samples_per_entry, 1));
 	const float col_age = window_ / kColumns;
 	for (int c = 0; c < kColumns; ++c) {
@@ -92,16 +102,17 @@ void ScopeLayout::Update(const Input& in) {
 	}
 
 	const float line_w = std::max(w_ * 0.004f, 1.f);
+	auto marker = [&](float x, Rgb base, float o) {
+		list_.marks.push_back({x - line_w * 0.5f, 0.f, line_w, h_, Mix(list_.background, base, 0.3f + 0.7f * o)});
+		if (!(o > 0.f)) return;
+		const float bar_h = o * full;
+		list_.marks.push_back({x - line_w * 1.5f, mid - bar_h * 0.5f, line_w * 3.f, bar_h, Lighten(base, 0.4f)});
+	};
+	marker(NowX(), kDryColor, DryOutput(in));
 	for (int i = 0; i < std::min(in.num_taps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
 		const Tap& t = in.taps[i];
 		if (t.delay > window_ || t.delay < 0.f) continue;
-		const float x = XForAge(t.delay);
-		const float o = TapOutput(in, t.delay, t.level);
-		const Rgb base = GrainLayout::TapColor(t.slot);
-		list_.marks.push_back({x - line_w * 0.5f, 0.f, line_w, h_, Mix(list_.background, base, 0.3f + 0.7f * o)});
-		if (!(o > 0.f)) continue;
-		const float bar_h = o * full;
-		list_.marks.push_back({x - line_w * 1.5f, mid - bar_h * 0.5f, line_w * 3.f, bar_h, Lighten(base, 0.4f)});
+		marker(XForAge(t.delay), GrainLayout::TapColor(t.slot), TapOutput(in, t.delay, t.level));
 	}
 }
 
