@@ -72,10 +72,9 @@ class GrainFeed {
     uint32_t epoch;             // bumped by every ScopeReset
   };
 
-  // Set by Particules: a Lucarne is attached (capture runs only then), and
-  // the module is in classic mode (nothing to show).
+  // Set by Particules or Retours: a Lucarne is attached (capture runs only
+  // then).
   std::atomic<bool> attached{false};
-  std::atomic<bool> classic{false};
 
   // --- Producer (audio thread) ---
 

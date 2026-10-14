@@ -1,5 +1,4 @@
 #include "Ondes.hpp"
-#include "beads_menu.hpp"
 #include "ondes_pitch_map.hpp"
 
 #include <cmath>
@@ -30,58 +29,18 @@ Ondes::Ondes() {
     configInput(BANK_INPUT, "Bank CV");
     configOutput(OUT_OUTPUT, "Audio out");
 
-    beads_ = MakeOndesBeads(*this);
-    classic_engine_ = MakeOndesClassic(*this);
-    classic_.store(false);
-    active_.store(beads_.get(), std::memory_order_release);
-}
-
-void Ondes::requestMode(bool classic) {   // UI thread
-    pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
-}
-
-void Ondes::applyPendingMode() {   // audio thread
-    int pending = pending_mode_.load(std::memory_order_acquire);
-    if (pending < 0) return;
-    const bool want = pending != 0;
-    if (want != classicMode()) {
-        classic_.store(want, std::memory_order_relaxed);
-        active_.store(want ? classic_engine_.get() : beads_.get(), std::memory_order_release);
-    }
-    pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
+    engine_ = MakeOndesBeads(*this);
 }
 
 void Ondes::onSampleRateChange(const SampleRateChangeEvent& e) {
-    beads_->onSampleRateChange(e.sampleRate);
-    classic_engine_->onSampleRateChange(e.sampleRate);
+    engine_->onSampleRateChange(e.sampleRate);
 }
 
 void Ondes::process(const ProcessArgs& args) {
-    applyPendingMode();
-    active_.load(std::memory_order_relaxed)->process(args);
+    engine_->process(args);
 }
 
-json_t* Ondes::dataToJson() {
-    json_t* root = json_object();
-    // A switch not yet applied is saved as the mode, so the menu's undo
-    // snapshot records it.
-    json_object_set_new(root, "classic", json_boolean(displayedClassicMode()));
-    return root;
-}
-
-void Ondes::dataFromJson(json_t* root) {
-    // v2.1 saved "bankGroupsEnabled" on every save; the beta saved nothing.
-    // Its values are ignored: classic mode always has all 24 banks.
-    json_t* classic_j = json_object_get(root, "classic");
-    const bool classic = robotboy::DetectClassic(
-        classic_j != nullptr, json_is_true(classic_j),
-        json_object_get(root, "bankGroupsEnabled") != nullptr,
-        robotboy::ClassicFingerprint::kPresentBankGroups);
-    // Applied at the next process(), on the audio thread.
-    pending_mode_.store(classic ? 1 : 0, std::memory_order_release);
-}
-
-// Draws the active engine's current wave as a cyan trace that morphs as
+// Draws the engine's current wave as a cyan trace that morphs as
 // Bank/Position (and their CV) change. Bare trace, no text.
 struct WavetableDisplay : LedDisplay {
     Ondes* module = nullptr;
@@ -90,8 +49,8 @@ struct WavetableDisplay : LedDisplay {
         if (layer == 1) {
             nvgScissor(args.vg, RECT_ARGS(args.clipBox));
 
-            const OndesEngine* engine = module ? module->active_.load(std::memory_order_acquire) : nullptr;
-            const int n = 256;   // both engines' table size
+            const OndesEngine* engine = module ? module->engine_.get() : nullptr;
+            const int n = 256;   // the engine's table size
             Rect scope = Rect(Vec(0, 0), box.size).shrink(Vec(4, 5));
             nvgBeginPath(args.vg);
             for (int i = 0; i <= n; ++i) {
@@ -142,21 +101,6 @@ struct OndesWidget : ModuleWidget {
         display->box.size = mm2px(Vec(34.64, 24.5));
         display->module = module;
         addChild(display);
-    }
-
-    void appendContextMenu(Menu* menu) override {
-        Ondes* module = dynamic_cast<Ondes*>(this->module);
-        if (!module) return;
-
-        menu->addChild(new MenuSeparator);
-        // Classic mode: the v2.1 oscillator and its 24 banks. Ondes has no
-        // buffer, so the switch is instant.
-        menu->addChild(createBoolMenuItem("Classic mode", "",
-            [=]() { return module->displayedClassicMode(); },
-            [=](bool on) {
-                withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
-                    [=]() { module->requestMode(on); });
-            }));
     }
 };
 

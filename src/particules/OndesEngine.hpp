@@ -5,11 +5,9 @@
 
 #include <memory>
 
-// One Ondes oscillator: the Beads wavetable voice or the v2.1 (classic) one.
-// The Ondes module owns the params, ports and the mode flag. Both engines
-// are tiny (no audio buffers), so the module keeps both alive for its whole
-// lifetime and switching only changes which one process() calls; that is
-// what lets the panel display read the active engine from the UI thread.
+// The Ondes oscillator: the Beads wavetable voice. The Ondes module owns the
+// params and ports, and keeps the engine alive for its whole lifetime, which
+// lets the panel display read it from the UI thread.
 struct Ondes;
 
 struct OndesEngine {
@@ -23,7 +21,6 @@ struct OndesEngine {
 };
 
 std::unique_ptr<OndesEngine> MakeOndesBeads(Ondes& m);
-std::unique_ptr<OndesEngine> MakeOndesClassic(Ondes& m);
 
 // The Beads trace for bank 0, wave 0: the module browser thumbnail, which
 // has no module.

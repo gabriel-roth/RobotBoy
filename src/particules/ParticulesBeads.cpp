@@ -14,9 +14,6 @@ static constexpr float kSeedLongPressSeconds = 4.f;
 // Period of the locked Seed light's slow pulse (ui.cc: a 2048 ms triangle).
 static constexpr float kSeedPulseSeconds = 2.048f;
 
-std::atomic<int> g_particules_beads_builds{0};
-std::atomic<int> g_particules_classic_builds{0};
-
 ParticulesBeads::ParticulesBeads(Particules& m, float sample_rate) : m_(m) {
 	InitControlChannels();
 	ok_ = host_.Init(beads::Processor::MODE_GRANULAR, true, sample_rate);
@@ -143,7 +140,6 @@ void ParticulesBeads::process(const rack::Module::ProcessArgs& args) {
 	bool freeze_button = params[Particules::FREEZE_PARAM].getValue() > 0.5f;
 	freeze_gate_.process(inputs[Particules::FREEZE_INPUT].getVoltage(), 0.1f, 1.f);
 	bool frozen = freeze_button || freeze_gate_.isHigh();
-	frozen_ = frozen;
 	seed_gate_.process(inputs[Particules::SEED_INPUT].getVoltage(), 0.1f, 1.f);
 
 	// Seed button (ui.cc): a press unlocks and holds; a 4 s hold locks
@@ -227,7 +223,6 @@ void ParticulesBeads::process(const rack::Module::ProcessArgs& args) {
 	}
 }
 
-std::unique_ptr<ParticulesEngine> MakeParticulesBeads(Particules& m) {
-	g_particules_beads_builds.fetch_add(1, std::memory_order_relaxed);
-	return std::unique_ptr<ParticulesEngine>(new (std::nothrow) ParticulesBeads(m, m.sample_rate_));
+std::unique_ptr<ParticulesEngine> MakeParticulesBeads(Particules& m, float sample_rate) {
+	return std::unique_ptr<ParticulesEngine>(new (std::nothrow) ParticulesBeads(m, sample_rate));
 }

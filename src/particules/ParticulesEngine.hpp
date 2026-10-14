@@ -3,18 +3,16 @@
 // <plugin.hpp> would resolve to ours before rack is declared.
 #include "plugin.hpp"
 
-#include <atomic>
 #include <memory>
 
-// One Particules engine: the Beads granular processor or the v2.1 (classic)
-// one. The Particules module owns the params, ports, saved settings and the
-// mode flag; the active engine reads them through the module and keeps only
-// runtime state, so it can be destroyed and rebuilt on a mode switch.
+// The Particules engine: the Beads granular processor. The Particules module
+// owns the params, ports and saved settings; the engine reads them through
+// the module and keeps only runtime state.
 //
-// Only the audio thread touches an engine (and Rack's locked calls: reset,
+// Only the audio thread touches the engine (and Rack's locked calls: reset,
 // sample rate, port changes). The UI thread works through the module: clear
-// requests and the menu's frozen/clear state are atomics there, and each
-// mode's menu items are built from module state alone.
+// requests and the menu's frozen/clear state are atomics there, and the
+// engine's menu items are built from module state alone.
 struct Particules;
 
 struct ParticulesEngine {
@@ -25,20 +23,10 @@ struct ParticulesEngine {
 	virtual void onReset() = 0;                          // engine-side reset
 	virtual void onPortChange(const rack::Module::PortChangeEvent& e) {}
 	virtual bool clearDisabled() const = 0;              // buffer empty: greys Clear buffer
-	virtual bool frozen() const = 0;                     // last process() freeze state
 };
 
-// Both factories size the engine for Particules::sample_rate_.
-std::unique_ptr<ParticulesEngine> MakeParticulesBeads(Particules& m);
-std::unique_ptr<ParticulesEngine> MakeParticulesClassic(Particules& m);
+// Sized for the host's current sample rate.
+std::unique_ptr<ParticulesEngine> MakeParticulesBeads(Particules& m, float sample_rate);
 
-// Each mode's engine-only menu items, built from module state only (never
-// from the engine, which the audio thread may be replacing).
+// The engine's menu items, built from module state only.
 void AppendParticulesBeadsMenu(Particules* m, rack::ui::Menu* menu);
-void AppendParticulesClassicMenu(Particules* m, rack::ui::Menu* menu);
-
-// How many engines each factory has built, process-wide. Lets the headless
-// mode-switch test check that a patch loaded into one mode never builds the
-// other engine.
-extern std::atomic<int> g_particules_beads_builds;
-extern std::atomic<int> g_particules_classic_builds;

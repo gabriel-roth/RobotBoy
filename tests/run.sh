@@ -24,7 +24,6 @@ for d in mf20 loooop particules onbetap vespid lucarne; do
       done < "$extra_file"
     fi
     g++ -std=c++20 -O2 -I../src -I../src/loooop -I../src/mf20 -I../src/particules -I../src/beads -I../src/beads/vendor \
-        -I../src/particules/dsp/include \
         -DTEST -Dstmlib=robotboy_stmlib -o "$out" "$t" "${extra[@]+"${extra[@]}"}" && "$out" || fail=1
   done
 done

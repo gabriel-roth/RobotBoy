@@ -8,12 +8,8 @@
 #include <atomic>
 #include <cmath>
 
-// Retours: the panel, saved settings and engine mode. The audio is done by
-// the active engine adapter: RetoursBeads (the delay mode of Mutable
-// Instruments Beads) or the classic v2.1 engine (RetoursClassic).
-
-// Output mute after a live engine switch, as beads.cc's codec_transition.
-static constexpr float kModeSwitchMuteSeconds = 0.25f;
+// Retours: the panel and saved settings. The audio is done by the engine
+// adapter, RetoursBeads (the delay mode of Mutable Instruments Beads).
 
 // Filter knob tooltip: off at noon (Beads' dead band), otherwise how far
 // into the low-pass or high-pass side the knob is.
@@ -84,90 +80,43 @@ Retours::Retours() {
 	// come from configParam); CLOCK_LIGHT is a standalone beat indicator.
 	configLight(CLOCK_LIGHT, "Clock");
 
-	sample_rate_ = APP->engine->getSampleRate();
-	classic_.store(false);
-	engine_ = MakeRetoursBeads(*this);
-	grain_feed_.Reset();   // the old engine's buffer is gone
+	engine_ = MakeRetoursBeads(*this, APP->engine->getSampleRate());
+	grain_feed_.Reset();
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
 		WARN("Retours: could not allocate the Beads delay memory");
 	}
 }
 
-void Retours::requestMode(bool classic) {   // UI thread
-	pending_mode_.store(kModeLive + (classic ? 1 : 0), std::memory_order_release);
-}
-
-void Retours::applyPendingMode(float sample_rate) {   // audio thread
-	// Load, switch, store classic_, and only then clear the request, so the
-	// UI never reads neither mode and a newer request is not lost.
-	int pending = pending_mode_.load(std::memory_order_acquire);
-	if (pending < 0) return;
-	const bool want = (pending & 1) != 0;
-	const bool forced = pending >= kModeForced;
-	// A live switch is refused while sliced, like Quality. A load or undo
-	// is not: the module must run the mode its JSON says. A refused or
-	// redundant request is still cleared.
-	if ((engine_ && want == classicMode()) || (engine_ && !forced && engine_->frozen())) {
-		pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
-		return;
-	}
-	classic_.store(want, std::memory_order_relaxed);
-	sample_rate_ = sample_rate;
-	engine_.reset();   // free first: peak RAM is the larger engine, not both
-	engine_ = want ? MakeRetoursClassic(*this) : MakeRetoursBeads(*this);
-	grain_feed_.Reset();   // the old engine's buffer is gone
-	if (!engine_ || !engine_->ok())
-		WARN("Retours: could not allocate the %s engine", want ? "classic" : "Beads");
-	// A patch loaded straight into a mode switches before the first frame:
-	// nothing has played, so there is nothing to mute.
-	mute_seconds_ = processed_any_ ? kModeSwitchMuteSeconds : 0.f;
-	pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
-}
-
 void Retours::process(const ProcessArgs& args) {
-	applyPendingMode(args.sampleRate);
-	processed_any_ = true;
 	// Every 256 samples: is a Lucarne attached on the right? dynamic_cast,
 	// not model ==: MetaModule SDK < 2.4 leaves model unset on adapter modules.
 	if (++expander_check_ >= 256) {
 		expander_check_ = 0;
 		grain_feed_.attached.store(dynamic_cast<Lucarne*>(rightExpander.module) != nullptr,
 		                           std::memory_order_relaxed);
-		grain_feed_.classic.store(classicMode(), std::memory_order_relaxed);
 	}
 	if (engine_) {
 		engine_->process(args);
-		ui_frozen_.store(engine_->frozen(), std::memory_order_relaxed);
 		ui_clear_disabled_.store(engine_->clearDisabled(), std::memory_order_relaxed);
 		ui_clear_tempo_disabled_.store(engine_->clearTempoDisabled(), std::memory_order_relaxed);
-	} else {
-		mute_seconds_ = std::max(mute_seconds_, args.sampleTime);   // no engine: silence
-		ui_frozen_.store(false, std::memory_order_relaxed);
-		ui_clear_disabled_.store(true, std::memory_order_relaxed);
-		ui_clear_tempo_disabled_.store(true, std::memory_order_relaxed);
-	}
-	if (mute_seconds_ > 0.f) {
+	} else {   // allocation failed: silence
 		outputs[OUT_L_OUTPUT].setVoltage(0.f);
 		outputs[OUT_R_OUTPUT].setVoltage(0.f);
 		outputs[GATE_OUTPUT].setVoltage(0.f);
-		mute_seconds_ -= args.sampleTime;
 	}
 }
 
 void Retours::onSampleRateChange(const SampleRateChangeEvent& e) {
-	sample_rate_ = e.sampleRate;
 	if (engine_) engine_->onSampleRateChange(e.sampleRate);
 }
 
 void Retours::onReset(const ResetEvent& e) {
 	Module::onReset(e);
-	// Resets the settings, not the mode.
 	quality_state_ = 0;
 	auto_gain_ = true;
 	manual_gain_db_ = 0.f;
 	tape_hiss_ = true;
-	time_change_mode_ = 0;
 	clear_requested_.store(true);
 	clear_tempo_requested_.store(true);   // initialize returns to free-running
 	recalibrate_requested_.store(true);
@@ -176,31 +125,19 @@ void Retours::onReset(const ResetEvent& e) {
 
 json_t* Retours::dataToJson() {
 	json_t* root = json_object();
-	// A switch not yet applied is saved as the mode, so the menu's undo
-	// snapshot records it.
-	json_object_set_new(root, "classic",        json_boolean(displayedClassicMode()));
 	json_object_set_new(root, "qualityState",   json_integer(quality_state_));
 	json_object_set_new(root, "autoGain",       json_boolean(auto_gain_));
 	json_object_set_new(root, "manualGainDb",   json_real(manual_gain_db_));
 	json_object_set_new(root, "tapeHiss",       json_boolean(tape_hiss_));
-	json_object_set_new(root, "timeChangeMode", json_integer(time_change_mode_));
 	return root;
 }
 
 void Retours::dataFromJson(json_t* root) {
 	json_t* j;
-	json_t* classic_j = json_object_get(root, "classic");
-	const bool classic = robotboy::DetectClassic(
-		classic_j != nullptr, json_is_true(classic_j),
-		json_object_get(root, "tapeHiss") != nullptr,
-		robotboy::ClassicFingerprint::kAbsentTapeHiss);
-
-	// Engine-only settings go back to their defaults first, so a key that is
-	// absent means "default" whatever the instance held before.
+	// Settings that are absent from the patch go back to their defaults.
 	auto_gain_ = true;
 	manual_gain_db_ = 0.f;
 	tape_hiss_ = true;
-	time_change_mode_ = 0;
 
 	if ((j = json_object_get(root, "qualityState")))
 		quality_state_ = clamp((int)json_integer_value(j), 0, 3);
@@ -210,16 +147,9 @@ void Retours::dataFromJson(json_t* root) {
 		manual_gain_db_ = clamp((float)json_real_value(j), 0.f, 32.f);
 	if ((j = json_object_get(root, "tapeHiss")))
 		tape_hiss_ = json_boolean_value(j);
-	// Classic mode's time-change response, v2.1's key and meaning
-	// (retours_delay_dsp::TimeChangeMode: 0 = Tape, 1 = Crossfade).
-	if ((j = json_object_get(root, "timeChangeMode")))
-		time_change_mode_ = clamp((int)json_integer_value(j), 0, 1);
-	// "inputTrimDb"/"slewSeconds"/"envelopePreFeedback" from older patches
-	// are ignored, as in v2.1.
-
-	// The engine swap happens at the next process(), on the audio thread,
-	// forced: a load or undo applies even while sliced.
-	pending_mode_.store(kModeForced + (classic ? 1 : 0), std::memory_order_release);
+	// "timeChangeMode" (and older "inputTrimDb"/"slewSeconds"/
+	// "envelopePreFeedback") from patches made before the Beads engine
+	// are ignored: Beads has one fixed time-change behavior.
 }
 
 std::string RetoursQualityParamQuantity::getDisplayValueString() {
@@ -256,22 +186,6 @@ struct RetoursWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 
-		// --- Classic mode: the v2.1 engine ---
-		// Refused while sliced, like Quality: a switch would drop the frozen
-		// recording.
-		{
-			const bool frozen = module->ui_frozen_.load(std::memory_order_relaxed);
-			menu->addChild(createBoolMenuItem("Classic mode",
-				frozen ? "Turn off Slice to switch" : "",
-				[=]() { return module->displayedClassicMode(); },
-				[=](bool on) {
-					withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
-						[=]() { module->requestMode(on); });
-				},
-				/*disabled=*/frozen
-			));
-		}
-
 		// --- Quality ---
 		// VCV only: on MetaModule Quality is a front-panel switch, which
 		// process() reads every sample, so a menu choice would be overwritten.
@@ -286,18 +200,13 @@ struct RetoursWidget : ModuleWidget {
 		));
 #endif
 
-		// The engine's own items, for the mode the toggle shows. Built from
-		// module state only: the UI thread never touches engine_.
-		if (module->displayedClassicMode())
-			AppendRetoursClassicMenu(module, menu);
-		else
-			AppendRetoursBeadsMenu(module, menu);
+		AppendRetoursBeadsMenu(module, menu);
 
 		// --- Clear saved tempo ---
 		// A tempo from a tap or a clock holds after the clock is unpatched;
 		// this returns to free-running. Greyed out when there is nothing to
-		// clear (and in Beads mode while a clock is patched, which would set
-		// the tempo again).
+		// clear (and while a clock is patched, which would set the tempo
+		// again).
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Clear saved tempo", "",
 			[=]() { module->clear_tempo_requested_.store(true); },

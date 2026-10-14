@@ -19,7 +19,6 @@ class RetoursBeads : public RetoursEngine, public robotboy_beads::ControlSource 
 	bool clearDisabled() const override { return host_.buffer_empty(); }
 	// Nothing to clear, or a patched clock would set the tempo again.
 	bool clearTempoDisabled() const override { return !tempo_held_ || clock_patched_; }
-	bool frozen() const override { return frozen_; }
 
 	// Called by the engine host at the start of every Beads block.
 	void ReadControls(robotboy_beads::BlockControls* c) override;
@@ -30,7 +29,6 @@ class RetoursBeads : public RetoursEngine, public robotboy_beads::ControlSource 
 
 	Retours& m_;
 	bool ok_ = false;
-	bool frozen_ = false;
 	bool clock_patched_ = false;
 
 	robotboy_beads::EngineHost host_;

@@ -7,12 +7,8 @@
 #include <atomic>
 #include <cmath>
 
-// Particules: the panel, saved settings and engine mode. The audio is done
-// by the active engine adapter: ParticulesBeads (the Beads source) or the
-// classic v2.1 engine.
-
-// Output mute after a live engine switch, as beads.cc's codec_transition.
-static constexpr float kModeSwitchMuteSeconds = 0.25f;
+// Particules: the panel and saved settings. The audio is done by the engine
+// adapter, ParticulesBeads (the Beads source).
 
 struct QualityParamQuantity : ParamQuantity {
 	std::string getDisplayValueString() override;
@@ -72,86 +68,39 @@ Particules::Particules() {
 	// button params (FREEZE, QUALITY), so their tooltips come from configParam.
 	// Adding separate light labels would show a second overlapping tooltip.
 
-	sample_rate_ = APP->engine->getSampleRate();
-	classic_.store(false);
-	engine_ = MakeParticulesBeads(*this);
+	engine_ = MakeParticulesBeads(*this, APP->engine->getSampleRate());
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
 		WARN("Particules: could not allocate the Beads delay memory");
 	}
 }
 
-void Particules::requestMode(bool classic) {   // UI thread
-	pending_mode_.store(kModeLive + (classic ? 1 : 0), std::memory_order_release);
-}
-
-void Particules::applyPendingMode(float sample_rate) {   // audio thread
-	// Load, switch, store classic_, and only then clear the request, so the
-	// UI never reads neither mode and a newer request is not lost.
-	int pending = pending_mode_.load(std::memory_order_acquire);
-	if (pending < 0) return;
-	const bool want = (pending & 1) != 0;
-	const bool forced = pending >= kModeForced;
-	// A live switch is refused while frozen, like Quality. A load or undo
-	// is not: the module must run the mode its JSON says. A refused or
-	// redundant request is still cleared.
-	if ((engine_ && want == classicMode()) || (engine_ && !forced && engine_->frozen())) {
-		pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
-		return;
-	}
-	classic_.store(want, std::memory_order_relaxed);
-	sample_rate_ = sample_rate;
-	engine_.reset();   // free first: peak RAM is the larger engine, not both
-	engine_ = want ? MakeParticulesClassic(*this) : MakeParticulesBeads(*this);
-	grain_feed_.Reset();   // the old engine's buffer is gone
-	if (!engine_ || !engine_->ok())
-		WARN("Particules: could not allocate the %s engine", want ? "classic" : "Beads");
-	scale_dirty_.store(true, std::memory_order_release);
-	// A patch loaded straight into a mode switches before the first frame:
-	// nothing has played, so there is nothing to mute.
-	mute_seconds_ = processed_any_ ? kModeSwitchMuteSeconds : 0.f;
-	pending_mode_.compare_exchange_strong(pending, kModeNone, std::memory_order_acq_rel);
-}
-
 void Particules::process(const ProcessArgs& args) {
-	applyPendingMode(args.sampleRate);
-	processed_any_ = true;
 	// Every 256 samples: is a Lucarne attached on the right? dynamic_cast,
 	// not model ==: MetaModule SDK < 2.4 leaves model unset on adapter modules.
 	if (++expander_check_ >= 256) {
 		expander_check_ = 0;
 		grain_feed_.attached.store(dynamic_cast<Lucarne*>(rightExpander.module) != nullptr,
 		                           std::memory_order_relaxed);
-		grain_feed_.classic.store(classicMode(), std::memory_order_relaxed);
 	}
 	if (engine_) {
 		engine_->process(args);
-		ui_frozen_.store(engine_->frozen(), std::memory_order_relaxed);
 		ui_clear_disabled_.store(engine_->clearDisabled(), std::memory_order_relaxed);
-	} else {
-		mute_seconds_ = std::max(mute_seconds_, args.sampleTime);   // no engine: silence
-		ui_frozen_.store(false, std::memory_order_relaxed);
-		ui_clear_disabled_.store(true, std::memory_order_relaxed);
-	}
-	if (mute_seconds_ > 0.f) {
+	} else {   // allocation failed: silence
 		outputs[OUT_L_OUTPUT].setVoltage(0.f);
 		outputs[OUT_R_OUTPUT].setVoltage(0.f);
 		outputs[GATE_OUTPUT].setVoltage(0.f);
-		mute_seconds_ -= args.sampleTime;
 	}
 }
 
 void Particules::onSampleRateChange(const SampleRateChangeEvent& e) {
-	sample_rate_ = e.sampleRate;
 	if (engine_) engine_->onSampleRateChange(e.sampleRate);
 }
 
 void Particules::onReset(const ResetEvent& e) {
 	Module::onReset(e);
-	// Resets the settings, not the mode.
 	quality_state_       = 0;
 	seed_locked_         = true;
-	classic_seed_mode_   = 0;
 	pitch_scale_         = 0;
 	pitch_root_          = 0;
 	scale_dirty_.store(true, std::memory_order_release);
@@ -169,12 +118,8 @@ void Particules::onPortChange(const PortChangeEvent& e) {
 
 json_t* Particules::dataToJson() {
 	json_t* root = json_object();
-	// A switch not yet applied is saved as the mode, so the menu's undo
-	// snapshot records it.
-	json_object_set_new(root, "classic",      json_boolean(displayedClassicMode()));
 	json_object_set_new(root, "qualityState", json_integer(quality_state_));
 	json_object_set_new(root, "seedState",    json_integer(seed_locked_ ? 0 : 1));
-	json_object_set_new(root, "classicSeedMode", json_integer(classic_seed_mode_));
 	json_object_set_new(root, "autoGain",     json_boolean(auto_gain_));
 	json_object_set_new(root, "manualGainDb", json_real(manual_gain_db_));
 	json_object_set_new(root, "pitchScale",      json_integer(pitch_scale_));
@@ -185,32 +130,16 @@ json_t* Particules::dataToJson() {
 
 void Particules::dataFromJson(json_t* root) {
 	json_t* j;
-	json_t* classic_j = json_object_get(root, "classic");
-	const bool classic = robotboy::DetectClassic(
-		classic_j != nullptr, json_is_true(classic_j),
-		json_object_get(root, "tapeHiss") != nullptr,
-		robotboy::ClassicFingerprint::kAbsentTapeHiss);
-
-	// Engine-only settings go back to their defaults first, so a key that is
-	// absent means "default" whatever the instance held before.
-	classic_seed_mode_ = 0;
+	// Settings that are absent from the patch go back to their defaults.
 	seed_locked_ = true;
 	tape_hiss_ = true;
 
 	if ((j = json_object_get(root, "qualityState")))
 		quality_state_ = clamp((int)json_integer_value(j), 0, 3);
-	if (!classic_j && classic) {
-		// A pre-2.2 patch: its "seedState" was v2.1's Seed CV mode
-		// (0 = Triggers, 1 = Gates); the Beads seed keeps its default.
-		if ((j = json_object_get(root, "seedState")))
-			classic_seed_mode_ = clamp((int)json_integer_value(j), 0, 1);
-		seed_locked_ = true;
-	} else {
-		if ((j = json_object_get(root, "classicSeedMode")))
-			classic_seed_mode_ = clamp((int)json_integer_value(j), 0, 1);
-		if ((j = json_object_get(root, "seedState")))
-			seed_locked_ = json_integer_value(j) == 0;
-	}
+	// Before 2.2 this was the Seed CV mode: Triggers (0) loads locked and
+	// Gates (1) unlocked, the closest Beads behavior.
+	if ((j = json_object_get(root, "seedState")))
+		seed_locked_ = json_integer_value(j) == 0;
 	if ((j = json_object_get(root, "autoGain")))
 		auto_gain_ = json_boolean_value(j);
 	if ((j = json_object_get(root, "manualGainDb")))
@@ -226,10 +155,6 @@ void Particules::dataFromJson(json_t* root) {
 	scale_dirty_.store(true, std::memory_order_release);
 	if ((j = json_object_get(root, "tapeHiss")))
 		tape_hiss_ = json_boolean_value(j);
-
-	// The engine swap happens at the next process(), on the audio thread,
-	// forced: a load or undo applies even while frozen.
-	pending_mode_.store(kModeForced + (classic ? 1 : 0), std::memory_order_release);
 }
 
 std::string QualityParamQuantity::getDisplayValueString() {
@@ -266,28 +191,7 @@ struct ParticulesWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 
-		// --- Classic mode: the v2.1 engine ---
-		// Refused while frozen, like Quality: a switch would drop the frozen
-		// recording.
-		{
-			const bool frozen = module->ui_frozen_.load(std::memory_order_relaxed);
-			menu->addChild(createBoolMenuItem("Classic mode",
-				frozen ? "Unfreeze to switch" : "",
-				[=]() { return module->displayedClassicMode(); },
-				[=](bool on) {
-					withMenuUndo(module, on ? "enable classic mode" : "disable classic mode",
-						[=]() { module->requestMode(on); });
-				},
-				/*disabled=*/frozen
-			));
-		}
-
-		// The engine's own items, for the mode the toggle shows. Built from
-		// module state only: the UI thread never touches engine_.
-		if (module->displayedClassicMode())
-			AppendParticulesClassicMenu(module, menu);
-		else
-			AppendParticulesBeadsMenu(module, menu);
+		AppendParticulesBeadsMenu(module, menu);
 
 		// --- Pitch Lock ---
 		menu->addChild(createIndexSubmenuItem("Lock pitch",

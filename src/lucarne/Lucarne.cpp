@@ -163,11 +163,6 @@ struct LucarneDisplay : widget::Widget {
 			} else if (source == Source::None) {
 				message = kNoSource;
 				feed = nullptr;
-			} else if (src_feed->classic.load(std::memory_order_relaxed)) {
-				message = source == Source::Retours
-					? "Retours is set to Classic mode. Lucarne only works in Beads mode."
-					: "Particules is set to Classic mode. Lucarne only works in Beads mode.";
-				feed = nullptr;
 			} else {
 				auto& f = *src_feed;
 				if (feed != &f) {   // new source: start at its newest event

@@ -19,7 +19,6 @@ class ParticulesBeads : public ParticulesEngine, public robotboy_beads::ControlS
 	void onSampleRateChange(float sample_rate) override;
 	void onReset() override;
 	bool clearDisabled() const override { return host_.buffer_empty(); }
-	bool frozen() const override { return frozen_; }
 
 	// Called by the engine host at the start of every Beads block.
 	void ReadControls(robotboy_beads::BlockControls* c) override;
@@ -31,7 +30,6 @@ class ParticulesBeads : public ParticulesEngine, public robotboy_beads::ControlS
 
 	Particules& m_;
 	bool ok_ = false;
-	bool frozen_ = false;
 
 	robotboy_beads::EngineHost host_;
 	robotboy_beads::ScalePitchLock pitch_lock_;

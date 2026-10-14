@@ -11,9 +11,6 @@
 // decays over this long so each pulse spans many video frames and reads evenly.
 static constexpr float kClockFlashDecaySeconds = 0.08f;
 
-std::atomic<int> g_retours_beads_builds{0};
-std::atomic<int> g_retours_classic_builds{0};
-
 RetoursBeads::RetoursBeads(Retours& m, float sample_rate) : m_(m) {
 	using robotboy_beads::PotLaw;
 	const float lp = robotboy_beads::kPotLp;
@@ -152,7 +149,6 @@ void RetoursBeads::process(const rack::Module::ProcessArgs& args) {
 	bool freeze_latch = params[Retours::SLICE_PARAM].getValue() > 0.5f;
 	freeze_gate_.process(inputs[Retours::SLICE_INPUT].getVoltage(), 0.1f, 1.f);
 	bool frozen = freeze_latch || freeze_gate_.isHigh();
-	frozen_ = frozen;
 	clock_patched_ = inputs[Retours::CLOCK_INPUT].isConnected();
 
 	clock_gate_.process(inputs[Retours::CLOCK_INPUT].getVoltage(), 0.1f, 1.f);
@@ -215,7 +211,6 @@ void RetoursBeads::process(const rack::Module::ProcessArgs& args) {
 	}
 }
 
-std::unique_ptr<RetoursEngine> MakeRetoursBeads(Retours& m) {
-	g_retours_beads_builds.fetch_add(1, std::memory_order_relaxed);
-	return std::unique_ptr<RetoursEngine>(new (std::nothrow) RetoursBeads(m, m.sample_rate_));
+std::unique_ptr<RetoursEngine> MakeRetoursBeads(Retours& m, float sample_rate) {
+	return std::unique_ptr<RetoursEngine>(new (std::nothrow) RetoursBeads(m, sample_rate));
 }
