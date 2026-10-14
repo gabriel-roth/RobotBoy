@@ -180,20 +180,22 @@ struct LucarneDisplay : widget::Widget {
 
 struct LucarneWidget : ModuleWidget {
 #ifndef METAMODULE
-	// Two VCV panels, identical but for the printed key: Lucarne.svg describes
-	// the Particules view (also shown with nothing attached and in the module
-	// browser), Lucarne-Retours.svg the Retours view. step() swaps them when
-	// the display's source changes. MetaModule's faceplate has no key.
-	std::shared_ptr<window::Svg> particules_svg, retours_svg;
+	// Three VCV panels, identical but for the key area: Lucarne-Empty.svg has
+	// an emblem (nothing attached, and the module browser), Lucarne.svg the
+	// Particules key, Lucarne-Retours.svg the Retours key. step() swaps them
+	// when the display's source changes. MetaModule's faceplate has no key.
+	std::shared_ptr<window::Svg> empty_svg, particules_svg, retours_svg;
 	LucarneDisplay* display = nullptr;
-	bool showing_retours = false;
+	Source showing = Source::None;
 
 	void step() override {
-		const bool want = display && display->source == Source::Retours;
-		if (want != showing_retours) {
-			showing_retours = want;
+		const Source want = display ? display->source : Source::None;
+		if (want != showing) {
+			showing = want;
 			if (auto* panel = dynamic_cast<SvgPanel*>(getPanel())) {
-				panel->setBackground(want ? retours_svg : particules_svg);
+				panel->setBackground(want == Source::Retours ? retours_svg
+				                     : want == Source::Particules ? particules_svg
+				                     : empty_svg);
 				panel->fb->setDirty();   // the SDK headers don't promise setBackground redraws
 			}
 		}
@@ -204,10 +206,13 @@ struct LucarneWidget : ModuleWidget {
 	LucarneWidget(Lucarne* module) {
 		setModule(module);
 #ifndef METAMODULE
+		empty_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg"));
 		particules_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne.svg"));
 		retours_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Retours.svg"));
-#endif
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg")));
+#else
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne.svg")));
+#endif
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));

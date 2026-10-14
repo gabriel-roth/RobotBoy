@@ -1,0 +1,65 @@
+# Lucarne panel spec, no key (vcv-panel-gen) — generates res/Lucarne-Empty.svg
+# (VCV). Regenerate with (see panel-specs/README.md for setup):
+#   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne-empty.yaml --out res/Lucarne-Empty.svg
+#
+# Twin of lucarne.yaml shown when nothing is attached and in the module browser:
+# the key backdrop holds an emblem instead of a key. Keep everything else in sync
+# with lucarne.yaml and lucarne-retours.yaml.
+#
+# Lucarne is a display-only expander for Particules: a wordmark, one screen
+# and a key. No params, ports or lights. The MetaModule faceplate comes from
+# lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
+#
+# Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
+# tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
+#
+# Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
+# each a glyph over a two-line caption (property on the display / what it
+# shows). The cursor and write-head line are self-explanatory, so they have
+# no cells. Columns sit 13.5 mm either side of the panel center (30.48), so
+# each cell has \~25 mm. A cell spans glyph top (y - 1.5) to caption line 2
+# (y + 7.6) = 9.1 mm; the band from the screen bottom (74) to the screw line
+# (125.5) is 51.5 mm, so the leftover 33.3 mm splits into 3 gaps of 11.1:
+# glyph rows at 86.6 and 106.8; then pulled 1 mm each toward the middle
+# (rows 18.2 mm apart, user choice) to 87.6 and 105.8. Captions: line 1 baseline glyph + 5.0,
+# line 2 + 7.6, cap size 1.8.
+slug: Lucarne
+name: LUCARNE
+hp: 12
+
+theme:
+  screws: none    # the module widget draws its own ScrewBlack corners.
+
+title:
+  size: 6.35
+  tracking: 0.661458
+  # Same title baseline as Particules/Retours so the panels line up.
+  dy: 1.211
+
+# Key backdrop: a lavender zone behind the key, in the house zone style (1.5 mm
+# from the panel edges, rx 2, like Particules). y 79 to 121: 5 mm below the
+# screen, clear of the bottom screws (125.5), and centered on the key's
+# content (glyph tops 85.1 to last caption 114.4, midpoint 99.75).
+# Dusty lavender at 0.4 over #3d3d3d resolves to #625e6b: between
+# Particules' rose and the display's blues.
+zones:
+  - {x: 1.5, y: 79, w: 57.96, h: 42, rx: 2, fill: "#9a8fb0", opacity: 0.4}
+
+grids:
+  key:
+    cols: [16.98, 43.98]
+    rows:
+      glyph1: 87.6
+      cap1a: 92.6
+      cap1b: 95.2
+      glyph2: 105.8
+      cap2a: 110.8
+      cap2b: 113.4
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
+
+# Emblem: a skylight (a lucarne) with a waveform behind the glass, centered
+# in the key backdrop (zone y 79 to 121, center 100). 28 mm square glyph.
+glyphs:
+  - {src: glyphs/lucarne/skylight.svg, at: [30.48, 100]}

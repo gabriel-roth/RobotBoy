@@ -3,7 +3,8 @@
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne-retours.yaml --out res/Lucarne-Retours.svg
 #
 # Twin of lucarne.yaml for Lucarne attached to Retours: keep everything except the key captions and glyphs in sync with it.
-# LucarneWidget swaps to this panel while Retours sits on the left.
+# LucarneWidget swaps to this panel while Retours sits on the left. Third twin:
+# lucarne-empty.yaml (no module attached).
 #
 # Lucarne is a display-only expander for Particules and Retours: a wordmark, one screen
 # and a key. No params, ports or lights. The MetaModule faceplate comes from

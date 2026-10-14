@@ -2,7 +2,8 @@
 # with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne.yaml --out res/Lucarne.svg
 #
-# Twin: lucarne-retours.yaml (the Retours key); keep them in sync.
+# Twins: lucarne-retours.yaml (the Retours key) and lucarne-empty.yaml (no
+# module attached: an emblem instead of a key); keep them in sync.
 #
 # Lucarne is a display-only expander for Particules: a wordmark, one screen
 # and a key. No params, ports or lights. The MetaModule faceplate comes from
