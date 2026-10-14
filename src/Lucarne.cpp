@@ -131,7 +131,6 @@ struct LucarneDisplay : widget::Widget {
 		lucarne::ScopeLayout::Input in;
 		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
-		in.wholeBuffer = module->scopeWholeBuffer;
 		in.modulated = modulated;
 		in.dt = dt;
 		const int32_t m = in.maxDelay;
@@ -163,7 +162,7 @@ struct LucarneDisplay : widget::Widget {
 		int want = GrainFeed::kScopeEntries;
 		if (scopePrimed && info.epoch == scopeEpoch)
 			want = lucarne::ScopeLayout::entriesToRead(scopeView.getWindow(), longest,
-				in.modulated || in.frozen || in.wholeBuffer, in.samplesPerEntry, GrainFeed::kScopeEntries);
+				in.modulated || in.frozen, in.samplesPerEntry, GrainFeed::kScopeEntries);
 		int n = f.ReadScope(info.head, scopeLo.data(), scopeHi.data(), want);
 		// A reset during the copy may go unnoticed by ReadScope: recheck.
 		if (f.ReadScopeInfo().epoch != info.epoch)
@@ -284,20 +283,6 @@ struct LucarneWidget : ModuleWidget {
 		display->box.size = mm2px(Vec(kScreenW, kScreenH));
 		display->module = module;
 		addChild(display);
-	}
-
-	void appendContextMenu(Menu* menu) override {
-		Lucarne* module = getModule<Lucarne>();
-		if (!module)
-			return;
-
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Retours view",
-			{"Whole buffer", "Follow taps"},
-			[=]() { return module->scopeWholeBuffer ? 0 : 1; },
-			[=](int i) {
-				withMenuUndo(module, "set Retours view", [=]() { module->scopeWholeBuffer = i == 0; });
-			}));
 	}
 
 #ifndef METAMODULE

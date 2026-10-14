@@ -31,7 +31,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 **The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
 
 - *Each line flashes as sound passes it.* The line brightens and a short bar appears on it as the audio reaches that tap, so you see each echo as you hear it. The bar's height follows that tap's output level.
-- *The view zooms to fit.* The longest audible echo sits near the left edge, and the view glides smoothly to a new zoom when you change Time or Interval.
+- *The view zooms to fit.* The longest echo sits near the left edge, and the view glides to a new zoom when you change Time or Interval. While the delay is being modulated (the Time attenurandomizer is turned away from noon, or a cable is in Interval CV) it shows the whole buffer instead, so the waveform holds still.
 - *Changing Quality or switching between mono and stereo input clears the scope.* It refills as Retours records.
 
 **Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (warm white or green, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view shows the whole buffer and holds it, unchanged, until Slice turns off. Turn Slice off and the waveform starts scrolling again.

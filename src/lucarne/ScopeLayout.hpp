@@ -13,7 +13,7 @@ class ScopeLayout {
 public:
 	static constexpr int kColumns = 320;           // MetaModule fullscreen width
 	static constexpr float kWaveFraction = 0.7f;   // waveform height / display height
-	static constexpr float kZoomMargin = 1.15f;    // window = longest audible delay x this
+	static constexpr float kZoomMargin = 1.15f;    // window = longest audible (or held) delay x this
 	static constexpr float kMinWindowSeconds = 0.05f;
 	static constexpr float kZoomTau = 0.08f;       // seconds; ~0.25 s to settle
 	static constexpr float kModulatedZoomTau = 0.2f;   // easing out to the whole buffer; ~0.6 s
@@ -58,7 +58,6 @@ public:
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
 		int numTaps = 0;   // taps passed; silent ones (level <= kTapMinLevel) count toward the hold only
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
-		bool wholeBuffer = false;   // menu: always the whole buffer, never follow the taps
 		bool modulated = false;     // Retours: the delay moves on its own; aim at the whole buffer
 		float dt = 0.f;
 	};

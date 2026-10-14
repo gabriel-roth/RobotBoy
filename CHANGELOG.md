@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Retours' Lucarne view now holds still while Time or Interval is modulated, showing the whole buffer, instead of zooming with every change.
+
 ## [2.2.0] — 2026-10-14
 
 This release collects the 2.2.0 betas, without their Classic mode.
