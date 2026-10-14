@@ -11,7 +11,7 @@ set(REPO_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(BEADS ${REPO_ROOT}/src/beads)
 
 # The vendored Beads DSP and RobotBoy's host adapter — the same sources and
-# defines the plugin builds use (vcv/Makefile, metamodule/CMakeLists.txt).
+# defines the plugin builds use (Makefile, metamodule/CMakeLists.txt).
 add_library(robotboy_beads STATIC
     ${BEADS}/vendor/beads/dsp/delay_clock.cc
     ${BEADS}/vendor/beads/dsp/delay_controller.cc

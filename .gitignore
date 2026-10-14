@@ -17,10 +17,6 @@ metamodule/.cache/
 *.preview.svg
 *.preview.html
 
-# vcv/ distributables are copied from repo root at build time (see vcv/Makefile)
-vcv/plugin.json
-vcv/res/
-
 # git worktrees for isolated feature work
 .worktrees/
 

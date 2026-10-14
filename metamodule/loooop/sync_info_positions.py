@@ -30,7 +30,7 @@ PANEL_GEN = os.environ.get(
     "VCV_PANEL_GEN_DIR", os.path.expanduser("~/Dev/vcv-panel-gen"))
 
 # HERE is metamodule/loooop/; the repo root is two levels up. The canonical
-# panel SVGs live at res/ (vcv/res is a build-time copy) and the module
+# panel SVGs live at res/ and the module
 # sources with the display rect at src/loooop/.
 ROOT = os.path.normpath(os.path.join(HERE, "..", ".."))
 

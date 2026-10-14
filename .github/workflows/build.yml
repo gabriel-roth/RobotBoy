@@ -1,7 +1,7 @@
 name: Build
 
 # Cross-platform VCV Rack plugin builds via the per-platform Rack SDK.
-# Each job downloads the matching SDK, runs `make -C vcv dist` (which packages
+# Each job downloads the matching SDK, runs `make dist` (which packages
 # a .vcvplugin), and uploads it as an artifact. On a version tag (e.g. v2.0.1)
 # the release job attaches all five platform bundles to a GitHub Release.
 #
@@ -67,9 +67,9 @@ jobs:
           curl -fL "https://vcvrack.com/downloads/Rack-SDK-${RACK_SDK_VERSION}-${{ matrix.sdk }}.zip" -o rack-sdk.zip
           unzip -q rack-sdk.zip
           if [ -n "$CROSS_COMPILE" ]; then
-            make -C vcv dist RACK_DIR="$PWD/Rack-SDK" CROSS_COMPILE="$CROSS_COMPILE"
+            make dist RACK_DIR="$PWD/Rack-SDK" CROSS_COMPILE="$CROSS_COMPILE"
           else
-            make -C vcv dist RACK_DIR="$PWD/Rack-SDK"
+            make dist RACK_DIR="$PWD/Rack-SDK"
           fi
 
       - name: Build .vcvplugin (Windows)
@@ -79,13 +79,13 @@ jobs:
           set -euo pipefail
           curl -fL "https://vcvrack.com/downloads/Rack-SDK-${RACK_SDK_VERSION}-${{ matrix.sdk }}.zip" -o rack-sdk.zip
           unzip -q rack-sdk.zip
-          make -C vcv dist RACK_DIR="$PWD/Rack-SDK"
+          make dist RACK_DIR="$PWD/Rack-SDK"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: RobotBoy-${{ matrix.name }}
-          path: vcv/dist/*.vcvplugin
+          path: dist/*.vcvplugin
           if-no-files-found: error
 
   # On a version tag, gather every platform bundle and attach them to the

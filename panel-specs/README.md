@@ -65,5 +65,4 @@ no flag needed for a normal RobotBoy generate. Per-panel overrides live in the s
 ## Rules
 
 - **`res/*.svg` are generated artifacts — never hand-edit them.** Change the
-  spec and regenerate. (`vcv/res/` is a further build-time copy made by
-  `vcv/Makefile`; also never hand-edited.)
+  spec and regenerate.

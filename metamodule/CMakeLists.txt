@@ -69,7 +69,7 @@ target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib)
 if(METAMODULE_HEADLESS)
     target_compile_definitions(RobotBoy PRIVATE SIMULATOR)
 endif()
-# -funsafe-math-optimizations matches the VCV build (vcv/Makefile), so both
+# -funsafe-math-optimizations matches the VCV build (Makefile), so both
 # platforms run the same numerics — and on Cortex-A7 it is what lets GCC
 # auto-vectorize float loops with NEON at all (NEON is not IEEE-strict, so
 # without it the resampler FIRs stay scalar). It does NOT imply
