@@ -1,10 +1,10 @@
-// The hand-off from Particules' audio thread to Lucarne's display: the
-// buffer's waveform peaks, an event per grain start, the live state of
-// every grain slot and, for Retours (delay mode), a finer ring of the
-// line's recent audio for the echo scope. One producer (the engine's
-// GrainCapture, audio thread), one consumer (Lucarne's widget, UI
-// thread). Nothing here blocks or
-// allocates; a slow reader loses old data, never corrupts it.
+// The hand-off from Particules' or Retours' audio thread to Lucarne's
+// display: the buffer's waveform peaks, an event per grain start, the live
+// state of every grain slot and, for Retours (delay mode), a finer ring of
+// the line's recent audio for the echo scope. One producer (the engine's
+// GrainCapture, audio thread), one consumer (Lucarne's widget, UI thread).
+// Nothing here blocks or allocates; a slow reader loses old data, never
+// corrupts it.
 
 #pragma once
 
@@ -177,7 +177,8 @@ class GrainFeed {
   }
 
   // Copies the newest complete frame. False if none was published yet or
-  // the writer kept interrupting.
+  // the writer kept interrupting. A seqlock: the memcpy may overlap a write
+  // (formally a data race), and the sequence check discards that copy.
   bool ReadFrame(GrainLiveFrame* out) const {
     for (int attempt = 0; attempt < 4; ++attempt) {
       const uint32_t s1 = frame_seq_.load(std::memory_order_acquire);

@@ -102,8 +102,8 @@ class EngineHost {
 
   HostFrameOut Process(const HostFrameIn& in, ControlSource* controls);
 
-  // Status, for menus and lights. Safe to read from another thread (values
-  // may be one block stale).
+  // Status, for menus and lights. Plain members: a read from the UI thread
+  // is a benign race, at worst one block stale.
   bool ok() const { return processor_ != nullptr; }
   const beads::Processor& processor() const { return *processor_; }
   float gain_db() const;
@@ -112,10 +112,8 @@ class EngineHost {
   // isn't running.
   bool muted() const { return transition_blocks_ > 0; }
   int active_grains() const { return active_grains_; }
-  Quality requested_quality() const { return requested_quality_; }
   Quality active_quality() const { return quality_; }
   float engine_rate() const { return engine_rate_; }
-  size_t block_size() const { return block_size_; }
   // When host rate = engine rate (no resampling), an input sample comes
   // out this many host samples later.
   int bypass_latency() const { return int(block_size_) - 1; }
@@ -130,6 +128,7 @@ class EngineHost {
   };
 
   void Reconfigure(bool reset_gain, bool apply_quality);
+  void InitGainControl(bool reset);
   void ResetStreams();
   void RunBlock(ControlSource* controls);
   void PushOutputFrame(float l, float r, float gate);
@@ -160,7 +159,6 @@ class EngineHost {
   bool left_patched_ = false;
   bool right_patched_ = false;
   bool mono_ = true;
-  bool configured_ = false;
   bool frozen_ = false;  // any frame of the last block was frozen
 
   // Engine-rate block being assembled.

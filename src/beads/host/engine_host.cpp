@@ -78,7 +78,6 @@ bool EngineHost::Init(beads::Processor::ModeLock mode_lock,
   processor_->set_reverb_enabled(reverb_enabled);
 
   host_rate_ = host_rate;
-  configured_ = false;
   Reconfigure(true, true);
   return true;
 }
@@ -116,7 +115,16 @@ void EngineHost::Reconfigure(bool reset_gain, bool apply_quality) {
   engine_rate_ = processor_->sample_rate();
   block_size_ = size_t(engine_rate_ / 4000.0f);
 
-  // beads.cc ConfigureAndStartCodec().
+  InitGainControl(reset_gain);
+  transition_blocks_ = kTransitionBlocks;
+  buffer_empty_ = true;
+  capture_.Invalidate();
+  ResetStreams();
+}
+
+// beads.cc ConfigureAndStartCodec(): soft clipping follows the medium.
+void EngineHost::InitGainControl(bool reset) {
+  const beads::Processor::Media media = MediaForQuality(quality_);
   gain_control_.Init(
       engine_rate_,
       media == beads::Processor::MEDIA_DIRTY_TAPE
@@ -124,12 +132,7 @@ void EngineHost::Reconfigure(bool reset_gain, bool apply_quality) {
           : (media == beads::Processor::MEDIA_CLEAN_TAPE
                 ? GainControl::SOFT_CLIPPING_MODE_DYNAMIC
                 : GainControl::SOFT_CLIPPING_MODE_OFF),
-      reset_gain);
-  transition_blocks_ = kTransitionBlocks;
-  buffer_empty_ = true;
-  capture_.Invalidate();
-  configured_ = true;
-  ResetStreams();
+      reset);
 }
 
 void EngineHost::ResetStreams() {
@@ -198,14 +201,7 @@ void EngineHost::RunBlock(ControlSource* controls) {
   }
   if (recalibrate_requested_) {
     recalibrate_requested_ = false;
-    gain_control_.Init(
-        engine_rate_,
-        MediaForQuality(quality_) == beads::Processor::MEDIA_DIRTY_TAPE
-            ? GainControl::SOFT_CLIPPING_MODE_ON
-            : (MediaForQuality(quality_) == beads::Processor::MEDIA_CLEAN_TAPE
-                  ? GainControl::SOFT_CLIPPING_MODE_DYNAMIC
-                  : GainControl::SOFT_CLIPPING_MODE_OFF),
-        true);
+    InitGainControl(true);
   }
 
   // Seed: delayed by 10 blocks so that a CV sent with the trigger has
@@ -278,7 +274,6 @@ void EngineHost::RunBlock(ControlSource* controls) {
       size);
   active_grains_ = processor_->num_active_grains();
   capture_.AfterBlock(*processor_, engine_rate_);
-
 
   // beads.cc clips to the codec's full scale before conversion; the
   // limiters inside the processor are peak followers and let fast

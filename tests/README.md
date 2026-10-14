@@ -10,9 +10,9 @@ pure-DSP classes/headers directly.
 cd tests && ./run.sh
 ```
 
-`run.sh` builds and runs every `tests/{mf20,loooop,particules,onbetap,vespid}/test_*.cpp`
-against `../src`, printing PASS/FAIL per assertion and exiting non-zero if
-any binary fails or returns non-zero.
+`run.sh` builds and runs every `tests/{mf20,loooop,particules,onbetap,vespid,lucarne}/test_*.cpp`
+against `../src`, then the Python guard tests and the Beads engine suite
+(lane 2 below), and exits non-zero if anything fails.
 
 If a test needs a non-header-only `.cpp` from `src/` linked in (e.g. Loooop's
 `LoopEngine.cpp`), drop a sibling `<test>.cpp.extra` file next to it listing
@@ -22,7 +22,7 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 
 ## Test lanes
 
-This repo has two independent test lanes:
+This repo has two test lanes; `tests/run.sh` runs both:
 
 - **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
   Particules, Onbetap, Vespid), plain-assert style, followed by a
@@ -36,7 +36,7 @@ This repo has two independent test lanes:
   Catch2 v3.5.2, fully offline): the vendored, patched `beads::Processor`,
   the resampler, the engine host (native-rate streaming, triggers, freeze,
   reconfiguration, NaN robustness, delay timing), the Beads knob laws, Lock
-  pitch and gain control, and Ondes' wavetable voice. Run it with:
+  pitch and gain control, and Ondes' wavetable voice. Run it alone with:
 
   ```
   ./tests/beads_engine/run.sh

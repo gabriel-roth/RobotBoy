@@ -26,7 +26,7 @@
 //
 // RobotBoy: adapted from beads/gain_control.{h,cc}. The hardware version
 // reads 32-bit codec words; this one takes float frames already scaled so
-// that +-5 V = 1.0, and exposes the current gain for Particules' menu.
+// that +-5 V = 1.0, and exposes the current gain for the gain menu.
 // Everything else is upstream.
 //
 // Converts raw 32-bit data from the codec into a FloatFrame, by applying

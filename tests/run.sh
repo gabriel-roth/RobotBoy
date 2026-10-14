@@ -31,4 +31,7 @@ done
 echo "== python guard tests =="
 python3 -m unittest discover -s . -p 'test_*.py' -v || fail=1
 
+echo "== Beads engine (Catch2) =="
+./beads_engine/run.sh || fail=1
+
 exit $fail
