@@ -110,7 +110,9 @@ struct LucarneDisplay : widget::Widget {
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
 		in.epoch = info.epoch;
 		in.samples_per_entry = std::max<int32_t>(info.samples_per_entry, 1);
-		in.line_rate = info.line_rate;
+		// Zero until the feed's first ScopeReset; keep the Input default
+		// then so the zoom floor never reaches zero.
+		if (info.line_rate > 0.f) in.line_rate = info.line_rate;
 		// Read only what this frame's window can show: it eases from the
 		// current window toward the longest tap x kZoomMargin, so the larger
 		// of those bounds it. After a source or epoch change the window
