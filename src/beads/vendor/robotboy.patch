@@ -1,5 +1,27 @@
+diff --git a/beads/dsp/delay_controller.cc b/beads/dsp/delay_controller.cc
+index 60f9567..27d847f 100644
+--- a/beads/dsp/delay_controller.cc
++++ b/beads/dsp/delay_controller.cc
+@@ -44,6 +44,8 @@ const int kMinDelay = 64 + 4;
+ 
+ void DelayController::Init(float sample_rate, int max_delay) {
+   max_delay_ = max_delay;
++  ratio_gain_[0] = 1.0f;  // RobotBoy
++  ratio_gain_[1] = 0.0f;  // RobotBoy
+ 
+   clock_.Init(sample_rate);
+   
+@@ -236,6 +238,8 @@ void DelayController::RenderInternal(
+       tap_gain[0] = 1.0f - fade_to_odd * 0.2f;
+       tap_gain[1] = fade_to_odd * 0.8f;
+     }
++    ratio_gain_[0] = tap_gain[0];  // RobotBoy
++    ratio_gain_[1] = tap_gain[1];  // RobotBoy
+ 
+     const float shape = modulated_shape.Next();
+     
 diff --git a/beads/dsp/delay_controller.h b/beads/dsp/delay_controller.h
-index caf878a..3f3f529 100644
+index caf878a..36cbb30 100644
 --- a/beads/dsp/delay_controller.h
 +++ b/beads/dsp/delay_controller.h
 @@ -47,7 +47,7 @@ struct DelayTap {
@@ -49,7 +71,7 @@ index caf878a..3f3f529 100644
  
    DISALLOW_COPY_AND_ASSIGN(PlayHead);
  };
-@@ -197,6 +207,11 @@ class DelayController {
+@@ -197,6 +207,14 @@ class DelayController {
        const RandomizedParameter& shape,
        Output* out,
        size_t size);
@@ -58,9 +80,20 @@ index caf878a..3f3f529 100644
 +  inline const PlayHead& play_head(int h) const { return play_head_[h]; }
 +  inline const PlayHead& slave_play_head(int h) const { return slave_play_head_[h]; }
 +  inline bool frozen() const { return freeze_; }
++  // RobotBoy: each ratio's crossfade gain (no envelope) from the last sample
++  // rendered; Lucarne colors the louder ratio's taps as the primary ones.
++  inline float ratio_gain(int r) const { return ratio_gain_[r]; }
    
   private:
    template<bool synchronized>
+@@ -213,6 +231,7 @@ class DelayController {
+       size_t size);
+   
+   int max_delay_;
++  float ratio_gain_[NUM_RATIOS];  // RobotBoy
+   
+   DelayClock clock_;
+   
 diff --git a/beads/dsp/delay_grain.h b/beads/dsp/delay_grain.h
 index 8a1663d..1919428 100644
 --- a/beads/dsp/delay_grain.h

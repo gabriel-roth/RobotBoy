@@ -44,6 +44,8 @@ const int kMinDelay = 64 + 4;
 
 void DelayController::Init(float sample_rate, int max_delay) {
   max_delay_ = max_delay;
+  ratio_gain_[0] = 1.0f;  // RobotBoy
+  ratio_gain_[1] = 0.0f;  // RobotBoy
 
   clock_.Init(sample_rate);
   
@@ -236,6 +238,8 @@ void DelayController::RenderInternal(
       tap_gain[0] = 1.0f - fade_to_odd * 0.2f;
       tap_gain[1] = fade_to_odd * 0.8f;
     }
+    ratio_gain_[0] = tap_gain[0];  // RobotBoy
+    ratio_gain_[1] = tap_gain[1];  // RobotBoy
 
     const float shape = modulated_shape.Next();
     

@@ -33,11 +33,18 @@ public:
 	// delay; a real fade-out is only this much late.
 	static constexpr float kHoldFraction = 0.05f;
 	static constexpr float kHoldFloor = 0.05f;
-	// Tap colors: tap slot i's ratio, (i / 2) % 2, picks warm white (the
-	// grain view's center color) or green.
+	// Tap colors: taps of the primary ratio are warm white (the grain view's
+	// center color), the other ratio's green. Tap slot i belongs to ratio
+	// (i / 2) % 2. The primary ratio is the one with the larger crossfade
+	// gain: always ratio 0 unclocked; clocked, the two ratios hold
+	// neighboring divisions and trade places as Density sweeps.
 	static constexpr Rgb kTapWhite{0xE8, 0xE4, 0xDA};
 	static constexpr Rgb kTapGreen{0x8F, 0xD3, 0xA0};
-	static Rgb tapColor(int slot) { return (slot / 2) % 2 == 0 ? kTapWhite : kTapGreen; }
+	// The other ratio takes over as primary only once its gain leads by this
+	// much, so a Density sitting at the crossover doesn't flicker the colors.
+	static constexpr float kPrimaryHysteresis = 0.1f;
+	static int ratioOf(int slot) { return (slot / 2) % 2; }
+	static Rgb tapColor(int slot, int primary = 0) { return ratioOf(slot) == primary ? kTapWhite : kTapGreen; }
 
 	struct Tap {
 		float delay;   // age of the read point, line samples
@@ -59,6 +66,7 @@ public:
 		int numTaps = 0;   // taps passed; silent ones (level <= kTapMinLevel) count toward the hold only
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
 		bool modulated = false;     // Retours: the delay moves on its own; aim at the whole buffer
+		float ratioGain[2] = {1.f, 0.f};   // each ratio's crossfade gain (no envelope); picks the primary
 		float dt = 0.f;
 	};
 
@@ -67,6 +75,7 @@ public:
 	void clear();   // forget the zoom (the next update() snaps)
 	const DrawList& getDrawList() const { return list; }
 	float getWindow() const { return window; }   // current window, line samples
+	int getPrimary() const { return primary; }   // the primary ratio, 0 or 1
 	float nowX() const { return width * (1.f - kNowInset); }
 	float xForAge(float age) const;            // age 0 (newest) -> nowX(), age window -> 0
 	static float tapOutput(const Input& in, float delay, float level);   // 0..1
@@ -83,6 +92,7 @@ private:
 	float window = 1.f;
 	uint32_t epoch = 0;
 	bool haveWindow = false;
+	int primary = 0;
 	float hold[robotboy_beads::GrainLiveFrame::kTaps] = {};   // seconds each slot still counts
 	DrawList list;
 };

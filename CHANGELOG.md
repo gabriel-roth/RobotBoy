@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Retours' Lucarne view now holds still while Time or Interval is modulated, showing the whole buffer, instead of zooming with every change.
+- Lucarne with a clocked Retours: the echoes of the louder division are always white and the other division's green. Before, the two colors traded places with every step of Interval.
 
 ## [2.2.0] — 2026-10-14
 

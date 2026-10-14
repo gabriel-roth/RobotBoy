@@ -561,3 +561,36 @@ TEST_CASE("Scope ring: scale change resets the ring") {
   CHECK(b.epoch != a.epoch);
   CHECK(b.samples_per_entry != a.samples_per_entry);
 }
+
+TEST_CASE("Delay mode publishes ratio gains: unclocked, ratio 0 leads") {
+  DelayRun r;   // Density 0.7: the 0.77 ratio fades in
+  r.Seconds(1.5f);
+  GrainLiveFrame f;
+  REQUIRE(r.feed.ReadFrame(&f));
+  REQUIRE(f.tap_mode);
+  CHECK(f.ratio_gain[1] > 0.0f);
+  CHECK(f.ratio_gain[0] >= f.ratio_gain[1]);
+}
+
+TEST_CASE("Clocked: the primary ratio alternates as Density steps through divisions") {
+  // Clocked, Density picks kRatio[n] and kRatio[n + 1] (n = Density x 20)
+  // and the two ratios trade slots each step: n even puts kRatio[n] in
+  // ratio 0, n odd in ratio 1. A quarter of the way into a step, kRatio[n]
+  // is the louder.
+  auto primary = [](float density) {
+    DelayRun r;
+    r.controls.c.seed_patched = true;
+    r.controls.c.density.base = density;
+    const size_t period = 12000;   // a Seed clock every 0.25 s
+    for (; r.n < 48000 * 2; ++r.n)
+      r.host.Process({Sine(r.n), Sine(r.n), false, r.n % period == 0}, &r.controls);
+    GrainLiveFrame f;
+    REQUIRE(r.feed.ReadFrame(&f));
+    REQUIRE(f.tap_mode);
+    CHECK(std::fabs(f.ratio_gain[0] - f.ratio_gain[1]) > 0.2f);
+    return f.ratio_gain[1] > f.ratio_gain[0] ? 1 : 0;
+  };
+  CHECK(primary(12.25f / 20.0f) == 0);
+  CHECK(primary(13.25f / 20.0f) == 1);
+  CHECK(primary(14.25f / 20.0f) == 0);
+}

@@ -28,7 +28,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 **The dry playhead.** A light gray-blue line just in from the right edge marks "now": the audio coming into Retours, which you hear as the dry sound. New audio appears there and scrolls away to the left. Like the tap lines, it brightens and shows a bar with the level of the incoming sound. It shows the input, so it still flashes with Mix turned fully wet.
 
-**The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon; clocked, it is the neighboring division.
+**The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon. Clocked, Interval blends between two neighboring divisions, and the louder one is white: as you turn Interval from one division to the next, the colors swap partway through the blend.
 
 - *Each line flashes as sound passes it.* The line brightens and a short bar appears on it as the audio reaches that tap, so you see each echo as you hear it. The bar's height follows that tap's output level.
 - *The view zooms to fit.* The longest echo sits near the left edge, and the view glides to a new zoom when you change Time or Interval. While the delay is being modulated (the Time attenurandomizer is turned away from noon, or a cable is in Interval CV) it shows the whole buffer instead, so the waveform holds still.

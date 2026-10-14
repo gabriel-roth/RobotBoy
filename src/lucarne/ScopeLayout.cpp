@@ -54,6 +54,11 @@ void ScopeLayout::update(const Input& in) {
 	const bool snap = !haveWindow || in.epoch != epoch;
 	epoch = in.epoch;
 	if (snap) std::fill(std::begin(hold), std::end(hold), 0.f);
+	// Primary ratio: the louder one, with hysteresis once running.
+	if (snap)
+		primary = in.ratioGain[1] > in.ratioGain[0] ? 1 : 0;
+	else if (in.ratioGain[1 - primary] > in.ratioGain[primary] + kPrimaryHysteresis)
+		primary = 1 - primary;
 
 	// Every slot's hold runs down, passed this frame or not; an audible
 	// tap refills its own. A Slice head's view must hold its whole slice,
@@ -154,10 +159,10 @@ void ScopeLayout::update(const Input& in) {
 			const float x1 = std::min(xForAge(std::max(t.sliceOldest - t.sliceLength, 0.f)), nowX());
 			if (x1 > x0)
 				list.under.push_back({x0, 0.f, x1 - x0, height,
-				                       mix(list.background, tapColor(t.slot), kSliceBandMix)});
+				                       mix(list.background, tapColor(t.slot, primary), kSliceBandMix)});
 		}
 		if (t.delay > window || t.delay < 0.f) continue;
-		marker(xForAge(t.delay), tapColor(t.slot), tapOutput(in, t.delay, t.level));
+		marker(xForAge(t.delay), tapColor(t.slot, primary), tapOutput(in, t.delay, t.level));
 	}
 }
 

@@ -54,6 +54,9 @@ struct GrainLiveFrame {
   bool tap_mode = false;  // delay mode: taps[] valid, slots all done, no events
   GrainSlotState slots[kSlots] = {};
   TapState taps[kTaps] = {};
+  // Delay mode: each tap ratio's crossfade gain (no envelope). Tap i belongs
+  // to ratio (i / 2) % 2; the louder ratio is the primary one.
+  float ratio_gain[2] = {1.0f, 0.0f};
 };
 
 class GrainFeed {

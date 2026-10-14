@@ -132,6 +132,8 @@ struct LucarneDisplay : widget::Widget {
 		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
 		in.modulated = modulated;
+		in.ratioGain[0] = frame.ratio_gain[0];
+		in.ratioGain[1] = frame.ratio_gain[1];
 		in.dt = dt;
 		const int32_t m = in.maxDelay;
 		// Delay-line indices: larger = older.

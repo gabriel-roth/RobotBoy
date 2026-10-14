@@ -223,6 +223,8 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
   frame.frozen = line.frozen();
   frame.tap_mode = taps != nullptr;
   if (taps) {
+    frame.ratio_gain[0] = taps->controller->ratio_gain(0);
+    frame.ratio_gain[1] = taps->controller->ratio_gain(1);
     const bool sliced = taps->controller->frozen();
     for (int i = 0; i < GrainLiveFrame::kTaps; ++i) {
       const beads::DelayTap& t = taps->out->tap[i];

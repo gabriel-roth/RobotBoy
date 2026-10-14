@@ -212,6 +212,9 @@ class DelayController {
   inline const PlayHead& play_head(int h) const { return play_head_[h]; }
   inline const PlayHead& slave_play_head(int h) const { return slave_play_head_[h]; }
   inline bool frozen() const { return freeze_; }
+  // RobotBoy: each ratio's crossfade gain (no envelope) from the last sample
+  // rendered; Lucarne colors the louder ratio's taps as the primary ones.
+  inline float ratio_gain(int r) const { return ratio_gain_[r]; }
   
  private:
   template<bool synchronized>
@@ -228,6 +231,7 @@ class DelayController {
       size_t size);
   
   int max_delay_;
+  float ratio_gain_[NUM_RATIOS];  // RobotBoy
   
   DelayClock clock_;
   

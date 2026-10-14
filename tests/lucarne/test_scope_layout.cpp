@@ -373,5 +373,37 @@ int main() {
         check(ScopeLayout::entriesToRead(1e9f, 0.f, false, 24, 8192) == 8192, "read: capped at the ring");
         check(ScopeLayout::entriesToRead(4800.f, 0.f, false, 0, 8192) > 0, "read: zero samples per entry is safe");
     }
+    {   // primary ratio: the louder group is white, whichever slots it holds
+        check(sameColor(ScopeLayout::tapColor(2, 1), ScopeLayout::kTapWhite), "ratio 1 is white when primary");
+        check(sameColor(ScopeLayout::tapColor(0, 1), ScopeLayout::kTapGreen), "ratio 0 is green when not primary");
+        auto markerColor = [](const ScopeLayout& L) {   // the first tap's line (after the dry playhead's)
+            return L.getDrawList().marks.at(1).color;
+        };
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 1.f, 2}; in.numTaps = 1;     // a ratio-1 tap
+        in.ratioGain[0] = 0.2f; in.ratioGain[1] = 0.8f;
+        L.update(in);                                       // first update: louder group, no hysteresis
+        check(L.getPrimary() == 1, "snap: the louder group is primary");
+        const Rgb whiteLine = markerColor(L);
+        in.ratioGain[0] = 0.8f; in.ratioGain[1] = 0.2f;
+        L.update(in);
+        check(L.getPrimary() == 0, "a clearly louder group takes over");
+        check(!sameColor(markerColor(L), whiteLine), "the ratio-1 tap turns green");
+        in.ratioGain[0] = 0.47f; in.ratioGain[1] = 0.53f;   // just past even: inside the hysteresis
+        L.update(in);
+        check(L.getPrimary() == 0, "hysteresis: a slight lead doesn't swap");
+        in.ratioGain[0] = 0.4f; in.ratioGain[1] = 0.6f;
+        L.update(in);
+        check(L.getPrimary() == 1, "past the hysteresis it swaps");
+        check(sameColor(markerColor(L), whiteLine), "the ratio-1 tap is white again");
+        in.ratioGain[0] = 0.8f; in.ratioGain[1] = 0.8f;     // unclocked at full: a tie
+        L.clear(); L.update(in);
+        check(L.getPrimary() == 0, "a tie on snap goes to ratio 0");
+    }
+    {   // default Input: ratio 0 primary, as before
+        ScopeLayout::Input in;
+        check(in.ratioGain[0] > in.ratioGain[1], "default gains make ratio 0 primary");
+    }
     return g_failures ? 1 : 0;
 }
