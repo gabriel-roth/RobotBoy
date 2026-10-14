@@ -43,6 +43,7 @@ public:
 		int32_t max_delay = 1;
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
 		int num_taps = 0;   // audible taps only (level > GrainLayout::kTapMinLevel)
+		bool frozen = false;   // Slice: the zoom only widens (see Update)
 		float dt = 0.f;
 	};
 
@@ -61,6 +62,7 @@ private:
 	float window_ = 1.f;
 	uint32_t epoch_ = 0;
 	bool have_window_ = false;
+	float slice_target_ = 0.f;   // widest target since Slice turned on; 0 when not frozen
 	DrawList list_;
 };
 

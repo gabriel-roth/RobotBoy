@@ -100,6 +100,7 @@ struct LucarneDisplay : widget::Widget {
 		using robotboy_beads::GrainFeed;
 		lucarne::ScopeLayout::Input in;
 		in.max_delay = std::max<int32_t>(fr.max_delay, 1);
+		in.frozen = fr.frozen;
 		in.dt = dt;
 		float longest = 0.f;
 		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps && in.num_taps < robotboy_beads::GrainLiveFrame::kTaps; ++i) {

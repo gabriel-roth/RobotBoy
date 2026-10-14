@@ -232,5 +232,28 @@ int main() {
         L.Clear();
         check(L.draw_list().under.empty(), "Clear empties the bands");
     }
+    {   // Slice (frozen): the zoom only widens, so the waveform keeps its size
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        ScopeLayout L; L.SetSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.frozen = true;
+        in.taps[0] = {1000.f, 1.f, 0, true, 9600.f, 4800.f}; in.num_taps = 1;
+        L.Update(in);
+        const float w0 = L.window();
+        check(near(w0, 9600.f * 1.15f, 1.f), "Slice: snaps to fit the slice");
+        in.taps[0] = {1000.f, 1.f, 0, true, 2400.f, 1200.f};   // a newer, shorter slice
+        for (int i = 0; i < 60; ++i) L.Update(in);
+        check(near(L.window(), w0, 1.f), "Slice: a nearer slice does not shrink the view");
+        in.num_taps = 0;                                         // all heads silent
+        for (int i = 0; i < 10; ++i) L.Update(in);
+        check(near(L.window(), w0, 1.f), "Slice: silent heads keep the view");
+        in.taps[0] = {1000.f, 1.f, 0, true, 19200.f, 4800.f}; in.num_taps = 1;
+        for (int i = 0; i < 60; ++i) L.Update(in);
+        check(near(L.window(), 19200.f * 1.15f, 50.f), "Slice: an older slice widens the view");
+        in.frozen = false;                                       // Slice off: follows taps again
+        in.taps[0] = {4800.f, 1.f, 0}; 
+        for (int i = 0; i < 60; ++i) L.Update(in);
+        check(near(L.window(), 4800.f * 1.15f, 50.f), "Slice off: zoom follows the taps again");
+    }
     return g_failures ? 1 : 0;
 }
