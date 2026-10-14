@@ -105,8 +105,8 @@ struct Retours : BeadsModule {
 		configParam(REVERB_CV_PARAM, -1.f, 1.f, 0.f, "Reverb CV amount");
 		configParam(DRY_WET_CV_PARAM, -1.f, 1.f, 0.f, "Dry/wet CV amount");
 
-		configInput(IN_L_INPUT, "Audio in L");
-		configInput(IN_R_INPUT, "Audio in R");
+		configInput(IN_L_INPUT, "Audio L");
+		configInput(IN_R_INPUT, "Audio R");
 		configInput(SLICE_INPUT, "Slice gate");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(TIME_INPUT, "Time CV");
@@ -117,8 +117,8 @@ struct Retours : BeadsModule {
 		configInput(FEEDBACK_INPUT, "Feedback CV");
 		configInput(REVERB_INPUT, "Reverb CV");
 		configInput(DRY_WET_INPUT, "Dry/wet CV");
-		configOutput(OUT_L_OUTPUT, "Audio out L");
-		configOutput(OUT_R_OUTPUT, "Audio out R");
+		configOutput(OUT_L_OUTPUT, "Audio L");
+		configOutput(OUT_R_OUTPUT, "Audio R");
 		configOutput(GATE_OUTPUT, "Repeat gate");
 		configBypass(IN_L_INPUT, OUT_L_OUTPUT);
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);

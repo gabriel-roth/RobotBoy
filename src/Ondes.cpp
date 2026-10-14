@@ -85,7 +85,7 @@ struct Ondes : Module {
 		configInput(VOCT_INPUT, "1V/octave pitch");
 		configInput(POSITION_INPUT, "Position CV");
 		configInput(BANK_INPUT, "Bank CV");
-		configOutput(OUT_OUTPUT, "Audio out");
+		configOutput(OUT_OUTPUT, "Audio");
 		initVoice(APP->engine->getSampleRate());
 	}
 
