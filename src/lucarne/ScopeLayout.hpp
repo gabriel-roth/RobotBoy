@@ -30,46 +30,46 @@ public:
 	// grain view's center color) or green.
 	static constexpr Rgb kTapWhite{0xE8, 0xE4, 0xDA};
 	static constexpr Rgb kTapGreen{0x8F, 0xD3, 0xA0};
-	static Rgb TapColor(int slot) { return (slot / 2) % 2 == 0 ? kTapWhite : kTapGreen; }
+	static Rgb tapColor(int slot) { return (slot / 2) % 2 == 0 ? kTapWhite : kTapGreen; }
 
 	struct Tap {
 		float delay;   // age of the read point, line samples
 		float level;
 		int slot;
 		bool slice = false;          // a Slice play head
-		float slice_oldest = 0.f;    // age of the slice's oldest end (slice only)
-		float slice_length = 0.f;    // line samples (slice only)
+		float sliceOldest = 0.f;    // age of the slice's oldest end (slice only)
+		float sliceLength = 0.f;    // line samples (slice only)
 	};
 	struct Input {
 		uint32_t epoch = 0;
 		const int8_t* lo = nullptr;   // newest first
 		const int8_t* hi = nullptr;
 		int entries = 0;
-		int32_t samples_per_entry = 1;
-		float line_rate = 48000.f;
-		int32_t max_delay = 1;
+		int32_t samplesPerEntry = 1;
+		float lineRate = 48000.f;
+		int32_t maxDelay = 1;
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
-		int num_taps = 0;   // audible taps only (level > kTapMinLevel)
+		int numTaps = 0;   // audible taps only (level > kTapMinLevel)
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
 		float dt = 0.f;
 	};
 
-	void SetSize(float w, float h);
-	void Update(const Input& in);
-	void Clear();   // forget the zoom (next Update snaps)
-	const DrawList& draw_list() const { return list_; }
-	float window() const { return window_; }   // current window, line samples
-	float NowX() const { return w_ * (1.f - kNowInset); }
-	float XForAge(float age) const;            // age 0 (newest) -> NowX(), age window -> 0
-	static float TapOutput(const Input& in, float delay, float level);   // 0..1
-	static float DryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds
+	void setSize(float w, float h);
+	void update(const Input& in);
+	void clear();   // forget the zoom (the next update() snaps)
+	const DrawList& getDrawList() const { return list; }
+	float getWindow() const { return window; }   // current window, line samples
+	float nowX() const { return width * (1.f - kNowInset); }
+	float xForAge(float age) const;            // age 0 (newest) -> nowX(), age window -> 0
+	static float tapOutput(const Input& in, float delay, float level);   // 0..1
+	static float dryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds
 
 private:
-	float w_ = 1.f, h_ = 1.f;
-	float window_ = 1.f;
-	uint32_t epoch_ = 0;
-	bool have_window_ = false;
-	DrawList list_;
+	float width = 1.f, height = 1.f;
+	float window = 1.f;
+	uint32_t epoch = 0;
+	bool haveWindow = false;
+	DrawList list;
 };
 
 }  // namespace lucarne

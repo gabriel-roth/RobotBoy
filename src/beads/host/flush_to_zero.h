@@ -10,10 +10,10 @@ namespace robotboy_beads {
 // restored afterward. No-op except on MetaModule (ARM).
 inline void EnableMetaModuleFlushToZero() {
 #if defined(METAMODULE) && defined(__arm__)
-	std::uint32_t fpscr;
-	__asm__ volatile("vmrs %0, fpscr" : "=r"(fpscr));
-	fpscr |= (1u << 24) | (1u << 25);
-	__asm__ volatile("vmsr fpscr, %0" : : "r"(fpscr));
+  std::uint32_t fpscr;
+  __asm__ volatile("vmrs %0, fpscr" : "=r"(fpscr));
+  fpscr |= (1u << 24) | (1u << 25);
+  __asm__ volatile("vmsr fpscr, %0" : : "r"(fpscr));
 #endif
 }
 

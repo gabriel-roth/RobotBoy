@@ -60,8 +60,8 @@ struct LucarneDisplay : widget::Widget {
 			const double now = system::getTime();
 			const float dt = lastTime < 0.0 ? 0.f : float(std::clamp(now - lastTime, 0.0, 0.5));
 			lastTime = now;
-			grainView.SetSize(box.size.x, box.size.y);
-			scopeView.SetSize(box.size.x, box.size.y);
+			grainView.setSize(box.size.x, box.size.y);
+			scopeView.setSize(box.size.x, box.size.y);
 
 			BeadsModule* left = module ? dynamic_cast<BeadsModule*>(module->leftExpander.module) : nullptr;
 			source = !left ? Source::None : left->delayMode ? Source::Retours : Source::Particules;
@@ -72,10 +72,10 @@ struct LucarneDisplay : widget::Widget {
 			}
 			else if (!left) {
 				feed = nullptr;
-				scopeView.Clear();
+				scopeView.clear();
 				scopePrimed = false;
-				grainView.Clear();
-				paint(args, grainView.draw_list(), kNoSource);
+				grainView.clear();
+				paint(args, grainView.getDrawList(), kNoSource);
 			}
 			else {
 				drawFeed(args, left->grainFeed, dt);
@@ -88,7 +88,7 @@ struct LucarneDisplay : widget::Widget {
 		if (feed != &f) {   // new source: start at its newest event
 			feed = &f;
 			eventCursor = f.event_write();
-			scopeView.Clear();
+			scopeView.clear();
 			scopePrimed = false;
 		}
 		f.ReadPeaks(peakLo.data(), peakHi.data());
@@ -102,37 +102,37 @@ struct LucarneDisplay : widget::Widget {
 			eventCursor = before;
 
 		if (haveFrame && frame.tap_mode) {
-			grainView.Clear();
-			scopeView.Update(scopeInput(f, dt));
-			paint(args, scopeView.draw_list(), nullptr);
+			grainView.clear();
+			scopeView.update(scopeInput(f, dt));
+			paint(args, scopeView.getDrawList(), nullptr);
 			return;
 		}
 		lucarne::GrainLayout::Input in;
 		in.epoch = f.epoch();
-		in.peak_lo = peakLo.data();
-		in.peak_hi = peakHi.data();
+		in.peakLo = peakLo.data();
+		in.peakHi = peakHi.data();
 		in.frame = haveFrame ? &frame : nullptr;
 		in.events = events.data();
-		in.num_events = haveFrame ? numEvents : 0;
+		in.numEvents = haveFrame ? numEvents : 0;
 		in.dt = dt;
 		drawGrains(args, in);
 	}
 
 	void drawGrains(const DrawArgs& args, const lucarne::GrainLayout::Input& in) {
-		scopeView.Clear();
+		scopeView.clear();
 		scopePrimed = false;
-		grainView.Update(in);
-		paint(args, grainView.draw_list(), nullptr);
+		grainView.update(in);
+		paint(args, grainView.getDrawList(), nullptr);
 	}
 
 	// The scope's input: the audible taps from the frame, and as much of the
 	// feed's scope ring as this frame's window can show.
 	lucarne::ScopeLayout::Input scopeInput(const GrainFeed& f, float dt) {
 		lucarne::ScopeLayout::Input in;
-		in.max_delay = std::max<int32_t>(frame.max_delay, 1);
+		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
 		in.dt = dt;
-		const int32_t m = in.max_delay;
+		const int32_t m = in.maxDelay;
 		// Delay-line indices: larger = older.
 		auto age = [&](int32_t index) { return float(((index - frame.write_index) % m + m) % m); };
 		float longest = 0.f;
@@ -143,27 +143,27 @@ struct LucarneDisplay : widget::Widget {
 			lucarne::ScopeLayout::Tap tap{age(t.read_index), t.level, i};
 			if (t.slice) {
 				tap.slice = true;
-				tap.slice_oldest = age(t.slice_start);
-				tap.slice_length = float(t.slice_length);
+				tap.sliceOldest = age(t.slice_start);
+				tap.sliceLength = float(t.slice_length);
 			}
-			in.taps[in.num_taps++] = tap;
-			longest = std::max(longest, tap.slice ? tap.slice_oldest : tap.delay);
+			in.taps[in.numTaps++] = tap;
+			longest = std::max(longest, tap.slice ? tap.sliceOldest : tap.delay);
 		}
 
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
 		in.epoch = info.epoch;
-		in.samples_per_entry = std::max<int32_t>(info.samples_per_entry, 1);
+		in.samplesPerEntry = std::max<int32_t>(info.samples_per_entry, 1);
 		// Zero until the feed's first ScopeReset; keep the Input default
 		// then so the zoom floor never reaches zero.
 		if (info.line_rate > 0.f)
-			in.line_rate = info.line_rate;
+			in.lineRate = info.line_rate;
 		// The window eases from where it is toward the longest tap x
 		// kZoomMargin, so the larger of the two bounds what it shows. After a
 		// source or epoch change the window snaps, so read everything.
 		int want = GrainFeed::kScopeEntries;
 		if (scopePrimed && info.epoch == scopeEpoch) {
-			const float span = std::max(scopeView.window(), lucarne::ScopeLayout::kZoomMargin * longest);
-			want = int(std::min<double>(GrainFeed::kScopeEntries, std::ceil(double(span) / in.samples_per_entry) + 2.0));
+			const float span = std::max(scopeView.getWindow(), lucarne::ScopeLayout::kZoomMargin * longest);
+			want = int(std::min<double>(GrainFeed::kScopeEntries, std::ceil(double(span) / in.samplesPerEntry) + 2.0));
 		}
 		int n = f.ReadScope(info.head, scopeLo.data(), scopeHi.data(), want);
 		// A reset during the copy may go unnoticed by ReadScope: recheck.
@@ -196,12 +196,12 @@ struct LucarneDisplay : widget::Widget {
 			events[i] = {1, i, start, kSpeeds[i], 24000.f, kPans[i]};
 		}
 		lucarne::GrainLayout::Input in;
-		in.peak_lo = peakLo.data();
-		in.peak_hi = peakHi.data();
+		in.peakLo = peakLo.data();
+		in.peakHi = peakHi.data();
 		in.frame = &frame;
 		in.events = events.data();
 		// The grains are born once, then play on.
-		in.num_events = demoPrimed ? 0 : 6;
+		in.numEvents = demoPrimed ? 0 : 6;
 		demoPrimed = true;
 		return in;
 	}
@@ -224,7 +224,7 @@ struct LucarneDisplay : widget::Widget {
 			nvgBeginPath(vg);
 			for (const lucarne::Rect& r : l.wave)
 				nvgRect(vg, r.x, r.y, r.w, r.h);
-			nvgFillColor(vg, nvgRGB(l.wave_color.r, l.wave_color.g, l.wave_color.b));
+			nvgFillColor(vg, nvgRGB(l.waveColor.r, l.waveColor.g, l.waveColor.b));
 			nvgFill(vg);
 		}
 		for (const lucarne::Rect& r : l.marks) {
