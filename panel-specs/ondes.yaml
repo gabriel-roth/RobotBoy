@@ -62,8 +62,8 @@ elements:
   - {name: POSITION_PARAM, grid: main, col: 3, row: knob}
   - {name: BANK_INPUT, grid: main, col: 1, row: jack}
   - {name: POSITION_INPUT, grid: main, col: 3, row: jack}
-  - {name: BANK_AMT_PARAM, widget: Trimpot, grid: main, col: 1, row: amt}
-  - {name: POSITION_AMT_PARAM, widget: Trimpot, grid: main, col: 3, row: amt}
+  - {name: BANK_CV_PARAM, widget: Trimpot, grid: main, col: 1, row: amt}
+  - {name: POSITION_CV_PARAM, widget: Trimpot, grid: main, col: 3, row: amt}
 
   # Out — outside the cyan plate, centered on the panel.
   - {name: OUT_OUTPUT, grid: main, col: 2, row: out}
@@ -103,6 +103,6 @@ overlaps_ok:
 # outside the plate on its own).
 connectors:
   - [BANK_PARAM, BANK_INPUT]
-  - [BANK_INPUT, BANK_AMT_PARAM]
+  - [BANK_INPUT, BANK_CV_PARAM]
   - [POSITION_PARAM, POSITION_INPUT]
-  - [POSITION_INPUT, POSITION_AMT_PARAM]
+  - [POSITION_INPUT, POSITION_CV_PARAM]

@@ -151,9 +151,9 @@ elements:
   - {name: REVERB_INPUT,   grid: main, col: 3, row: cv2}
   - {name: DRY_WET_INPUT,  grid: main, col: 4, row: cv2}
   - {name: SHAPE_AR_PARAM,    widget: Trimpot, grid: main, col: 1, row: atten2}
-  - {name: FEEDBACK_AMT_PARAM, widget: Trimpot, grid: main, col: 2, row: atten2}
-  - {name: REVERB_AMT_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
-  - {name: DRY_WET_AMT_PARAM, widget: Trimpot, grid: main, col: 4, row: atten2}
+  - {name: FEEDBACK_CV_PARAM, widget: Trimpot, grid: main, col: 2, row: atten2}
+  - {name: REVERB_CV_PARAM,  widget: Trimpot, grid: main, col: 3, row: atten2}
+  - {name: DRY_WET_CV_PARAM, widget: Trimpot, grid: main, col: 4, row: atten2}
 
   # --- Stereo audio I/O, one shared label per pair centered on the pair's
   # own midpoint (matches the shipped panel exactly: IN at 20.1 =

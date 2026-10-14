@@ -75,9 +75,9 @@
     <circle id="REVERB_INPUT#PJ301MPort" cx="46.6" cy="92.696" r="2" fill="#00ff00"/>
     <circle id="DRY_WET_INPUT#PJ301MPort" cx="63.6" cy="92.696" r="2" fill="#00ff00"/>
     <circle id="SHAPE_AR_PARAM#Trimpot" cx="12.6" cy="101.696" r="2" fill="#ff0000"/>
-    <circle id="FEEDBACK_AMT_PARAM#Trimpot" cx="29.6" cy="101.696" r="2" fill="#ff0000"/>
-    <circle id="REVERB_AMT_PARAM#Trimpot" cx="46.6" cy="101.696" r="2" fill="#ff0000"/>
-    <circle id="DRY_WET_AMT_PARAM#Trimpot" cx="63.6" cy="101.696" r="2" fill="#ff0000"/>
+    <circle id="FEEDBACK_CV_PARAM#Trimpot" cx="29.6" cy="101.696" r="2" fill="#ff0000"/>
+    <circle id="REVERB_CV_PARAM#Trimpot" cx="46.6" cy="101.696" r="2" fill="#ff0000"/>
+    <circle id="DRY_WET_CV_PARAM#Trimpot" cx="63.6" cy="101.696" r="2" fill="#ff0000"/>
     <circle id="IN_L_INPUT#PJ301MPort" cx="15.25" cy="114.3" r="2" fill="#00ff00"/>
     <circle id="IN_R_INPUT#PJ301MPort" cx="24.95" cy="114.3" r="2" fill="#00ff00"/>
     <circle id="OUT_L_OUTPUT#PJ301MPort" cx="51.25" cy="114.3" r="2" fill="#0000ff"/>

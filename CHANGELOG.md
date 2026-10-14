@@ -6,7 +6,7 @@
 - Ondes: Position now starts fully counter-clockwise, on each bank's first waveform, which has a full fundamental. Existing patches keep their Position.
 - Classic mode is gone: Particules, Retours and Ondes always run the Beads engines. Patches made with 2.1 or earlier, or saved in Classic mode in the 2.2 betas, open with the Beads engines too, so they may sound different. For the old engines, install the 2.2.0 beta 4 pre-release from GitHub, which still has Classic mode.
 - Particules: Quality can now also be set from the context menu, as on Retours.
-- Particules: loading a preset that doesn't include the input gain, Quality or scale root settings now resets them to their defaults, instead of keeping the module's current values.
+- Particules and Retours: loading a preset that leaves out a context-menu setting (input gain, Quality, tape hiss and, on Particules, Lock pitch and its root) now resets that setting to its default, instead of keeping the module's current value.
 - Particules, Retours and Ondes: clearer tooltips. The small knobs under Time, Size, Shape and Pitch are called attenurandomizers, as in the manuals, and the pitch inputs read "1V/octave pitch".
 
 ## [2.2.0-beta.4] — 2026-10-13 (pre-release)

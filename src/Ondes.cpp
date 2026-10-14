@@ -77,7 +77,7 @@ struct Ondes : Module {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		// A plain linear +-24 semitones: no notches, unlike the Beads pitch
 		// knob on Particules and Retours.
-		configParam(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch", " st", 0.f, 48.f, -24.f);
+		configParam(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch", " st", 0.f, 48.f, -24.f)->displayPrecision = 3;
 		configParam(POSITION_PARAM, 0.f, 1.f, 0.f, "Position");
 		configParam(POSITION_CV_PARAM, -1.f, 1.f, 0.f, "Position CV amount");
 		configParam(BANK_PARAM, 0.f, 1.f, 0.f, "Bank");

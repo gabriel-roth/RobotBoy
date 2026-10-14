@@ -72,8 +72,9 @@ robotboy_beads::HostFrameOut BeadsModule::processEngine(const ProcessArgs& args,
 #ifdef METAMODULE
 	quality = clamp((int)(params[QUALITY_PARAM].getValue() + 0.5f), 0, 3);
 #else
-	// Blocked while frozen, so a press can't promise a change the host
-	// holds back until Freeze releases.
+	// The button is ignored while frozen, so a press can't promise a change
+	// the host holds back until Freeze releases. (The menu's Quality item
+	// isn't blocked; the host defers that change the same way.)
 	if (qualityButton.process(params[QUALITY_PARAM].getValue() > 0.5f) && !gates.frozen)
 		quality = (quality + 1) % 4;
 #endif
@@ -228,10 +229,11 @@ struct GainItem : MenuItem {
 			return nullptr;
 		Menu* menu = new Menu;
 #ifdef METAMODULE
+		BeadsModule* m = module;
 		for (int db = 0; db <= 32; db++) {
 			menu->addChild(createCheckMenuItem(string::f("%d dB", db), "",
-				[=]() { return (int)std::round(module->manualGainDb) == db; },
-				[=]() { module->manualGainDb = (float)db; }));
+				[m, db]() { return (int)std::round(m->manualGainDb) == db; },
+				[m, db]() { m->manualGainDb = (float)db; }));
 		}
 #else
 		menu->addChild(new ManualGainSlider(module));

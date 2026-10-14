@@ -197,10 +197,9 @@ struct Retours : BeadsModule {
 		// (the first press from the locked state only unlocks, as on Beads).
 		// A patched clock goes to the Seed input; its first tick unlocks too,
 		// so the measured tempo survives unpatching.
-		const bool clock = patched(CLOCK_INPUT);
-		if (clockTickPending && clock)
+		if (clockTickPending && clockPatched)
 			tempoHeld = true;
-		c->seed_patched = clock;
+		c->seed_patched = clockPatched;
 		// While the engine is muted after a reformat it isn't listening, so a
 		// tap waits for it.
 		if (tapPending && !host.muted()) {

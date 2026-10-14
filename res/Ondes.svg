@@ -25,8 +25,8 @@
     <circle id="POSITION_PARAM#RoundBlackKnob" cx="28.98" cy="74.35" r="2" fill="#ff0000"/>
     <circle id="BANK_INPUT#PJ301MPort" cx="11.66" cy="86.7" r="2" fill="#00ff00"/>
     <circle id="POSITION_INPUT#PJ301MPort" cx="28.98" cy="86.7" r="2" fill="#00ff00"/>
-    <circle id="BANK_AMT_PARAM#Trimpot" cx="11.66" cy="97.05" r="2" fill="#ff0000"/>
-    <circle id="POSITION_AMT_PARAM#Trimpot" cx="28.98" cy="97.05" r="2" fill="#ff0000"/>
+    <circle id="BANK_CV_PARAM#Trimpot" cx="11.66" cy="97.05" r="2" fill="#ff0000"/>
+    <circle id="POSITION_CV_PARAM#Trimpot" cx="28.98" cy="97.05" r="2" fill="#ff0000"/>
     <circle id="OUT_OUTPUT#PJ301MPort" cx="20.32" cy="113.7" r="2" fill="#0000ff"/>
   </g>
 </svg>
