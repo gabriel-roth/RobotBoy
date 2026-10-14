@@ -58,6 +58,32 @@ TEST_CASE("CV channel clamps and rejects non-finite input") {
   CHECK_THAT(time.value(), WithinAbs(1.6f, 1e-6));
 }
 
+TEST_CASE("Randomized channel matches its separate pot and CV channels") {
+  // Pitch: the detune law on the knob, the attenuverter law on the amount,
+  // and the semitone CV clamp.
+  RandomizedChannel pitch;
+  pitch.Init(RandomizedChannel::kPitch);
+  PotChannel knob, amount;
+  knob.Init(PotLaw::kDetune, kPotLp, 0.0f);
+  amount.Init(PotLaw::kAttenuverter, kPotLp, 0.0f);
+  CvChannel cv;
+  InitPitchCv(&cv);
+  for (int i = 0; i < 50; ++i) {
+    const float k = 0.5f + 0.01f * i, a = 1.0f - 0.01f * i, c = 100.0f - i;
+    const beads::RandomizedParameter p = pitch.Process(k, a, i % 2 == 0, c);
+    CHECK(p.base == knob.Process(k));
+    CHECK(p.attenuverter == amount.Process(a));
+    CHECK(p.cv == cv.Process(c));
+    CHECK(p.has_cv == (i % 2 == 0));
+  }
+  // Time: the CV clamps at +-1.6, as Beads' Time/Size/Shape inputs.
+  RandomizedChannel time;
+  time.Init(RandomizedChannel::kTime);
+  beads::RandomizedParameter t{};
+  for (int i = 0; i < 100; ++i) t = time.Process(0.5f, 0.5f, true, 10.0f);
+  CHECK_THAT(t.cv, WithinAbs(1.6f, 1e-6));
+}
+
 TEST_CASE("Pot channel starts at its first reading, then smooths") {
   PotChannel pot;
   pot.Init(PotLaw::kNormal, kPotLp, 0.0f);

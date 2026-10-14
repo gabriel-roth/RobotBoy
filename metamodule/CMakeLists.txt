@@ -23,13 +23,11 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/plugin.cpp
     ${SRC}/src/mf20/MF20Filter.cpp
     ${SRC}/src/Onbetap.cpp
-    ${SRC}/src/particules/Particules.cpp
-    ${SRC}/src/particules/ParticulesBeads.cpp
-    ${SRC}/src/particules/Ondes.cpp
-    ${SRC}/src/particules/OndesBeads.cpp
+    ${SRC}/src/BeadsModule.cpp
+    ${SRC}/src/Particules.cpp
+    ${SRC}/src/Retours.cpp
+    ${SRC}/src/Ondes.cpp
     ${SRC}/src/Vespid.cpp
-    ${SRC}/src/retours_delay/Retours.cpp
-    ${SRC}/src/retours_delay/RetoursBeads.cpp
     ${SRC}/src/lucarne/Lucarne.cpp
     ${SRC}/src/lucarne/GrainLayout.cpp
     ${SRC}/src/lucarne/ScopeLayout.cpp
@@ -57,7 +55,6 @@ target_include_directories(RobotBoy PRIVATE
     ${SRC}/src/loooop
     ${SRC}/src/mf20
     ${SRC}/src/particules
-    ${SRC}/src/retours_delay
     ${SRC}/src/beads
     ${SRC}/src/beads/vendor
     ${CMAKE_CURRENT_LIST_DIR}/loooop

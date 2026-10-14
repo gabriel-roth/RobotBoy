@@ -12,6 +12,8 @@
 #include "stmlib/dsp/dsp.h"
 #include "stmlib/dsp/hysteresis_filter.h"
 
+#include "beads/dsp/randomized_parameter.h"
+
 namespace robotboy_beads {
 
 // Attenurandomizer knob law: a dead band around noon and a curved response
@@ -145,6 +147,42 @@ inline void InitMixCv(CvChannel* c) { c->Init(0.1f, -1.0f, 1.0f); }
 // Time also has 0.001 of hysteresis.
 constexpr float kPotLp = 0.05f;
 constexpr float kTimeHysteresis = 0.001f;
+
+// One of Beads' randomized parameters (Time, Size, Shape, Pitch): the knob,
+// its attenurandomizer and its CV input, each conditioned as cv_reader.cc
+// does, combined into what the processor reads.
+class RandomizedChannel {
+ public:
+  enum Kind { kTime, kSizeShape, kPitch };
+
+  void Init(Kind kind) {
+    knob_.Init(kind == kPitch ? PotLaw::kDetune : PotLaw::kNormal, kPotLp,
+               kind == kTime ? kTimeHysteresis : 0.0f);
+    amount_.Init(PotLaw::kAttenuverter, kPotLp, 0.0f);
+    if (kind == kPitch) {
+      InitPitchCv(&cv_);
+    } else {
+      InitTimeSizeShapeCv(&cv_);
+    }
+  }
+
+  // knob and amount are 0..1 positions; cv is already scaled (V/5, or
+  // semitones for Pitch).
+  beads::RandomizedParameter Process(float knob, float amount, bool cv_patched,
+                                     float cv) {
+    beads::RandomizedParameter p;
+    p.base = knob_.Process(knob);
+    p.attenuverter = amount_.Process(amount);
+    p.cv = cv_.Process(cv);
+    p.has_cv = cv_patched;
+    return p;
+  }
+
+ private:
+  PotChannel knob_;
+  PotChannel amount_;
+  CvChannel cv_;
+};
 
 // Feedback / Dry-wet / Reverb: Beads scales the pot by 1.005 so the end stop
 // reaches 1.0, then adds its assignable CV (conditioned by a CvChannel set up

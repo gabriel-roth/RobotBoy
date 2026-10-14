@@ -1,8 +1,7 @@
 #include "Lucarne.hpp"
 #include "GrainLayout.hpp"
 #include "ScopeLayout.hpp"
-#include "particules/Particules.hpp"
-#include "retours_delay/Retours.hpp"
+#include "BeadsModule.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -32,10 +31,9 @@ enum class Source { None, Particules, Retours };
 
 // The module on Lucarne's left, if it is one Lucarne can show.
 static Source FindSource(Module* left, robotboy_beads::GrainFeed** feed) {
-	if (auto* p = dynamic_cast<Particules*>(left)) { *feed = &p->grain_feed_; return Source::Particules; }
-	if (auto* r = dynamic_cast<Retours*>(left)) { *feed = &r->grain_feed_; return Source::Retours; }
-	*feed = nullptr;
-	return Source::None;
+	auto* m = dynamic_cast<BeadsModule*>(left);
+	*feed = m ? &m->grainFeed : nullptr;
+	return !m ? Source::None : m->delayMode ? Source::Retours : Source::Particules;
 }
 
 struct LucarneDisplay : widget::Widget {
