@@ -1,4 +1,5 @@
 #include "Ondes.hpp"
+#include "beads_menu.hpp"
 #include "ondes_pitch_map.hpp"
 
 #include <cmath>
@@ -20,7 +21,7 @@ struct OndesPitchParamQuantity : ParamQuantity {
 Ondes::Ondes() {
     config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
     configParam<OndesPitchParamQuantity>(PITCH_PARAM, 0.f, 1.f, 0.5f, "Pitch");
-    configParam(POSITION_PARAM, 0.f, 1.f, 0.5f, "Position");
+    configParam(POSITION_PARAM, 0.f, 1.f, 0.f, "Position");
     configParam(POSITION_AMT_PARAM, -1.f, 1.f, 0.f, "Position CV amount");
     configParam(BANK_PARAM, 0.f, 1.f, 0.f, "Bank");
     configParam(BANK_AMT_PARAM, -1.f, 1.f, 0.f, "Bank CV amount");
@@ -36,8 +37,28 @@ void Ondes::onSampleRateChange(const SampleRateChangeEvent& e) {
     engine_->onSampleRateChange(e.sampleRate);
 }
 
+void Ondes::onReset(const ResetEvent& e) {
+    Module::onReset(e);
+    oversampling_ = 1;
+}
+
 void Ondes::process(const ProcessArgs& args) {
     engine_->process(args);
+}
+
+json_t* Ondes::dataToJson() {
+    json_t* root = json_object();
+    json_object_set_new(root, "oversampling", json_integer(oversampling_));
+    return root;
+}
+
+void Ondes::dataFromJson(json_t* root) {
+    // Patches from before the option load with it off.
+    oversampling_ = 1;
+    if (json_t* j = json_object_get(root, "oversampling")) {
+        const int os = (int)json_integer_value(j);
+        oversampling_ = os >= 4 ? 4 : os >= 2 ? 2 : 1;
+    }
 }
 
 // Draws the engine's current wave as a cyan trace that morphs as
@@ -101,6 +122,23 @@ struct OndesWidget : ModuleWidget {
         display->box.size = mm2px(Vec(34.64, 24.5));
         display->module = module;
         addChild(display);
+    }
+
+    void appendContextMenu(Menu* menu) override {
+        Ondes* module = dynamic_cast<Ondes*>(this->module);
+        if (!module) return;
+
+        menu->addChild(new MenuSeparator);
+        // Labels stay ASCII: the MetaModule font has no multiplication sign.
+        static const int kFactors[] = {1, 2, 4};
+        menu->addChild(createIndexSubmenuItem("Anti-aliasing",
+            {"Off (as on Beads)", "2x oversampling", "4x oversampling"},
+            [=]() { return module->oversampling_ >= 4 ? 2 : module->oversampling_ >= 2 ? 1 : 0; },
+            [=](int i) {
+                withMenuUndo(module, "set anti-aliasing",
+                    [=]() { module->oversampling_ = kFactors[i]; });
+            }
+        ));
     }
 };
 

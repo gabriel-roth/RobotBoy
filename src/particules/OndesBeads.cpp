@@ -1,12 +1,7 @@
 #include "Ondes.hpp"
 #include "ondes_pitch_map.hpp"
 
-#include "stmlib/dsp/dsp.h"
-#include "beads/resources.h"
-#include "beads/dsp/frame.h"
-#include "beads/dsp/granular_player.h"
-#include "beads/dsp/wavetable_grain.h"   // table layout + InterpolateWaveHermite
-#include "beads/dsp/wavetable_voice.h"
+#include "ondes_voice.h"
 #include "stmlib/dsp/hysteresis_quantizer.h"
 
 #include <algorithm>
@@ -17,7 +12,7 @@
 // oscillator Beads plays when nothing is patched into its audio inputs),
 // running on the Beads source: 12 banks of 16 band-limited waves, with
 // Position morphing through a bank and Bank switching banks via a short
-// crossfade.
+// crossfade. The context menu can oversample the voice (ondes_voice.h).
 
 static constexpr int kOndesNumBanks = 12;  // beads/dsp/synth.h kNumBanks
 static_assert(WAV_INTEGRATED_WAVES_SIZE ==
@@ -60,26 +55,12 @@ namespace {
 class OndesBeads : public OndesEngine {
  public:
 	explicit OndesBeads(Ondes& m) : m_(m) {
-		// Position and pitch are computed here, so the voice sees plain
-		// values: no internal randomization, no CV path of its own.
-		auto plain = [](beads::RandomizedParameter* r) {
-			r->base = 0.f;
-			r->attenuverter = 0.f;
-			r->cv = 0.f;
-			r->has_cv = false;
-		};
-		plain(&parameters_.time);
-		plain(&parameters_.size);
-		plain(&parameters_.shape);
-		plain(&parameters_.pitch);
-		parameters_.monophonic_mode = false;
-		parameters_.pitch_lock = nullptr;
-
 		onSampleRateChange(APP->engine->getSampleRate());
 	}
 
 	void onSampleRateChange(float sample_rate) override {
-		voice_.Init(sample_rate);
+		sample_rate_ = sample_rate;
+		voice_.Init(sample_rate_, m_.oversampling_);
 		// Beads' synth: 12 banks, 0.048 of hysteresis between them.
 		bank_quantizer_.Init(kOndesNumBanks, 0.048f, false);
 	}
@@ -98,17 +79,16 @@ class OndesBeads : public OndesEngine {
 			+ m_.inputs[Ondes::BANK_INPUT].getVoltage() * 0.2f * m_.params[Ondes::BANK_AMT_PARAM].getValue();
 		bank = std::isfinite(bank) ? clamp(bank, 0.f, 1.f) : 0.f;
 
-		parameters_.pitch.base = pitch;
-		parameters_.time.base = position;
+		// A menu change restarts the voice at its new rate.
+		if (m_.oversampling_ != voice_.oversampling())
+			voice_.Init(sample_rate_, m_.oversampling_);
+
 		const int bank_index = bank_quantizer_.Process(bank);
 		last_bank_.store(bank_index, std::memory_order_relaxed);
 		last_wave_.store(position, std::memory_order_relaxed);
 
-		beads::FloatFrame out;
-		out.l = out.r = 0.f;
-		const bool freeze = false;
-		voice_.Render(bank_index, kOndesBitShift, &freeze, parameters_, &out, 1);
-		m_.outputs[Ondes::OUT_OUTPUT].setVoltage(out.l * 5.f);
+		const float out = voice_.Render(bank_index, kOndesBitShift, pitch, position);
+		m_.outputs[Ondes::OUT_OUTPUT].setVoltage(out * 5.f);
 	}
 
 	float displaySample(int i, int n) const override {
@@ -118,9 +98,9 @@ class OndesBeads : public OndesEngine {
 
  private:
 	Ondes& m_;
-	beads::WavetableVoice voice_;
+	robotboy_beads::OndesVoice voice_;
 	stmlib::HysteresisQuantizer2 bank_quantizer_;
-	beads::Parameters parameters_;
+	float sample_rate_ = 48000.f;
 	// Last bank (0-11) and position (0-1), read by the panel display. A
 	// UI-thread read of an audio-thread write is a benign race (display only).
 	std::atomic<int> last_bank_{0};

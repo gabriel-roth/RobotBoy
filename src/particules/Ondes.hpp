@@ -23,8 +23,15 @@ struct Ondes : Module {
 	// the UI thread.
 	std::unique_ptr<OndesEngine> engine_;
 
+	// Context-menu anti-aliasing: the voice runs at this multiple of the
+	// host rate (1 = off, as on Beads; 2 or 4).
+	int oversampling_ = 1;
+
 	Ondes();
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override;
+	void onReset(const ResetEvent& e) override;
 	void process(const ProcessArgs& args) override;
+	json_t* dataToJson() override;
+	void dataFromJson(json_t* root) override;
 };

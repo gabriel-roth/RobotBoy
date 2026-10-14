@@ -12,9 +12,15 @@
 - **V/Oct** — pitch input, summed with the Pitch knob. With the knob at center, 0 V is middle C (C4).
 - **Bank** — selects one of the 12 banks. Changing bank crossfades over 25 ms, and the knob has a little hysteresis between banks, so it doesn't chatter at a boundary.
 - **Bank CV** + amount — ±5 V CV control of Bank, scaled by the attenuverter below it.
-- **Position** — sweeps through the 16 waveforms in the current bank.
+- **Position** — sweeps through the 16 waveforms in the current bank. It starts fully counter-clockwise, on each bank's first waveform; later waveforms in many banks have little or no fundamental.
 - **Position CV** + amount — ±5 V CV control of Position, scaled by the attenuverter below it.
 - **Out** — ±5 V mono oscillator output.
+
+---
+
+## Context menu
+
+- **Anti-aliasing** — Off (as on Beads), 2x oversampling or 4x oversampling. Beads' oscillator aliases audibly on its brighter waveforms from around C3 upward; oversampling removes most of that. 2x clears C3 and below, 4x most of the range up to C5. Both cost extra CPU (4x the most), which matters on MetaModule. Switching restarts the oscillator, so it clicks once.
 
 ---
 
