@@ -6,6 +6,7 @@
  */
 
 #include "../../src/vespid/wasp_dsp_utils.hpp"
+#include "../../src/shared/dsp_utils.hpp"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -93,8 +94,7 @@ static void test_tanh_approx() {
     // approx=0.777778 vs tanh=0.761594, diff=0.016184 > 0.01). This is an
     // inherent property of that exact rational approximant, not a bug in
     // this implementation, so the tolerance below is loosened to 0.03 to
-    // match verified reality while still catching gross regressions. See
-    // task-2-report.md for the full discrepancy writeup.
+    // match verified reality while still catching gross regressions.
     printf("\n1. tanhApprox tracks std::tanh within 0.03 (see tolerance note)\n");
     const float xs[] = { -6.f, -3.f, -1.f, -0.1f, 0.f, 0.1f, 1.f, 3.f, 6.f };
     for (float x : xs) {
@@ -192,8 +192,8 @@ static void test_dc_blocker() {
 
     // DC input of 1.0 for 1 s should settle near 0.
     {
-        wasp::DcBlocker db;
-        db.setSampleRate(fs);
+        robotboy::DcBlocker db;
+        db.setCutoff(8.f, fs);
         db.reset();
         float out = 0.f;
         int n = (int)fs;
@@ -205,8 +205,8 @@ static void test_dc_blocker() {
 
     // 100 Hz sine should pass with little attenuation (within 0.5 dB).
     {
-        wasp::DcBlocker db;
-        db.setSampleRate(fs);
+        robotboy::DcBlocker db;
+        db.setCutoff(8.f, fs);
         db.reset();
         const float freq = 100.f;
         const float kPi = 3.14159265358979f;
@@ -275,7 +275,7 @@ static void test_halfband_roundtrip() {
 }
 
 // ── Inner (15-tap) halfband: structure, response, round trip ────────────────
-// The 4x cascade's inner stages use kHalfbandTapsInner (2026-07-26 CPU pass).
+// The 4x cascade's inner stages use kHalfbandTapsInner.
 // Verifies the halfband structure the templates rely on, the design targets
 // (passband ripple, >= 70 dB stopband above 0.375*fs — the only region whose
 // aliases/images can reach the audio band through the outer stage), and a
@@ -488,7 +488,7 @@ static void bench_halfband() {
                 up4a[ch].process(buf2[1], &buf4[2]);
                 // Stand in for the 4 WaspFilter::process calls (out of scope
                 // here) with the identity, then decimate back down exactly
-                // as engine.hpp's Channel::process os==4 path does.
+                // as engine.hpp's Channel::process does.
                 float midLp0 = downLp4a[ch].process(buf4[0], buf4[1]);
                 float midLp1 = downLp4a[ch].process(buf4[2], buf4[3]);
                 float midBp0 = downBp4a[ch].process(buf4[0], buf4[1]);

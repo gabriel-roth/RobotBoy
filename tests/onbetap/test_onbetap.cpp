@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdio>
 
+using namespace onbetap;
+
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
     if (cond) { printf("PASS %s\n", name); passed++; } \
@@ -16,10 +18,8 @@ static constexpr float kPi = 3.14159265358979f;
 enum Tap { LP, BP, HP };
 struct SineResult { float rms, peak; };
 static SineResult runSine(float f, float a, float fc, float k, Tap tap,
-                          OnbetapFilter::Limit lim = OnbetapFilter::Limit::Hard,
                           int n = 48000) {
     OnbetapFilter flt;
-    flt.setLimit(lim);
     float g = OnbetapFilter::cutoffToG(fc, kFs);
     double sumSq = 0; float peak = 0; int count = 0;
     for (int i = 0; i < n; i++) {
@@ -34,9 +34,8 @@ static SineResult runSine(float f, float a, float fc, float k, Tap tap,
 // Self-oscillation run: no input except a tiny alternating seed; returns RMS,
 // peak and zero-crossing frequency estimate over the last half.
 struct OscResult { float rms, peak, freq; };
-static OscResult runOsc(float fc, float k, OnbetapFilter::Limit lim, int n = 96000) {
+static OscResult runOsc(float fc, float k, int n = 96000) {
     OnbetapFilter flt;
-    flt.setLimit(lim);
     float g = OnbetapFilter::cutoffToG(fc, kFs);
     double sumSq = 0; float peak = 0; int count = 0, crossings = 0;
     float prev = 0, dither = 1e-9f;
@@ -91,30 +90,18 @@ int main() {
     }
     // ---- self-oscillation ----
     {
-        auto osc = runOsc(1000.f, -0.06f, OnbetapFilter::Limit::Hard);
-        CHECK(osc.rms > 0.5f, "hard self-osc sustains");
-        CHECK(osc.peak < 4.6f, "hard self-osc bounded by rails");
-        // Measured (see task-1-report.md): hard rail-to-rail self-osc at
-        // deep resonance is a slew-limited relaxation oscillator, not a
-        // sinusoid at fc — the state ramps at the fixed max rate ωc across
-        // nearly the full rail-to-rail swing, landing ~310 Hz for fc=1000,
-        // k=-0.06 (reproducible across the whole fc range, ratio ~0.31).
-        // Bound widened from a ±40% window to this measured
-        // regime; still requires oscillation in the same octave-ish
-        // neighborhood as fc (catches runaway to sub-audio/ultrasonic).
-        CHECK(osc.freq > 200.f && osc.freq < 450.f, "hard self-osc in slew-limited band");
-        auto soft = runOsc(1000.f, -0.06f, OnbetapFilter::Limit::Soft);
-        CHECK(soft.rms > 0.3f, "soft self-osc sustains");
-        CHECK(soft.peak < 4.2f, "soft self-osc bounded below hard rails");
-        // hard limiting -> squarer wave -> lower crest factor than soft
-        float crestH = osc.peak / osc.rms, crestS = soft.peak / soft.rms;
-        printf("info: crest hard=%.3f soft=%.3f freqH=%.0f freqS=%.0f\n",
-               crestH, crestS, osc.freq, soft.freq);
-        CHECK(crestH < crestS + 0.15f, "hard crest <= soft crest (square-ish)");
+        auto osc = runOsc(1000.f, -0.06f);
+        printf("info: self-osc rms=%.3f peak=%.3f freq=%.0f\n", osc.rms, osc.peak, osc.freq);
+        CHECK(osc.rms > 0.3f, "self-osc sustains");
+        CHECK(osc.peak < 4.2f, "self-osc bounded by the soft state limit");
+        // Deep self-oscillation is a slew-limited relaxation oscillator, not
+        // a sinusoid at fc: the state ramps at the maximum rate ωc across
+        // most of its swing, landing near 0.3-0.4·fc.
+        CHECK(osc.freq > 200.f && osc.freq < 450.f, "self-osc in slew-limited band");
     }
     // no oscillation at k = 1 (Q = 1)
     {
-        auto osc = runOsc(1000.f, 1.0f, OnbetapFilter::Limit::Hard);
+        auto osc = runOsc(1000.f, 1.0f);
         CHECK(osc.rms < 1e-3f, "no self-osc at Q=1");
     }
     // ---- drive suppresses resonance (the signature interaction) ----
@@ -155,8 +142,8 @@ int main() {
     }
     // ---- determinism: two identical runs bit-match ----
     {
-        auto a = runOsc(2000.f, -0.02f, OnbetapFilter::Limit::Hard, 24000);
-        auto b = runOsc(2000.f, -0.02f, OnbetapFilter::Limit::Hard, 24000);
+        auto a = runOsc(2000.f, -0.02f, 24000);
+        auto b = runOsc(2000.f, -0.02f, 24000);
         CHECK(a.rms == b.rms && a.peak == b.peak, "deterministic");
     }
     // ---- reset / sanitize ----

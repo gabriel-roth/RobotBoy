@@ -3,6 +3,8 @@
 #include <cmath>
 #include <cstdio>
 
+using namespace onbetap;
+
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
     if (cond) { printf("PASS %s\n", name); passed++; } \
@@ -13,10 +15,10 @@ int main() {
     {
         OnbetapPool pool;
         float g = OnbetapFilter::cutoffToG(1000.f, 96000.f);
-        for (int i = 0; i < 100; i++) pool.voices[3].fL.processG(1.f, g, 0.2f);
+        for (int i = 0; i < 100; i++) pool.voices[3].l.filter.processG(1.f, g, 0.2f);
         pool.setVoices(2);
         pool.setVoices(8);   // voice 3 re-enters: must be clean
-        auto o = pool.voices[3].fL.processG(0.f, g, 1.0f);
+        auto o = pool.voices[3].l.filter.processG(0.f, g, 1.0f);
         CHECK(o.lp == 0.f && o.bp == 0.f, "re-entering voice starts clean");
         CHECK(pool.activeVoices == 8, "activeVoices tracks setVoices");
     }
@@ -24,11 +26,11 @@ int main() {
     {
         OnbetapVoice v;
         float g = OnbetapFilter::cutoffToG(1000.f, 96000.f);
-        v.fL.processG(std::nanf(""), g, 0.5f);
-        CHECK(!v.fL.stateFinite(), "NaN poisons state");
+        v.l.filter.processG(std::nanf(""), g, 0.5f);
+        CHECK(!v.l.filter.stateFinite(), "NaN poisons state");
         v.gSlew.reset(0.123f);
         v.sanitize();
-        CHECK(v.fL.stateFinite(), "sanitize restores filters");
+        CHECK(v.l.filter.stateFinite(), "sanitize restores filters");
         CHECK(v.gSlew.value == 0.123f, "sanitize leaves smoothers");
     }
     // DriftWalker: deterministic, zero-mean-ish, bounded by depth
@@ -69,10 +71,10 @@ int main() {
     {
         OnbetapVoice v;
         float g = OnbetapFilter::cutoffToG(1000.f, 192000.f);
-        v.fir4LpL.push(1.f);
-        v.fL.processG(std::nanf(""), g, 0.5f);
+        v.l.fir4Lp.push(1.f);
+        v.l.filter.processG(std::nanf(""), g, 0.5f);
         v.sanitize();
-        CHECK(v.fir4LpL.push(0.f) == 0.f, "sanitize clears stage-A FIRs");
+        CHECK(v.l.fir4Lp.push(0.f) == 0.f, "sanitize clears stage-A FIRs");
     }
     // Composed 4x cascade: low-frequency sine passes at unity-ish gain
     {
@@ -115,8 +117,8 @@ int main() {
             // Literal 96000, NOT kCLagRefFsOs: this pins the reference rate
             // itself, so silently changing the constant fails the test.
             float g = OnbetapFilter::cutoffToG(fc, 96000.f);
-            float old2x = g * g / (1.f + g * g);
-            match = match && std::fabs(onbetap::cutoffLagCorr(fc) - old2x) < 1e-6f;
+            float expected = g * g / (1.f + g * g);
+            match = match && std::fabs(onbetap::cutoffLagCorr(fc) - expected) < 1e-6f;
         }
         CHECK(match, "cutoffLagCorr matches calibrated 2x/48k correction");
         CHECK(onbetap::kCLagRefFsOs == 96000.f, "reference rate pinned at 96 kHz");

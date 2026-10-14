@@ -16,6 +16,8 @@
 #include <cstdio>
 #include <vector>
 
+using namespace onbetap;
+
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
     if (cond) { printf("PASS %s\n", name); passed++; } \
@@ -25,10 +27,10 @@ static constexpr float kTwoPi = 6.28318530717959f;
 
 // One host sample through the 2x oversampled LP path (mirrors processSide,
 // including the Drive-grit VCA push).
-static float sideLP(OnbetapFilter& f, float& xPrev, DCBlock& dc, float inVolts,
+static float sideLP(OnbetapFilter& f, float& xPrev, robotboy::DcBlocker& dc, float inVolts,
                     float g, float kEff, float driveScale, float makeup,
                     float push, DecimFir13& firLp, DecimFir13& firBp,
-                    DecimFir13& firHp, float dcCoef) {
+                    DecimFir13& firHp) {
     float lp = 0, bp = 0, hp = 0;
     float x1 = inVolts * driveScale;
     for (int i = 1; i <= 2; i++) {
@@ -40,7 +42,7 @@ static float sideLP(OnbetapFilter& f, float& xPrev, DCBlock& dc, float inVolts,
     }
     xPrev = x1;
     float v = -lp * makeup;                              // LP tap
-    v = dc.process(v, dcCoef);
+    v = dc.process(v);
     return 9.f * OnbetapFilter::tanhish(push * v / 9.f); // output VCA + push
 }
 
@@ -51,18 +53,17 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs,
                     float gritDb) {
     float fsOs = fs * 2.f, tone = cutoff;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
-    float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k (tuneOnset 0)
-    auto gains = onbetap::driveGains(drive, onbetap::kDriveSpanDb, 1.f, 0.f, gritDb);
+    float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k, no onset trim
+    auto gains = onbetap::driveGains(drive, onbetap::kDriveSpanDb, gritDb);
     // NOTE: replicates the module kEff law; numerically equivalent to
     // onbetap::cutoffLagCorr here only because this harness runs at
     // fsOs = kCLagRefFsOs (96 kHz). Revisit if the module kEff law changes.
     float kCLag = 0.25f;
     float kEff = std::max(k - kCLag * g * g / (1.f + g * g), -0.31f);
 
-    OnbetapFilter f; f.setLimit(OnbetapFilter::Limit::Hard);
+    OnbetapFilter f;
     f.setMismatch(0, 0); f.setOffset(0); f.reset();
-    DCBlock dc; DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
-    float dcCoef = 1.f - kTwoPi * 1.6f / fs;
+    robotboy::DcBlocker dc; dc.setCutoff(1.6f, fs); DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
 
     int warm = (int)(fs * 1.0f);
     int spc = (int)std::lround(fs / tone), W = spc * 256;   // coherent window
@@ -72,7 +73,7 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs,
         float dither = (n & 1) ? 1e-9f : -1e-9f;
         float in = amp * std::sin(kTwoPi * tone * n / fs) + dither;
         float out = sideLP(f, xPrev, dc, in, g, kEff, gains.driveScale,
-                           gains.makeup, gains.vcaPush, fLp, fBp, fHp, dcCoef);
+                           gains.makeup, gains.vcaPush, fLp, fBp, fHp);
         if (n >= warm) {
             buf[n - warm] = out;
             peak = std::max(peak, std::fabs(out));
@@ -98,20 +99,20 @@ int main(int argc, char**) {
     char nm[128];
 
     // --- Law unit checks (pure driveGains math) ---
-    CHECK(onbetap::driveGains(0.f, 30.f, 1.f, 0.f, 12.f).vcaPush == 1.f,
+    CHECK(onbetap::driveGains(0.f, 30.f, 12.f).vcaPush == 1.f,
           "push == 1 exactly at Drive 0 (bit-identity)");
-    CHECK(onbetap::driveGains(0.5f, 30.f, 1.f, 0.f, 0.f).vcaPush == 1.f,
+    CHECK(onbetap::driveGains(0.5f, 30.f, 0.f).vcaPush == 1.f,
           "gritDb 0 -> push == 1 (escape hatch)");
-    float p1 = onbetap::driveGains(1.f, 30.f, 1.f, 0.f, 6.f).vcaPush;
+    float p1 = onbetap::driveGains(1.f, 30.f, 6.f).vcaPush;
     CHECK(std::fabs(p1 - std::exp2(6.f / 6.0206f)) < 1e-4f,
           "push(drive 1, 6 dB) == exp2(6/6.0206)");
-    float pa = onbetap::driveGains(0.25f, 30.f, 1.f, 0.f, 6.f).vcaPush;
-    float pb = onbetap::driveGains(0.50f, 30.f, 1.f, 0.f, 6.f).vcaPush;
-    float pc = onbetap::driveGains(0.75f, 30.f, 1.f, 0.f, 6.f).vcaPush;
+    float pa = onbetap::driveGains(0.25f, 30.f, 6.f).vcaPush;
+    float pb = onbetap::driveGains(0.50f, 30.f, 6.f).vcaPush;
+    float pc = onbetap::driveGains(0.75f, 30.f, 6.f).vcaPush;
     CHECK(1.f < pa && pa < pb && pb < pc && pc < p1,
           "push monotone increasing in drive");
-    auto ga = onbetap::driveGains(0.7f, 30.f, 1.f, 0.f, 0.f);
-    auto gb = onbetap::driveGains(0.7f, 30.f, 1.f, 0.f, 12.f);
+    auto ga = onbetap::driveGains(0.7f, 30.f, 0.f);
+    auto gb = onbetap::driveGains(0.7f, 30.f, 12.f);
     CHECK(ga.driveScale == gb.driveScale && ga.makeup == gb.makeup,
           "gritDb does not touch driveScale/makeup");
 
@@ -135,7 +136,7 @@ int main(int argc, char**) {
     // --- Criterion 1a: top decile keeps getting dirtier (stable choked
     //     regime, res 0.60 — harmonic THD is a valid instrument here; at the
     //     res 0.70 knee the added edge is inharmonic and invisible to
-    //     harmonic bins, see the grit spec's metric amendment) ---
+    //     harmonic bins) ---
     Meas s9  = measure(cutoff, 0.60f, 0.9f, amp, fs, dflt);
     Meas s10 = measure(cutoff, 0.60f, 1.0f, amp, fs, dflt);
     snprintf(nm, sizeof nm, "res 0.60: THD@1.0 (%.1f%%) >= THD@0.9 (%.1f%%) + 1 pp",

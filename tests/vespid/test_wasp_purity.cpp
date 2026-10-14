@@ -1,11 +1,10 @@
 /**
  * test_wasp_purity.cpp — Large-signal spectral purity of the Wasp VCF core.
  *
- * Regression test for the British-mode noise bug (2026-07-26): the bare
- * fixed-pivot solve leaves per-sample solver error that lands in-band as
- * inharmonic, aliasing-like noise — ~10% of audio-band energy on a 1760 Hz
- * saw in British mode (vs 0.07% with the Newton refinement the 2026-07-24
- * CPU pass removed). German mode barely shows it, which is why the golden
+ * Guards the Newton refinement: the bare fixed-pivot solve leaves
+ * per-sample solver error that lands in-band as inharmonic, aliasing-like
+ * noise — ~10% of audio-band energy on a 1760 Hz saw in British mode (vs
+ * 0.07% with the refinement). German mode barely shows it, which is why the golden
  * behavioral suite (small-signal response, self-osc amplitude) never caught
  * it.
  *

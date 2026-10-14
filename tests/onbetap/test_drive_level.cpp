@@ -15,6 +15,8 @@
 #include <cstdio>
 #include <vector>
 
+using namespace onbetap;
+
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
     if (cond) { printf("PASS %s\n", name); passed++; } \
@@ -23,10 +25,9 @@ static int passed = 0, failed = 0;
 static constexpr float kTwoPi = 6.28318530717959f;
 
 // One host sample through the 2× oversampled LP path (mirrors processSide).
-static float sideLP(OnbetapFilter& f, float& xPrev, DCBlock& dc, float inVolts,
+static float sideLP(OnbetapFilter& f, float& xPrev, robotboy::DcBlocker& dc, float inVolts,
                     float g, float kEff, float driveScale, float makeup,
-                    DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp,
-                    float dcCoef) {
+                    DecimFir13& firLp, DecimFir13& firBp, DecimFir13& firHp) {
     float lp = 0, bp = 0, hp = 0;
     float x1 = inVolts * driveScale;
     for (int i = 1; i <= 2; i++) {
@@ -38,7 +39,7 @@ static float sideLP(OnbetapFilter& f, float& xPrev, DCBlock& dc, float inVolts,
     }
     xPrev = x1;
     float v = -lp * makeup;                       // LP tap
-    v = dc.process(v, dcCoef);
+    v = dc.process(v);
     return 9.f * OnbetapFilter::tanhish(v / 9.f); // output VCA
 }
 
@@ -48,9 +49,9 @@ struct Meas { float outDb, thdPct; };
 static Meas measure(float cutoff, float res, float drive, float amp, float fs) {
     float fsOs = fs * 2.f, tone = cutoff;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
-    float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k (tuneOnset 0)
-    // gritDb 0: this test guards the constant-makeup baseline (Findings 1-2)
-    auto gains = onbetap::driveGains(drive, 30.f, 1.f, 0.f, 0.f); // span 30 dB
+    float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f);   // res→k, no onset trim
+    // gritDb 0: this test guards the constant-makeup baseline
+    auto gains = onbetap::driveGains(drive, 30.f, 0.f); // span 30 dB
 
     // NOTE: replicates the module kEff law; numerically equivalent to
     // onbetap::cutoffLagCorr here only because this harness runs at
@@ -58,10 +59,9 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs) {
     float kCLag = 0.25f;
     float kEff = std::max(k - kCLag * g * g / (1.f + g * g), -0.31f);
 
-    OnbetapFilter f; f.setLimit(OnbetapFilter::Limit::Hard);
+    OnbetapFilter f;
     f.setMismatch(0, 0); f.setOffset(0); f.reset();
-    DCBlock dc; DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
-    float dcCoef = 1.f - kTwoPi * 1.6f / fs;
+    robotboy::DcBlocker dc; dc.setCutoff(1.6f, fs); DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
 
     int warm = (int)(fs * 1.0f);
     int spc = (int)std::lround(fs / tone), W = spc * 256;   // coherent window
@@ -70,7 +70,7 @@ static Meas measure(float cutoff, float res, float drive, float amp, float fs) {
         float dither = (n & 1) ? 1e-9f : -1e-9f;
         float in = amp * std::sin(kTwoPi * tone * n / fs) + dither;
         float out = sideLP(f, xPrev, dc, in, g, kEff, gains.driveScale,
-                           gains.makeup, fLp, fBp, fHp, dcCoef);
+                           gains.makeup, fLp, fBp, fHp);
         if (n >= warm) buf[n - warm] = out;
     }
     auto ampAt = [&](int h) {

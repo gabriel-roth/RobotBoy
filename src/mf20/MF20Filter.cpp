@@ -1,351 +1,317 @@
 #include "plugin.hpp"
-#include "MF20Filter.hpp"
-#include "dsp_utils.hpp"
 #include "engine.hpp"
 
-struct MF20FilterModule : Module {
-    enum ParamIds {
-        CUTOFF_PARAM,           // LP cutoff (log2 Hz)
-        RES_PARAM,              // LP resonance
-        HP_CUTOFF_PARAM,        // HP cutoff (log2 Hz)
-        HP_RES_PARAM,           // HP resonance
-        DRIVE_PARAM,
-        LP_CUTOFF_CV_PARAM,     // attenuverter for LP cutoff CV
-        HP_CUTOFF_CV_PARAM,     // attenuverter for HP cutoff CV
-        TOTAL_CUTOFF_CV_PARAM,  // attenuverter for Total cutoff CV (both filters)
-        NUM_PARAMS
-    };
-    enum InputIds {
-        AUDIO_INPUT,
-        AUDIO_INPUT_R,
-        LP_CUTOFF_INPUT,
-        HP_CUTOFF_INPUT,
-        TOTAL_CUTOFF_INPUT,     // sweeps both LP and HP cutoff (MS-20 "Total")
-        NUM_INPUTS
-    };
-    enum OutputIds {
-        LP_OUTPUT,
-        LP_OUTPUT_R,
-        NUM_OUTPUTS
-    };
-    enum LightIds {
-        NUM_LIGHTS
-    };
+// MF-20: Korg MS-20-style filter, an HP filter into an LP filter per voice,
+// stereo and polyphonic (src/mf20/MF20Filter.hpp has the circuit model).
+// Params and CVs are read every ~2.5 ms in modulate(); per-sample smoothers
+// slew the resulting targets.
+struct MF20Filter : Module {
+	enum ParamId {
+		CUTOFF_PARAM,            // LP cutoff (log2 Hz)
+		RES_PARAM,               // LP resonance
+		HP_CUTOFF_PARAM,         // HP cutoff (log2 Hz)
+		HP_RES_PARAM,            // HP resonance
+		DRIVE_PARAM,
+		LP_CUTOFF_CV_PARAM,      // attenuverter for LP cutoff CV
+		HP_CUTOFF_CV_PARAM,      // attenuverter for HP cutoff CV
+		TOTAL_CUTOFF_CV_PARAM,   // attenuverter for Total cutoff CV (both filters)
+		PARAMS_LEN
+	};
+	enum InputId {
+		AUDIO_L_INPUT,
+		AUDIO_R_INPUT,
+		LP_CUTOFF_INPUT,
+		HP_CUTOFF_INPUT,
+		TOTAL_CUTOFF_INPUT,      // sweeps both LP and HP cutoff (MS-20 "Total")
+		INPUTS_LEN
+	};
+	enum OutputId {
+		AUDIO_L_OUTPUT,
+		AUDIO_R_OUTPUT,
+		OUTPUTS_LEN
+	};
+	enum LightId {
+		LIGHTS_LEN
+	};
 
-    // Per-voice DSP state (up to 16 voices).
-    EnginePool _pool;
+	mf20::EnginePool pool;
 
-    // Cutoff clamp floor (Hz). The knob's own range floors at 20 Hz (configParam),
-    // but CV-modulated cutoff may reach the filter core's low limit, so deep
-    // negative CV can nearly close the filter like an MS-20's "Total" sweep.
-    static constexpr float kCutoffFloorHz = 1.f;
+	// Cutoff clamp floor (Hz). The knob floors at 20 Hz, but CV can take the
+	// cutoff down to the filter core's low limit, so deep negative CV nearly
+	// closes the filter like an MS-20's "Total" sweep.
+	static constexpr float kCutoffFloorHz = 1.f;
 
-    // Rate divider — modulate() runs every ~2.5 ms instead of every sample.
-    int _modulationSteps = 100;
-    int _steps = 100;  // ≥ _modulationSteps: first process() modulates immediately (saved K35 mode, g targets)
+	// modulate() runs every ~2.5 ms instead of every sample. steps starts at
+	// modulationSteps so the first process() modulates immediately.
+	int modulationSteps = 100;
+	int steps = 100;
 
-    // Shared modulation targets (same for all voices; per-voice CV added in modulate()).
-    float _drive = 1.f;
-    float _sampleRate = 44100.f;     // mirrors the engine rate for modulate-rate math
+	float sampleRate = 44100.f;
 
-    // Drive smoothing: targets computed once per modulate block, slewed
-    // per-sample (5 ms) so Drive sweeps don't zipper. Two smoothers so the
-    // audio path needs no sqrt or divide: √drive feeds the OTA pre-gain,
-    // 1/√drive feeds the diode clip character.
-    OnePoleSmoother _driveSqrtSlew   { 1.f };
-    OnePoleSmoother _clipThreshSlew  { 1.f };
-    OnePoleSmoother _fbThreshSlew    { 1.f };
-    float _driveSqrtTarget  = 1.f;
-    float _clipThreshTarget = 1.f;
-    float _fbThreshTarget   = 1.f;
-    float _driveSqrt = 1.f;   // current smoothed value, used by otaPreGain
-    float _clipThresh = 1.f;
-    float _fbThresh = 1.f;    // current smoothed K35 feedback-loop clip threshold
-    // Resonance retention [0,1]: how much Drive is stopped from squashing the
-    // resonant peak. Baked in — the path differs by mode (see modulate()): OTA
-    // eases its feedback diode toward the Drive-1 threshold while keeping full
-    // input pre-gain; K35 keeps its forward clip at full drive (grit) and
-    // instead opens the resonance-loop clip.
-    static constexpr float kResRetention = 0.75f;
-    // Max K35 feedback-loop clip threshold at full retention (threshold 1.0 =
-    // stock). Bounded so the loop stays stable (saturated-region slope is
-    // unchanged).
-    static constexpr float kK35FbRetentionMax = 3.f;
-    // Deterministic denormal-prevention dither: alternates sign each sample.
-    // Replaces the RNG dither — cheaper, and bit-reproducible between the
-    // VCV and MetaModule builds (relevant to headless comparison testing).
-    float _dither = 1e-9f;
+	// Drive smoothing: targets computed once per modulate block, slewed
+	// per sample (5 ms) so Drive sweeps don't zipper. √drive feeds the OTA
+	// pre-gain and K35 forward clip, 1/√drive the clip threshold; slewing
+	// both keeps sqrt and divide out of the audio path.
+	robotboy::OnePoleSmoother driveSqrtSlew{1.f};
+	robotboy::OnePoleSmoother clipThreshSlew{1.f};
+	robotboy::OnePoleSmoother fbThreshSlew{1.f};
+	float driveSqrtTarget = 1.f;
+	float clipThreshTarget = 1.f;
+	float fbThreshTarget = 1.f;
+	float driveSqrt = 1.f;    // current smoothed values
+	float clipThresh = 1.f;
+	float fbThresh = 1.f;     // K35 feedback-loop clip threshold
+	// Resonance retention [0,1]: how much Drive is stopped from squashing the
+	// resonant peak. The path differs by mode (see modulate()): OTA eases its
+	// feedback diode toward the Drive-1 threshold while keeping full input
+	// pre-gain; K35 keeps its forward clip at full drive (grit) and instead
+	// opens the resonance-loop clip.
+	static constexpr float kResRetention = 0.75f;
+	// Max K35 feedback-loop clip threshold at full retention (threshold 1.0 =
+	// stock). Bounded so the loop stays stable (saturated-region slope is
+	// unchanged).
+	static constexpr float kK35FbRetentionMax = 3.f;
+	// Denormal-prevention dither that alternates sign each sample: cheaper
+	// than an RNG, and bit-identical between the VCV and MetaModule builds.
+	float dither = 1e-9f;
 
-    MF20Filter::Mode _filterMode = MF20Filter::Mode::OTA;
+	mf20::MF20Filter::Mode filterMode = mf20::MF20Filter::Mode::OTA;
 
-    MF20FilterModule() {
-        config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+	MF20Filter() {
+		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 
-        configParam(CUTOFF_PARAM, std::log2(20.f), std::log2(20000.f), std::log2(750.f),
-                    "LP Cutoff", " Hz", 2.f);
-        configParam(RES_PARAM, 0.f, 1.f, 0.25f, "LP Resonance", "%", 0.f, 100.f);
-        configParam(HP_CUTOFF_PARAM, std::log2(20.f), std::log2(20000.f), std::log2(120.f),
-                    "HP Cutoff", " Hz", 2.f);
-        configParam(HP_RES_PARAM, 0.f, 1.f, 0.25f, "HP Resonance", "%", 0.f, 100.f);
-        configParam(DRIVE_PARAM, 1.f, 8.f, 1.f, "Drive", "x");
-        configParam(LP_CUTOFF_CV_PARAM,    -1.f, 1.f, 1.f, "LP Cutoff CV", "x");
-        configParam(HP_CUTOFF_CV_PARAM,    -1.f, 1.f, 1.f, "HP Cutoff CV", "x");
-        configParam(TOTAL_CUTOFF_CV_PARAM, -1.f, 1.f, 1.f, "Total Cutoff CV (both filters)", "x");
+		configParam(CUTOFF_PARAM, std::log2(20.f), std::log2(20000.f), std::log2(750.f),
+		            "LP cutoff", " Hz", 2.f);
+		configParam(RES_PARAM, 0.f, 1.f, 0.25f, "LP resonance", "%", 0.f, 100.f);
+		configParam(HP_CUTOFF_PARAM, std::log2(20.f), std::log2(20000.f), std::log2(120.f),
+		            "HP cutoff", " Hz", 2.f);
+		configParam(HP_RES_PARAM, 0.f, 1.f, 0.25f, "HP resonance", "%", 0.f, 100.f);
+		configParam(DRIVE_PARAM, 1.f, 8.f, 1.f, "Drive", "x");
+		configParam(LP_CUTOFF_CV_PARAM, -1.f, 1.f, 1.f, "LP cutoff CV", "x");
+		configParam(HP_CUTOFF_CV_PARAM, -1.f, 1.f, 1.f, "HP cutoff CV", "x");
+		configParam(TOTAL_CUTOFF_CV_PARAM, -1.f, 1.f, 1.f, "Total cutoff CV (both filters)", "x");
 
-        configInput(AUDIO_INPUT,   "Audio L");
-        configInput(AUDIO_INPUT_R, "Audio R");
-        configInput(LP_CUTOFF_INPUT,    "LP Cutoff CV");
-        configInput(HP_CUTOFF_INPUT,    "HP Cutoff CV");
-        configInput(TOTAL_CUTOFF_INPUT, "Total Cutoff CV (sweeps both filters)");
+		configInput(AUDIO_L_INPUT, "Audio L");
+		configInput(AUDIO_R_INPUT, "Audio R");
+		configInput(LP_CUTOFF_INPUT, "LP cutoff CV");
+		configInput(HP_CUTOFF_INPUT, "HP cutoff CV");
+		configInput(TOTAL_CUTOFF_INPUT, "Total cutoff CV (sweeps both filters)");
 
-        configOutput(LP_OUTPUT,   "Audio L");
-        configOutput(LP_OUTPUT_R, "Audio R");
+		configOutput(AUDIO_L_OUTPUT, "Audio L");
+		configOutput(AUDIO_R_OUTPUT, "Audio R");
 
-        configBypass(AUDIO_INPUT,   LP_OUTPUT);
-        configBypass(AUDIO_INPUT_R, LP_OUTPUT_R);
-    }
+		configBypass(AUDIO_L_INPUT, AUDIO_L_OUTPUT);
+		configBypass(AUDIO_R_INPUT, AUDIO_R_OUTPUT);
+	}
 
-    json_t* dataToJson() override {
-        json_t* root = json_object();
-        json_object_set_new(root, "_filterMode",
-            json_integer(_filterMode == MF20Filter::Mode::K35 ? 1 : 0));
-        return root;
-    }
+	json_t* dataToJson() override {
+		json_t* rootJ = json_object();
+		json_object_set_new(rootJ, "_filterMode",
+			json_integer(filterMode == mf20::MF20Filter::Mode::K35 ? 1 : 0));
+		return rootJ;
+	}
 
-    void dataFromJson(json_t* root) override {
-        json_t* m = json_object_get(root, "_filterMode");
-        if (m)
-            _filterMode = json_integer_value(m) == 1
-                       ? MF20Filter::Mode::K35
-                       : MF20Filter::Mode::OTA;
-    }
+	void dataFromJson(json_t* rootJ) override {
+		json_t* modeJ = json_object_get(rootJ, "_filterMode");
+		if (modeJ)
+			filterMode = json_integer_value(modeJ) == 1
+				? mf20::MF20Filter::Mode::K35
+				: mf20::MF20Filter::Mode::OTA;
+	}
 
-    void onSampleRateChange(const SampleRateChangeEvent& e) override {
-        _sampleRate = e.sampleRate;
-        _pool.setSampleRate(e.sampleRate);
-        float alpha = smootherAlpha(e.sampleRate, 0.005f);
-        for (auto& eng : _pool.engines) {
-            eng.lpGSlew.setAlpha(alpha);
-            eng.hpGSlew.setAlpha(alpha);
-            eng.lpResSlew.setAlpha(alpha);
-            eng.hpResSlew.setAlpha(alpha);
-        }
-        _driveSqrtSlew.setAlpha(alpha);
-        _clipThreshSlew.setAlpha(alpha);
-        _fbThreshSlew.setAlpha(alpha);
-        _modulationSteps = static_cast<int>(e.sampleRate * 0.0025f);  // 2.5 ms
-        _steps = _modulationSteps;
-    }
+	void onSampleRateChange(const SampleRateChangeEvent& e) override {
+		sampleRate = e.sampleRate;
+		float alpha = robotboy::smootherAlpha(e.sampleRate, 0.005f);
+		pool.setAlpha(alpha);
+		driveSqrtSlew.setAlpha(alpha);
+		clipThreshSlew.setAlpha(alpha);
+		fbThreshSlew.setAlpha(alpha);
+		modulationSteps = (int)(e.sampleRate * 0.0025f);
+		steps = modulationSteps;
+	}
 
-    void onReset(const ResetEvent& e) override {
-        Module::onReset(e);
-        _pool.resetAll();
-    }
+	void onReset(const ResetEvent& e) override {
+		Module::onReset(e);
+		pool.resetAll();
+	}
 
-    // Called at ~2.5 ms intervals. Reads params/CVs and updates smoother targets
-    // for each active voice. Per-voice CV inputs use getPolyVoltage(c).
-    void modulate() {
-        float drive = params[DRIVE_PARAM].getValue();
-        _drive = drive;
-        _driveSqrtTarget  = std::sqrt(drive);
-        // Resonance retention takes a different, mode-appropriate path so each
-        // mode keeps its Drive character while regaining resonance:
-        //   OTA — ease the feedback-diode threshold from 1/√drive toward 1.0
-        //         (its Drive-1 value). Input pre-gain (_driveSqrt) is untouched,
-        //         so Drive keeps its loudness/edge; only the resonance-crushing
-        //         diode relaxes.
-        //   K35 — keep the forward clip at full drive (1/√drive → grit intact),
-        //         and instead open the resonance-loop clip threshold from 1.0
-        //         toward kK35FbRetentionMax, so the peak rings back up above the
-        //         saturation without easing the grit.
-        constexpr float r = kResRetention;
-        if (_filterMode == MF20Filter::Mode::K35) {
-            _clipThreshTarget = 1.f / _driveSqrtTarget;
-            _fbThreshTarget   = 1.f + r * (kK35FbRetentionMax - 1.f);
-        } else {
-            _clipThreshTarget = (1.f - r) * (1.f / _driveSqrtTarget) + r;
-            _fbThreshTarget   = 1.f;  // OTA ignores the feedback-loop threshold
-        }
+	// Reads params and CVs and updates the smoother targets for each active
+	// voice. Per-voice CV inputs use getPolyVoltage(c).
+	void modulate() {
+		float drive = params[DRIVE_PARAM].getValue();
+		driveSqrtTarget = std::sqrt(drive);
+		// Resonance retention takes a mode-appropriate path so each mode keeps
+		// its Drive character while regaining resonance:
+		//   OTA: ease the feedback-diode threshold from 1/√drive toward 1.0
+		//        (its Drive-1 value). The input pre-gain is untouched, so Drive
+		//        keeps its loudness and edge; only the diode relaxes.
+		//   K35: keep the forward clip at full drive (1/√drive, grit intact)
+		//        and open the resonance-loop clip threshold from 1.0 toward
+		//        kK35FbRetentionMax, so the peak rings back up above the
+		//        saturation.
+		constexpr float r = kResRetention;
+		if (filterMode == mf20::MF20Filter::Mode::K35) {
+			clipThreshTarget = 1.f / driveSqrtTarget;
+			fbThreshTarget = 1.f + r * (kK35FbRetentionMax - 1.f);
+		}
+		else {
+			clipThreshTarget = (1.f - r) * (1.f / driveSqrtTarget) + r;
+			fbThreshTarget = 1.f;   // OTA ignores the feedback-loop threshold
+		}
 
-        float cutoffLog = params[CUTOFF_PARAM].getValue();
-        float hpLog     = params[HP_CUTOFF_PARAM].getValue();
-        float res       = clamp(params[RES_PARAM].getValue(), 0.f, 1.f);
-        float hpResRaw  = clamp(params[HP_RES_PARAM].getValue(), 0.f, 1.f);
-        float lpCvAtten    = params[LP_CUTOFF_CV_PARAM].getValue();
-        float hpCvAtten    = params[HP_CUTOFF_CV_PARAM].getValue();
-        float totalCvAtten = params[TOTAL_CUTOFF_CV_PARAM].getValue();
+		float lpLog = params[CUTOFF_PARAM].getValue();
+		float hpLog = params[HP_CUTOFF_PARAM].getValue();
+		float lpRes = clamp(params[RES_PARAM].getValue(), 0.f, 1.f);
+		float hpRes = clamp(params[HP_RES_PARAM].getValue(), 0.f, 1.f);
+		float lpCvAtten = params[LP_CUTOFF_CV_PARAM].getValue();
+		float hpCvAtten = params[HP_CUTOFF_CV_PARAM].getValue();
+		float totalCvAtten = params[TOTAL_CUTOFF_CV_PARAM].getValue();
 
-        bool lpCvConn    = inputs[LP_CUTOFF_INPUT].isConnected();
-        bool hpCvConn    = inputs[HP_CUTOFF_INPUT].isConnected();
-        bool totalCvConn = inputs[TOTAL_CUTOFF_INPUT].isConnected();
+		bool lpCvConnected = inputs[LP_CUTOFF_INPUT].isConnected();
+		bool hpCvConnected = inputs[HP_CUTOFF_INPUT].isConnected();
+		bool totalCvConnected = inputs[TOTAL_CUTOFF_INPUT].isConnected();
 
-        for (int c = 0; c < _pool.activeVoices; c++) {
-            VoiceEngine& eng = _pool.engines[c];
-            eng.sanitize();
+		for (int c = 0; c < pool.activeVoices; c++) {
+			mf20::VoiceEngine& eng = pool.engines[c];
+			eng.sanitize();
 
-            // Total cutoff CV is an octave offset (1 V/oct) added to BOTH filters,
-            // preserving the knob spread — the MS-20 "Total" cutoff-modulation bus.
-            float totalOffset = 0.f;
-            if (totalCvConn)
-                totalOffset = totalCvAtten * inputs[TOTAL_CUTOFF_INPUT].getPolyVoltage(c);
+			// Total cutoff CV is an octave offset (1 V/oct) added to both
+			// filters, preserving the knob spread: the MS-20 "Total" bus.
+			float totalOffset = 0.f;
+			if (totalCvConnected)
+				totalOffset = totalCvAtten * inputs[TOTAL_CUTOFF_INPUT].getPolyVoltage(c);
 
-            // LP cutoff target (log2 Hz): knob + Total + per-filter CV.
-            float voiceCutoffLog = cutoffLog + totalOffset;
-            if (lpCvConn)
-                voiceCutoffLog += lpCvAtten * inputs[LP_CUTOFF_INPUT].getPolyVoltage(c);
-            float lpHz = clamp(std::exp2(voiceCutoffLog), kCutoffFloorHz, _sampleRate * 0.498f);
-            eng.lpGTarget = MF20Filter::cutoffToG(lpHz, _sampleRate);
+			float voiceLpLog = lpLog + totalOffset;
+			if (lpCvConnected)
+				voiceLpLog += lpCvAtten * inputs[LP_CUTOFF_INPUT].getPolyVoltage(c);
+			float lpHz = clamp(std::exp2(voiceLpLog), kCutoffFloorHz, sampleRate * 0.498f);
+			eng.lpGTarget = mf20::MF20Filter::cutoffToG(lpHz, sampleRate);
 
-            // HP cutoff target (log2 Hz): knob + Total + per-filter CV.
-            float voiceHpLog = hpLog + totalOffset;
-            if (hpCvConn)
-                voiceHpLog += hpCvAtten * inputs[HP_CUTOFF_INPUT].getPolyVoltage(c);
-            float hpHz = clamp(std::exp2(voiceHpLog), kCutoffFloorHz, _sampleRate * 0.498f);
-            eng.hpGTarget = MF20Filter::cutoffToG(hpHz, _sampleRate);
+			float voiceHpLog = hpLog + totalOffset;
+			if (hpCvConnected)
+				voiceHpLog += hpCvAtten * inputs[HP_CUTOFF_INPUT].getPolyVoltage(c);
+			float hpHz = clamp(std::exp2(voiceHpLog), kCutoffFloorHz, sampleRate * 0.498f);
+			eng.hpGTarget = mf20::MF20Filter::cutoffToG(hpHz, sampleRate);
 
-            // Resonance targets — knob only (the MS-20 has no resonance modulation).
-            eng.lpResTarget = res;
-            eng.hpResTarget = hpResRaw;
+			// Resonance: knob only (the MS-20 has no resonance modulation).
+			eng.lpResTarget = lpRes;
+			eng.hpResTarget = hpRes;
 
-            // Update filter mode and drive for this voice.
-            eng.lpFilter.setMode(_filterMode);
-            eng.hpFilter.setMode(_filterMode);
-            eng.lpFilterR.setMode(_filterMode);
-            eng.hpFilterR.setMode(_filterMode);
-        }
-    }
+			eng.lpFilter.setMode(filterMode);
+			eng.hpFilter.setMode(filterMode);
+			eng.lpFilterR.setMode(filterMode);
+			eng.hpFilterR.setMode(filterMode);
+		}
+	}
 
-    // Process one voice (channel c). Advances its smoothers and runs the audio cascade.
-    void processChannel(const ProcessArgs& args, int c, bool rConnected) {
-        VoiceEngine& eng = _pool.engines[c];
+	// OTA mode's input pre-gain: amplifies by √drive and soft-clips at ±5 V
+	// (unity at drive 1, continuous and monotonic). Drive is applied twice
+	// in OTA mode, deliberately: here as input level, and inside the filter
+	// as a lower, steeper diode clip. K35 mode does both in its forward-path
+	// clip, so it gets no pre-gain.
+	float otaPreGain(float x) const {
+		if (filterMode != mf20::MF20Filter::Mode::OTA)
+			return x;
+		float d = x * driveSqrt;
+		return (d > 5.f) ? 5.f + 0.25f * (d - 5.f)
+		     : (d < -5.f) ? -5.f + 0.25f * (d + 5.f)
+		     : d;
+	}
 
-        // Two-argument form: _driveSqrt is the slewed K35 forward-clip
-        // pre-gain, so the filter never divides per sample to recover it.
-        // (OTA mode ignores the second value.)
-        eng.hpFilter.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
-        eng.lpFilter.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
-        eng.hpFilter.setFbThreshold(_fbThresh);
-        eng.lpFilter.setFbThreshold(_fbThresh);
+	// One HP→LP pass through a side's filter pair; returns the LP output.
+	float processSide(mf20::MF20Filter& hp, mf20::MF20Filter& lp, float in,
+	                  float gHp, float gLp, float hpRes, float lpRes) {
+		hp.setDriveCharacter(clipThresh, driveSqrt);
+		lp.setDriveCharacter(clipThresh, driveSqrt);
+		hp.setFbThreshold(fbThresh);
+		lp.setFbThreshold(fbThresh);
+		float x = otaPreGain(in + dither);
+		auto hpStage = hp.processVCVG(x, gHp, hpRes);
+		return lp.processVCVG(hpStage.hp, gLp, lpRes).lp;
+	}
 
-        // OTA mode: piecewise-linear pre-gain — amplifies by √drive (smoothed
-        //   in process() into _driveSqrt), soft-clips at ±5 V.
-        //   Unity gain at drive=1; continuous, monotonic for all drive values.
-        //   NOTE: In OTA mode Drive is applied TWICE and intentionally so — here as
-        //   input level, and inside the filter via setDriveCharacterFromThreshold()
-        //   above, which lowers the diode clip threshold and steepens its slope.
-        //   K35 mode does all of this in processK35()'s forward-path clip, so no
-        //   pre-gain is applied.
-        auto otaPreGain = [&](float x) {
-            if (_filterMode != MF20Filter::Mode::OTA) return x;
-            float d = x * _driveSqrt;
-            return (d >  5.f) ?  5.f + 0.25f * (d - 5.f)
-                 : (d < -5.f) ? -5.f + 0.25f * (d + 5.f)
-                 : d;
-        };
+	void process(const ProcessArgs& args) override {
+		int voices = std::max({1, inputs[AUDIO_L_INPUT].getChannels(), inputs[AUDIO_R_INPUT].getChannels()});
+		pool.setVoices(voices);
+		outputs[AUDIO_L_OUTPUT].setChannels(voices);
+		outputs[AUDIO_R_OUTPUT].setChannels(voices);
 
-        float in = inputs[AUDIO_INPUT].getPolyVoltage(c);
-        in += _dither;
-        in = otaPreGain(in);
+		if (++steps >= modulationSteps) {
+			steps = 0;
+			modulate();
+		}
 
-        // Advance slew smoothers one step toward their targets.
-        float gLp      = eng.lpGSlew.process(eng.lpGTarget);
-        float gHp      = eng.hpGSlew.process(eng.hpGTarget);
-        float res      = eng.lpResSlew.process(eng.lpResTarget);
-        float hpResRaw = eng.hpResSlew.process(eng.hpResTarget);
+		dither = -dither;
+		driveSqrt = driveSqrtSlew.process(driveSqrtTarget);
+		clipThresh = clipThreshSlew.process(clipThreshTarget);
+		fbThresh = fbThreshSlew.process(fbThreshTarget);
+		bool rConnected = inputs[AUDIO_R_INPUT].isConnected();
 
-        res = resTaper(res);
-        float hpRes = resTaper(hpResRaw);
+		for (int c = 0; c < voices; c++) {
+			mf20::VoiceEngine& eng = pool.engines[c];
+			float gLp = eng.lpGSlew.process(eng.lpGTarget);
+			float gHp = eng.hpGSlew.process(eng.hpGTarget);
+			float lpRes = mf20::resTaper(eng.lpResSlew.process(eng.lpResTarget));
+			float hpRes = mf20::resTaper(eng.hpResSlew.process(eng.hpResTarget));
 
-        auto hpStage = eng.hpFilter.processVCVG(in,         gHp, hpRes);
-        auto lpStage = eng.lpFilter.processVCVG(hpStage.hp, gLp, res);
-        outputs[LP_OUTPUT].setVoltage(lpStage.lp, c);
+			float outL = processSide(eng.hpFilter, eng.lpFilter,
+				inputs[AUDIO_L_INPUT].getPolyVoltage(c), gHp, gLp, hpRes, lpRes);
+			outputs[AUDIO_L_OUTPUT].setVoltage(outL, c);
 
-        if (rConnected) {
-            // True stereo: process R through its own filter pair.
-            eng.hpFilterR.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
-            eng.lpFilterR.setDriveCharacterFromThreshold(_clipThresh, _driveSqrt);
-            eng.hpFilterR.setFbThreshold(_fbThresh);
-            eng.lpFilterR.setFbThreshold(_fbThresh);
-            float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
-            inR += _dither;
-            inR = otaPreGain(inR);
-            auto hpStageR = eng.hpFilterR.processVCVG(inR,          gHp, hpRes);
-            auto lpStageR = eng.lpFilterR.processVCVG(hpStageR.hp,  gLp, res);
-            outputs[LP_OUTPUT_R].setVoltage(lpStageR.lp, c);
-        } else {
-            // R input is normalled to L → an identical filter pass. Mirror L instead
-            // of recomputing it (skips a full HP+LP solve per voice in mono patches).
-            outputs[LP_OUTPUT_R].setVoltage(lpStage.lp, c);
-        }
-    }
-
-    void process(const ProcessArgs& args) override {
-        int voices = std::max({1, inputs[AUDIO_INPUT].getChannels(), inputs[AUDIO_INPUT_R].getChannels()});
-        _pool.setVoices(voices);
-
-        outputs[LP_OUTPUT].setChannels(voices);
-        outputs[LP_OUTPUT_R].setChannels(voices);
-
-        if (++_steps >= _modulationSteps) {
-            _steps = 0;
-            modulate();
-        }
-
-        _dither = -_dither;
-        _driveSqrt  = _driveSqrtSlew.process(_driveSqrtTarget);
-        _clipThresh = _clipThreshSlew.process(_clipThreshTarget);
-        _fbThresh   = _fbThreshSlew.process(_fbThreshTarget);
-        // Stereo check hoisted out of the voice loop (matches Onbetap/Vespid).
-        bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
-        for (int c = 0; c < voices; c++)
-            processChannel(args, c, rConnected);
-    }
+			// An unpatched R input is normalled to L: mirror L instead of
+			// running the identical pass again.
+			float outR = rConnected
+				? processSide(eng.hpFilterR, eng.lpFilterR,
+					inputs[AUDIO_R_INPUT].getPolyVoltage(c), gHp, gLp, hpRes, lpRes)
+				: outL;
+			outputs[AUDIO_R_OUTPUT].setVoltage(outR, c);
+		}
+	}
 };
-
-
 
 struct MF20FilterWidget : ModuleWidget {
-    MF20FilterWidget(MF20FilterModule* module) {
+	MF20FilterWidget(MF20Filter* module) {
+		setModule(module);
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/MF20Filter.svg")));
 
-        setModule(module);
-        setPanel(createPanel(asset::plugin(pluginInstance, "res/MF20Filter.svg")));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		// Positions mirror res/MF20Filter.svg (vcv-panel-gen).
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(11.80, 30.997)), module, MF20Filter::CUTOFF_PARAM));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(39.00, 30.997)), module, MF20Filter::HP_CUTOFF_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.80, 46.997)), module, MF20Filter::LP_CUTOFF_CV_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.80, 59.347)), module, MF20Filter::LP_CUTOFF_INPUT));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(25.40, 46.997)), module, MF20Filter::TOTAL_CUTOFF_CV_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.40, 59.347)), module, MF20Filter::TOTAL_CUTOFF_INPUT));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(39.00, 46.997)), module, MF20Filter::HP_CUTOFF_CV_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.00, 59.347)), module, MF20Filter::HP_CUTOFF_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.80, 74.857)), module, MF20Filter::RES_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.00, 74.857)), module, MF20Filter::HP_RES_PARAM));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 91.017)), module, MF20Filter::DRIVE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.35, 113.69)), module, MF20Filter::AUDIO_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.05, 113.69)), module, MF20Filter::AUDIO_R_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.75, 113.69)), module, MF20Filter::AUDIO_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.45, 113.69)), module, MF20Filter::AUDIO_R_OUTPUT));
+	}
 
-        // Positions generated by helper.py from res/MF20Filter.svg (vcv-panel-gen).
-        addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(11.80, 30.997)), module, MF20FilterModule::CUTOFF_PARAM));
-        addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(39.00, 30.997)), module, MF20FilterModule::HP_CUTOFF_PARAM));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(11.80, 46.997)), module, MF20FilterModule::LP_CUTOFF_CV_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.80, 59.347)), module, MF20FilterModule::LP_CUTOFF_INPUT));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(25.40, 46.997)), module, MF20FilterModule::TOTAL_CUTOFF_CV_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.40, 59.347)), module, MF20FilterModule::TOTAL_CUTOFF_INPUT));
-        addParam(createParamCentered<Trimpot>(mm2px(Vec(39.00, 46.997)), module, MF20FilterModule::HP_CUTOFF_CV_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.00, 59.347)), module, MF20FilterModule::HP_CUTOFF_INPUT));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.80, 74.857)), module, MF20FilterModule::RES_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.00, 74.857)), module, MF20FilterModule::HP_RES_PARAM));
-        addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(25.40, 91.017)), module, MF20FilterModule::DRIVE_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(9.35, 113.69)), module, MF20FilterModule::AUDIO_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.05, 113.69)), module, MF20FilterModule::AUDIO_INPUT_R));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(31.75, 113.69)), module, MF20FilterModule::LP_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(41.45, 113.69)), module, MF20FilterModule::LP_OUTPUT_R));
-    }
+	void appendContextMenu(Menu* menu) override {
+		MF20Filter* module = getModule<MF20Filter>();
+		if (!module)
+			return;
 
-    void appendContextMenu(Menu* menu) override {
-        auto* m = dynamic_cast<MF20FilterModule*>(module);
-        if (!m) return;
-
-        menu->addChild(new MenuSeparator);
-        menu->addChild(createMenuLabel("Filter revision"));
-        menu->addChild(createMenuItem("OTA (revised MS-20)",
-            m->_filterMode == MF20Filter::Mode::OTA ? "✓" : "",
-            [m]() { m->_filterMode = MF20Filter::Mode::OTA; }));
-        menu->addChild(createMenuItem("Korg35 (original MS-20)",
-            m->_filterMode == MF20Filter::Mode::K35 ? "✓" : "",
-            [m]() { m->_filterMode = MF20Filter::Mode::K35; }));
-    }
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Filter revision",
+			{"OTA (revised MS-20)", "Korg35 (original MS-20)"},
+			[=]() { return module->filterMode == mf20::MF20Filter::Mode::K35 ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "change filter revision", [=]() {
+					module->filterMode = i ? mf20::MF20Filter::Mode::K35 : mf20::MF20Filter::Mode::OTA;
+				});
+			}));
+	}
 };
 
-Model* modelMF20Filter = createModel<MF20FilterModule, MF20FilterWidget>("MF20Filter");
+Model* modelMF20Filter = createModel<MF20Filter, MF20FilterWidget>("MF20Filter");

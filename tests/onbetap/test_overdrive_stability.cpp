@@ -1,13 +1,12 @@
 // tests/onbetap/test_overdrive_stability.cpp — deep-overdrive pathologies.
 //
-// Guards two failure modes of the core at extreme input drive, both found
-// by ear in patch auditioning (2026-07-18):
+// Guards two failure modes of the core at extreme input drive:
 //
 // 1. Subsonic burst / note swallow: at deep drive the huge input swamps the
 //    first stage's secant gain (n1 -> 0), collapsing the loop's damping; the
 //    resonant mode comes unhooked and rings at ~cutoff. With cutoff swept
 //    subsonic that is a rail-scale 20-40 Hz rumble that replaces the audible
-//    note ("the signal disappears"). Reproduced from a user patch: fc 20,
+//    note ("the signal disappears"). Conditions: fc 20,
 //    saw ~131 Hz +-5 V, res 0.68, onset trim +0.0441, Drive span 36, max Drive.
 //
 // 2. Rail-pin silence: asymmetric-clipping rectification DC drags both
@@ -28,6 +27,8 @@
 #include <cstdio>
 #include <vector>
 
+using namespace onbetap;
+
 static int passed = 0, failed = 0;
 #define CHECK(cond, name) do { \
     if (cond) { printf("PASS %s\n", name); passed++; } \
@@ -40,27 +41,25 @@ struct Meas { float rms, note, peak; };
 // Full module glue (2x/LP path) as in Onbetap.cpp::processSide, with the
 // wrapper's leak configuration mirrored. amp <= 0 means no input (self-osc).
 static Meas measure(float cutoff, float tone, float amp, float res, float onset,
-                    float span, float grit, float drive, bool saw,
-                    OnbetapFilter::Limit lim = OnbetapFilter::Limit::Hard) {
+                    float span, float grit, float drive, bool saw) {
     const float fs = 48000.f;
     float fsOs = fs * 2.f;
     float g = OnbetapFilter::cutoffToG(cutoff, fsOs);
     float k = -0.06f + 1.08f * std::pow(1.f - res, 2.3f) + onset;
-    auto gn = onbetap::driveGains(drive, span, 1.f, 0.f, grit);
+    auto gn = onbetap::driveGains(drive, span, grit);
     // NOTE: replicates the module kEff law; numerically equivalent to
     // onbetap::cutoffLagCorr here only because this harness runs at
     // fsOs = kCLagRefFsOs (96 kHz). Revisit if the module kEff law changes.
     float kEff = std::max(k - 0.25f * g * g / (1.f + g * g), -0.31f);
 
-    OnbetapFilter f; f.setLimit(lim);
+    OnbetapFilter f;
     f.setMismatch(0, 0); f.setOffset(0);
     // Mirror the wrapper: leak pole boosted below kLeakCornerHz.
     float boost = std::clamp(OnbetapFilter::kLeakCornerHz / cutoff,
                              1.f, OnbetapFilter::kLeakBoostMax);
     f.setLeak(kTwoPi * OnbetapFilter::kLeakPoleHz / fsOs * boost);
     f.reset();
-    DCBlock dc; DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
-    float dcCoef = 1.f - kTwoPi * 1.6f / fs;
+    robotboy::DcBlocker dc; dc.setCutoff(1.6f, fs); DecimFir13 fLp, fBp, fHp; float xPrev = 0.f;
 
     float ftone = tone > 0 ? tone : cutoff;
     int warm = (int)(fs * 2.f);
@@ -84,7 +83,7 @@ static Meas measure(float cutoff, float tone, float amp, float res, float onset,
         }
         xPrev = x1;
         float v = -lp * gn.makeup;
-        v = dc.process(v, dcCoef);
+        v = dc.process(v);
         float out = 9.f * OnbetapFilter::tanhish(gn.vcaPush * v / 9.f);
         if (n >= warm) {
             buf[n - warm] = out;
@@ -103,7 +102,7 @@ static Meas measure(float cutoff, float tone, float amp, float res, float onset,
 int main() {
     char nm[128];
 
-    // --- 1. Subsonic burst / note swallow (user patch conditions) ---
+    // --- 1. Subsonic burst / note swallow ---
     Meas b85 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 0.85f, true);
     Meas b10 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 1.0f, true);
     snprintf(nm, sizeof nm, "burst: note@1.0 (%.2f V) >= 0.6 V", b10.note);
@@ -133,24 +132,6 @@ int main() {
     // --- 4. Output bound unchanged ---
     snprintf(nm, sizeof nm, "peak (%.2f V) <= 9 V at burst conditions", b10.peak);
     CHECK(b10.peak <= 9.001f, nm);
-
-    // --- 5. Same guards under Soft limiting (the shipped default) ---
-    const auto S = OnbetapFilter::Limit::Soft;
-    Meas sb85 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 0.85f, true, S);
-    Meas sb10 = measure(20, 131, 5, 0.68f, 0.0441f, 36, 3.5f, 1.0f, true, S);
-    Meas spin = measure(20, 110, 10, 0.4f, 0.0441f, 48, 3.5f, 1.0f, false, S);
-    Meas sso80 = measure(80, 0, 0, 0.9f, 0.f, 30, 6, 0.f, false, S);
-    snprintf(nm, sizeof nm, "Soft burst: note@1.0 (%.2f V) >= 0.6 V", sb10.note);
-    CHECK(sb10.note >= 0.6f, nm);
-    snprintf(nm, sizeof nm, "Soft burst: note@1.0 (%.2f) >= 0.8 x note@0.85 (%.2f)",
-             sb10.note, sb85.note);
-    CHECK(sb10.note >= 0.8f * sb85.note, nm);
-    snprintf(nm, sizeof nm, "Soft burst: rumble RMS@1.0 (%.2f V) <= 2 V", sb10.rms);
-    CHECK(sb10.rms <= 2.f, nm);
-    snprintf(nm, sizeof nm, "Soft rail-pin: output RMS (%.3f V) >= 0.5 V", spin.rms);
-    CHECK(spin.rms >= 0.5f, nm);
-    snprintf(nm, sizeof nm, "Soft self-osc fc 80 (%.2f V) >= 5 V", sso80.rms);
-    CHECK(sso80.rms >= 5.f, nm);
 
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;

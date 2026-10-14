@@ -1,14 +1,11 @@
 #include "plugin.hpp"
 #include "vespid/engine.hpp"
 
-// Vespid — EDP Wasp-style CMOS state-variable filter (stereo).
+// Vespid: EDP Wasp-style CMOS state-variable filter, stereo and polyphonic.
 //
-// DSP: wasp::WaspFilter (src/vespid/WaspFilter.hpp) driven through an
-// oversampled wasp::EnginePool (src/vespid/engine.hpp), following the
-// MF-20 control-rate pattern (src/mf20/MF20Filter.cpp): params/CVs are read
-// every ~2.5 ms in modulate(), audio-rate smoothers slew the resulting
-// targets per sample. Panel positions mirror res/Vespid.svg (see
-// panel-specs/vespid.yaml) and are untouched here.
+// DSP: wasp::WaspFilter (src/vespid/WaspFilter.hpp) at 4x through
+// wasp::EnginePool (src/vespid/engine.hpp). Params and CVs are read every
+// ~2.5 ms in modulate(); per-sample smoothers slew the resulting targets.
 
 struct Vespid : Module {
 	enum ParamId {
@@ -19,32 +16,31 @@ struct Vespid : Module {
 		FREQ_CV_PARAM,     // Frequency CV attenuverter
 		RES_CV_PARAM,      // Resonance CV attenuverter
 		DRIVE_CV_PARAM,    // Drive CV attenuverter
-		NUM_PARAMS
+		PARAMS_LEN
 	};
 	enum InputId {
-		AUDIO_INPUT,
-		AUDIO_INPUT_R,
+		AUDIO_L_INPUT,
+		AUDIO_R_INPUT,
 		FREQ_INPUT,
 		RES_INPUT,
 		DRIVE_INPUT,
 		BLEND_INPUT,
-		NUM_INPUTS
+		INPUTS_LEN
 	};
 	enum OutputId {
-		MIX_OUTPUT, MIX_OUTPUT_R,   // Blend of LP/HP (notch at centre)
-		HP_OUTPUT,  HP_OUTPUT_R,
-		BP_OUTPUT,  BP_OUTPUT_R,
-		LP_OUTPUT,  LP_OUTPUT_R,
-		NUM_OUTPUTS
+		MIX_L_OUTPUT, MIX_R_OUTPUT,   // Blend of LP/HP (notch at centre)
+		HP_L_OUTPUT,  HP_R_OUTPUT,
+		BP_L_OUTPUT,  BP_R_OUTPUT,
+		LP_L_OUTPUT,  LP_R_OUTPUT,
+		OUTPUTS_LEN
 	};
 	enum LightId {
-		NUM_LIGHTS
+		LIGHTS_LEN
 	};
 
-	// Character: false = British (the original EDP Wasp — overload limiter on, no
-	// self-oscillation); true = German (the Doepfer A-124 mod — limiter off,
-	// self-oscillates). Named Tame/Screaming, then EDP/Doepfer, before 2026-07-19;
-	// the legacy "screaming"/"doepfer" patch keys are still read (see dataFromJson).
+	// Character: false = British (the original EDP Wasp: overload limiter on,
+	// no self-oscillation); true = German (the Doepfer A-124 mod: limiter off,
+	// self-oscillates).
 	bool german = false;
 
 	// Panel theme: 0 = charcoal (default), 1 = gold. Persisted; the widget reads
@@ -52,51 +48,43 @@ struct Vespid : Module {
 	// no Panel menu there, and dataFromJson ignores the key.
 	int panelTheme = 0;
 
-	// Per-voice DSP state (up to 16 voices), stereo, oversampled.
-	wasp::EnginePool _pool;
+	// Per-voice DSP state (up to 16 voices), stereo, 4x oversampled
+	// (1x and 2x leave audible aliasing from the nonlinear feedback loop).
+	wasp::EnginePool pool;
 
-	// Rate divider — modulate() runs every ~2.5 ms instead of every sample.
-	int _modulationSteps = 100;
-	int _steps = 100;  // >= _modulationSteps: first process() modulates immediately
+	// modulate() runs every ~2.5 ms instead of every sample. steps starts at
+	// modulationSteps so the first process() modulates immediately.
+	int modulationSteps = 100;
+	int steps = 100;
 
-	float _sampleRate = 44100.f;   // host rate; mirrors the engine rate for modulate-rate math
-
-	// Oversampling is fixed at 4x on both platforms: 2x and 1x leave audible
-	// aliasing from the nonlinear feedback loop (the 2026-07 Newton-regression
-	// listening notes), so the former Auto/1x/2x/4x menu is gone.
-	static constexpr int kOversample = 4;
+	float sampleRate = 44100.f;   // host rate
 
 	// Inverter bandwidth (Hz) feeding the kC2eff self-oscillation term.
-	// Baked per mode (2026-07-19, was a 30-220 kHz menu slider):
-	// German 50 kHz — eager self-oscillation, onset well under a second
-	// at mid/high cutoffs, reaching down to ~300-400 Hz cutoffs; British
-	// 60 kHz — its free-run threshold sits at ~55-60 kHz
-	// (fitted_constants.md), so 60 keeps the no-self-oscillation promise.
-	// See 2026-07-19-vespid-selfosc-onset-design.md (baked addendum).
+	// German 50 kHz: eager self-oscillation, onset well under a second at
+	// mid/high cutoffs, reaching down to ~300-400 Hz cutoffs. British 60 kHz:
+	// its free-run threshold sits at ~55-60 kHz (fitted_constants.md), so 60
+	// keeps the no-self-oscillation promise.
 	static constexpr float kFPoleGerman = 50000.f;
-	static constexpr float kFPoleBritish      = 60000.f;
+	static constexpr float kFPoleBritish = 60000.f;
 
 	// Self-oscillation pitch tracking: false = hardware-accurate (drifts flat
 	// at high resonance in German mode), true = corrected to track the knob.
-	bool _oscPitchCorrected = false;
+	bool oscPitchCorrected = false;
 
-	// Blend (LP<->HP crossfade) is shared across voices (no per-voice CV path
-	// in the panel), so it gets a single module-level smoother rather than
-	// living in EnginePool.
-	OnePoleSmoother _blendSlew { 0.5f };
-	float _blendTarget = 0.5f;
+	// Blend (LP<->HP crossfade) is shared across voices, so it has a single
+	// module-level smoother.
+	robotboy::OnePoleSmoother blendSlew{0.5f};
+	float blendTarget = 0.5f;
 
-	// Deterministic noise-floor seed: alternates sign each sample (cheaper
-	// than an RNG and bit-reproducible VCV vs MetaModule). Does double duty:
-	// denormal prevention, and seeding self-oscillation growth. 1e-4 V
-	// (~0.1 mV, -94 dBV — inaudible, and it sits at Nyquist) approximates a
-	// real circuit's noise floor; the old 1e-9 seed made German mode's
-	// exponential onset pay for ~5 extra decades of growth (measured ~40%
-	// slower — see 2026-07-19-vespid-selfosc-onset-design.md).
-	float _dither = 1e-4f;
+	// Noise floor that alternates sign each sample (cheaper than an RNG and
+	// bit-identical between VCV and MetaModule). It prevents denormals and
+	// seeds self-oscillation: 1e-4 V (~-94 dBV, at Nyquist, inaudible) is
+	// close to a real circuit's noise floor, and a much smaller seed makes
+	// German mode's onset noticeably slower.
+	float dither = 1e-4f;
 
 	Vespid() {
-		config(NUM_PARAMS, NUM_INPUTS, NUM_OUTPUTS, NUM_LIGHTS);
+		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 
 		configParam(FREQ_PARAM, std::log2(20.f), std::log2(20000.f), std::log2(750.f),
 		            "Frequency", " Hz", 2.f);
@@ -107,65 +95,43 @@ struct Vespid : Module {
 		configParam(RES_CV_PARAM,   -1.f, 1.f, 1.f, "Resonance CV", "x");
 		configParam(DRIVE_CV_PARAM, -1.f, 1.f, 1.f, "Drive CV", "x");
 
-		configInput(AUDIO_INPUT,   "Audio L");
-		configInput(AUDIO_INPUT_R, "Audio R");
-		configInput(FREQ_INPUT,  "Frequency CV");
-		configInput(RES_INPUT,   "Resonance CV");
+		configInput(AUDIO_L_INPUT, "Audio L");
+		configInput(AUDIO_R_INPUT, "Audio R");
+		configInput(FREQ_INPUT, "Frequency CV");
+		configInput(RES_INPUT, "Resonance CV");
 		configInput(DRIVE_INPUT, "Drive CV");
 		configInput(BLEND_INPUT, "Blend CV");
 
-		configOutput(LP_OUTPUT,   "Lowpass L");
-		configOutput(LP_OUTPUT_R, "Lowpass R");
-		configOutput(BP_OUTPUT,   "Bandpass L");
-		configOutput(BP_OUTPUT_R, "Bandpass R");
-		configOutput(HP_OUTPUT,   "Highpass L");
-		configOutput(HP_OUTPUT_R, "Highpass R");
-		configOutput(MIX_OUTPUT,   "Mix L");
-		configOutput(MIX_OUTPUT_R, "Mix R");
+		configOutput(LP_L_OUTPUT, "Lowpass L");
+		configOutput(LP_R_OUTPUT, "Lowpass R");
+		configOutput(BP_L_OUTPUT, "Bandpass L");
+		configOutput(BP_R_OUTPUT, "Bandpass R");
+		configOutput(HP_L_OUTPUT, "Highpass L");
+		configOutput(HP_R_OUTPUT, "Highpass R");
+		configOutput(MIX_L_OUTPUT, "Mix L");
+		configOutput(MIX_R_OUTPUT, "Mix R");
 
 		// Bypass routes the dry audio input to every output.
-		for (int out : {LP_OUTPUT, BP_OUTPUT, HP_OUTPUT, MIX_OUTPUT})
-			configBypass(AUDIO_INPUT, out);
-		for (int out : {LP_OUTPUT_R, BP_OUTPUT_R, HP_OUTPUT_R, MIX_OUTPUT_R})
-			configBypass(AUDIO_INPUT_R, out);
-	}
-
-	// Push the host rate (and the 4x internal rate) down into the pool.
-	// Called on sample-rate change.
-	void updateOversampling() {
-		float fsInt = _sampleRate * (float)kOversample;
-		_pool.setSampleRates(_sampleRate, fsInt);
-
-		float alpha = smootherAlpha(_sampleRate, 0.005f);  // 5 ms, at host rate
-		for (auto& eng : _pool.engines) {
-			eng.gSlew.setAlpha(alpha);
-			eng.kC2Slew.setAlpha(alpha);
-			eng.rhoSlew.setAlpha(alpha);
-			eng.driveSlew.setAlpha(alpha);
-			eng.beta0Slew.setAlpha(alpha);
-			eng.beta1Slew.setAlpha(alpha);
-			eng.alpha1Slew.setAlpha(alpha);
-			// Resampler histories don't survive a rate/factor change; filter
-			// core state (bp/lp/etc.) carries across it fine.
-			eng.resetResamplers();
-		}
-		_blendSlew.setAlpha(alpha);
-
-		// Force the next process() to re-run modulate() immediately: the
-		// g/kC2/H1 targets all depend on the internal rate, so a rate change
-		// must not run on stale-rate coefficients for ~2.5 ms.
-		_steps = _modulationSteps;
+		for (int out : {LP_L_OUTPUT, BP_L_OUTPUT, HP_L_OUTPUT, MIX_L_OUTPUT})
+			configBypass(AUDIO_L_INPUT, out);
+		for (int out : {LP_R_OUTPUT, BP_R_OUTPUT, HP_R_OUTPUT, MIX_R_OUTPUT})
+			configBypass(AUDIO_R_INPUT, out);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
-		_sampleRate = e.sampleRate;
-		_modulationSteps = std::max(1, (int)(_sampleRate * 0.0025f));  // 2.5 ms
-		updateOversampling();  // also resets _steps for an immediate modulate()
+		sampleRate = e.sampleRate;
+		float alpha = robotboy::smootherAlpha(sampleRate, 0.005f);
+		pool.setSampleRate(sampleRate, alpha);
+		blendSlew.setAlpha(alpha);
+		// The g/kC2/H1 targets depend on the rate, so modulate on the next
+		// process() rather than run on stale coefficients for ~2.5 ms.
+		modulationSteps = std::max(1, (int)(sampleRate * 0.0025f));
+		steps = modulationSteps;
 	}
 
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
-		_pool.resetAll();
+		pool.resetAll();
 	}
 
 	// Called at ~2.5 ms intervals: reads params/CVs, updates per-voice
@@ -173,7 +139,7 @@ struct Vespid : Module {
 	// in the audio path.
 	void modulate() {
 		const wasp::ModeConfig& mode = german ? wasp::kGerman : wasp::kBritish;
-		float fsInt = _sampleRate * (float)kOversample;
+		float fsInt = sampleRate * wasp::kOversample;
 
 		float fPole = german ? kFPoleGerman : kFPoleBritish;
 
@@ -184,12 +150,12 @@ struct Vespid : Module {
 		float driveKnob   = clamp(params[DRIVE_PARAM].getValue(), 0.f, 1.f);
 		float driveCvAtten = params[DRIVE_CV_PARAM].getValue();
 
-		bool freqCvConn  = inputs[FREQ_INPUT].isConnected();
-		bool resCvConn   = inputs[RES_INPUT].isConnected();
-		bool driveCvConn = inputs[DRIVE_INPUT].isConnected();
+		bool freqCvConnected = inputs[FREQ_INPUT].isConnected();
+		bool resCvConnected = inputs[RES_INPUT].isConnected();
+		bool driveCvConnected = inputs[DRIVE_INPUT].isConnected();
 
-		for (int c = 0; c < _pool.activeVoices; c++) {
-			wasp::VoiceEngine& eng = _pool.engines[c];
+		for (int c = 0; c < pool.activeVoices; c++) {
+			wasp::VoiceEngine& eng = pool.engines[c];
 			eng.sanitize();
 
 			eng.l.filt.setMode(mode);
@@ -198,7 +164,7 @@ struct Vespid : Module {
 			// Frequency: 1 V/oct CV on the log2 knob value, then to Hz,
 			// clamped [1 Hz, 0.45*fsInt] before the wcComp/internal clamps.
 			float fcLog = freqLog;
-			if (freqCvConn)
+			if (freqCvConnected)
 				fcLog += freqCvAtten * inputs[FREQ_INPUT].getPolyVoltage(c);
 			float fc = clamp(std::exp2(fcLog), 1.f, 0.45f * fsInt);
 
@@ -208,7 +174,7 @@ struct Vespid : Module {
 			// rail-bounded limit cycle runs ~0.72x the knob's small-signal
 			// placement at rho=1; blend toward a corrected scale as rho
 			// approaches 1 so the perceived pitch tracks the knob there.
-			if (_oscPitchCorrected && german) {
+			if (oscPitchCorrected && german) {
 				float rhoNow = eng.rhoSlew.value;
 				float s = clamp((rhoNow - 0.85f) / 0.15f, 0.f, 1.f);
 				fcInt *= 1.f + (1.f / 0.72f - 1.f) * s;
@@ -225,7 +191,7 @@ struct Vespid : Module {
 
 			// Resonance.
 			float rho = res;
-			if (resCvConn)
+			if (resCvConnected)
 				rho += resCvAtten * inputs[RES_INPUT].getPolyVoltage(c) / 10.f;
 			rho = clamp(rho, 0.f, 1.f);
 			eng.rhoTarget = rho;
@@ -234,11 +200,9 @@ struct Vespid : Module {
 			// times the per-mode hardware level staging (mode.inGain). At
 			// drive 0 a 5 V signal lands at German mode's Euro-hot staging
 			// (10 V eq., clean, onset ~6% up the knob) and British mode's
-			// EDP-nominal 2.5 V (the original's light rasp, ~12% THD). See
-			// 2026-07-19-vespid-drive-remap-design.md and
-			// 2026-07-19-vespid-input-calibration-design.md.
+			// EDP-nominal 2.5 V (the original's light rasp, ~12% THD).
 			float drive01 = driveKnob;
-			if (driveCvConn)
+			if (driveCvConnected)
 				drive01 += driveCvAtten * inputs[DRIVE_INPUT].getPolyVoltage(c) / 10.f;
 			drive01 = clamp(drive01, 0.f, 1.f);
 			eng.driveTarget = 2.f * std::exp2(5.f * drive01) * mode.inGain;
@@ -256,25 +220,22 @@ struct Vespid : Module {
 		float blend = params[BLEND_PARAM].getValue();
 		if (inputs[BLEND_INPUT].isConnected())
 			blend += inputs[BLEND_INPUT].getVoltage() / 10.f;
-		_blendTarget = clamp(blend, 0.f, 1.f);
+		blendTarget = clamp(blend, 0.f, 1.f);
 	}
 
-	// Process one voice (channel c). Advances its smoothers and runs the
-	// audio cascade for L, and for R unless it's normalled to L. The shared
-	// module-level Blend smoother is advanced once per sample in process() —
-	// not here — so every voice sees the same value and the slew time
-	// constant doesn't shrink with the voice count. maskL/maskR select which
-	// signals each Channel decimates (built once per sample in process()).
-	void processChannel(int c, float m, bool rConnected, int maskL, int maskR,
-	                    float makeup) {
-		wasp::VoiceEngine& eng = _pool.engines[c];
+	// One voice's audio for L, and for R unless it's normalled to L. The
+	// Blend smoother is advanced once per sample in process(), not here, so
+	// every voice sees the same value. maskL/maskR select which signals each
+	// channel decimates.
+	void processVoice(int c, float m, bool rConnected, int maskL, int maskR, float makeup) {
+		wasp::VoiceEngine& eng = pool.engines[c];
 
-		float g     = eng.gSlew.process(eng.gTarget);
-		float kC2   = eng.kC2Slew.process(eng.kC2Target);
+		float g = eng.gSlew.process(eng.gTarget);
+		float kC2 = eng.kC2Slew.process(eng.kC2Target);
 		float drive = eng.driveSlew.process(eng.driveTarget);
-		// rhoSlew doesn't feed the audio path directly (H1's own coefficient
-		// smoothers do that) but is kept current every sample so modulate()
-		// can read back a smoothed resonance for the self-osc pitch formula.
+		// rhoSlew doesn't feed the audio path (the H1 coefficient smoothers
+		// do) but stays current so modulate() can read back a smoothed
+		// resonance for the pitch correction.
 		eng.rhoSlew.process(eng.rhoTarget);
 		wasp::H1Coeffs h1{
 			eng.beta0Slew.process(eng.beta0Target),
@@ -282,117 +243,92 @@ struct Vespid : Module {
 			eng.alpha1Slew.process(eng.alpha1Target)
 		};
 
-		float inL = inputs[AUDIO_INPUT].getPolyVoltage(c);
-		wasp::Channel::Out oL =
-			eng.l.process(inL * drive + _dither, kOversample, g, h1, kC2,
-			              maskL, m, makeup);
-
-		outputs[LP_OUTPUT].setVoltage(oL.lp, c);
-		outputs[BP_OUTPUT].setVoltage(oL.bp, c);
-		outputs[HP_OUTPUT].setVoltage(oL.hp, c);
-		outputs[MIX_OUTPUT].setVoltage(oL.mix, c);
-
+		float inL = inputs[AUDIO_L_INPUT].getPolyVoltage(c);
+		wasp::Channel::Out oL = eng.l.process(inL * drive + dither, g, h1, kC2, maskL, m, makeup);
+		// An unpatched R input is normalled to L: mirror L's outputs (maskL
+		// already includes the R jacks' needs in that case).
+		wasp::Channel::Out oR = oL;
 		if (rConnected) {
-			// True stereo: process R through its own filter/resampler chain.
-			float inR = inputs[AUDIO_INPUT_R].getPolyVoltage(c);
-			wasp::Channel::Out oR =
-				eng.r.process(inR * drive + _dither, kOversample, g, h1, kC2,
-				              maskR, m, makeup);
-			outputs[LP_OUTPUT_R].setVoltage(oR.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(oR.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(oR.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage(oR.mix, c);
-		} else {
-			// R normalled to L: mirror L's outputs, skip the R compute
-			// entirely (matches the MF-20 mono-patch optimization). maskL
-			// already includes the R jacks' needs in this case.
-			outputs[LP_OUTPUT_R].setVoltage(oL.lp, c);
-			outputs[BP_OUTPUT_R].setVoltage(oL.bp, c);
-			outputs[HP_OUTPUT_R].setVoltage(oL.hp, c);
-			outputs[MIX_OUTPUT_R].setVoltage(oL.mix, c);
+			float inR = inputs[AUDIO_R_INPUT].getPolyVoltage(c);
+			oR = eng.r.process(inR * drive + dither, g, h1, kC2, maskR, m, makeup);
 		}
+
+		outputs[LP_L_OUTPUT].setVoltage(oL.lp, c);
+		outputs[BP_L_OUTPUT].setVoltage(oL.bp, c);
+		outputs[HP_L_OUTPUT].setVoltage(oL.hp, c);
+		outputs[MIX_L_OUTPUT].setVoltage(oL.mix, c);
+		outputs[LP_R_OUTPUT].setVoltage(oR.lp, c);
+		outputs[BP_R_OUTPUT].setVoltage(oR.bp, c);
+		outputs[HP_R_OUTPUT].setVoltage(oR.hp, c);
+		outputs[MIX_R_OUTPUT].setVoltage(oR.mix, c);
+	}
+
+	// Which signals a side's connected jacks need.
+	int outputMask(int lp, int bp, int hp, int mix) {
+		return (outputs[lp].isConnected() ? wasp::kOutLp : 0)
+		     | (outputs[bp].isConnected() ? wasp::kOutBp : 0)
+		     | (outputs[hp].isConnected() ? wasp::kOutHp : 0)
+		     | (outputs[mix].isConnected() ? wasp::kOutMix : 0);
 	}
 
 	void process(const ProcessArgs& args) override {
-		int channels = std::max({1, inputs[AUDIO_INPUT].getChannels(),
-		                            inputs[AUDIO_INPUT_R].getChannels()});
-		_pool.setVoices(channels);
-
-		// setChannels only needs to run when the voice count changes, not
-		// 8 outputs x every sample.
-		if (outputs[LP_OUTPUT].getChannels() != channels)
-			for (int out = 0; out < NUM_OUTPUTS; out++)
+		int channels = std::max({1, inputs[AUDIO_L_INPUT].getChannels(),
+		                         inputs[AUDIO_R_INPUT].getChannels()});
+		pool.setVoices(channels);
+		if (outputs[LP_L_OUTPUT].getChannels() != channels)
+			for (int out = 0; out < OUTPUTS_LEN; out++)
 				outputs[out].setChannels(channels);
 
-		if (++_steps >= _modulationSteps) {
-			_steps = 0;
+		if (++steps >= modulationSteps) {
+			steps = 0;
 			modulate();
 		}
 
-		_dither = -_dither;
-		// Blend smoother advances once per sample (MF-20 pattern), not per
-		// voice — see processChannel's comment. The stereo check and the
-		// output-select masks are hoisted out of the voice loop (Onbetap
-		// already hoists its stereo check).
-		float m = _blendSlew.process(_blendTarget);
-		bool rConnected = inputs[AUDIO_INPUT_R].isConnected();
-		// Only connected outputs pay for decimation/DC blocking. When R is
-		// normalled to L, the R jacks are fed from the L channel's outputs,
-		// so their needs fold into maskL.
-		int maskL = (outputs[LP_OUTPUT].isConnected()  ? wasp::kOutLp  : 0)
-		          | (outputs[BP_OUTPUT].isConnected()  ? wasp::kOutBp  : 0)
-		          | (outputs[HP_OUTPUT].isConnected()  ? wasp::kOutHp  : 0)
-		          | (outputs[MIX_OUTPUT].isConnected() ? wasp::kOutMix : 0);
-		int maskR = (outputs[LP_OUTPUT_R].isConnected()  ? wasp::kOutLp  : 0)
-		          | (outputs[BP_OUTPUT_R].isConnected()  ? wasp::kOutBp  : 0)
-		          | (outputs[HP_OUTPUT_R].isConnected()  ? wasp::kOutHp  : 0)
-		          | (outputs[MIX_OUTPUT_R].isConnected() ? wasp::kOutMix : 0);
+		dither = -dither;
+		float m = blendSlew.process(blendTarget);
+		bool rConnected = inputs[AUDIO_R_INPUT].isConnected();
+		// Only connected outputs pay for decimation and DC blocking. When R
+		// is normalled to L, the R jacks are fed from L, so their needs fold
+		// into maskL.
+		int maskL = outputMask(LP_L_OUTPUT, BP_L_OUTPUT, HP_L_OUTPUT, MIX_L_OUTPUT);
+		int maskR = outputMask(LP_R_OUTPUT, BP_R_OUTPUT, HP_R_OUTPUT, MIX_R_OUTPUT);
 		if (!rConnected) {
 			maskL |= maskR;
 			maskR = 0;
 		}
 		float makeup = (german ? wasp::kGerman : wasp::kBritish).makeup;
 		for (int c = 0; c < channels; c++)
-			processChannel(c, m, rConnected, maskL, maskR, makeup);
+			processVoice(c, m, rConnected, maskL, maskR, makeup);
 	}
 
 	json_t* dataToJson() override {
-		json_t* root = json_object();
-		json_object_set_new(root, "german", json_boolean(german));
-		json_object_set_new(root, "panelTheme", json_integer(panelTheme));
-		json_object_set_new(root, "oscPitchCorrected", json_boolean(_oscPitchCorrected));
-		return root;
+		json_t* rootJ = json_object();
+		json_object_set_new(rootJ, "german", json_boolean(german));
+		json_object_set_new(rootJ, "panelTheme", json_integer(panelTheme));
+		json_object_set_new(rootJ, "oscPitchCorrected", json_boolean(oscPitchCorrected));
+		return rootJ;
 	}
 
-	void dataFromJson(json_t* root) override {
-		json_t* s = json_object_get(root, "german");
-		if (!s)
-			s = json_object_get(root, "doepfer");     // pre-rename patches...
-		if (!s)
-			s = json_object_get(root, "screaming");   // ...and pre-pre-rename
-		if (s)
-			german = json_boolean_value(s);
+	void dataFromJson(json_t* rootJ) override {
+		// "doepfer" and "screaming" are this setting's names in older patches.
+		json_t* germanJ = json_object_get(rootJ, "german");
+		if (!germanJ)
+			germanJ = json_object_get(rootJ, "doepfer");
+		if (!germanJ)
+			germanJ = json_object_get(rootJ, "screaming");
+		if (germanJ)
+			german = json_boolean_value(germanJ);
 #if !defined(METAMODULE)
-		// Desktop only: MetaModule is locked to charcoal, so a patch carrying
-		// the key can't unlock it there — the member initializer stands.
-		json_t* p = json_object_get(root, "panelTheme");
-		if (p)
-			panelTheme = json_integer_value(p);
+		// MetaModule is locked to charcoal, so it ignores the key.
+		json_t* themeJ = json_object_get(rootJ, "panelTheme");
+		if (themeJ)
+			panelTheme = json_integer_value(themeJ);
 #endif
-		// Older patches carry "inputTrimDb"/"outputLevelDb" (Input trim and
-		// Output level menu sliders, removed — both were unity by default), an
-		// "fPole" key (Inverter bandwidth slider, removed 2026-07-19 — baked
-		// per mode above), a "highAcc" key (Accuracy menu, removed — the
-		// Newton refinement is now always on in every build; see
-		// WaspFilter.hpp), and an "osMenu" key (Oversampling menu, removed
-		// 2026-07-26 — fixed at 4x, see kOversample); all are ignored.
-		json_t* pc = json_object_get(root, "oscPitchCorrected");
-		if (pc)
-			_oscPitchCorrected = json_boolean_value(pc);
+		json_t* pitchJ = json_object_get(rootJ, "oscPitchCorrected");
+		if (pitchJ)
+			oscPitchCorrected = json_boolean_value(pitchJ);
 	}
 };
-
-
 
 struct VespidWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
@@ -404,9 +340,9 @@ struct VespidWidget : ModuleWidget {
 	int shownTheme = 0;
 
 	void step() override {
-		Vespid* m = dynamic_cast<Vespid*>(module);
-		if (m && m->panelTheme != shownTheme) {
-			shownTheme = m->panelTheme;
+		Vespid* module = getModule<Vespid>();
+		if (module && module->panelTheme != shownTheme) {
+			shownTheme = module->panelTheme;
 			std::string f = (shownTheme == 1) ? "res/Vespid-gold.svg" : "res/Vespid.svg";
 			panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
 		}
@@ -439,53 +375,50 @@ struct VespidWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(40.333, 56.250)), module, Vespid::DRIVE_INPUT));
 
 		// Audio input, centered in the gap between the two zones.
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.550, 69.550)), module, Vespid::AUDIO_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.250, 69.550)), module, Vespid::AUDIO_INPUT_R));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.550, 69.550)), module, Vespid::AUDIO_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(30.250, 69.550)), module, Vespid::AUDIO_R_INPUT));
 
 		// Lower zone. Left column: Blend CV / Blend knob / Mix. Right column: HP / BP / LP.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(13.480, 86.750)), module, Vespid::BLEND_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 86.750)), module, Vespid::HP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 86.750)), module, Vespid::HP_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 86.750)), module, Vespid::HP_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 86.750)), module, Vespid::HP_R_OUTPUT));
 
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(13.497, 101.950)), module, Vespid::BLEND_PARAM));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.447, 101.950)), module, Vespid::BP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.147, 101.950)), module, Vespid::BP_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.447, 101.950)), module, Vespid::BP_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.147, 101.950)), module, Vespid::BP_R_OUTPUT));
 
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.650, 117.150)), module, Vespid::MIX_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(18.350, 117.150)), module, Vespid::MIX_OUTPUT_R));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 117.150)), module, Vespid::LP_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 117.150)), module, Vespid::LP_OUTPUT_R));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.650, 117.150)), module, Vespid::MIX_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(18.350, 117.150)), module, Vespid::MIX_R_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.450, 117.150)), module, Vespid::LP_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.150, 117.150)), module, Vespid::LP_R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
-		auto* m = dynamic_cast<Vespid*>(module);
-		if (!m) return;
+		Vespid* module = getModule<Vespid>();
+		if (!module)
+			return;
 
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Character"));
-		menu->addChild(createMenuItem("British (limited)",
-			!m->german ? "✓" : "",
-			[m]() { m->german = false; }));
-		menu->addChild(createMenuItem("German (self-oscillates)",
-			m->german ? "✓" : "",
-			[m]() { m->german = true; }));
-
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createMenuLabel("Self-oscillation pitch (German)"));
-		menu->addChild(createMenuItem("Hardware (drifts flat)",
-			!m->_oscPitchCorrected ? "✓" : "",
-			[m]() { m->_oscPitchCorrected = false; }));
-		menu->addChild(createMenuItem("Corrected (tracks knob)",
-			m->_oscPitchCorrected ? "✓" : "",
-			[m]() { m->_oscPitchCorrected = true; }));
-
+		menu->addChild(createIndexSubmenuItem("Character",
+			{"British (limited)", "German (self-oscillates)"},
+			[=]() { return module->german ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "change character", [=]() { module->german = (i == 1); });
+			}));
+		menu->addChild(createIndexSubmenuItem("Self-oscillation pitch (German)",
+			{"Hardware (drifts flat)", "Corrected (tracks knob)"},
+			[=]() { return module->oscPitchCorrected ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "change self-oscillation pitch", [=]() { module->oscPitchCorrected = (i == 1); });
+			}));
 #if !defined(METAMODULE)
 		// Desktop only: MetaModule is locked to the charcoal faceplate.
-		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Panel",
 			{"Charcoal", "Gold"},
-			[m]() -> size_t { return m->panelTheme; },
-			[m](size_t i) { m->panelTheme = (int)i; }));
+			[=]() { return module->panelTheme; },
+			[=](int i) {
+				withMenuUndo(module, "change panel", [=]() { module->panelTheme = i; });
+			}));
 #endif
 	}
 };

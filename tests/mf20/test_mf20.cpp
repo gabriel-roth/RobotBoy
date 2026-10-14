@@ -1,8 +1,5 @@
 /**
- * test_kota20.cpp — Test suite for MF20Filter.hpp
- *
- * Compile & run:
- *   g++ -std=c++17 -O2 -Wall -o test_kota20 test_kota20.cpp && ./test_kota20
+ * test_mf20.cpp — Test suite for MF20Filter.hpp (run by tests/run.sh)
  *
  * All expected values are derived from the filter's transfer function;
  * references in comments point to the source papers:
@@ -12,11 +9,34 @@
 
 #include "../../src/mf20/MF20Filter.hpp"
 #include "../../src/mf20/engine.hpp"
-#include "../../src/mf20/dsp_utils.hpp"   // resTaper — the module applies it before the filter
 #include <cmath>
 #include <cstdio>
 #include <cassert>
 #include <cfloat>
+
+using mf20::resTaper;
+using mf20::VoiceEngine;
+using mf20::EnginePool;
+
+// The tests drive the filter as a standalone filter, in Hz at its own sample
+// rate and with Drive as a gain; the module precomputes g and the drive
+// character instead.
+struct MF20Filter : mf20::MF20Filter {
+    float sampleRate = 44100.f;
+    void setSampleRate(float fs) { sampleRate = fs; }
+    Out process(float in, float cutoffHz, float res) {
+        return processG(in, cutoffToG(cutoffHz, sampleRate), res);
+    }
+    void setDriveCharacter(float drive) {
+        mf20::MF20Filter::setDriveCharacter(1.f / std::sqrt(drive), std::sqrt(drive));
+    }
+};
+
+// Hz-domain step for a filter living inside an engine.
+static mf20::MF20Filter::Out processHz(mf20::MF20Filter& f, float in, float cutoffHz,
+                                       float res, float fs = 44100.f) {
+    return f.processG(in, mf20::MF20Filter::cutoffToG(cutoffHz, fs), res);
+}
 
 // ── Test harness ─────────────────────────────────────────────────────────────
 
@@ -493,13 +513,12 @@ static void test_drive_character() {
            "drive=4 produces lower LP RMS than drive=1 (harder saturation)", buf);
 }
 
-// 16. processVCV is a ×5 scaling wrapper around process()
-//     processVCV(in×5, fc, res) == process(in, fc, res) × 5 sample-by-sample.
-//     Internally, processVCV divides input by 5 (×0.2), calls process, then
-//     multiplies outputs by 5.  Both paths get the same normalised input, so
-//     states track and the output ratio is exactly 5.
+// 16. processVCVG is a ×5 scaling wrapper around processG()
+//     processVCVG(in×5, g, res) == processG(in, g, res) × 5 sample-by-sample.
+//     Both paths get the same normalised input, so states track and the
+//     output ratio is exactly 5.
 static void test_processVCV_scaling() {
-    printf("\n16. processVCV scaling (×5 in/out)\n");
+    printf("\n16. processVCVG scaling (×5 in/out)\n");
     MF20Filter fA, fB;
     fA.setSampleRate(44100.f);
     fB.setSampleRate(44100.f);
@@ -511,7 +530,7 @@ static void test_processVCV_scaling() {
     for (int i = 0; i < 1000 && ok; i++) {
         float in = std::sin(phaseInc * (float)i);
         auto rA = fA.process(in, fc, res);
-        auto rB = fB.processVCV(in * 5.f, fc, res);
+        auto rB = fB.processVCVG(in * 5.f, MF20Filter::cutoffToG(fc, 44100.f), res);
         const float tol = 1e-4f;
         if (std::fabs(rB.lp - rA.lp * 5.f) > tol ||
             std::fabs(rB.bp - rA.bp * 5.f) > tol ||
@@ -519,7 +538,7 @@ static void test_processVCV_scaling() {
             ok = false;
         }
     }
-    report(ok, "processVCV(in×5) == process(in) × 5 for LP, BP, HP");
+    report(ok, "processVCVG(in×5) == process(in) × 5 for LP, BP, HP");
 }
 
 // 17. Instance independence — no shared/static state
@@ -860,12 +879,11 @@ static void test_nan_recovery() {
 static void test_voice_sanitize() {
     printf("\nVoiceEngine::sanitize recovers poisoned voice\n");
     VoiceEngine v;
-    v.setSampleRate(48000.f);
-    v.hpFilter.process(NAN, 1000.f, 0.5f);      // poison one filter
+    processHz(v.hpFilter, NAN, 1000.f, 0.5f, 48000.f);   // poison one filter
     v.sanitize();
     bool ok = v.hpFilter.stateFinite();
     for (int i = 0; i < 200; ++i) {
-        auto [lp, bp, hp] = v.hpFilter.process(0.5f, 1000.f, 0.5f);
+        auto [lp, bp, hp] = processHz(v.hpFilter, 0.5f, 1000.f, 0.5f, 48000.f);
         ok = ok && std::isfinite(lp);
         (void)bp; (void)hp;
     }
@@ -879,7 +897,6 @@ static void test_voice_sanitize() {
 static void test_engine_pool_reset_on_growth() {
     printf("\nEnginePool::setVoices resets voices (re)entering the active range\n");
     EnginePool pool;
-    pool.setSampleRate(44100.f);
     pool.setVoices(1);   // baseline: only voice 0 active
 
     // Ring voice index 1 hard: impulse + res=1 self-oscillation (OTA, hot input),
@@ -887,9 +904,9 @@ static void test_engine_pool_reset_on_growth() {
     const float fc = 1000.f;
     for (int i = 0; i < 5000; i++) {
         float in = (i == 0) ? 1.f : 0.f;
-        pool.engines[1].lpFilter.process(in, fc, 1.f);
+        processHz(pool.engines[1].lpFilter, in, fc, 1.f);
     }
-    bool ringing = std::fabs(pool.engines[1].lpFilter.process(0.f, fc, 1.f).lp) > 0.05f;
+    bool ringing = std::fabs(processHz(pool.engines[1].lpFilter, 0.f, fc, 1.f).lp) > 0.05f;
     report(ringing, "voice 1 is ringing before growth (sanity check)");
 
     pool.setVoices(3);   // growth 1 -> 3: engines[1], engines[2] must be reset
@@ -897,7 +914,7 @@ static void test_engine_pool_reset_on_growth() {
     bool clean = true;
     float firstOut[2] = {0.f, 0.f};
     for (int idx = 1; idx <= 2; idx++) {
-        float out = pool.engines[idx].lpFilter.process(0.f, fc, 1.f).lp;
+        float out = processHz(pool.engines[idx].lpFilter, 0.f, fc, 1.f).lp;
         firstOut[idx - 1] = out;
         clean = clean && std::fabs(out) < 1e-6f;
     }
@@ -907,70 +924,25 @@ static void test_engine_pool_reset_on_growth() {
 
     // No-op / shrink must not touch any engine state (loop range is empty).
     EnginePool pool2;
-    pool2.setSampleRate(44100.f);
     pool2.setVoices(3);
     for (int i = 0; i < 5000; i++) {
         float in = (i == 0) ? 1.f : 0.f;
-        pool2.engines[2].lpFilter.process(in, fc, 1.f);
+        processHz(pool2.engines[2].lpFilter, in, fc, 1.f);
     }
-    float beforeNoop = pool2.engines[2].lpFilter.process(0.f, fc, 1.f).lp;
+    float beforeNoop = processHz(pool2.engines[2].lpFilter, 0.f, fc, 1.f).lp;
     pool2.setVoices(3);   // no growth (n <= activeVoices): must be a no-op
-    float afterNoop = pool2.engines[2].lpFilter.process(0.f, fc, 1.f).lp;
+    float afterNoop = processHz(pool2.engines[2].lpFilter, 0.f, fc, 1.f).lp;
     char detail2[96];
     snprintf(detail2, sizeof(detail2), "before=%.6f after=%.6f", beforeNoop, afterNoop);
     report(std::fabs(beforeNoop) > 0.05f && std::fabs(afterNoop) > 0.05f,
            "setVoices(n) with n <= activeVoices does not reset any engine", detail2);
 }
 
-// setDriveCharacterFromThreshold(1/√d) must produce output identical to
-// setDriveCharacter(d) — the smoothed-drive path (module) stores a
-// precomputed threshold instead of recomputing sqrt/divide per sample, but
-// the filter-level math must be exactly the same.
-static void test_drive_from_threshold_matches_setDriveCharacter() {
-    printf("\nsetDriveCharacterFromThreshold(1/sqrt(d)) == setDriveCharacter(d)\n");
-    for (float d : {1.f, 2.f, 4.f, 8.f}) {
-        MF20Filter fA, fB;
-        fA.setSampleRate(44100.f);
-        fB.setSampleRate(44100.f);
-        fA.setDriveCharacter(d);
-        fB.setDriveCharacterFromThreshold(1.f / std::sqrt(d));
-
-        bool ok = true;
-        for (int i = 0; i < 200 && ok; i++) {
-            float in = 0.8f * std::sin(2.f * 3.14159265f * 440.f * i / 44100.f);
-            auto ra = fA.process(in, 1000.f, 0.5f);
-            auto rb = fB.process(in, 1000.f, 0.5f);
-            ok = ok && ra.lp == rb.lp && ra.bp == rb.bp && ra.hp == rb.hp;
-        }
-        char buf[64];
-        snprintf(buf, sizeof(buf), "drive=%.0f", d);
-        report(ok, "setDriveCharacterFromThreshold matches setDriveCharacter", buf);
-    }
-}
-
-static void test_processG_matches_process() {
-    printf("\nprocessG(cutoffToG(fc)) == process(fc)\n");
-    for (auto mode : {MF20Filter::Mode::OTA, MF20Filter::Mode::K35}) {
-        MF20Filter a, b;
-        a.setSampleRate(48000.f); b.setSampleRate(48000.f);
-        a.setMode(mode); b.setMode(mode);
-        bool ok = true;
-        for (int i = 0; i < 500; ++i) {
-            float in = std::sin(2.f * float(M_PI) * 220.f * i / 48000.f);
-            float fc = 200.f + 30.f * i;
-            auto ra = a.process(in, fc, 0.6f);
-            auto rb = b.processG(in, MF20Filter::cutoffToG(fc, 48000.f), 0.6f);
-            ok = ok && ra.lp == rb.lp && ra.bp == rb.bp && ra.hp == rb.hp;
-        }
-        report(ok, mode == MF20Filter::Mode::OTA ? "OTA identical" : "K35 identical");
-    }
-}
-
-// K35 forward clip, extracted as a static helper (Q6 groundwork).
-// Full-range equivalence against the previous inline piecewise expression.
+// K35 forward clip: full-range equivalence against the plain piecewise clip
+// (no knees) away from the knee regions.
 static void test_k35_forward_clip_helper_equivalence() {
-    printf("\n24. k35ForwardClip helper matches the inline piecewise clip\n");
-    auto oldClip = [](float in_n) -> float {
+    printf("\n24. k35ForwardClip matches the hard-cornered clip away from the knees\n");
+    auto hardClip = [](float in_n) -> float {
         constexpr float kSatSlope = 0.25f;
         if (in_n >= 0.f)
             return (in_n <= 1.f) ? in_n : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
@@ -984,16 +956,16 @@ static void test_k35_forward_clip_helper_equivalence() {
         const bool inPosKnee = x > 0.9f && x < 1.1f;
         const bool inNegKnee = x > -0.95f && x < -0.75f;
         if (inPosKnee || inNegKnee) continue;
-        float err = std::fabs(MF20Filter::k35ForwardClip(x) - oldClip(x));
+        float err = std::fabs(MF20Filter::k35ForwardClip(x) - hardClip(x));
         if (err > maxErr) maxErr = err;
         if (err > 1e-6f) ok = false;
     }
     char buf[64];
     snprintf(buf, sizeof(buf), "maxErr=%.3g", maxErr);
-    report(ok, "k35ForwardClip == previous inline clip outside knee regions", buf);
+    report(ok, "k35ForwardClip == hard-cornered clip outside knee regions", buf);
 }
 
-// 25. Q6: the clip must be C1 (no slope jumps) everywhere. The old hard
+// 25. The clip must be C1 (no slope jumps) everywhere. A hard
 //     corner has a one-sided derivative jump of 0.75 at x=1.0 and x=-0.85;
 //     the quadratic knee's derivative changes by at most 2q·step ≈ 0.004
 //     between adjacent probes at this resolution.
@@ -1014,10 +986,10 @@ static void test_k35_clip_is_c1() {
     report(maxJump < 0.02f, "no slope discontinuity across [-3, 3]", buf);
 }
 
-// 26. Q6: outside the two knee bands the curve is exactly the old clip.
+// 26. Outside the two knee bands the curve is exactly the hard-cornered clip.
 static void test_k35_clip_unchanged_outside_knees() {
     printf("\n26. K35 forward clip unchanged outside the knee regions\n");
-    auto oldClip = [](float in_n) -> float {
+    auto hardClip = [](float in_n) -> float {
         constexpr float kSatSlope = 0.25f;
         if (in_n >= 0.f)
             return (in_n <= 1.f) ? in_n : kSatSlope * in_n + (1.f - kSatSlope) * 1.f;
@@ -1030,12 +1002,12 @@ static void test_k35_clip_unchanged_outside_knees() {
         const bool inPosKnee = x > 0.9f && x < 1.1f;
         const bool inNegKnee = x > -0.95f && x < -0.75f;
         if (inPosKnee || inNegKnee) continue;
-        if (std::fabs(MF20Filter::k35ForwardClip(x) - oldClip(x)) > 1e-6f) ok = false;
+        if (std::fabs(MF20Filter::k35ForwardClip(x) - hardClip(x)) > 1e-6f) ok = false;
     }
     report(ok, "identical to hard clip for |x - corner| >= 0.1");
 }
 
-// 27. Q6: inside each knee the curve is monotone and hugs the corner's
+// 27. Inside each knee the curve is monotone and hugs the corner's
 //     two-line envelope. Geometry: at the POSITIVE corner slope drops 1 ->
 //     0.25 (concave), so the knee sits at or BELOW min(linear, sat), by at
 //     most q·w² = 0.01875 (the depth at the corner itself). At the NEGATIVE
@@ -1108,8 +1080,6 @@ int main() {
     test_nan_recovery();
     test_voice_sanitize();
     test_engine_pool_reset_on_growth();
-    test_drive_from_threshold_matches_setDriveCharacter();
-    test_processG_matches_process();
 
     printf("\n=======================\n");
     printf("%d passed, %d failed\n", sPassed, sFailed);

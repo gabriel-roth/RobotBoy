@@ -57,8 +57,7 @@
  *   threshold (1.0) and slope (0.25) — unaffected by drive, which only shapes the
  *   forward-path clip. Without this, resTaper() (max 1.025) drives k up to ≈2.733,
  *   past the k=8/3 linear self-oscillation threshold, and a purely linear loop
- *   diverges to NaN. In the linear region (|k·x₁| ≤ 1) the solve is algebraically
- *   identical to the previous formulation: base − g·k = (1+g)² − g·(k − 2/3).
+ *   diverges to NaN. In the linear region (|k·x₁| ≤ 1): base − g·k = (1+g)² − g·(k − 2/3).
  *
  * TPT discretization — closed-form, region-wise (no iteration):
  *   rhs    = s₁ + g·(clip_in − s₂)
@@ -81,6 +80,9 @@
  * Clipping: piecewise-linear approximation of a diode/transistor nonlinearity.
  *   Default: T = 1.0, satSlope = 0.25; scale with 1/sqrt(drive).
  *
+ * Resonance taper: the module passes res through resTaper() (max 1.025), so
+ *   the top of the knob reaches slightly past the oscillation onset.
+ *
  * State update (both modes): s = 2·mid − s
  *
  * Outputs:
@@ -89,7 +91,7 @@
  *   hp = (mode-specific)        12 dB/oct highpass
  *
  * Signal level convention:
- *   Internally normalised to ±1 V.  For VCV Rack (±5 V audio) use processVCV().
+ *   Internally normalised to ±1 V; processVCVG() takes and returns ±5 V audio.
  *
  * References:
  *   [H] Huovilainen (2010) MSc thesis §4.2.3, §5.3.1
@@ -97,235 +99,203 @@
  */
 
 #include <cmath>
+#include <numbers>
 #include <algorithm>
+
+namespace mf20 {
+
+// Quadratic resonance taper: maps [0,1] → [0,1.025], adds slight curve.
+inline float resTaper(float r) {
+	return (2.f * r - r * r) * 1.025f;
+}
 
 class MF20Filter {
 public:
-    enum class Mode { OTA, K35 };
-    struct Out { float lp, bp, hp; };
+	enum class Mode { OTA, K35 };
+	struct Out { float lp, bp, hp; };
 
-    MF20Filter() = default;
+	void setMode(Mode m) { mode = m; }
 
-    void setSampleRate(float fs) { sampleRate = fs; }
-    void setMode(Mode m) { mode = m; }
+	void reset() { s1 = s2 = 0.f; }
 
-    void reset() { s1 = s2 = 0.f; }
+	/** False once any non-finite value has entered the TPT state (the
+	    s = 2·mid − s update propagates NaN/inf forever). */
+	bool stateFinite() const { return std::isfinite(s1) && std::isfinite(s2); }
 
-    /** False once any non-finite value has entered the TPT state (the
-        s = 2·mid − s update propagates NaN/inf forever). */
-    bool stateFinite() const { return std::isfinite(s1) && std::isfinite(s2); }
+	/** Drive character from a clip threshold t (= 1/√drive) and its
+	    reciprocal (= √drive, the K35 forward-clip pre-gain). Hosts slew both
+	    so the audio path needs no per-sample sqrt or divide; while a Drive
+	    sweep is in flight the two are briefly not exact reciprocals
+	    (~5 ms, inaudible). Higher drive = lower threshold, steeper
+	    saturation. */
+	void setDriveCharacter(float t, float invT) {
+		clipThreshold = t;
+		satSlope      = 0.25f * t;
+		fwdGain       = invT;
+	}
 
-    /** Scale diode character with drive: higher drive = lower threshold + steeper saturation. */
-    void setDriveCharacter(float drive) {
-        float s       = 1.f / std::sqrt(drive);
-        clipThreshold = s;
-        satSlope      = 0.25f * s;
-        fwdGain       = std::sqrt(drive);
-    }
+	/** K35 resonance-loop clip threshold (normalised). Default 1.0 = original
+	    Korg35 behaviour. Raising it lets the resonant peak ring higher before
+	    the loop transistor clips, so the peak returns above the forward-path
+	    saturation without losing its grit. The loop stays bounded because the
+	    saturated-region slope (0.25) is unchanged. OTA mode ignores this. */
+	void setFbThreshold(float t) { fbThreshold = t; }
 
-    /** Store an already-computed clip threshold (= 1/√drive) plus its
-        reciprocal (= √drive, the K35 forward-clip pre-gain). Lets hosts slew
-        the drive character per-sample without any per-sample sqrt/divide —
-        including the K35 forward clip's former in/threshold divide, which
-        was a real per-sample VDIV on the Cortex-A7
-        (cpu-optimization-2026-07-24.md §4.3 pattern). Note a slewed
-        reciprocal is not the reciprocal of the slewed threshold while a
-        Drive sweep is in flight (~5 ms transient, inaudible); at rest they
-        agree. */
-    void setDriveCharacterFromThreshold(float t, float invT) {
-        clipThreshold = t;
-        satSlope      = 0.25f * t;
-        fwdGain       = invT;
-    }
-    /** Convenience form (modulate-rate / test use only — the divide here is
-        exactly what the two-argument form lets the audio path avoid). */
-    void setDriveCharacterFromThreshold(float t) {
-        setDriveCharacterFromThreshold(t, 1.f / t);
-    }
+	/** Bilinear prewarp gain g = tan(π·fc/fs), fc clamped to [1, fs·0.498).
+	    Hosts call this at modulate rate and slew g, keeping tan out of the
+	    audio path. */
+	static float cutoffToG(float cutoffHz, float fs) {
+		float fc = std::clamp(cutoffHz, 1.f, fs * 0.498f);
+		return std::tan(std::numbers::pi_v<float> * fc / fs);
+	}
 
-    /** K35 resonance-loop clip threshold (normalised). Default 1.0 = original
-        Korg35 behaviour. Raising it lets the resonant peak ring higher before
-        the loop transistor clips — the "resonance retention" split path keeps
-        the forward clip (grit) at full drive and opens this instead, so the
-        peak returns above the saturation without losing the grit. The loop
-        stays bounded because the saturated-region slope (0.25) is unchanged.
-        OTA mode ignores this. */
-    void setFbThreshold(float t) { fbThreshold = t; }
+	/** One sample, normalised (±1) input, precomputed prewarp gain g (see
+	    cutoffToG), resonance [0, 1] with 1.0 = onset of self-oscillation. */
+	Out processG(float in, float g, float res) {
+		if (mode == Mode::K35)
+			return processK35(in, g, res);
+		return processOTA(in, g, res);
+	}
 
-    /** Bilinear prewarp gain g = tan(π·fc/fs), fc clamped to [1, fs·0.498).
-        Hosts call this at modulate rate and slew g itself, keeping tan/pow
-        out of the audio path entirely. */
-    static float cutoffToG(float cutoffHz, float fs) {
-        float fc = std::clamp(cutoffHz, 1.f, fs * 0.498f);
-        return std::tan(kPi * fc / fs);
-    }
+	/** processG in ±5 V audio. */
+	Out processVCVG(float inVolts, float g, float res) {
+		auto [lp, bp, hp] = processG(inVolts * kVCVScale, g, res);
+		return { lp * kInvVCVScale, bp * kInvVCVScale, hp * kInvVCVScale };
+	}
 
-    /**
-     * Process one sample.
-     * @param in        Normalised input (±1 V)
-     * @param cutoffHz  Cutoff frequency [1, Nyquist)
-     * @param res       Resonance [0, 1]; 1.0 = onset of self-oscillation
-     */
-    Out process(float in, float cutoffHz, float res) {
-        return processG(in, cutoffToG(cutoffHz, sampleRate), res);
-    }
+	static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
 
-    Out processVCV(float inVolts, float cutoffHz, float res) {
-        auto [lp, bp, hp] = process(inVolts * kVCVScale, cutoffHz, res);
-        return { lp * kInvVCVScale, bp * kInvVCVScale, hp * kInvVCVScale };
-    }
-
-    /** Process one sample with a precomputed prewarp gain (see cutoffToG). */
-    Out processG(float in, float g, float res) {
-        if (mode == Mode::K35)
-            return processK35(in, g, res);
-        return processOTA(in, g, res);
-    }
-
-    Out processVCVG(float inVolts, float g, float res) {
-        auto [lp, bp, hp] = processG(inVolts * kVCVScale, g, res);
-        return { lp * kInvVCVScale, bp * kInvVCVScale, hp * kInvVCVScale };
-    }
-
-    static constexpr float kK35Asymmetry = 0.15f;  // negative clips 15% harder than positive
-
-    /** K35 forward-path clip in the normalised domain (in_n = in × √drive).
-        Piecewise linear (slope 1 → kSatSlope at T_pos = 1.0 / −T_neg = −0.85,
-        asymmetry → even-order harmonics, Stinchcombe §4) with C1 quadratic
-        knees of half-width kKneeW around each corner (Q6): hard corners in a
-        drive-scaled static nonlinearity are the filter's cheapest-to-fix
-        aliasing source. Outside ±kKneeW of a corner the curve is unchanged. */
-    static float k35ForwardClip(float in_n) {
-        constexpr float kSatSlope = 0.25f;
-        constexpr float kKneeW    = 0.1f;                              // knee half-width
-        constexpr float kQ        = (1.f - kSatSlope) / (4.f * kKneeW);  // 1.875
-        if (in_n >= 0.f) {
-            constexpr float T = 1.f;
-            if (in_n <= T - kKneeW) return in_n;
-            if (in_n >= T + kKneeW)
-                return kSatSlope * in_n + (1.f - kSatSlope) * T;
-            const float d = in_n - (T - kKneeW);
-            return in_n - kQ * d * d;
-        }
-        constexpr float T = 1.f - kK35Asymmetry;                       // 0.85
-        if (in_n >= -(T - kKneeW)) return in_n;
-        if (in_n <= -(T + kKneeW))
-            return kSatSlope * in_n - (1.f - kSatSlope) * T;
-        const float d = in_n + (T - kKneeW);
-        return in_n + kQ * d * d;
-    }
+	/** K35 forward-path clip in the normalised domain (in_n = in × √drive).
+	    Piecewise linear (slope 1 → kSatSlope at T_pos = 1.0 / −T_neg = −0.85,
+	    asymmetry → even-order harmonics, Stinchcombe §4) with C1 quadratic
+	    knees of half-width kKneeW around each corner: hard corners in a
+	    drive-scaled static nonlinearity are the filter's cheapest-to-fix
+	    aliasing source. Outside ±kKneeW of a corner the curve is unchanged. */
+	static float k35ForwardClip(float in_n) {
+		constexpr float kSatSlope = 0.25f;
+		constexpr float kKneeW    = 0.1f;                                // knee half-width
+		constexpr float kQ        = (1.f - kSatSlope) / (4.f * kKneeW);  // 1.875
+		if (in_n >= 0.f) {
+			constexpr float T = 1.f;
+			if (in_n <= T - kKneeW) return in_n;
+			if (in_n >= T + kKneeW)
+				return kSatSlope * in_n + (1.f - kSatSlope) * T;
+			const float d = in_n - (T - kKneeW);
+			return in_n - kQ * d * d;
+		}
+		constexpr float T = 1.f - kK35Asymmetry;                         // 0.85
+		if (in_n >= -(T - kKneeW)) return in_n;
+		if (in_n <= -(T + kKneeW))
+			return kSatSlope * in_n - (1.f - kSatSlope) * T;
+		const float d = in_n + (T - kKneeW);
+		return in_n + kQ * d * d;
+	}
 
 private:
-    static constexpr float kPi           = 3.14159265358979f;
-    static constexpr float kVCVScale     = 0.2f;
-    // Reciprocal for the output rescale: the MetaModule SDK compiles without
-    // -ffast-math, so x / kVCVScale was three real VDIV.F32s per filter call.
-    static constexpr float kInvVCVScale  = 1.f / kVCVScale;
+	static constexpr float kVCVScale    = 0.2f;
+	// Multiply rather than divide on the way out: the MetaModule build has
+	// no -ffast-math, so x / kVCVScale would be a real divide per call.
+	static constexpr float kInvVCVScale = 1.f / kVCVScale;
 
-    float sampleRate    = 44100.f;
-    float s1            = 0.f;    // BP integrator state
-    float s2            = 0.f;    // LP integrator state
-    float clipThreshold = 1.f;    // diode clip threshold (normalised ±1 V)
-    float satSlope      = 0.25f;  // gain in saturation region
-    float fwdGain       = 1.f;    // K35 forward-clip pre-gain (= 1/clipThreshold = √drive)
-    float fbThreshold   = 1.f;    // K35 resonance-loop clip threshold (see setFbThreshold)
-    Mode  mode          = Mode::OTA;
+	float s1            = 0.f;    // BP integrator state
+	float s2            = 0.f;    // LP integrator state
+	float clipThreshold = 1.f;    // diode clip threshold (normalised ±1 V)
+	float satSlope      = 0.25f;  // gain in saturation region
+	float fwdGain       = 1.f;    // K35 forward-clip pre-gain (= 1/clipThreshold = √drive)
+	float fbThreshold   = 1.f;    // K35 resonance-loop clip threshold (see setFbThreshold)
+	Mode  mode          = Mode::OTA;
 
-    Out processOTA(float in, float g, float res) {
-        float k  = res * 2.f;
+	Out processOTA(float in, float g, float res) {
+		float k = res * 2.f;
 
-        // Right-hand side: contribution from current states only.
-        float rhs = s1 + g * (in - s2);
+		// Right-hand side: contribution from current states only.
+		float rhs = s1 + g * (in - s2);
 
-        // Solve x1_mid from: x1_mid·(1+g)² = rhs + g·diodeClip(k·x1_mid)
-        // Region classification without the trial divide: |k·rhs/D1| ≤ T is
-        // tested as |k·rhs| ≤ T·D1 (D1 = 1 + g·(2−k) + g² > 0 for all g when
-        // k ≤ 2.05, the resTaper max), so exactly one divide executes per
-        // sample instead of two on the clipped path. sign(x1_r1) == sign(rhs)
-        // for the same reason.
-        const float onePlusG2 = (1.f + g) * (1.f + g);
-        float D1 = onePlusG2 - g * k;
+		// Solve x1_mid from: x1_mid·(1+g)² = rhs + g·diodeClip(k·x1_mid)
+		// The region test |k·rhs/D1| ≤ T is evaluated as |k·rhs| ≤ T·D1
+		// (D1 = 1 + g·(2−k) + g² > 0 for all g when k ≤ 2.05, the resTaper
+		// max), so one divide runs per sample whichever region solves.
+		// sign(x1_r1) == sign(rhs) for the same reason.
+		const float onePlusG2 = (1.f + g) * (1.f + g);
+		float D1 = onePlusG2 - g * k;
 
-        float x1_mid;
-        float clip_val;
-        if (std::fabs(k * rhs) <= clipThreshold * D1) {
-            x1_mid   = rhs / D1;
-            clip_val = k * x1_mid;
-        } else {
-            // Regions 2 / 3: clip active, effective gain → satSlope·k
-            float D2     = onePlusG2 - satSlope * g * k;
-            float knee   = (1.f - satSlope) * g * clipThreshold;
-            float offset = (rhs > 0.f) ? knee : -knee;
-            x1_mid = (rhs + offset) / D2;
-            float sign = (rhs > 0.f) ? 1.f : -1.f;
-            clip_val = satSlope * k * x1_mid + sign * (1.f - satSlope) * clipThreshold;
-        }
+		float x1_mid;
+		float clip_val;
+		if (std::fabs(k * rhs) <= clipThreshold * D1) {
+			x1_mid   = rhs / D1;
+			clip_val = k * x1_mid;
+		} else {
+			// Regions 2 / 3: clip active, effective gain → satSlope·k
+			float D2     = onePlusG2 - satSlope * g * k;
+			float knee   = (1.f - satSlope) * g * clipThreshold;
+			float offset = (rhs > 0.f) ? knee : -knee;
+			x1_mid = (rhs + offset) / D2;
+			float sign = (rhs > 0.f) ? 1.f : -1.f;
+			clip_val = satSlope * k * x1_mid + sign * (1.f - satSlope) * clipThreshold;
+		}
 
-        float x2_mid = s2 + g * x1_mid;
-        float hp_out = in - 2.f * x1_mid + clip_val - x2_mid;
+		float x2_mid = s2 + g * x1_mid;
+		float hp_out = in - 2.f * x1_mid + clip_val - x2_mid;
 
-        // TPT state update: s_new = 2·mid − s
-        s1 = 2.f * x1_mid - s1;
-        s2 = 2.f * x2_mid - s2;
+		// TPT state update: s_new = 2·mid − s
+		s1 = 2.f * x1_mid - s1;
+		s2 = 2.f * x2_mid - s2;
 
-        return { x2_mid, x1_mid, hp_out };
-    }
+		return { x2_mid, x1_mid, hp_out };
+	}
 
-    Out processK35(float in, float g, float res) {
-        float k  = res * (8.f / 3.f);
+	Out processK35(float in, float g, float res) {
+		float k = res * (8.f / 3.f);
 
-        // Forward-path nonlinearity: pre-gain input by fwdGain (= 1/clipThreshold
-        // = √drive, precomputed by the drive setters so this is a multiply, not
-        // a per-sample divide), then clip at normalised thresholds. More drive
-        // → louder and more saturated → wilder. See k35ForwardClip.
-        float clip_in = k35ForwardClip(in * fwdGain);
+		// Forward-path nonlinearity: pre-gain the input by fwdGain (= √drive),
+		// then clip at normalised thresholds. More drive → louder and more
+		// saturated → wilder. See k35ForwardClip.
+		float clip_in = k35ForwardClip(in * fwdGain);
 
-        // Resonance loop with saturating feedback:
-        //   ẋ₁ = ωc·(clip_in − (8/3)·x₁ + fbClip(k·x₁) − x₂)
-        // The Korg35 loop transistor clips, which bounds the resonance even
-        // when the module's resTaper() pushes k past the linear-oscillation
-        // threshold 8/3 (max k = 1.025 × 8/3 ≈ 2.733). Fixed normalised
-        // threshold/slope: drive shapes the input clip only.
-        // Linear region (|k·x₁| ≤ threshold) is algebraically identical to the
-        // previous formulation: base − g·k = (1+g)² − g·(k − 2/3).
-        // Threshold is settable (default 1.0); higher = peak rings freer.
-        const float kFbThreshold = fbThreshold;
-        constexpr float kFbSlope = 0.25f;
+		// Resonance loop with saturating feedback:
+		//   ẋ₁ = ωc·(clip_in − (8/3)·x₁ + fbClip(k·x₁) − x₂)
+		// The Korg35 loop transistor clips, which bounds the resonance even
+		// when resTaper() pushes k past the linear-oscillation threshold 8/3
+		// (max k = 1.025 × 8/3 ≈ 2.733). Drive shapes the input clip only;
+		// the loop clip has a fixed slope and a settable threshold (default
+		// 1.0; higher = the peak rings freer).
+		const float kFbThreshold = fbThreshold;
+		constexpr float kFbSlope = 0.25f;
 
-        float rhs  = s1 + g * (clip_in - s2);
-        float base = (1.f + g) * (1.f + g) + (2.f / 3.f) * g;
-        float D1   = base - g * k;
+		float rhs  = s1 + g * (clip_in - s2);
+		float base = (1.f + g) * (1.f + g) + (2.f / 3.f) * g;
+		float D1   = base - g * k;
 
-        // For k > 8/3, D1 ≤ 0 over a band of g (fc ≈ 11.6–16.6 kHz at 48 kHz
-        // when k = 2.733): the linear region has no valid solution there
-        // (bistable analog regime), so solve the saturated region, taking the
-        // branch sign from the drive term rhs. When D1 > 0 the region-1 trial
-        // classifies exactly (implicit LHS is monotone), as in processOTA.
-        // Region test without the trial divide (|k·rhs/D1| ≤ T as
-        // |k·rhs| ≤ T·D1, valid since the branch requires D1 > 0): one divide
-        // executes per sample whichever region solves.
-        bool linear = false;
-        float x1_mid = 0.f, fb_val = 0.f;
-        if (D1 > 0.f && std::fabs(k * rhs) <= kFbThreshold * D1) {
-            x1_mid = rhs / D1;
-            fb_val = k * x1_mid;
-            linear = true;
-        }
-        if (!linear) {
-            float D2   = base - kFbSlope * g * k;
-            float sign = (rhs > 0.f) ? 1.f : -1.f;
-            float knee = (1.f - kFbSlope) * g * kFbThreshold;
-            x1_mid = (rhs + sign * knee) / D2;
-            fb_val = kFbSlope * k * x1_mid + sign * (1.f - kFbSlope) * kFbThreshold;
-        }
+		// For k > 8/3, D1 ≤ 0 over a band of g (fc ≈ 11.6–16.6 kHz at 48 kHz
+		// when k = 2.733): the linear region has no valid solution there
+		// (bistable analog regime), so solve the saturated region, taking the
+		// branch sign from the drive term rhs. When D1 > 0 the region-1 trial
+		// classifies exactly (implicit LHS is monotone), as in processOTA,
+		// and the region test avoids a trial divide the same way.
+		bool linear = false;
+		float x1_mid = 0.f, fb_val = 0.f;
+		if (D1 > 0.f && std::fabs(k * rhs) <= kFbThreshold * D1) {
+			x1_mid = rhs / D1;
+			fb_val = k * x1_mid;
+			linear = true;
+		}
+		if (!linear) {
+			float D2   = base - kFbSlope * g * k;
+			float sign = (rhs > 0.f) ? 1.f : -1.f;
+			float knee = (1.f - kFbSlope) * g * kFbThreshold;
+			x1_mid = (rhs + sign * knee) / D2;
+			fb_val = kFbSlope * k * x1_mid + sign * (1.f - kFbSlope) * kFbThreshold;
+		}
 
-        float x2_mid = s2 + g * x1_mid;
-        // HP from state equation: clip(in) − (8/3)·x₁ + fbClip(k·x₁) − x₂
-        float hp_out = clip_in - (8.f / 3.f) * x1_mid + fb_val - x2_mid;
+		float x2_mid = s2 + g * x1_mid;
+		// HP from state equation: clip(in) − (8/3)·x₁ + fbClip(k·x₁) − x₂
+		float hp_out = clip_in - (8.f / 3.f) * x1_mid + fb_val - x2_mid;
 
-        s1 = 2.f * x1_mid - s1;
-        s2 = 2.f * x2_mid - s2;
+		s1 = 2.f * x1_mid - s1;
+		s2 = 2.f * x2_mid - s2;
 
-        return { x2_mid, x1_mid, hp_out };
-    }
+		return { x2_mid, x1_mid, hp_out };
+	}
 };
+
+} // namespace mf20

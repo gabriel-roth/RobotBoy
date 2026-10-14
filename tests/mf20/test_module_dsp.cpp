@@ -1,13 +1,16 @@
 /**
- * test_module_dsp.cpp — Test suite for src/dsp_utils.hpp pure math
- *
- * Compile & run:
- *   g++ -std=c++17 -O2 -Wall -Wextra -Isrc -o test_module_dsp test_module_dsp.cpp && ./test_module_dsp
+ * test_module_dsp.cpp — smoother helpers (src/shared/dsp_utils.hpp) and
+ * MF-20's resonance taper (run by tests/run.sh)
  */
 
-#include "../../src/mf20/dsp_utils.hpp"
+#include "../../src/shared/dsp_utils.hpp"
+#include "../../src/mf20/MF20Filter.hpp"
 #include <cmath>
 #include <cstdio>
+
+using robotboy::OnePoleSmoother;
+using robotboy::smootherAlpha;
+using mf20::resTaper;
 
 // ── Test harness ─────────────────────────────────────────────────────────────
 
