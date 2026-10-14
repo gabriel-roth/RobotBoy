@@ -84,7 +84,8 @@ struct Onbetap : Module {
 	// so the menu is just CPU efficient (2x) / high quality (4x) on both hosts.
 	// A patch saved at the old oversample:1 loads at 2x (dataFromJson below).
 	static constexpr int kDefaultOversample = 2;
-	int oversample = kDefaultOversample;            // 2 / 4
+	int oversample = kDefaultOversample;            // 2 / 4, set by the menu
+	int activeOversample = kDefaultOversample;      // what process() runs at
 
 	int modulationSteps = 100, steps = 100;
 	float sampleRate = 44100.f;
@@ -150,7 +151,7 @@ struct Onbetap : Module {
 	}
 
 	void modulate() {
-		float fsOs = sampleRate * oversample;
+		float fsOs = sampleRate * activeOversample;
 
 		// Drift (Vintage only) — module-level, per side; both walkers advance
 		// every block so toggling Character mid-patch is deterministic.
@@ -238,7 +239,7 @@ struct Onbetap : Module {
 	                  DecimFir9& fir4Lp, DecimFir9& fir4Bp, DecimFir9& fir4Hp) {
 		float lp = 0, bp = 0, hp = 0;
 		float x1 = inVolts * driveScale;
-		if (oversample == 4) {
+		if (activeOversample == 4) {
 			// 4x: two-stage decimation — fir4* (DecimFir9, 192k→96k) feeds
 			// the same DecimFir13 stage the 2x path uses (96k→48k), so the
 			// 4x passband matches 2x by construction. See engine.hpp for
@@ -302,6 +303,13 @@ struct Onbetap : Module {
 	void process(const ProcessArgs& args) override {
 		int voices = std::max({1, inputs[AUDIO_INPUT].getChannels(),
 		                          inputs[AUDIO_INPUT_R].getChannels()});
+		// A menu change of oversampling takes effect here, on the audio
+		// thread: the filter and FIR histories don't carry across rates.
+		if (oversample != activeOversample) {
+			activeOversample = oversample;
+			pool.resetAll();
+			steps = modulationSteps;
+		}
 		pool.setVoices(voices);
 		outputs[AUDIO_OUTPUT].setChannels(voices);
 		outputs[AUDIO_OUTPUT_R].setChannels(voices);
@@ -423,7 +431,6 @@ struct OnbetapWidget : ModuleWidget {
 			[m]() { return m->oversample == 4 ? 1 : 0; },
 			[m](int i) {
 				m->oversample = (i == 1) ? 4 : 2;
-				m->pool.resetAll();
 			}));
 	}
 };

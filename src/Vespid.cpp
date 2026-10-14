@@ -398,12 +398,19 @@ struct VespidWidget : ModuleWidget {
 	app::SvgPanel* panel = nullptr;
 
 #if !defined(METAMODULE)
-	// Swap the faceplate SVG for the selected theme (0 = charcoal, 1 = gold).
-	// Screws stay dark (ScrewBlack) on both themes. Desktop only: MetaModule is
-	// locked to charcoal, so it never leaves the panel set below.
-	void setPanelTheme(int t) {
-		std::string f = (t == 1) ? "res/Vespid-gold.svg" : "res/Vespid.svg";
-		panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
+	// The faceplate follows the module's panelTheme (0 = charcoal, 1 = gold),
+	// however it changed: menu, preset load or undo. Screws stay dark on both
+	// themes. Desktop only: MetaModule is locked to charcoal.
+	int shownTheme = 0;
+
+	void step() override {
+		Vespid* m = dynamic_cast<Vespid*>(module);
+		if (m && m->panelTheme != shownTheme) {
+			shownTheme = m->panelTheme;
+			std::string f = (shownTheme == 1) ? "res/Vespid-gold.svg" : "res/Vespid.svg";
+			panel->setBackground(APP->window->loadSvg(asset::plugin(pluginInstance, f)));
+		}
+		ModuleWidget::step();
 	}
 #endif
 
@@ -411,10 +418,6 @@ struct VespidWidget : ModuleWidget {
 		setModule(module);
 		panel = createPanel(asset::plugin(pluginInstance, "res/Vespid.svg"));
 		setPanel(panel);
-#if !defined(METAMODULE)
-		if (module)
-			setPanelTheme(module->panelTheme);
-#endif
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -482,7 +485,7 @@ struct VespidWidget : ModuleWidget {
 		menu->addChild(createIndexSubmenuItem("Panel",
 			{"Charcoal", "Gold"},
 			[m]() -> size_t { return m->panelTheme; },
-			[m, this](size_t i) { m->panelTheme = (int)i; setPanelTheme((int)i); }));
+			[m](size_t i) { m->panelTheme = (int)i; }));
 #endif
 	}
 };

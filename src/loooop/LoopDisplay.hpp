@@ -48,14 +48,11 @@ struct LoopDisplayWidget : Widget {
             const int laneH = geometry.laneHeight;
             const int lanesH = geometry.lanesHeight;
             const int waveH = geometry.waveHeight;
-            if ((int)wavePix.size() != w * waveH) {
+            if ((int)wavePix.size() != w * waveH || (int)lanePix.size() != w * lanesH) {
                 wavePix.assign((size_t)w * waveH, 0);
-                if (waveImg >= 0) { nvgDeleteImage(args.vg, waveImg); waveImg = -1; }
-                cachedWaveRevision = UINT32_MAX;
-            }
-            if ((int)lanePix.size() != w * lanesH) {
                 lanePix.assign((size_t)w * lanesH, 0);
-                if (laneImg >= 0) { nvgDeleteImage(args.vg, laneImg); laneImg = -1; }
+                deleteImages(args.vg);
+                cachedWaveRevision = UINT32_MAX;
             }
 
             const auto revision = eng.waveformRevision();
@@ -95,11 +92,19 @@ struct LoopDisplayWidget : Widget {
         Widget::drawLayer(args, layer);
     }
 
-    // Free the GPU image when the nanovg context goes away, so removing the
-    // module (or closing Rack) doesn't leak the texture.
+    // Free the GPU images when the widget is deleted (module removed) and
+    // when the nanovg context goes away, as FramebufferWidget does.
+    ~LoopDisplayWidget() {
+        deleteImages(APP->window->vg);
+    }
+
     void onContextDestroy(const ContextDestroyEvent& e) override {
-        if (waveImg >= 0) { nvgDeleteImage(e.vg, waveImg); waveImg = -1; }
-        if (laneImg >= 0) { nvgDeleteImage(e.vg, laneImg); laneImg = -1; }
+        deleteImages(e.vg);
         Widget::onContextDestroy(e);
+    }
+
+    void deleteImages(NVGcontext* vg) {
+        if (waveImg >= 0) { nvgDeleteImage(vg, waveImg); waveImg = -1; }
+        if (laneImg >= 0) { nvgDeleteImage(vg, laneImg); laneImg = -1; }
     }
 };
