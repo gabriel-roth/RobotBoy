@@ -73,7 +73,7 @@ Three characterful stereo filter emulations, each modeled from the behavior of t
 - **VCV Rack:** requires the [Rack SDK](https://vcvrack.com/downloads).
   ```
   git clone https://github.com/gabriel-roth/RobotBoy
-  cd RobotBoy/vcv
+  cd RobotBoy
   make RACK_DIR=<path-to-Rack-SDK> dist
   ```
 - **MetaModule:** requires an `arm-none-eabi` cross toolchain and a checkout of [metamodule-plugin-sdk](https://github.com/4ms/metamodule-plugin-sdk) (tag `api-v2.3.0` or later).
@@ -82,3 +82,13 @@ Three characterful stereo filter emulations, each modeled from the behavior of t
   cmake --build metamodule/build
   ```
   Output: `metamodule/metamodule-plugins/RobotBoy.mmplugin`.
+
+## Repository layout
+
+One source tree builds both the VCV Rack plugin and the MetaModule plugin.
+
+- **The VCV Rack plugin** is laid out as usual: `Makefile`, `plugin.json`, `src/` and `res/` (panel SVGs) at the top level.
+  - `src/beads/vendor/` is the Mutable Instruments Beads and stmlib code (MIT), vendored with RobotBoy's changes kept in one patch file (see its `NOTICE.md`). `src/beads/host/` adapts it for Particules, Retours and Ondes.
+- **`metamodule/`** builds the same sources for the 4ms MetaModule with CMake. It also holds the MetaModule panel images and Loooop/Löp's MetaModule-specific code. The VCV build doesn't use it.
+- **`panel-specs/`** holds the sources the panel SVGs in `res/` are generated from. Not needed to build.
+- **`tests/`** has DSP unit tests and reference models. Not needed to build.
