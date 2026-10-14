@@ -91,8 +91,10 @@ void ScopeLayout::update(const Input& in) {
 		if (snap) {
 			window = target;
 		} else {
-			const float k = 1.f - std::exp(-dt / kZoomTau);
-			window = std::exp(std::log(window) + (std::log(target) - std::log(window)) * k);
+			const float k = 1.f - std::exp(-dt / (in.modulated ? kModulatedZoomTau : kZoomTau));
+			const float d = std::log(target) - std::log(window);
+			// Land exactly once close: float steps stall a few samples short.
+			window = std::fabs(d) < 1e-4f ? target : std::exp(std::log(window) + d * k);
 		}
 	}
 	// Slice: show the whole buffer, fixed, until Slice turns off. The slices

@@ -16,6 +16,7 @@ public:
 	static constexpr float kZoomMargin = 1.15f;    // window = longest audible delay x this
 	static constexpr float kMinWindowSeconds = 0.05f;
 	static constexpr float kZoomTau = 0.08f;       // seconds; ~0.25 s to settle
+	static constexpr float kModulatedZoomTau = 0.2f;   // easing out to the whole buffer; ~0.6 s
 	// The dry playhead: "now" sits this fraction of the width in from the
 	// right edge (the strip to its right stays empty, like the space past a
 	// tape head), and flashes with the input of the last kDryWindowSeconds.

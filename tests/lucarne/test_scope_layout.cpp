@@ -277,7 +277,12 @@ int main() {
         in.modulated = true;
         L.update(in);
         check(L.getWindow() > w0 && L.getWindow() < 196608.f, "modulated: zoom eases part-way out");
-        for (int i = 0; i < 120; ++i) L.update(in);
+        for (int i = 0; i < 14; ++i) L.update(in);   // 0.24 s: the normal glide would be ~95% there
+        {
+            const float done = std::log(L.getWindow() / w0) / std::log(196608.f / w0);
+            check(done > 0.6f && done < 0.85f, "modulated: the ease-out is slower than a knob glide");
+        }
+        for (int i = 0; i < 240; ++i) L.update(in);
         check(near(L.getWindow(), 196608.f, 1.f), "modulated: zoom reaches the whole buffer");
         in.taps[0].delay = 9600.f;
         for (int i = 0; i < 30; ++i) L.update(in);
