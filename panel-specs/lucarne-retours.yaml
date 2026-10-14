@@ -13,19 +13,24 @@
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Scroll, Marker / Color, Brightness),
-# each a glyph over a two-line caption: the property on the display, 2.3 mm
-# in gray, then what it shows, 2.6 mm in white (the meaning carries the
-# emphasis). The scope's tap lines and bars are explained by the Marker
-# and Brightness cells, so the write head and cursors have no cells of
-# their own.
+# Key: 2 x 2 cells under the screen (Buffer, Tap markers / Color,
+# Brightness), each a glyph over a caption. The top glyphs explain
+# themselves, so their captions are one line, 2.6 mm in white. The bottom
+# cells have two lines: the property on the display, 2.3 mm in gray, then
+# what it shows, 2.6 mm in white (the meaning carries the emphasis). The
+# write head and cursors have no cells of their own.
 # Columns sit 13.5 mm either side of the panel center (30.48), so each cell
-# has \~25 mm; the widest caption, Retours' "Newest at right", is \~23 mm.
+# has \~25 mm.
 # Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
 # 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
 # 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
 # split into 3 gaps of 5.1: glyph rows at 87.4 and 105.8. Captions: line 1
-# baseline glyph + 6.35, line 2 + 10.1.
+# baseline glyph + 6.35, line 2 + 10.1. Here the top cells are one line: a
+# 2.6 mm caption at glyph + 6.6 (the 1.3 mm gap under the glyph, plus its cap
+# height), so a cell spans y - 3.3 to y + 6.6, center y + 1.65. lucarne.yaml's
+# top cells span 84.1 to 97.5, center 90.8; centering on that puts this
+# glyph row at 89.15 (89.2) and the caption at 95.8. The bottom row matches
+# lucarne.yaml's.
 slug: Lucarne
 name: LUCARNE
 hp: 12
@@ -52,9 +57,8 @@ grids:
   key:
     cols: [16.98, 43.98]
     rows:
-      glyph1: 87.4
-      cap1a: 93.7
-      cap1b: 97.5
+      glyph1: 89.2
+      cap1: 95.8
       glyph2: 105.8
       cap2a: 112.2
       cap2b: 115.9
@@ -62,10 +66,8 @@ grids:
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
-  - row: {grid: key, at: cap1a}
-    place: [{text: Scroll, size: 2.3, color: "#b0b0b0"}, {text: Marker, size: 2.3, color: "#b0b0b0"}]
-  - row: {grid: key, at: cap1b}
-    place: [{text: Newest at right, size: 2.6}, {text: One per tap, size: 2.6}]
+  - row: {grid: key, at: cap1}
+    place: [{text: Buffer, size: 2.6}, {text: Tap markers, size: 2.6}]
   - row: {grid: key, at: cap2a}
     place: [{text: Color, size: 2.3, color: "#b0b0b0"}, {text: Brightness, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap2b}
@@ -78,7 +80,7 @@ glyphs:
   # right to left). marker.svg: the band crossed by the two tap lines, in
   # the tap-ratio colors. Both are 4.8 mm tall, the height the key's rows
   # are spaced for, so they take the key's 1.375x like the rest.
-  - {src: glyphs/lucarne/scroll.svg,   at: [16.98, 87.4], scale: 1.375}
-  - {src: glyphs/lucarne/marker.svg,   at: [43.98, 87.4], scale: 1.375}
+  - {src: glyphs/lucarne/scroll.svg,   at: [16.98, 89.2], scale: 1.375}
+  - {src: glyphs/lucarne/marker.svg,   at: [43.98, 89.2], scale: 1.375}
   - {src: glyphs/lucarne/ratio.svg,    at: [16.98, 105.8], scale: 1.375}
   - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8], scale: 1.375}
