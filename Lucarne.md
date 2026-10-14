@@ -49,5 +49,4 @@ In VCV, the key under the display changes to match the module Lucarne is attache
 
 ## Notes
 
-- Lucarne works with Particules and Retours in Beads mode only. In classic mode it shows "Particules is set to Classic mode. Lucarne only works in Beads mode." or "Retours is set to Classic mode. Lucarne only works in Beads mode."
 - It is display-only: it doesn't change the sound of Particules or Retours in any way.

@@ -100,22 +100,6 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 ---
 
-## Classic mode
-
-Classic mode is the Particules engine from version 2.1 and earlier, kept alongside the Beads-based engine. Patches saved before version 2.2 open in classic mode automatically, so they sound as they did. New modules start in Beads mode.
-
-To switch, open the context menu and tick or untick **Classic mode**. You can't switch while Freeze is on: the item is greyed out and reads "Unfreeze to switch". A switch clears the recording buffer and mutes the output for a quarter of a second. Classic mode also uses more memory on MetaModule (\~1.62 MB per instance, against \~1.00 MB in Beads mode). Presets and undo always restore the mode that was saved with them.
-
-Differences from Beads mode:
-
-- The **Seed** button works even with nothing patched to the Seed input. With nothing patched to Seed, each press fires a grain at once (Density keeps grains coming as usual). With Seed patched, the button acts like the jack: a pulse in Triggers mode, a held gate in Gates mode. The Seed light is lit while the button is held.
-- The **Seed CV mode** menu (Triggers or Gates) applies in classic mode, in place of Beads mode's lock and unlock behaviour.
-- The **Gate** output sends a 1 ms, 10 V pulse for each grain. Out L and Out R are always the stereo output; there is no "Grain trigger on R output" option. Version 2.1 patches that used that option should patch the Gate output instead.
-- There is no tape-hiss menu item: Scorched cassette sounds as it did in 2.1.
-- The Reverb tail is shorter at 96 kHz than at 48 kHz.
-
----
-
 ## Lucarne display
 
 **[Lucarne](Lucarne.md)** is a display expander for Particules. It shows the recording buffer as a waveform, with the write head sweeping across it, and draws every grain as it plays:
@@ -125,7 +109,7 @@ Differences from Beads mode:
 - **Color:** stereo position, from blue (left) through white to orange (right). With **Density** counter-clockwise and the attenurandomizers at noon, every grain is centered and white; turning Density clockwise or adding randomness fans the colors out.
 - **Brightness:** each grain's envelope (**Shape**). A cursor runs along each line as the grain plays.
 
-In VCV Rack, place Lucarne directly to the right of Particules. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Particules' **Expanders…** menu; tap the display to see it fullscreen. Lucarne works in Beads mode only, and has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
+In VCV Rack, place Lucarne directly to the right of Particules. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Particules' **Expanders…** menu; tap the display to see it fullscreen. Lucarne has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
 
 ---
 
