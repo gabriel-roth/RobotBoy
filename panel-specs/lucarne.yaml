@@ -12,13 +12,14 @@
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
-# each a glyph over a two-line caption: the property on the display, 2.3 mm
-# in gray, then what it shows, 2.6 mm in white (the meaning carries the
-# emphasis). The cursor and write-head line are self-explanatory, so
-# they have no cells.
+# Key: 2 x 2 cells under the screen (Length & position, Height / Color,
+# Brightness), each a glyph over a two-line caption: the property on the
+# display, 2.3 mm in gray, then what it shows, 2.6 mm in white (the meaning
+# carries the emphasis). A grain's line starts where it reads and spans what
+# it plays, hence "Length & position". The cursor and write-head line are
+# self-explanatory, so they have no cells.
 # Columns sit 13.5 mm either side of the panel center (30.48), so each cell
-# has \~25 mm; the widest caption, "Buffer segment", is \~22.5 mm.
+# has \~25 mm; the widest caption, "Length & position", is \~23.2 mm.
 # Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
 # 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
 # 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
@@ -61,7 +62,7 @@ elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
   - row: {grid: key, at: cap1a}
-    place: [{text: Length, size: 2.3, color: "#b0b0b0"}, {text: Height, size: 2.3, color: "#b0b0b0"}]
+    place: [{text: "Length & position", size: 2.3, color: "#b0b0b0"}, {text: Height, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap1b}
     place: [{text: Buffer segment, size: 2.6}, {text: Pitch, size: 2.6}]
   - row: {grid: key, at: cap2a}
