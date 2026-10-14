@@ -5,6 +5,23 @@
 #include <cstdio>
 #include <vector>
 
+// The whole display, waveform over lanes, in one buffer, as the hosts lay it
+// out.
+static void renderDisplay(uint32_t* b, int width, int height, const LoopEngine& engine,
+                          LoopWaveformRenderer::PackFn packFn) {
+    const auto g = LoopWaveformRenderer::geometry(height, engine.numHeads());
+    LoopWaveformRenderer::renderWaveform(b, width, g.waveHeight, engine, packFn);
+    LoopWaveformRenderer::renderLanes(b + std::size_t(g.waveHeight) * width,
+                                      width, g.lanesHeight, g.laneHeight, engine, packFn);
+}
+
+static const uint8_t kHeadRGB[4][3] = {
+    {loooop::kHeadColors[0].r, loooop::kHeadColors[0].g, loooop::kHeadColors[0].b},
+    {loooop::kHeadColors[1].r, loooop::kHeadColors[1].g, loooop::kHeadColors[1].b},
+    {loooop::kHeadColors[2].r, loooop::kHeadColors[2].g, loooop::kHeadColors[2].b},
+    {loooop::kHeadColors[3].r, loooop::kHeadColors[3].g, loooop::kHeadColors[3].b},
+};
+
 static int g_failures = 0;
 static void check(bool cond, const char* name) {
     if (!cond) { std::printf("FAIL: %s\n", name); ++g_failures; }
@@ -13,7 +30,7 @@ static void check(bool cond, const char* name) {
 
 // 64x64: laneH = 8, lanes rows 32..63; wave region rows 0..31 splits into
 // L band rows 0..15 (midline 7.5) and R band rows 16..31 (midline 23.5),
-// band half-height 7.5 — same per-wave resolution as the old mono layout.
+// band half-height 7.5.
 static constexpr int W = 64, H = 64;
 static uint32_t buf[W * H];
 static uint32_t px(int x, int y) { return buf[y * W + x]; }
@@ -55,11 +72,11 @@ static uint8_t dimc(uint8_t v) {
     return uint8_t(int(v) * LoopWaveformRenderer::DIM_NUM / LoopWaveformRenderer::DIM_DEN);
 }
 static uint32_t laneDim(int i) {
-    const uint8_t* c = LoopWaveformRenderer::HEAD_COLORS[i];
+    const uint8_t* c = kHeadRGB[i];
     return pack(dimc(c[0]), dimc(c[1]), dimc(c[2]), 0xFF);
 }
 static uint32_t laneBright(int i) {
-    const uint8_t* c = LoopWaveformRenderer::HEAD_COLORS[i];
+    const uint8_t* c = kHeadRGB[i];
     return pack(c[0], c[1], c[2], 0xFF);
 }
 
@@ -72,7 +89,7 @@ static void recordStereo(LoopEngine& e, const float* l, const float* r, int n) {
 
 static void test_blank() {
     LoopEngine e; e.reset(10.f, 100.f);      // tiny per-sample recorded buffer
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t bg = C(LoopWaveformRenderer::BG);
     check(countColor(bg) == W * H, "blank: every pixel is background");
 }
@@ -82,7 +99,7 @@ static void test_waveform_and_lanes() {
     e.toggleRecord();
     e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
     e.toggleRecord();                        // loop = {0, 0, 1, 0}; heads at pos 0
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t wave = C(LoopWaveformRenderer::WAVE);
     const uint32_t bg   = C(LoopWaveformRenderer::BG);
     // Mono input mirrors into both bands. Sample 2 (peak 1.0 = -6 dB vs the
@@ -115,7 +132,7 @@ static void test_stereo_bands() {
     // Signal covers x=16..31 (sample 1 of 4). Shared peak 1.0 -> yScale 5.764.
     LoopEngine e; e.reset(10.f, 100.f);
     recordStereo(e, sig, silent, 4);
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t wave = C(LoopWaveformRenderer::WAVE);
     const uint32_t bg   = C(LoopWaveformRenderer::BG);
     check(px(16, 2) == wave,  "stereo: L-only signal peaks in top band");
@@ -124,7 +141,7 @@ static void test_stereo_bands() {
 
     LoopEngine e2; e2.reset(10.f, 100.f);
     recordStereo(e2, silent, sig, 4);
-    LoopWaveformRenderer::render(buf, W, H, e2, pack);
+    renderDisplay(buf, W, H, e2, pack);
     check(px(16, 18) == wave, "stereo: R-only signal peaks in bottom band");
     check(px(16, 2) == bg,    "stereo: L band stays flat for R-only signal");
     check(px(16, 8) == wave,  "stereo: silent L still draws its midline");
@@ -138,7 +155,7 @@ static void test_phase_cancellation() {
     const float r[] = {0.f, -1.f, 0.f, 0.f};
     LoopEngine e; e.reset(10.f, 100.f);
     recordStereo(e, l, r, 4);
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t wave = C(LoopWaveformRenderer::WAVE);
     check(px(16, 2) == wave,  "phase: L peak drawn");
     check(px(16, 29) == wave, "phase: R trough drawn, no mono-sum cancellation");
@@ -156,7 +173,7 @@ static void test_moved_window_lane() {
     // was still unfrozen), landing both heads at the same phase a
     // single-step read would have shown (61 mod 4 == 1).
     for (int i = 0; i < 61; ++i) e.process(0.f);   // advance; head2 snaps to 1 then moves to 2
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t bg = C(LoopWaveformRenderer::BG);
     // Lane 2 rows 48..54: window bar spans x = round(.25*63)=16 .. round(.75*63)=47.
     check(px(15, 48) == bg,          "lane2: left of window is background");
@@ -171,7 +188,7 @@ static void test_moved_window_lane() {
 }
 
 static uint32_t laneArmed(int i) {
-    const uint8_t* c = LoopWaveformRenderer::HEAD_COLORS[i];
+    const uint8_t* c = kHeadRGB[i];
     auto a = [](uint8_t v) {
         return uint8_t(int(v) * LoopWaveformRenderer::ARMED_NUM / LoopWaveformRenderer::ARMED_DEN);
     };
@@ -184,7 +201,7 @@ static void test_armed_head_lane() {
     e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
     e.toggleRecord();                        // loop of 4; heads at pos 0
     e.setOneShot(0, true);                   // arm head 0, no trigger
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     // Lane 0 rows 32..38: asleep look — window bar at the armed dim level,
     // playhead marker at the normal window-dim level, nothing bright.
     check(px(5, 32) == laneArmed(0),  "armed: window bar extra-dim");
@@ -192,7 +209,7 @@ static void test_armed_head_lane() {
     check(countColor(laneBright(0)) == 0, "armed: no bright pixels in armed lane");
     check(px(0, 40) == laneBright(1), "armed: other lanes still bright");
     e.triggerOneShot(0);                     // playing again
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     check(px(0, 32) == laneBright(0), "armed: triggered head back to bright");
     check(px(5, 32) == laneDim(0),    "armed: triggered window bar back to dim");
 }
@@ -201,7 +218,7 @@ static void test_recording_view() {
     LoopEngine e; e.reset(10.f, 100.f);
     e.toggleRecord();
     for (int i = 0; i < 10; ++i) e.process(0.8f);   // still recording
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t wave = C(LoopWaveformRenderer::WAVE);
     const uint32_t bg   = C(LoopWaveformRenderer::BG);
     // Peak 0.8 (-7.96 dB) -> fullness ~0.7422, yScale 6.958 -> L top y =
@@ -226,21 +243,21 @@ static void test_level_aware_height() {
     full.toggleRecord();
     full.process(0.f); full.process(2.f); full.process(0.f); full.process(0.f);
     full.toggleRecord();                     // peak 2.0 (0 dB): L top y = round(7.5-6.375) = 1
-    LoopWaveformRenderer::render(buf, W, H, full, pack);
+    renderDisplay(buf, W, H, full, pack);
     const int fullTop = topWaveY(16, wave);
 
     LoopEngine nom; nom.reset(10.f, 100.f);
     nom.toggleRecord();
     nom.process(0.f); nom.process(1.f); nom.process(0.f); nom.process(0.f);
     nom.toggleRecord();                      // peak 1.0 (-6 dB): L top y = 2
-    LoopWaveformRenderer::render(buf, W, H, nom, pack);
+    renderDisplay(buf, W, H, nom, pack);
     const int nomTop = topWaveY(16, wave);
 
     LoopEngine quiet; quiet.reset(10.f, 100.f);
     quiet.toggleRecord();
     quiet.process(0.f); quiet.process(0.25f); quiet.process(0.f); quiet.process(0.f);
     quiet.toggleRecord();                    // peak 0.25 (-18 dB): L top y = 3
-    LoopWaveformRenderer::render(buf, W, H, quiet, pack);
+    renderDisplay(buf, W, H, quiet, pack);
     const int quietTop = topWaveY(16, wave);
 
     check(fullTop == 1,  "level: full-scale loop fills to headroom");
@@ -259,7 +276,7 @@ static void test_tiny_display_combined() {
     const float r[] = {0.f, -1.f, 0.f, 0.f};
     LoopEngine e; e.reset(10.f, 100.f);
     recordStereo(e, l, r, 4);
-    LoopWaveformRenderer::render(buf2, W2, H2, e, pack);
+    renderDisplay(buf2, W2, H2, e, pack);
     const uint32_t wave = C(LoopWaveformRenderer::WAVE);
     // Combined envelope at x=4..7 (sample 1): lo=-1, hi=+1, yScale
     // 1.5*0.7685 = 1.153 -> y0 = round(1.5-1.153) = 0, y1 = round(1.5+1.153)
@@ -281,18 +298,18 @@ static void test_single_head_single_lane() {
     e.process(0.f);                       // one tick so the lane atomics update
     const int W2 = 60, H2 = 24;           // laneH = 3
     std::vector<uint32_t> buf2(W2 * H2);
-    LoopWaveformRenderer::render(buf2.data(), W2, H2, e, pack);
+    renderDisplay(buf2.data(), W2, H2, e, pack);
     const int laneH = LoopWaveformRenderer::laneHeight(H2);   // 3
     const int lanesTop = H2 - 1 * laneH;                      // 21
     // head-0 color appears in the single bottom lane...
-    check(countColorInRows(buf2, W2, lanesTop, H2, LoopWaveformRenderer::HEAD_COLORS[0]) > 0,
+    check(countColorInRows(buf2, W2, lanesTop, H2, kHeadRGB[0]) > 0,
           "single_head: lane 0 drawn at bottom");
     // ...heads 1-3 colors appear nowhere, and no lane pixels above lanesTop
     for (int h = 1; h < LoopEngine::NUM_HEADS; ++h)
-        check(countColorInRows(buf2, W2, 0, H2, LoopWaveformRenderer::HEAD_COLORS[h]) == 0,
+        check(countColorInRows(buf2, W2, 0, H2, kHeadRGB[h]) == 0,
               "single_head: no other head lanes");
     check(countColorInRows(buf2, W2, lanesTop - laneH, lanesTop,
-                           LoopWaveformRenderer::HEAD_COLORS[0]) == 0,
+                           kHeadRGB[0]) == 0,
           "single_head: wave region extends over old lane rows");
 }
 
@@ -308,7 +325,7 @@ static void test_split_render_matches_composed_render() {
     recordStereo(e, l, r, 4);
     uint32_t composed[W * H]{};
     uint32_t split[W * H]{};
-    LoopWaveformRenderer::render(composed, W, H, e, pack);
+    renderDisplay(composed, W, H, e, pack);
     const int laneH = LoopWaveformRenderer::laneHeight(H);
     const int lanesH = e.numHeads() * laneH;
     const int waveH = H - lanesH;
@@ -334,7 +351,7 @@ static void test_tiny_heights_stay_within_destination() {
     static constexpr uint32_t canary = 0xDEADBEEFu;
     for (int height = 0; height < LoopEngine::NUM_HEADS * 3; ++height) {
         std::vector<uint32_t> guarded(std::size_t(width) * height + 2, canary);
-        LoopWaveformRenderer::render(guarded.data() + 1, width, height, e, pack);
+        renderDisplay(guarded.data() + 1, width, height, e, pack);
         check(guarded.front() == canary && guarded.back() == canary,
               "tiny geometry: composed render preserves canaries");
 
@@ -362,7 +379,7 @@ static void test_grid_bars() {
     e.process(0.f); e.process(0.f); e.process(1.f); e.process(0.f);
     e.toggleRecord();                        // loop of 4, heads at pos 0
     e.setGrid(4);
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     const uint32_t grid = C(LoopWaveformRenderer::GRID);
     const uint32_t bg   = C(LoopWaveformRenderer::BG);
     // Interior boundaries at x = k*64/4 = 16, 32, 48; bar width 64/300 -> 1 px.
@@ -379,7 +396,7 @@ static void test_grid_bars() {
     check(px(16, 39) == grid, "grid: gap row shows grid line");
     // Off again: no grid pixels anywhere.
     e.setGrid(0);
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     check(countColor(grid) == 0, "grid off: no grid pixels");
 }
 
@@ -388,7 +405,7 @@ static void test_grid_hidden_while_recording() {
     e.setGrid(8);
     e.toggleRecord();
     for (int i = 0; i < 10; ++i) e.process(0.8f);   // still recording, no loop
-    LoopWaveformRenderer::render(buf, W, H, e, pack);
+    renderDisplay(buf, W, H, e, pack);
     check(countColor(C(LoopWaveformRenderer::GRID)) == 0,
           "grid: hidden until the loop freezes");
 }

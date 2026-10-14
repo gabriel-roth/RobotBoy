@@ -1,427 +1,235 @@
-#include "plugin.hpp"
-#include "dsp/LoopEngine.hpp"
+#include "LooperModule.hpp"
 #include "LoopDisplay.hpp"
-#include "LooperModuleDSP.hpp"
-#include "OverdubControl.hpp"
 #include "HeadColors.hpp"
-#include <cmath>
 #include <array>
-#include <vector>
 #include <string>
 
-// Playhead display names follow the head colors on the panel/display
-// (loooop::kHeadColors / LoopWaveformRenderer::HEAD_COLORS): H1 red, H2 yellow,
-// H3 blue, H4 purple. Derived from the one color table so names can't drift.
-static const std::string kHeadNames[LoopEngine::NUM_HEADS] = {
-    std::string(loooop::kHeadColors[0].name) + " playhead",
-    std::string(loooop::kHeadColors[1].name) + " playhead",
-    std::string(loooop::kHeadColors[2].name) + " playhead",
-    std::string(loooop::kHeadColors[3].name) + " playhead"};
+// Playhead names follow the head colors on the panel and display: "Red
+// playhead", "Yellow playhead", ...
+static std::string headName(int h) {
+	return std::string(loooop::kHeadColors[h].name) + " playhead";
+}
 
-struct Loooop : Module {
-    // Global params come FIRST, then the panel KNOBS grouped PER HEAD (a
-    // contiguous block of HEAD_PARAMS knobs each — index with
-    // `X1_PARAM + HEAD_PARAMS * h`), then a trailing "Options" block of the
-    // menu-only params grouped by command (Record-jack mode,
-    // Trigger-when-recording, Crossfade, then per-head Trig-mode, Speed-V/Oct,
-    // Grid-exclude — each a contiguous run indexed `X1_PARAM + h`).
-    // This ParamId order is IDENTICAL to the MetaModule Elem order
-    // (metamodule/loooop/Loooop_info.hh): MetaModule assigns param IDs by
-    // Elements-array position, and VCV↔MM patch conversion maps by ID, so the
-    // two must line up element-for-element or knob values land on the wrong
-    // control when a patch crosses hosts. Keep them in lockstep.
-    enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM,
-                   SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM,
-                   SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM,
-                   SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM,
-                   SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM,
-                   REC_GATE_MODE_PARAM, TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM,
-                   TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
-                   SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
-                   EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
-                   PARAMS_LEN };
-    enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
-                   SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
-                   SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
-                   SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
-                   SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
-                   INPUTS_LEN };
-    static constexpr int HEAD_PARAMS = 6;   // per-head KNOB stride: Size,Pos,Speed,Jitter,Pan,Level (menu-only params trail in per-command runs, indexed `X1_PARAM + h`)
-    static constexpr int HEAD_INPUTS = 8;   // per-head input stride: SizeCV,PosCV,SpeedCV,JitterCV,PanCV,LevelCV,Trig,Jump
-    enum OutputId { MIX_L_OUTPUT, MIX_R_OUTPUT,
-                    HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
-                    HEAD3_L_OUTPUT, HEAD3_R_OUTPUT, HEAD4_L_OUTPUT, HEAD4_R_OUTPUT,
-                    OUTPUTS_LEN };
-    enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
+struct Loooop : LooperModule<Loooop> {
+	// Global params first, then the panel knobs in a block of HEAD_PARAMS
+	// per head (index with X1_PARAM + HEAD_PARAMS * h), then the menu-only
+	// params, each a run of four for the per-head ones (X1_PARAM + h).
+	// This order is the MetaModule Elements order
+	// (metamodule/loooop/Loooop_info.hh), which assigns param ids by
+	// position; patch conversion between the two maps by id, so they must
+	// stay in lockstep.
+	enum ParamId { RECORD_PARAM, OVERDUB_PARAM, CLEAR_PARAM, GRID_PARAM, DRYWET_PARAM,
+	               SIZE1_PARAM, POSITION1_PARAM, SPEED1_PARAM, JITTER1_PARAM, PAN1_PARAM, LEVEL1_PARAM,
+	               SIZE2_PARAM, POSITION2_PARAM, SPEED2_PARAM, JITTER2_PARAM, PAN2_PARAM, LEVEL2_PARAM,
+	               SIZE3_PARAM, POSITION3_PARAM, SPEED3_PARAM, JITTER3_PARAM, PAN3_PARAM, LEVEL3_PARAM,
+	               SIZE4_PARAM, POSITION4_PARAM, SPEED4_PARAM, JITTER4_PARAM, PAN4_PARAM, LEVEL4_PARAM,
+	               REC_GATE_MODE_PARAM, TRIG_WHEN_REC_PARAM, CROSSFADE_PARAM,
+	               TRIG_MODE1_PARAM, TRIG_MODE2_PARAM, TRIG_MODE3_PARAM, TRIG_MODE4_PARAM,
+	               SPEED_VOCT1_PARAM, SPEED_VOCT2_PARAM, SPEED_VOCT3_PARAM, SPEED_VOCT4_PARAM,
+	               EXCLUDE_GRID1_PARAM, EXCLUDE_GRID2_PARAM, EXCLUDE_GRID3_PARAM, EXCLUDE_GRID4_PARAM,
+	               PARAMS_LEN };
+	enum InputId { AUDIO_L_INPUT, AUDIO_R_INPUT, RECORD_TRIG_INPUT, CLEAR_TRIG_INPUT, DRYWET_CV_INPUT,
+	               SIZE1_CV_INPUT, POSITION1_CV_INPUT, SPEED1_CV_INPUT, JITTER1_CV_INPUT, PAN1_CV_INPUT, LEVEL1_CV_INPUT, TRIG1_INPUT, JUMP1_INPUT,
+	               SIZE2_CV_INPUT, POSITION2_CV_INPUT, SPEED2_CV_INPUT, JITTER2_CV_INPUT, PAN2_CV_INPUT, LEVEL2_CV_INPUT, TRIG2_INPUT, JUMP2_INPUT,
+	               SIZE3_CV_INPUT, POSITION3_CV_INPUT, SPEED3_CV_INPUT, JITTER3_CV_INPUT, PAN3_CV_INPUT, LEVEL3_CV_INPUT, TRIG3_INPUT, JUMP3_INPUT,
+	               SIZE4_CV_INPUT, POSITION4_CV_INPUT, SPEED4_CV_INPUT, JITTER4_CV_INPUT, PAN4_CV_INPUT, LEVEL4_CV_INPUT, TRIG4_INPUT, JUMP4_INPUT,
+	               INPUTS_LEN };
+	enum OutputId { MIX_L_OUTPUT, MIX_R_OUTPUT,
+	                HEAD1_L_OUTPUT, HEAD1_R_OUTPUT, HEAD2_L_OUTPUT, HEAD2_R_OUTPUT,
+	                HEAD3_L_OUTPUT, HEAD3_R_OUTPUT, HEAD4_L_OUTPUT, HEAD4_R_OUTPUT,
+	                OUTPUTS_LEN };
+	enum LightId { RECORD_LIGHT, OVERDUB_R_LIGHT, OVERDUB_G_LIGHT, OVERDUB_B_LIGHT, LIGHTS_LEN };
 
-    LoopEngine engine;
-    dsp::SchmittTrigger recordTrig, recordBtn, clearBtn, clearTrig, headTrig[LoopEngine::NUM_HEADS];
-    loooop::RecordGateHelper recordGate;
-    bool recordGateInited = false;   // primes recordGate.syncTo() on the first process() call
-    float lastJumpV[LoopEngine::NUM_HEADS] = {};
-    float overdubPhase = 0.f;   // Lock-mode LED blink phase, [0,1)
-    loooop::OnePoleSmoother panSm[LoopEngine::NUM_HEADS];
-    loooop::VOctSpeedMemo voctMemo[LoopEngine::NUM_HEADS];
-    loooop::OnePoleSmoother mixSm{1.f, 1.f};   // value matches DRYWET default
-    float smootherRate = 0.f;
+	static constexpr int HEAD_PARAMS = 6;   // Size, Position, Speed, Jitter, Pan, Level
+	static constexpr int HEAD_INPUTS = 8;   // their CVs, then Trig and Jump
 
-    Loooop() {
-        config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
-        for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            const std::string& n = kHeadNames[h];
-            configParam<SpeedParamQuantity>(SPEED1_PARAM + HEAD_PARAMS * h, -2.f, 2.f, 1.f, n + " speed");
-            configParam(POSITION1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.5f, n + " position");
-            configParam(SIZE1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 1.f, n + " size");
-            // Level defaults to 0.25: four phase-locked heads at defaults sum to
-            // unity, matching the old single-head loudness.
-            configParam(LEVEL1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.25f, n + " level");
-            configParam(JITTER1_PARAM + HEAD_PARAMS * h, 0.f, 1.f, 0.f, n + " jitter");
-            // 0 = restart-at-window-start (unnamed default), 1 = one-shot.
-            // Menu switches opt out of Randomize: a randomized one-shot with
-            // no trigger patched silences the head with nothing on the panel
-            // to show why.
-            configSwitch(TRIG_MODE1_PARAM + h, 0.f, 1.f, 0.f, n + " one-shot",
-                {"Off", "On"})->randomizeEnabled = false;
-            configSwitch(SPEED_VOCT1_PARAM + h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
-                {"Off", "On"})->randomizeEnabled = false;
-            configSwitch(EXCLUDE_GRID1_PARAM + h, 0.f, 1.f, 0.f,
-                n + " exclude from Grid", {"Off", "On"})->randomizeEnabled = false;
-            configInput(SPEED1_CV_INPUT + HEAD_INPUTS * h, n + " speed CV");
-            configInput(POSITION1_CV_INPUT + HEAD_INPUTS * h, n + " position CV");
-            configInput(SIZE1_CV_INPUT + HEAD_INPUTS * h, n + " size CV");
-            configInput(LEVEL1_CV_INPUT + HEAD_INPUTS * h, n + " level CV");
-            configInput(JITTER1_CV_INPUT + HEAD_INPUTS * h, n + " jitter CV");
-            configParam(PAN1_PARAM + HEAD_PARAMS * h, -1.f, 1.f, 0.f, n + " pan");
-            configInput(PAN1_CV_INPUT + HEAD_INPUTS * h, n + " pan CV");
-            configInput(TRIG1_INPUT + HEAD_INPUTS * h, n + " trigger");
-            configInput(JUMP1_INPUT + HEAD_INPUTS * h, n + " jump");
-            configOutput(HEAD1_L_OUTPUT + 2 * h, n + " left");
-            configOutput(HEAD1_L_OUTPUT + 2 * h + 1, n + " right");
-        }
-        configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Mix dry/wet");
-        configButton(RECORD_PARAM, "Record");
-        configButton(CLEAR_PARAM, "Clear");
-        // Mode switches opt out of Randomize like the per-head menu switches:
-        // Lock overdub gates the Record button, and randomized Grid/Crossfade
-        // read as broken behavior, not as an inspiring patch variation.
-        configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
-            {"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
-        // Value 0 = On (default): kept inverted to match the MetaModule alt-param,
-        // whose loader zero-inits unset params, so 0 must mean crossfade-on.
-        configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"})->randomizeEnabled = false;
-        configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
-            {"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
-        // Same param, same stored 0/1 values as the old "Trigger when
-        // recording" -- labels only, so existing patches keep their choice.
-        configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "When recording ends",
-            {"Plays back", "Keeps overdubbing"})->randomizeEnabled = false;
-        // Reinterprets only the Record jack: Trigger (default) matches today's
-        // behavior byte-for-byte; Gate treats the jack's rising/falling edges
-        // as punch-in/punch-out (see loooop::RecordGateHelper).
-        configSwitch(REC_GATE_MODE_PARAM, 0.f, 1.f, 0.f, "Record jack",
-            {"Trigger", "Gate"})->randomizeEnabled = false;
-        configInput(AUDIO_L_INPUT, "Audio left");
-        configInput(AUDIO_R_INPUT, "Audio right");
-        configInput(RECORD_TRIG_INPUT, "Record trigger");
-        configInput(CLEAR_TRIG_INPUT, "Clear trigger");
-        configInput(DRYWET_CV_INPUT, "Mix dry/wet CV");
-        configOutput(MIX_L_OUTPUT, "Mix left");
-        configOutput(MIX_R_OUTPUT, "Mix right");
-        configBypass(AUDIO_L_INPUT, MIX_L_OUTPUT);
-        configBypass(AUDIO_R_INPUT, MIX_R_OUTPUT);
-        engine.reset(48000.f);
-    }
+	robotboy::OnePoleSmoother panSmoother[LoopEngine::NUM_HEADS];
 
-    void onSampleRateChange(const SampleRateChangeEvent& e) override {
-        engine.setSampleRate(e.sampleRate);
-        if (engine.consumeBufferShortfall()) {
-            // setSampleRate can't throw, so it kept the record buffer it
-            // already had rather than the (larger) one the new rate wants: the
-            // looper stays fully usable, just with a shorter maximum loop
-            // time. Worth surfacing so a loop that stops short doesn't look
-            // like a bug. VCV has no user-facing notification API, so this
-            // goes to the log, matching Particules/Retours. WARN is defined
-            // identically by both hosts' logger.hpp (Rack SDK and MetaModule
-            // plugin SDK).
-            WARN("Loooop: record buffer allocation for %g Hz failed; max loop time is now %.1f s",
-                 e.sampleRate, engine.maxLoopSamples() / (double)e.sampleRate);
-        }
-    }
+	Loooop() : LooperModule(LoopEngine::NUM_HEADS) {
+		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
+			const std::string n = headName(h);
+			const int p = HEAD_PARAMS * h, in = HEAD_INPUTS * h;
+			configParam<SpeedParamQuantity>(SPEED1_PARAM + p, -2.f, 2.f, 1.f, n + " speed");
+			configParam(POSITION1_PARAM + p, 0.f, 1.f, 0.5f, n + " position");
+			configParam(SIZE1_PARAM + p, 0.f, 1.f, 1.f, n + " size");
+			// 0.25: four phase-locked heads at their defaults sum to unity.
+			configParam(LEVEL1_PARAM + p, 0.f, 1.f, 0.25f, n + " level");
+			configParam(JITTER1_PARAM + p, 0.f, 1.f, 0.f, n + " jitter");
+			configParam(PAN1_PARAM + p, -1.f, 1.f, 0.f, n + " pan");
+			// The menu switches opt out of Randomize: a randomized one-shot
+			// with no trigger patched silences its head with nothing on the
+			// panel to show why.
+			configSwitch(TRIG_MODE1_PARAM + h, 0.f, 1.f, 0.f, n + " one-shot",
+				{"Off", "On"})->randomizeEnabled = false;
+			configSwitch(SPEED_VOCT1_PARAM + h, 0.f, 1.f, 0.f, n + " speed CV V/Oct",
+				{"Off", "On"})->randomizeEnabled = false;
+			configSwitch(EXCLUDE_GRID1_PARAM + h, 0.f, 1.f, 0.f, n + " exclude from Grid",
+				{"Off", "On"})->randomizeEnabled = false;
+			configInput(SPEED1_CV_INPUT + in, n + " speed CV");
+			configInput(POSITION1_CV_INPUT + in, n + " position CV");
+			configInput(SIZE1_CV_INPUT + in, n + " size CV");
+			configInput(LEVEL1_CV_INPUT + in, n + " level CV");
+			configInput(JITTER1_CV_INPUT + in, n + " jitter CV");
+			configInput(PAN1_CV_INPUT + in, n + " pan CV");
+			configInput(TRIG1_INPUT + in, n + " trigger");
+			configInput(JUMP1_INPUT + in, n + " jump");
+			configOutput(HEAD1_L_OUTPUT + 2 * h, n + " L");
+			configOutput(HEAD1_R_OUTPUT + 2 * h, n + " R");
+		}
+		configParam(DRYWET_PARAM, 0.f, 1.f, 1.f, "Dry/wet");
+		configButton(RECORD_PARAM, "Record");
+		configButton(CLEAR_PARAM, "Clear");
+		// Mode switches opt out of Randomize too: Lock gates the Record
+		// button, and a randomized Grid or Crossfade reads as broken, not as
+		// an inspiring variation.
+		configSwitch(OVERDUB_PARAM, 0.f, 4.f, 0.f, "Overdub mode",
+			{"Layer", "Decay", "Add", "Replace", "Lock"})->randomizeEnabled = false;
+		// 0 = On: inverted to match the MetaModule alt-param, which zero-inits.
+		configSwitch(CROSSFADE_PARAM, 0.f, 1.f, 0.f, "Crossfade", {"On", "Off"})->randomizeEnabled = false;
+		configSwitch(GRID_PARAM, 0.f, 5.f, 0.f, "Grid",
+			{"Off", "4", "8", "16", "32", "64"})->randomizeEnabled = false;
+		configSwitch(TRIG_WHEN_REC_PARAM, 0.f, 1.f, 0.f, "When recording ends",
+			{"Plays back", "Keeps overdubbing"})->randomizeEnabled = false;
+		// Gate: the jack's rising edge starts recording, its falling edge
+		// stops it (see loooop::RecordGateHelper).
+		configSwitch(REC_GATE_MODE_PARAM, 0.f, 1.f, 0.f, "Record jack",
+			{"Trigger", "Gate"})->randomizeEnabled = false;
+		configInput(AUDIO_L_INPUT, "Audio L");
+		configInput(AUDIO_R_INPUT, "Audio R");
+		configInput(RECORD_TRIG_INPUT, "Record trigger");
+		configInput(CLEAR_TRIG_INPUT, "Clear trigger");
+		configInput(DRYWET_CV_INPUT, "Dry/wet CV");
+		configOutput(MIX_L_OUTPUT, "Mix L");
+		configOutput(MIX_R_OUTPUT, "Mix R");
+		configBypass(AUDIO_L_INPUT, MIX_L_OUTPUT);
+		configBypass(AUDIO_R_INPUT, MIX_R_OUTPUT);
+	}
 
-    void onReset(const ResetEvent& e) override {
-        Module::onReset(e);
-        engine.clear();   // Initialize should silence the loop too (audio-safe; bumps the display revision)
-    }
+	void onSampleRateChange(const SampleRateChangeEvent& e) override {
+		LooperModule::onSampleRateChange(e);
+		for (auto& s : panSmoother)
+			s.setAlpha(robotboy::smootherAlpha(e.sampleRate, kSmoothingTau));
+	}
 
-    void process(const ProcessArgs& args) override {
-        if (args.sampleRate != smootherRate) {
-            smootherRate = args.sampleRate;
-            const float a = loooop::smootherAlpha(smootherRate, 0.002f);
-            for (auto& s : panSm) s.alpha = a;
-            mixSm.alpha = a;
-        }
-        int od = (int)(params[OVERDUB_PARAM].getValue() + 0.5f);
-        loooop::applyOverdub(engine, od);
-        engine.setCrossfade(params[CROSSFADE_PARAM].getValue() < 0.5f);   // 0 = On
-        engine.setGrid(loooop::gridSegments(
-            (int)(params[GRID_PARAM].getValue() + 0.5f)));
-        // Feed the Schmitt triggers every sample so their internal (debounced)
-        // level state stays current, then read that LEVEL (not the return
-        // value, which is edge-only) for RecordGateHelper -- it does its own
-        // per-input edge detection (Trigger mode ORs the button's and jack's
-        // edges independently, exactly like the two Schmitt triggers used to
-        // be OR'd here; Gate mode reads the jack's edges on their own). Same
-        // thresholds as before (0.1/2.0 hysteresis on the jack, default 0/1
-        // on the button), so Trigger-mode timing is unchanged.
-        recordBtn.process(params[RECORD_PARAM].getValue());
-        recordTrig.process(inputs[RECORD_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
-        const bool recBtnHigh = recordBtn.isHigh();
-        const bool recJackHigh = recordTrig.isHigh();
-        if (!recordGateInited) {
-            recordGate.syncTo(recJackHigh);   // patch load / first process: no phantom edge
-            recordGateInited = true;
-        }
-        const bool gateMode = params[REC_GATE_MODE_PARAM].getValue() > 0.5f;
-        const auto recAction = recordGate.step(gateMode, recJackHigh, recBtnHigh, engine.isRecording());
-        const bool trigWhenRec = params[TRIG_WHEN_REC_PARAM].getValue() > 0.5f;
-        switch (recAction) {
-            case loooop::RecordGateHelper::Action::Toggle:
-            case loooop::RecordGateHelper::Action::Close:
-                engine.toggleRecord(trigWhenRec);
-                break;
-            case loooop::RecordGateHelper::Action::None:
-                break;
-        }
-        bool clrBtn  = clearBtn.process(params[CLEAR_PARAM].getValue());
-        bool clrTrig = clearTrig.process(inputs[CLEAR_TRIG_INPUT].getVoltage(), 0.1f, 2.f);
-        if (clrBtn || clrTrig)
-            engine.clear();
+	void process(const ProcessArgs& args) override {
+		int od = processTransport();
 
-        // CV: 10 V spans each param's full range, summed with the knob, clamped.
-        for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            float spKnob = loooop::applySpeedNotch(params[SPEED1_PARAM + HEAD_PARAMS * h].getValue());
-            float spCv = inputs[SPEED1_CV_INPUT + HEAD_INPUTS * h].getVoltage();
-            engine.setSpeed(h, params[SPEED_VOCT1_PARAM + h].getValue() > 0.5f
-                ? voctMemo[h].get(spKnob, spCv)
-                : loooop::speedFromControls(spKnob, spCv));
-            engine.setPosition(h, loooop::normalizedControl(
-                params[POSITION1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[POSITION1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
-            engine.setSize(h, loooop::normalizedControl(
-                params[SIZE1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[SIZE1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
-            engine.setLevel(h, loooop::normalizedControl(
-                params[LEVEL1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[LEVEL1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
-            engine.setJitter(h, loooop::normalizedControl(
-                params[JITTER1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[JITTER1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
-            engine.setGridExclude(h,
-                params[EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f);
+		for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
+			const int p = HEAD_PARAMS * h, in = HEAD_INPUTS * h;
+			processHead(h, {SPEED1_PARAM + p, SPEED_VOCT1_PARAM + h, POSITION1_PARAM + p,
+			                SIZE1_PARAM + p, JITTER1_PARAM + p, TRIG_MODE1_PARAM + h,
+			                SPEED1_CV_INPUT + in, POSITION1_CV_INPUT + in, SIZE1_CV_INPUT + in,
+			                JITTER1_CV_INPUT + in, TRIG1_INPUT + in, JUMP1_INPUT + in});
+			engine.setLevel(h, loooop::normalizedControl(
+				params[LEVEL1_PARAM + p].getValue(), inputs[LEVEL1_CV_INPUT + in].getVoltage()));
+			engine.setGridExclude(h, params[EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f);
+		}
 
-            bool oneShot = params[TRIG_MODE1_PARAM + h].getValue() > 0.5f;
-            engine.setOneShot(h, oneShot);
-            if (headTrig[h].process(inputs[TRIG1_INPUT + HEAD_INPUTS * h].getVoltage(), 0.1f, 2.f)) {
-                if (oneShot) engine.triggerOneShot(h);
-                else engine.restartHead(h);
-            }
-            float jv = inputs[JUMP1_INPUT + HEAD_INPUTS * h].getVoltage();
-            if (std::fabs(jv - lastJumpV[h]) > 0.05f) {
-                engine.jumpHead(h, clamp(jv / 10.f, 0.f, 1.f));
-                lastJumpV[h] = jv;
-            }
-        }
+		loooop::StereoInput in = readInput();
+		std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> heads;
+		engine.process(in.l, in.r, heads);
 
-        // Stereo in: an unpatched jack follows the patched one (mono -> both).
-        const auto in = loooop::normalledStereo(
-            inputs[AUDIO_L_INPUT].isConnected(), inputs[AUDIO_L_INPUT].getVoltage(),
-            inputs[AUDIO_R_INPUT].isConnected(), inputs[AUDIO_R_INPUT].getVoltage());
-        const float inL = in.l * 0.2f;   // ±5V -> ±1
-        const float inR = in.r * 0.2f;
-
-        std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
-        engine.process(inL, inR, hs);
-        float wetL = 0.f, wetR = 0.f;
-        for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-            outputs[HEAD1_L_OUTPUT + 2 * h].setVoltage(hs[h].l * 5.f);
-            outputs[HEAD1_L_OUTPUT + 2 * h + 1].setVoltage(hs[h].r * 5.f);
-            // Level and Pan shape each head's contribution to the mix only;
-            // the individual head outputs above are unaffected. Pan center =
-            // unity balance.
-            const float pan = panSm[h].process(loooop::panControl(
-                params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
-                inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
-            const float gL = loooop::panLeftGain(pan);
-            const float gR = loooop::panRightGain(pan);
-            const float lvl = engine.smoothedLevel(h);
-            wetL += hs[h].l * lvl * gL; wetR += hs[h].r * lvl * gR;
-        }
-        if (loooop::monitorDryWhileEmpty(engine.isRecording(), engine.hasLoop())) {
-            wetL = inL;
-            wetR = inR;
-        }
-        const float w = mixSm.process(loooop::normalizedControl(
-            params[DRYWET_PARAM].getValue(), inputs[DRYWET_CV_INPUT].getVoltage()));
-        outputs[MIX_L_OUTPUT].setVoltage(loooop::dryWet(inL, wetL, w) * 5.f);
-        outputs[MIX_R_OUTPUT].setVoltage(loooop::dryWet(inR, wetR, w) * 5.f);
-        lights[RECORD_LIGHT].setBrightness(engine.isRecording() ? 1.f : 0.f);
-        loooop::setOverdubLED(lights, OVERDUB_R_LIGHT, od, overdubPhase, args.sampleTime);
-    }
+		// The head outputs carry each head at full level; Level and Pan
+		// shape only its contribution to the mix.
+		float wetL = 0.f, wetR = 0.f;
+		for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
+			outputs[HEAD1_L_OUTPUT + 2 * h].setVoltage(heads[h].l * 5.f);
+			outputs[HEAD1_R_OUTPUT + 2 * h].setVoltage(heads[h].r * 5.f);
+			float pan = panSmoother[h].process(loooop::panControl(
+				params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
+				inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
+			float level = engine.smoothedLevel(h);
+			wetL += heads[h].l * level * loooop::panLeftGain(pan);
+			wetR += heads[h].r * level * loooop::panRightGain(pan);
+		}
+		writeMix(in, wetL, wetR);
+		updateLights(od, args.sampleTime);
+	}
 };
 
 struct LoooopWidget : ModuleWidget {
-    LoooopWidget(Loooop* module) {
-        setModule(module);
-        setPanel(createPanel(asset::plugin(pluginInstance, "res/Loooop.svg")));
+	LoooopWidget(Loooop* module) {
+		setModule(module);
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/Loooop.svg")));
 
-        auto* display = new LoopDisplayWidget();
-        display->engine = module ? &module->engine : nullptr;
-        // Screen rect (mm) from the SVG's screen rect element. Kept in sync
-        // with vcv/res/Loooop.svg and metamodule/Loooop_info.hh by
-        // metamodule/loooop/sync_info_positions.py — run it after any panel change.
-        display->box.pos = mm2px(Vec(1.500, 10.400));
-        display->box.size = mm2px(Vec(190.040, 22.350));
-        addChild(display);
+		auto* display = new LoopDisplayWidget();
+		display->engine = module ? &module->engine : nullptr;
+		// The SVG's screen rect (mm), kept in sync with res/Loooop.svg and
+		// metamodule/loooop/Loooop_info.hh by
+		// metamodule/loooop/sync_info_positions.py; run it after a panel change.
+		display->box.pos = mm2px(Vec(1.500, 10.400));
+		display->box.size = mm2px(Vec(190.040, 22.350));
+		addChild(display);
 
-        // Dark screws per the panel theme (the SVG's drawn screw dots are
-        // near-invisible against the background; the widgets carry the look).
-        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-        addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-        addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		// Dark screws: the SVG's screw dots are near-invisible on this panel.
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-        // Per-head knobs and their CV jacks. On the panel each head is a
-        // block: Size/Position/Speed on the upper knob row, Jitter/Pan/Level on
-        // the lower, with a CV jack directly under each knob. These calls are
-        // grouped by control type across heads, not by head — addParam/addInput
-        // order is cosmetic and doesn't affect param ids. This block adds the
-        // Speed/Position/Jitter knobs and CV jacks.
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 46.35)), module, Loooop::SPEED1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.88, 46.35)), module, Loooop::POSITION1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.293, 75.05)), module, Loooop::JITTER1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(87.227, 46.35)), module, Loooop::SPEED2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(72.64, 46.35)), module, Loooop::POSITION2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 75.05)), module, Loooop::JITTER2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.99, 46.35)), module, Loooop::SPEED3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(120.4, 46.35)), module, Loooop::POSITION3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(105.81, 75.05)), module, Loooop::JITTER3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(182.75, 46.35)), module, Loooop::SPEED4_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(168.16, 46.35)), module, Loooop::POSITION4_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(153.57, 75.05)), module, Loooop::JITTER4_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.467, 58.7)), module, Loooop::SPEED1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(24.88, 58.7)), module, Loooop::POSITION1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.293, 87.4)), module, Loooop::JITTER1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(87.227, 58.7)), module, Loooop::SPEED2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(72.64, 58.7)), module, Loooop::POSITION2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(58.053, 87.4)), module, Loooop::JITTER2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.99, 58.7)), module, Loooop::SPEED3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(120.4, 58.7)), module, Loooop::POSITION3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.81, 87.4)), module, Loooop::JITTER3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(182.75, 58.7)), module, Loooop::SPEED4_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(168.16, 58.7)), module, Loooop::POSITION4_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 87.4)), module, Loooop::JITTER4_CV_INPUT));
+		// Each head is a block: Size/Position/Speed on the upper knob row,
+		// Jitter/Pan/Level below, each knob over its CV jack, then a jack row
+		// of Trig, Jump, Out L, Out R. Columns (mm) from res/Loooop.svg.
+		static constexpr float kKnobX[4][3] = {
+			{10.293f, 24.88f, 39.467f}, {58.053f, 72.64f, 87.227f},
+			{105.81f, 120.4f, 134.99f}, {153.57f, 168.16f, 182.75f}};
+		static constexpr float kJackX[4][4] = {
+			{7.35f, 20.03f, 32.71f, 42.41f}, {55.11f, 67.79f, 80.47f, 90.17f},
+			{102.87f, 115.55f, 128.23f, 137.93f}, {150.63f, 163.31f, 175.99f, 185.69f}};
+		for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
+			const int p = Loooop::HEAD_PARAMS * h, in = Loooop::HEAD_INPUTS * h;
+			const float* x = kKnobX[h];
+			const int upper[3] = {Loooop::SIZE1_PARAM, Loooop::POSITION1_PARAM, Loooop::SPEED1_PARAM};
+			const int lower[3] = {Loooop::JITTER1_PARAM, Loooop::PAN1_PARAM, Loooop::LEVEL1_PARAM};
+			const int upperCv[3] = {Loooop::SIZE1_CV_INPUT, Loooop::POSITION1_CV_INPUT, Loooop::SPEED1_CV_INPUT};
+			const int lowerCv[3] = {Loooop::JITTER1_CV_INPUT, Loooop::PAN1_CV_INPUT, Loooop::LEVEL1_CV_INPUT};
+			for (int c = 0; c < 3; ++c) {
+				addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(x[c], 46.35)), module, upper[c] + p));
+				addInput(createInputCentered<PJ301MPort>(mm2px(Vec(x[c], 58.7)), module, upperCv[c] + in));
+				addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(x[c], 75.05)), module, lower[c] + p));
+				addInput(createInputCentered<PJ301MPort>(mm2px(Vec(x[c], 87.4)), module, lowerCv[c] + in));
+			}
+			addInput(createInputCentered<PJ301MPort>(mm2px(Vec(kJackX[h][0], 102.1)), module, Loooop::TRIG1_INPUT + in));
+			addInput(createInputCentered<PJ301MPort>(mm2px(Vec(kJackX[h][1], 102.1)), module, Loooop::JUMP1_INPUT + in));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(kJackX[h][2], 102.1)), module, Loooop::HEAD1_L_OUTPUT + 2 * h));
+			addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(kJackX[h][3], 102.1)), module, Loooop::HEAD1_R_OUTPUT + 2 * h));
+		}
 
-        // The remaining per-head knobs and CV jacks (Size/Level, then Pan)
-        // plus the centered global Dry/Wet knob and its CV.
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.293, 46.35)), module, Loooop::SIZE1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(39.467, 75.05)), module, Loooop::LEVEL1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(58.053, 46.35)), module, Loooop::SIZE2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(87.227, 75.05)), module, Loooop::LEVEL2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.49, 116.05)), module, Loooop::DRYWET_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(105.81, 46.35)), module, Loooop::SIZE3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.99, 75.05)), module, Loooop::LEVEL3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(153.57, 46.35)), module, Loooop::SIZE4_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(182.75, 75.05)), module, Loooop::LEVEL4_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.293, 58.7)), module, Loooop::SIZE1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(39.467, 87.4)), module, Loooop::LEVEL1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(58.053, 58.7)), module, Loooop::SIZE2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(87.227, 87.4)), module, Loooop::LEVEL2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(155.84, 116.05)), module, Loooop::DRYWET_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.81, 58.7)), module, Loooop::SIZE3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.99, 87.4)), module, Loooop::LEVEL3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(153.57, 58.7)), module, Loooop::SIZE4_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(182.75, 87.4)), module, Loooop::LEVEL4_CV_INPUT));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(24.88, 75.05)), module, Loooop::PAN1_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(72.64, 75.05)), module, Loooop::PAN2_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(120.4, 75.05)), module, Loooop::PAN3_PARAM));
-        addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(168.16, 75.05)), module, Loooop::PAN4_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(24.88, 87.4)), module, Loooop::PAN1_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(72.64, 87.4)), module, Loooop::PAN2_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(120.4, 87.4)), module, Loooop::PAN3_CV_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(168.16, 87.4)), module, Loooop::PAN4_CV_INPUT));
+		// Bottom row: In L/R, Record + trigger, Overdub, Clear + trigger,
+		// Grid, Dry/wet + CV, Mix L/R.
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Loooop::AUDIO_L_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.452, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.302, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
+		addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(69.543, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(91.785, 116.05)), module, Loooop::CLEAR_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
+		addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(122.69, 116.05)), module, Loooop::GRID_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(143.49, 116.05)), module, Loooop::DRYWET_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(155.84, 116.05)), module, Loooop::DRYWET_CV_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 116.05)), module, Loooop::MIX_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 116.05)), module, Loooop::MIX_R_OUTPUT));
+	}
 
-        // Per-head jack row: Trig, Jump, Out L, Out R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 102.1)), module, Loooop::TRIG1_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.03, 102.1)), module, Loooop::JUMP1_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(32.71, 102.1)), module, Loooop::HEAD1_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.41, 102.1)), module, Loooop::HEAD1_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(55.11, 102.1)), module, Loooop::TRIG2_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(67.79, 102.1)), module, Loooop::JUMP2_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(80.47, 102.1)), module, Loooop::HEAD2_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(90.17, 102.1)), module, Loooop::HEAD2_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.87, 102.1)), module, Loooop::TRIG3_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(115.55, 102.1)), module, Loooop::JUMP3_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(128.23, 102.1)), module, Loooop::HEAD3_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.93, 102.1)), module, Loooop::HEAD3_R_OUTPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(150.63, 102.1)), module, Loooop::TRIG4_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(163.31, 102.1)), module, Loooop::JUMP4_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 102.1)), module, Loooop::HEAD4_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 102.1)), module, Loooop::HEAD4_R_OUTPUT));
+	void appendContextMenu(Menu* menu) override {
+		Loooop* module = getModule<Loooop>();
+		if (!module)
+			return;
 
-        // Global bottom row: In L/R, Record (LED button) + trig, Clear + trig, Mix L/R.
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(7.35, 116.05)), module, Loooop::AUDIO_L_INPUT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.05, 116.05)), module, Loooop::AUDIO_R_INPUT));
-        addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<RedLight>>>(mm2px(Vec(36.452, 116.05)), module, Loooop::RECORD_PARAM, Loooop::RECORD_LIGHT));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.302, 116.05)), module, Loooop::RECORD_TRIG_INPUT));
-        addParam(createLightParamCentered<OverdubButton>(mm2px(Vec(69.543, 116.05)), module, Loooop::OVERDUB_PARAM, Loooop::OVERDUB_R_LIGHT));
-        addParam(createParamCentered<RoundSmallBlackSnapKnob>(mm2px(Vec(122.69, 116.05)), module, Loooop::GRID_PARAM));
-        addParam(createParamCentered<VCVButton>(mm2px(Vec(91.785, 116.05)), module, Loooop::CLEAR_PARAM));
-        addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.64, 116.05)), module, Loooop::CLEAR_TRIG_INPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(175.99, 116.05)), module, Loooop::MIX_L_OUTPUT));
-        addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(185.69, 116.05)), module, Loooop::MIX_R_OUTPUT));
-    }
-
-    void appendContextMenu(Menu* menu) override {
-        Loooop* m = dynamic_cast<Loooop*>(module);
-        if (!m) return;
-        menu->addChild(new MenuSeparator);
-        menu->addChild(createIndexSubmenuItem("Record jack",
-            {"Trigger", "Gate"},
-            [m] { return (int)std::round(m->params[Loooop::REC_GATE_MODE_PARAM].getValue()); },
-            [m](int i) { m->paramQuantities[Loooop::REC_GATE_MODE_PARAM]->setValue((float)i); }));
-        menu->addChild(createIndexSubmenuItem("When recording ends",
-            {"Plays back", "Keeps overdubbing"},
-            [m] { return (int)std::round(m->params[Loooop::TRIG_WHEN_REC_PARAM].getValue()); },
-            [m](int i) { m->paramQuantities[Loooop::TRIG_WHEN_REC_PARAM]->setValue((float)i); }));
-        menu->addChild(createBoolMenuItem("Crossfade", "",
-            [m] { return m->params[Loooop::CROSSFADE_PARAM].getValue() < 0.5f; },
-            [m](bool v) { m->paramQuantities[Loooop::CROSSFADE_PARAM]->setValue(v ? 0.f : 1.f); }));
-        menu->addChild(new MenuSeparator);
-        // Playheads (by color) in the submenus. One-shot is a checkmark per
-        // playhead; unchecked (default) a trigger restarts the playhead at
-        // its window start — that mode has no name in the interface.
-        menu->addChild(createSubmenuItem("One-shot on trigger", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::TRIG_MODE1_PARAM + h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::TRIG_MODE1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
-        }));
-        menu->addChild(createSubmenuItem("Speed CV = V/Oct", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::SPEED_VOCT1_PARAM + h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::SPEED_VOCT1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
-        }));
-        menu->addChild(createSubmenuItem("Exclude from Grid", "", [m](Menu* sub) {
-            for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
-                sub->addChild(createBoolMenuItem(kHeadNames[h], "",
-                    [m, h] { return m->params[Loooop::EXCLUDE_GRID1_PARAM + h].getValue() > 0.5f; },
-                    [m, h](bool v) {
-                        m->paramQuantities[Loooop::EXCLUDE_GRID1_PARAM + h]->setValue(v ? 1.f : 0.f); }));
-        }));
-    }
+		appendLooperMenu(menu, module);
+		// Per-playhead options, by color. With One-shot unchecked, a trigger
+		// restarts the playhead at its window start.
+		auto perHead = [=](const char* text, int firstParam) {
+			return createSubmenuItem(text, "", [=](Menu* sub) {
+				for (int h = 0; h < LoopEngine::NUM_HEADS; ++h)
+					sub->addChild(createBoolParamMenuItem(headName(h), module, firstParam + h));
+			});
+		};
+		menu->addChild(perHead("One-shot on trigger", Loooop::TRIG_MODE1_PARAM));
+		menu->addChild(perHead("Speed CV = V/Oct", Loooop::SPEED_VOCT1_PARAM));
+		menu->addChild(perHead("Exclude from Grid", Loooop::EXCLUDE_GRID1_PARAM));
+	}
 };
 
 Model* modelLoooop = createModel<Loooop, LoooopWidget>("Loooop");

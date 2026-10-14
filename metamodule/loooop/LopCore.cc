@@ -161,7 +161,7 @@ public:
             char msg[96];
             Gui::notify_user(shortfallNotice(msg, engine_.maxLoopSamples(), sr), 3000);
         }
-        mixSm_.alpha = loooop::smootherAlpha(sr, 0.002f);
+        mixSm_.alpha = robotboy::smootherAlpha(sr, 0.002f);
     }
 
     // Display callbacks — GUI context (audio runs concurrently; the engine's
@@ -224,7 +224,7 @@ private:
     bool clrPrev_ = false, clrTrigPrev_ = false, trigPrev_ = false;
     float lastJumpV_ = 0.f;
     loooop::VOctSpeedMemo voctMemo_;
-    loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
+    robotboy::OnePoleSmoother mixSm_{1.f, robotboy::smootherAlpha(48000.f, 0.002f)};
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;

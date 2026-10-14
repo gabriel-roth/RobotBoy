@@ -1,6 +1,6 @@
 // Unit tests for loooop::RecordGateHelper (header-only) plus an integration
-// sequence against a real LoopEngine, exercising the spec's gate-mode action
-// table end to end (see Loooop.md, "Record jack").
+// sequence against a real LoopEngine, exercising the gate-mode actions end to
+// end (see Loooop.md, "Record jack").
 
 #include "../../src/loooop/LooperModuleDSP.hpp"
 #include "../../src/loooop/dsp/LoopEngine.hpp"
@@ -26,10 +26,8 @@ static const char* actionName(Action a) {
 }
 
 // ---------------------------------------------------------------------------
-// Trigger-mode parity: the helper must reproduce today's VCV behavior
-// byte-for-byte -- an OR of TWO INDEPENDENT edges (`recBtn.process() ||
-// recTrig.process()`, each with its own Schmitt latch), NOT an edge of the
-// OR'd level. That means a button press while the jack is already held high
+// Trigger mode: an OR of TWO INDEPENDENT edges (button and jack, each with
+// its own latch), NOT an edge of the OR'd level. That means a button press while the jack is already held high
 // still fires, and vice versa; both rising on the same sample still
 // collapses to exactly ONE Toggle (Action is single-valued per call).
 // ---------------------------------------------------------------------------

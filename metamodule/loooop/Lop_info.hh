@@ -66,9 +66,7 @@ struct LopInfo : ModuleInfoBase {
         QlpJackOut{{43.910f, 116.050f, Center, "Out L", "", 6.f, 6.f}},
         QlpJackOut{{53.610f, 116.050f, Center, "Out R", "", 6.f, 6.f}},
         // ── Options (menu-only alt-params), grouped by command ──
-        // Param order deliberately reordered 2026-07-25 (pre-release):
         // Record jack sits above When recording ends, matching the VCV menu.
-        // Breaks MM patches saved before this commit.
         QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", "", 0.f, 0.f}},
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", "", 0.f, 0.f}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", "", 0.f, 0.f}, 0},
@@ -84,7 +82,7 @@ struct LopInfo : ModuleInfoBase {
         SizeCvIn, PositionCvIn, SpeedCvIn, JitterCvIn, TrigIn, JumpIn,
         DryWetCvIn, RecTrigIn, ClearTrigIn,
         OutL, OutR,
-        // Order matches the Elements array (reordered 2026-07-25 pre-release)
+        // Order matches the Elements array
         RecGateAlt, TrigWhenRecAlt, CrossfadeSwitch, TrigModeAlt, SpeedVoctAlt,
         Display,
     };

@@ -1279,7 +1279,7 @@ static void test_write_mode_decay_rolls_off_highs() {
     // Same per-pass feedback as Layer, plus a one-pole LP in the write path:
     // a Nyquist-rate square must decay much faster in Decay than in Layer.
     // Loop is 4800 samples; only the region past sample 1000 is measured so
-    // the Task-2 write-gain ramps (240 samples at each edge) can't touch it.
+    // the overdub write-gain ramps (240 samples at each edge) can't touch it.
     auto passRms = [](LoopEngine::WriteMode m) {
         LoopEngine e(1); e.reset(48000.f, 1.f); e.setCrossfade(false);
         e.toggleRecord();
@@ -1306,7 +1306,7 @@ static void test_write_mode_decay_rolls_off_highs() {
 }
 
 // Switching write mode to Decay mid-pass must seed the tone filter from
-// current buffer content, not stale state (previously only toggleRecord seeded).
+// current buffer content, not stale state.
 static void test_write_mode_decay_midpass_switch_seeds_lp() {
     auto record = [](LoopEngine& e) {
         e.reset(48000.f, 1.f); e.setCrossfade(false);

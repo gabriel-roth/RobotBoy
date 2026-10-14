@@ -140,9 +140,7 @@ struct LoooopInfo : ModuleInfoBase {
         QlpJackOut{{185.690f, 102.100f, Center, "Purple Out R", "", 8.f, 8.f}},
 
         // ── Options (menu-only alt-params), grouped by command ──
-        // Param order deliberately reordered 2026-07-25 (pre-release):
         // Record jack sits above When recording ends, matching the VCV menu.
-        // Breaks MM patches saved before this commit.
         QlpRecGateAlt{{0.f, 0.f, Center, "Record jack", ""}},
         QlpTrigWhenRecAlt{{0.f, 0.f, Center, "When recording ends", ""}},
         QlpCrossfadeAlt{{0.f, 0.f, Center, "Crossfade", ""}, 0},
@@ -181,7 +179,7 @@ struct LoooopInfo : ModuleInfoBase {
         Head1OutL, Head1OutR, Head2OutL, Head2OutR,
         Head3OutL, Head3OutR, Head4OutL, Head4OutR,
         // Options (menu-only alt-params), grouped by command; order matches
-        // the Elements array (reordered 2026-07-25 pre-release, see above)
+        // the Elements array
         RecGateAlt,
         TrigWhenRecAlt,
         CrossfadeSwitch,

@@ -1,7 +1,6 @@
 #pragma once
 #include <rack.hpp>
 #include <cmath>
-#include "loooop/LooperModuleDSP.hpp"
 
 using namespace rack;
 
@@ -16,21 +15,6 @@ extern Model* modelOndes;
 extern Model* modelVespid;
 extern Model* modelRetours;
 extern Model* modelLucarne;
-
-// Rack has no stock small snap knob; Loooop and Löp both use it for Grid.
-struct RoundSmallBlackSnapKnob : RoundSmallBlackKnob {
-	RoundSmallBlackSnapKnob() {
-		snap = true;
-	}
-};
-
-// Keeps the tooltip in sync with the engine's speed-knob notch (see
-// loooop::applySpeedNotch): display-only, doesn't change the stored
-// value or the knob's drag feel.
-struct SpeedParamQuantity : ParamQuantity {
-	float getDisplayValue() override { return loooop::applySpeedNotch(getValue()); }
-	void setDisplayValue(float v) override { setValue(v); }
-};
 
 // Wraps a context-menu change in a whole-module undo step: the snapshot is the
 // module's full JSON (params and data), so one helper covers every menu

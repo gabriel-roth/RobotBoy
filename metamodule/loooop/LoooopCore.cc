@@ -46,7 +46,7 @@ public:
 
     LoooopCore() {
         engine_.reset(48000.f);
-        for (auto& s : panSm_) s.alpha = loooop::smootherAlpha(48000.f, 0.002f);
+        for (auto& s : panSm_) s.alpha = robotboy::smootherAlpha(48000.f, 0.002f);
     }
 
     void update() override {
@@ -160,7 +160,7 @@ public:
             char msg[96];
             Gui::notify_user(shortfallNotice(msg, engine_.maxLoopSamples(), sr), 3000);
         }
-        const float a = loooop::smootherAlpha(sr, 0.002f);
+        const float a = robotboy::smootherAlpha(sr, 0.002f);
         mixSm_.alpha = a;
         for (auto& s : panSm_) s.alpha = a;
     }
@@ -271,8 +271,8 @@ private:
     bool headTrigPrev_[LoopEngine::NUM_HEADS] = {};
     float lastJumpV_[LoopEngine::NUM_HEADS] = {};
     loooop::VOctSpeedMemo voctMemo_[LoopEngine::NUM_HEADS];
-    loooop::OnePoleSmoother mixSm_{1.f, loooop::smootherAlpha(48000.f, 0.002f)};
-    loooop::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz in the constructor, refreshed in set_samplerate
+    robotboy::OnePoleSmoother mixSm_{1.f, robotboy::smootherAlpha(48000.f, 0.002f)};
+    robotboy::OnePoleSmoother panSm_[LoopEngine::NUM_HEADS];   // alpha set for 48 kHz in the constructor, refreshed in set_samplerate
     std::span<uint32_t> dispBuf_{};
     unsigned dispWidth_ = 0;
     bool dispDirty_ = false;

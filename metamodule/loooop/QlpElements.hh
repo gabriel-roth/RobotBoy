@@ -70,17 +70,15 @@ struct QlpCrossfadeAlt : AltParamChoiceLabeled {
     constexpr QlpCrossfadeAlt(BaseElement b, unsigned defaultValue)
         : AltParamChoiceLabeled{{{b}, 2, defaultValue}, {"On", "Off"}} {}
 };
-// Index 0 = "Plays back" (legacy "Stops recording" behavior, same stored
-// value): the loader zero-inits unset alt-params, so fresh modules/patches
-// keep the record toggle stopping instead of rolling straight into an
-// overdub pass.
+// Index 0 = "Plays back": the loader zero-inits unset alt-params, so fresh
+// modules and older patches stop recording on the toggle instead of rolling
+// straight into an overdub pass.
 struct QlpTrigWhenRecAlt : AltParamChoiceLabeled {
     constexpr QlpTrigWhenRecAlt(BaseElement b)
         : AltParamChoiceLabeled{{{b}, 2, 0}, {"Plays back", "Keeps overdubbing"}} {}
 };
-// Index 0 = Trigger (today's behavior byte-for-byte): the loader zero-inits
-// unset alt-params, so fresh modules/patches keep the legacy button||jack
-// combined-edge behavior.
+// Index 0 = Trigger: the loader zero-inits unset alt-params, so fresh
+// modules and older patches get Trigger mode.
 struct QlpRecGateAlt : AltParamChoiceLabeled {
     constexpr QlpRecGateAlt(BaseElement b)
         : AltParamChoiceLabeled{{{b}, 2, 0}, {"Trigger", "Gate"}} {}
