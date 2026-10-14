@@ -1,6 +1,7 @@
 // The hand-off from Particules' audio thread to Lucarne's display: the
-// buffer's waveform peaks, an event per grain start, and the live state of
-// every grain slot. One producer (the engine's GrainCapture, audio thread),
+// buffer's waveform peaks, an event per grain start, the live state of
+// every grain slot and, for Retours (delay mode), a finer ring of the
+// line's recent audio for the echo scope. One producer (the engine's GrainCapture, audio thread),
 // one consumer (Lucarne's widget, UI thread). Nothing here blocks or
 // allocates; a slow reader loses old data, never corrupts it.
 
@@ -59,6 +60,16 @@ class GrainFeed {
   static constexpr int kColumns = 256;
   static constexpr int kSlots = GrainLiveFrame::kSlots;
   static constexpr int kEvents = 128;
+  // Echo scope (delay mode): min/max of the line's audio, one entry per
+  // samples_per_entry line samples, newest at head - 1.
+  static constexpr int kScopeEntries = 8192;
+
+  struct ScopeInfo {
+    uint32_t head;              // one past the newest complete entry; 0 = never reset
+    int32_t samples_per_entry;  // line samples per entry
+    float line_rate;            // line samples per second
+    uint32_t epoch;             // bumped by every ScopeReset
+  };
 
   // Set by Particules: a Lucarne is attached (capture runs only then), and
   // the module is in classic mode (nothing to show).
@@ -83,6 +94,25 @@ class GrainFeed {
     event_write_.store(w + 1, std::memory_order_release);
   }
 
+  // Scope ring: empty it and set its scale. Entries written from here on
+  // start at absolute index kScopeEntries; older backfilled entries take
+  // kScopeEntries - 1 down to 0.
+  void ScopeReset(int32_t samples_per_entry, float line_rate) {
+    for (auto& e : scope_) e.store(0, std::memory_order_relaxed);
+    scope_spe_.store(samples_per_entry, std::memory_order_relaxed);
+    scope_rate_.store(line_rate, std::memory_order_relaxed);
+    scope_head_.store(uint32_t(kScopeEntries), std::memory_order_relaxed);
+    scope_epoch_.fetch_add(1, std::memory_order_release);
+  }
+
+  void ScopeStore(uint32_t absolute_index, float lo, float hi) {
+    scope_[absolute_index % kScopeEntries].store(Pack(Quantize(lo), Quantize(hi)),
+                                                 std::memory_order_relaxed);
+  }
+
+  // Entries below head are complete.
+  void ScopePublish(uint32_t head) { scope_head_.store(head, std::memory_order_release); }
+
   // Seqlock writer: BeginFrame(), fill the frame, EndFrame().
   GrainLiveFrame& BeginFrame() {
     frame_seq_.store(frame_seq_.load(std::memory_order_relaxed) + 1,
@@ -106,6 +136,44 @@ class GrainFeed {
       lo[c] = int8_t(uint8_t(p & 0xff));
       hi[c] = int8_t(uint8_t(p >> 8));
     }
+  }
+
+  ScopeInfo ReadScopeInfo() const {
+    ScopeInfo info{};
+    // Retry if a reset lands mid-read, so the fields belong together.
+    for (int attempt = 0; attempt < 4; ++attempt) {
+      info.epoch = scope_epoch_.load(std::memory_order_acquire);
+      info.head = scope_head_.load(std::memory_order_acquire);
+      info.samples_per_entry = scope_spe_.load(std::memory_order_relaxed);
+      info.line_rate = scope_rate_.load(std::memory_order_relaxed);
+      std::atomic_thread_fence(std::memory_order_acquire);
+      if (scope_epoch_.load(std::memory_order_relaxed) == info.epoch) break;
+    }
+    return info;
+  }
+
+  // Copies the n newest complete entries before head, newest first
+  // (lo[0] is entry head - 1). Returns how many were copied. Like
+  // ReadEvents, entries the producer may have overwritten during the copy
+  // are dropped from the old end, so at most kScopeEntries - 1 come back;
+  // none if the ring was reset since head was read.
+  int ReadScope(uint32_t head, int8_t* lo, int8_t* hi, int n) const {
+    n = std::min(n, kScopeEntries - 1);
+    if (int64_t(n) > int64_t(head)) n = int(head);
+    for (int j = 0; j < n; ++j) {
+      const uint16_t p = scope_[(head - 1u - uint32_t(j)) % kScopeEntries].load(
+          std::memory_order_relaxed);
+      lo[j] = int8_t(uint8_t(p & 0xff));
+      hi[j] = int8_t(uint8_t(p >> 8));
+    }
+    std::atomic_thread_fence(std::memory_order_acquire);
+    const int64_t lag =
+        int64_t(scope_head_.load(std::memory_order_relaxed)) - int64_t(head);
+    if (lag < 0) return 0;
+    // The producer may be writing entry head + lag, whose slot holds
+    // head + lag - kScopeEntries: only newer entries are intact.
+    const int64_t intact = int64_t(kScopeEntries) - 1 - lag;
+    return int(std::max<int64_t>(0, std::min<int64_t>(n, intact)));
   }
 
   // Copies the newest complete frame. False if none was published yet or
@@ -162,6 +230,11 @@ class GrainFeed {
   std::atomic<uint32_t> event_write_{0};
   GrainLiveFrame frame_;
   std::atomic<uint32_t> frame_seq_{0};
+  std::atomic<uint16_t> scope_[kScopeEntries] = {};
+  std::atomic<uint32_t> scope_head_{0};
+  std::atomic<int32_t> scope_spe_{1};
+  std::atomic<float> scope_rate_{0.0f};
+  std::atomic<uint32_t> scope_epoch_{0};
 };
 
 }  // namespace robotboy_beads

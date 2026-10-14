@@ -277,7 +277,7 @@ void EngineHost::RunBlock(ControlSource* controls) {
       out,
       size);
   active_grains_ = processor_->num_active_grains();
-  capture_.AfterBlock(*processor_);
+  capture_.AfterBlock(*processor_, engine_rate_);
 
 
   // beads.cc clips to the codec's full scale before conversion; the

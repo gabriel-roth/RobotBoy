@@ -20,7 +20,9 @@ class GrainCapture {
   }
   // The buffer was reformatted or cleared: resync at the next block.
   void Invalidate() { synced_ = false; }
-  void AfterBlock(const beads::Processor& processor);
+  // engine_rate: the processor's sample rate (EngineHost::engine_rate());
+  // the line runs at engine_rate / the granular processor's downsampling.
+  void AfterBlock(const beads::Processor& processor, float engine_rate);
 
   // Delay-line index a grain reads, from its Q10 delay (DelayLine::Read's
   // Hermite latency fix included).
@@ -35,6 +37,7 @@ class GrainCapture {
     const beads::DelayController::Output* out;
     const beads::DelayController* controller;
     int ratio;
+    float line_rate;  // line samples per second
   };
 
   // taps is nullptr in granular mode.
@@ -44,6 +47,8 @@ class GrainCapture {
 
   template <typename Line>
   void Backfill(const Line& line, int32_t write, int32_t max_delay);
+  template <typename Line>
+  void ScopeBackfill(const Line& line, int32_t max_delay);
 
   GrainFeed* feed_ = nullptr;
   bool synced_ = false;
@@ -62,6 +67,25 @@ class GrainCapture {
   float column_lo_ = 0.0f;
   float column_hi_ = 0.0f;
   uint32_t serial_[GrainFeed::kSlots] = {};
+
+  // Scope ring (tap mode only). scope_on_: the ring was set up for the
+  // current tap-mode run; cleared outside tap mode so a new run resets it.
+  bool scope_on_ = false;
+  int32_t scope_spe_ = 0;
+  float scope_rate_ = 0.0f;
+  uint32_t scope_head_ = 0;      // absolute index of the entry being filled
+  int32_t scope_count_ = 0;      // samples in that entry so far
+  float scope_lo_ = 0.0f;
+  float scope_hi_ = 0.0f;
+  int64_t scope_live_ = 0;       // line samples written since the reset
+  // Scope backfill: the write pointer at the reset (the line held older
+  // audio above it), entries done (newest first, of kScopeEntries), and
+  // the partly read entry carried across blocks.
+  int32_t scope_write_at_reset_ = 0;
+  int scope_backfill_done_ = GrainFeed::kScopeEntries;
+  int32_t scope_backfill_next_ = -1;  // next sample of the entry; -1 = start one
+  float scope_backfill_lo_ = 0.0f;
+  float scope_backfill_hi_ = 0.0f;
 };
 
 }  // namespace robotboy_beads

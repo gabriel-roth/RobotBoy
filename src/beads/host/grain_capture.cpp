@@ -24,16 +24,16 @@ int GrainCapture::Column(int32_t index, int32_t max_delay) {
   return int(int64_t(max_delay - 1 - index) * GrainFeed::kColumns / max_delay);
 }
 
-void GrainCapture::AfterBlock(const beads::Processor& processor) {
+void GrainCapture::AfterBlock(const beads::Processor& processor, float engine_rate) {
   if (!feed_) return;
   if (!feed_->attached.load(std::memory_order_relaxed)) {
     synced_ = false;
     return;
   }
-  auto visit = [this, &processor](const auto& granular, bool mono) {
+  auto visit = [this, &processor, engine_rate](const auto& granular, bool mono) {
     using GP = std::decay_t<decltype(granular)>;
     TapSource src{&granular.last_taps(), &processor.delay_controller(),
-                  GP::kDownsampleRatio};
+                  GP::kDownsampleRatio, engine_rate / float(GP::kDownsampleRatio)};
     const TapSource* taps = granular.tap_mode() ? &src : nullptr;
     if (mono) {
       Capture(granular.mono_delay_line(), granular.granular_player(), true, taps);
@@ -88,6 +88,51 @@ void GrainCapture::Backfill(const Line& line, int32_t write, int32_t max_delay) 
   }
 }
 
+// After a scope reset, fill the ring's older entries from the audio that
+// was already in the line, newest first: entry kScopeEntries - 1 - j covers
+// the spe samples starting at offset 1 + j * spe above the write pointer at
+// the reset (larger index = older). Same flat budget as the columns: a full
+// ring takes 0.5 s (Bright) to 1 s (Scorched mono).
+constexpr int kScopeBackfillReads = 192;
+
+template <typename Line>
+void GrainCapture::ScopeBackfill(const Line& line, int32_t max_delay) {
+  const int k = GrainFeed::kScopeEntries;
+  const int32_t spe = scope_spe_;
+  int budget = kScopeBackfillReads;
+  while (budget > 0 && scope_backfill_done_ < k) {
+    const int j = scope_backfill_done_;
+    const uint32_t abs = uint32_t(k - 1 - j);
+    const int64_t first = 1 + int64_t(j) * spe;
+    // Stop once live entries have reached this slot, or live writes since
+    // the reset have overwritten the samples this entry would read (they
+    // replace the oldest audio first, so every older entry is gone too).
+    if (scope_head_ - abs >= uint32_t(k) ||
+        first + spe > int64_t(max_delay) - scope_live_) {
+      scope_backfill_done_ = k;
+      break;
+    }
+    if (scope_backfill_next_ < 0) {
+      scope_backfill_next_ = 0;
+      scope_backfill_lo_ = 0.0f;
+      scope_backfill_hi_ = 0.0f;
+    }
+    for (; scope_backfill_next_ < spe && budget > 0; ++scope_backfill_next_, --budget) {
+      const beads::FloatFrame f = line.LoadAt(
+          Wrap(int64_t(scope_write_at_reset_) + first + scope_backfill_next_, max_delay));
+      const float l = std::min(f.l, f.r), h = std::max(f.l, f.r);
+      const bool start = scope_backfill_next_ == 0;
+      scope_backfill_lo_ = start ? l : std::min(scope_backfill_lo_, l);
+      scope_backfill_hi_ = start ? h : std::max(scope_backfill_hi_, h);
+    }
+    if (scope_backfill_next_ >= spe) {
+      feed_->ScopeStore(abs, scope_backfill_lo_, scope_backfill_hi_);
+      ++scope_backfill_done_;
+      scope_backfill_next_ = -1;
+    }
+  }
+}
+
 template <typename Line, typename Player>
 void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
                            const TapSource* taps) {
@@ -97,7 +142,8 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
   // far beyond that means we missed blocks, so resync instead of looping.
   constexpr int32_t kMaxWritten = 64;
   if (synced_ && Wrap(int64_t(last_write_) - write, max_delay) > kMaxWritten) synced_ = false;
-  if (!synced_ || mono != mono_ || max_delay != max_delay_) {
+  const bool resync = !synced_ || mono != mono_ || max_delay != max_delay_;
+  if (resync) {
     feed_->Reset();
     synced_ = true;
     mono_ = mono;
@@ -109,6 +155,28 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
     backfill_next_ = -1;
     // Grains already playing at a resync are not announced.
     for (int s = 0; s < GrainFeed::kSlots; ++s) serial_[s] = player.grain(s).serial();
+  }
+
+  // Scope ring, tap mode only: (re)start it on a resync, when tap mode
+  // starts, or when its scale changes.
+  const bool scope = taps != nullptr;
+  if (scope) {
+    const int32_t spe = (max_delay + GrainFeed::kScopeEntries - 1) / GrainFeed::kScopeEntries;
+    if (resync || !scope_on_ || spe != scope_spe_ || taps->line_rate != scope_rate_) {
+      feed_->ScopeReset(spe, taps->line_rate);
+      scope_on_ = true;
+      scope_spe_ = spe;
+      scope_rate_ = taps->line_rate;
+      scope_head_ = uint32_t(GrainFeed::kScopeEntries);
+      scope_count_ = 0;
+      scope_live_ = 0;
+      // The line holds older audio above the next index to be written.
+      scope_write_at_reset_ = last_write_;
+      scope_backfill_done_ = 0;
+      scope_backfill_next_ = -1;
+    }
+  } else {
+    scope_on_ = false;
   }
 
   // DelayLine::Write stores at write_ptr, then decrements it: this block
@@ -130,9 +198,23 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
       column_hi_ = std::max(column_hi_, hi);
     }
     feed_->StoreColumn(c, column_lo_, column_hi_);
+    if (scope) {
+      // Oldest to newest, as the line wrote them.
+      scope_lo_ = scope_count_ == 0 ? lo : std::min(scope_lo_, lo);
+      scope_hi_ = scope_count_ == 0 ? hi : std::max(scope_hi_, hi);
+      if (++scope_count_ == scope_spe_) {
+        feed_->ScopeStore(scope_head_++, scope_lo_, scope_hi_);
+        scope_count_ = 0;
+      }
+    }
   }
   last_write_ = write;
   Backfill(line, write, max_delay);
+  if (scope) {
+    scope_live_ += written;
+    feed_->ScopePublish(scope_head_);
+    ScopeBackfill(line, max_delay);
+  }
 
   GrainLiveFrame& frame = feed_->BeginFrame();
   frame.write_index = write;

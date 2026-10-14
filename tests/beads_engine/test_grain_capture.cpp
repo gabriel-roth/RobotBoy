@@ -506,3 +506,58 @@ TEST_CASE("Tap capture leaves Retours' audio bit-identical") {
   };
   CHECK(fp(true) == fp(false));
 }
+
+TEST_CASE("Scope ring: scale and live fill in delay mode") {
+  DelayRun r;
+  r.Seconds(0.5f);
+  const auto a = r.feed.ReadScopeInfo();
+  GrainLiveFrame f;
+  REQUIRE(r.feed.ReadFrame(&f));
+  CHECK(a.samples_per_entry == (f.max_delay + GrainFeed::kScopeEntries - 1) / GrainFeed::kScopeEntries);
+  CHECK(a.line_rate == Catch::Approx(48000.0f));   // Bright: 48 kHz line
+  r.Seconds(1.0f);
+  const auto b = r.feed.ReadScopeInfo();
+  const double per_second = double(b.head - a.head);
+  CHECK(per_second == Catch::Approx(a.line_rate / a.samples_per_entry).epsilon(0.02));
+  std::vector<int8_t> lo(64), hi(64);
+  REQUIRE(r.feed.ReadScope(b.head, lo.data(), hi.data(), 64) == 64);
+  int loud = 0;
+  for (int i = 0; i < 64; ++i) if (hi[i] > 20 || lo[i] < -20) ++loud;
+  CHECK(loud > 48);   // a 0.5-amplitude sine fills nearly every entry
+}
+
+TEST_CASE("Scope ring: backfill fills older entries after attach") {
+  DelayRun r;
+  r.feed.attached.store(false);
+  r.Seconds(2.0f);                 // audio in the line, nothing captured
+  r.feed.attached.store(true);
+  r.Seconds(1.0f);                 // resync + backfill
+  const auto s = r.feed.ReadScopeInfo();
+  std::vector<int8_t> lo(GrainFeed::kScopeEntries), hi(GrainFeed::kScopeEntries);
+  const int n = r.feed.ReadScope(s.head, lo.data(), hi.data(), GrainFeed::kScopeEntries);
+  // Entries 1.5-2.0 s old (written before attach) must be backfilled.
+  const int i0 = int(1.5f * s.line_rate / s.samples_per_entry), i1 = int(2.0f * s.line_rate / s.samples_per_entry);
+  REQUIRE(i1 < n);
+  int filled = 0;
+  // An entry spans ~1 ms, a fifth of the sine's period: count either peak.
+  for (int i = i0; i < i1; ++i) if (hi[size_t(i)] > 20 || lo[size_t(i)] < -20) ++filled;
+  CHECK(filled > (i1 - i0) * 3 / 4);
+}
+
+TEST_CASE("Scope ring: untouched in granular mode") {
+  Run r;   // Particules-style granular run, attached
+  r.Seconds(1.0f);
+  const auto s = r.feed.ReadScopeInfo();
+  CHECK(s.head == 0u);             // never reset or published
+}
+
+TEST_CASE("Scope ring: scale change resets the ring") {
+  DelayRun r;
+  r.Seconds(0.5f);
+  const auto a = r.feed.ReadScopeInfo();
+  r.host.SetInputs(true, true);    // mono <-> stereo flips the line length
+  r.Seconds(0.5f);
+  const auto b = r.feed.ReadScopeInfo();
+  CHECK(b.epoch != a.epoch);
+  CHECK(b.samples_per_entry != a.samples_per_entry);
+}
