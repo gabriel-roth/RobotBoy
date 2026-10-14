@@ -1,4 +1,5 @@
 #include "GrainLayout.hpp"
+#include "LayoutColor.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -11,14 +12,6 @@ using robotboy_beads::GrainStartEvent;
 
 namespace {
 
-Rgb Lighten(Rgb c, float t) {   // t of the way to white
-	return {uint8_t(c.r + (255 - c.r) * t + 0.5f), uint8_t(c.g + (255 - c.g) * t + 0.5f),
-	        uint8_t(c.b + (255 - c.b) * t + 0.5f)};
-}
-Rgb Mix(Rgb a, Rgb b, float t) {
-	return {uint8_t(a.r + (b.r - a.r) * t + 0.5f), uint8_t(a.g + (b.g - a.g) * t + 0.5f),
-	        uint8_t(a.b + (b.b - a.b) * t + 0.5f)};
-}
 float Semitones(float speed) {
 	const float s = 12.f * std::log2(std::max(std::fabs(speed), 1e-6f));
 	return std::min(std::max(s, -GrainLayout::kMaxSemitones), GrainLayout::kMaxSemitones);

@@ -1,0 +1,49 @@
+#pragma once
+// Lucarne's echo scope for Retours: turns a ring of recent-audio min/max
+// entries plus tap states into rectangles. Pure C++ (no Rack, no nanovg).
+
+#include <cstdint>
+
+#include "GrainLayout.hpp"
+
+namespace lucarne {
+
+class ScopeLayout {
+public:
+	static constexpr int kColumns = 320;           // MetaModule fullscreen width
+	static constexpr float kWaveFraction = 0.7f;   // waveform height / display height
+	static constexpr float kZoomMargin = 1.15f;    // window = longest audible delay x this
+	static constexpr float kMinWindowSeconds = 0.05f;
+	static constexpr float kZoomTau = 0.08f;       // seconds; ~0.25 s to settle
+
+	struct Tap { float delay; float level; int slot; };   // delay in line samples
+	struct Input {
+		uint32_t epoch = 0;
+		const int8_t* lo = nullptr;   // newest first
+		const int8_t* hi = nullptr;
+		int entries = 0;
+		int32_t samples_per_entry = 1;
+		float line_rate = 48000.f;
+		int32_t max_delay = 1;
+		Tap taps[8];
+		int num_taps = 0;   // audible taps only (level > GrainLayout::kTapMinLevel)
+		float dt = 0.f;
+	};
+
+	void SetSize(float w, float h);
+	void Update(const Input& in);
+	void Clear();   // forget the zoom (next Update snaps)
+	const DrawList& draw_list() const { return list_; }
+	float window() const { return window_; }   // current window, line samples
+	float XForAge(float age) const;            // age 0 (newest) -> w, age window -> 0
+	static float TapOutput(const Input& in, float delay, float level);   // 0..1
+
+private:
+	float w_ = 1.f, h_ = 1.f;
+	float window_ = 1.f;
+	uint32_t epoch_ = 0;
+	bool have_window_ = false;
+	DrawList list_;
+};
+
+}  // namespace lucarne
