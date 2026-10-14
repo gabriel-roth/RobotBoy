@@ -51,6 +51,7 @@ public:
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
 		int numTaps = 0;   // audible taps only (level > kTapMinLevel)
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
+		bool wholeBuffer = false;   // menu: always the whole buffer, never follow the taps
 		float dt = 0.f;
 	};
 

@@ -65,8 +65,9 @@ void ScopeLayout::update(const Input& in) {
 	}
 	// Slice: show the whole buffer, fixed, until Slice turns off. The slices
 	// can be anywhere in it, and a zoom that followed the heads (which fade
-	// in and out and restart) would keep changing the frozen waveform.
-	if (in.frozen) window = maxDelay;
+	// in and out and restart) would keep changing the frozen waveform. The
+	// Whole buffer menu setting does the same while running.
+	if (in.frozen || in.wholeBuffer) window = maxDelay;
 	haveWindow = true;
 
 	list.clear();

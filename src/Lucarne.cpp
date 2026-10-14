@@ -131,6 +131,7 @@ struct LucarneDisplay : widget::Widget {
 		lucarne::ScopeLayout::Input in;
 		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
+		in.wholeBuffer = module->scopeWholeBuffer;
 		in.dt = dt;
 		const int32_t m = in.maxDelay;
 		// Delay-line indices: larger = older.
@@ -285,6 +286,20 @@ struct LucarneWidget : ModuleWidget {
 		display->box.size = mm2px(Vec(kScreenW, kScreenH));
 		display->module = module;
 		addChild(display);
+	}
+
+	void appendContextMenu(Menu* menu) override {
+		Lucarne* module = getModule<Lucarne>();
+		if (!module)
+			return;
+
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Retours view",
+			{"Whole buffer", "Follow taps"},
+			[=]() { return module->scopeWholeBuffer ? 0 : 1; },
+			[=](int i) {
+				withMenuUndo(module, "set Retours view", [=]() { module->scopeWholeBuffer = i == 0; });
+			}));
 	}
 
 #ifndef METAMODULE

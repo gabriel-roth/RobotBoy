@@ -254,5 +254,19 @@ int main() {
         for (int i = 0; i < 120; ++i) L.update(run);
         check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "Slice off: zoom follows the taps again");
     }
+    {   // Whole buffer (menu): the window never follows the taps
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.wholeBuffer = true;
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "whole buffer: window is the whole buffer");
+        in.taps[0] = {9600.f, 1.f, 0};
+        for (int i = 0; i < 60; ++i) L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "whole buffer: a tap change doesn't zoom");
+        in.wholeBuffer = false;
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), 9600.f * 1.15f, 50.f), "follow taps: zoom eases back to the taps");
+    }
     return g_failures ? 1 : 0;
 }
