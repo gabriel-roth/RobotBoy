@@ -1,8 +1,9 @@
 # Changelog
 
-## [Unreleased]
+## [2.2.0-beta.4] — 2026-10-13 (pre-release)
 
-- Lucarne now works with Retours too: it shows Retours' recent audio scrolling past a marker for each echo, which flashes as you hear it, and the looping slices under Slice. The key under the VCV display changes to match the module it's attached to.
+- Lucarne now works with Retours too. Place it to the right of Retours (on MetaModule, attach it from Retours' Expanders menu) to watch Retours' recent audio scroll past a line for each echo, which flashes as you hear it. A line at the right edge flashes with the incoming dry sound. The view zooms to fit the longest echo. With Slice on, the waveform freezes and shows the whole buffer, with each looping slice shaded and a line moving through it as it plays.
+- Lucarne's VCV panel changes its key to match the module it's attached to. With nothing attached, the panel says where to place it.
 
 ## [2.2.0-beta.3] — 2026-10-13 (pre-release)
 
