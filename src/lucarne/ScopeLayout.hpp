@@ -71,6 +71,12 @@ public:
 	float xForAge(float age) const;            // age 0 (newest) -> nowX(), age window -> 0
 	static float tapOutput(const Input& in, float delay, float level);   // 0..1
 	static float dryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds
+	// Scope ring entries to read before update(): enough for the current
+	// window or the longest tap's zoom, whichever is wider, or all of them
+	// when the window is heading for the whole buffer (it widens past what
+	// was read on every frame of the glide).
+	static int entriesToRead(float window, float longest, bool toWholeBuffer,
+	                         int32_t samplesPerEntry, int maxEntries);
 
 private:
 	float width = 1.f, height = 1.f;

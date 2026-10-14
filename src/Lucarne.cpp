@@ -146,10 +146,10 @@ struct LucarneDisplay : widget::Widget {
 				tap.sliceOldest = age(t.slice_start);
 				tap.sliceLength = float(t.slice_length);
 			}
-			// Silent taps too: ScopeLayout holds them through Shape's dips.
+			// Silent taps too: ScopeLayout holds them through Shape's dips,
+			// so the ring read below must reach them.
 			in.taps[in.numTaps++] = tap;
-			if (t.level > lucarne::ScopeLayout::kTapMinLevel)
-				longest = std::max(longest, tap.slice ? tap.sliceOldest : tap.delay);
+			longest = std::max(longest, tap.slice ? tap.sliceOldest : tap.delay);
 		}
 
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
@@ -159,14 +159,11 @@ struct LucarneDisplay : widget::Widget {
 		// then so the zoom floor never reaches zero.
 		if (info.line_rate > 0.f)
 			in.lineRate = info.line_rate;
-		// The window eases from where it is toward the longest tap x
-		// kZoomMargin, so the larger of the two bounds what it shows. After a
-		// source or epoch change the window snaps, so read everything.
+		// After a source or epoch change the window snaps, so read everything.
 		int want = GrainFeed::kScopeEntries;
-		if (scopePrimed && info.epoch == scopeEpoch) {
-			const float span = std::max(scopeView.getWindow(), lucarne::ScopeLayout::kZoomMargin * longest);
-			want = int(std::min<double>(GrainFeed::kScopeEntries, std::ceil(double(span) / in.samplesPerEntry) + 2.0));
-		}
+		if (scopePrimed && info.epoch == scopeEpoch)
+			want = lucarne::ScopeLayout::entriesToRead(scopeView.getWindow(), longest,
+				in.modulated || in.frozen || in.wholeBuffer, in.samplesPerEntry, GrainFeed::kScopeEntries);
 		int n = f.ReadScope(info.head, scopeLo.data(), scopeHi.data(), want);
 		// A reset during the copy may go unnoticed by ReadScope: recheck.
 		if (f.ReadScopeInfo().epoch != info.epoch)

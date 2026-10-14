@@ -41,6 +41,14 @@ float ScopeLayout::dryOutput(const Input& in) {
 	return std::min(float(peak) / 127.f, 1.f);
 }
 
+int ScopeLayout::entriesToRead(float window, float longest, bool toWholeBuffer,
+                               int32_t samplesPerEntry, int maxEntries) {
+	if (toWholeBuffer) return maxEntries;
+	const double span = std::max(window, kZoomMargin * longest);
+	const double spe = double(std::max<int32_t>(samplesPerEntry, 1));
+	return int(std::min<double>(maxEntries, std::ceil(span / spe) + 2.0));
+}
+
 void ScopeLayout::update(const Input& in) {
 	const float maxDelay = float(std::max<int32_t>(in.maxDelay, 1));
 	const bool snap = !haveWindow || in.epoch != epoch;

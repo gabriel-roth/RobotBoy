@@ -375,5 +375,12 @@ int main() {
         for (int i = 0; i < 200; ++i) L.update(in);
         check(std::isfinite(L.getWindow()) && near(L.getWindow(), 4800.f * 1.15f, 50.f), "zero line rate hold finite");
     }
+    {   // How much of the scope ring to read before an update
+        check(ScopeLayout::entriesToRead(48000.f, 4800.f, false, 24, 8192) == 2002, "read: the current window when wider");
+        check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 232, "read: the longest tap's zoom when wider");
+        check(ScopeLayout::entriesToRead(5520.f, 4800.f, true, 24, 8192) == 8192, "read: everything when heading for the whole buffer");
+        check(ScopeLayout::entriesToRead(1e9f, 0.f, false, 24, 8192) == 8192, "read: capped at the ring");
+        check(ScopeLayout::entriesToRead(4800.f, 0.f, false, 0, 8192) > 0, "read: zero samples per entry is safe");
+    }
     return g_failures ? 1 : 0;
 }
