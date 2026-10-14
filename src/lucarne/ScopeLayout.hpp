@@ -4,7 +4,8 @@
 
 #include <cstdint>
 
-#include "GrainLayout.hpp"
+#include "DrawList.hpp"
+#include "host/grain_feed.h"
 
 namespace lucarne {
 
@@ -24,6 +25,12 @@ public:
 
 	// A Slice head's band: this much of the tap color over the background.
 	static constexpr float kSliceBandMix = 0.15f;
+	static constexpr float kTapMinLevel = 0.01f;   // at or below: silent, not drawn
+	// Tap colors: tap slot i's ratio, (i / 2) % 2, picks warm white (the
+	// grain view's center color) or green.
+	static constexpr Rgb kTapWhite{0xE8, 0xE4, 0xDA};
+	static constexpr Rgb kTapGreen{0x8F, 0xD3, 0xA0};
+	static Rgb TapColor(int slot) { return (slot / 2) % 2 == 0 ? kTapWhite : kTapGreen; }
 
 	struct Tap {
 		float delay;   // age of the read point, line samples
@@ -42,7 +49,7 @@ public:
 		float line_rate = 48000.f;
 		int32_t max_delay = 1;
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
-		int num_taps = 0;   // audible taps only (level > GrainLayout::kTapMinLevel)
+		int num_taps = 0;   // audible taps only (level > kTapMinLevel)
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
 		float dt = 0.f;
 	};

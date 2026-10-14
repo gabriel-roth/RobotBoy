@@ -1,5 +1,4 @@
 #include "GrainLayout.hpp"
-#include "LayoutColor.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -34,9 +33,7 @@ constexpr Rgb kPanRight{0xFF, 0x8A, 0x3D};
 void GrainLayout::Clear() {
 	grains_.clear();
 	have_epoch_ = false;
-	list_.under.clear();
-	list_.wave.clear();
-	list_.marks.clear();
+	list_.Clear();
 }
 
 void GrainLayout::SetSize(float w, float h) {
@@ -92,8 +89,6 @@ Rgb GrainLayout::PanColor(float pan) {
 	return t < 0.f ? Mix(kPanCenter, kPanLeft, shaped) : Mix(kPanCenter, kPanRight, shaped);
 }
 
-Rgb GrainLayout::TapColor(int slot) { return (slot / 2) % 2 == 0 ? PanColor(0.5f) : kRatioGreen; }
-
 void GrainLayout::MakeRoom() {
 	if (int(grains_.size()) >= kMaxGrains) {
 		// Make room: the ended grain closest to vanishing, else the oldest.
@@ -138,19 +133,12 @@ void GrainLayout::Update(const Input& in) {
 		epoch_ = in.epoch;
 		have_epoch_ = true;
 	}
-	if (in.frame) {
-		const bool taps = in.frame->tap_mode;
-		if (taps != taps_) {
-			grains_.clear();   // the old view's visuals go at once, no fade
-			taps_ = taps;
-		}
-	}
 	for (VisualGrain& g : grains_)
 		if (g.ended) g.fade -= in.dt;
 	grains_.erase(std::remove_if(grains_.begin(), grains_.end(),
 	                             [](const VisualGrain& g) { return g.ended && g.fade <= 0.f; }),
 	              grains_.end());
-	if (in.frame && !taps_) {
+	if (in.frame) {
 		const GrainLiveFrame& f = *in.frame;
 		for (int i = 0; i < in.num_events; ++i) Birth(in.events[i], f);
 		for (size_t i = 0; i < grains_.size(); ++i) {
@@ -183,9 +171,7 @@ void GrainLayout::AddSpan(float x, float len, float y, float h, Rgb c) {
 }
 
 void GrainLayout::Build(const Input& in) {
-	list_.under.clear();
-	list_.wave.clear();
-	list_.marks.clear();
+	list_.Clear();
 	const float band = BandHeight();
 	const float mid = h_ * 0.5f;
 	const float col_w = w_ / GrainFeed::kColumns;
@@ -203,7 +189,6 @@ void GrainLayout::Build(const Input& in) {
 		list_.marks.push_back({x, mid - band * 0.5f, std::max(col_w * 0.75f, w_ * 0.003f), band,
 		                       in.frame->frozen ? kWriteHeadFrozen : kWriteHead});
 	}
-	if (taps_) return;   // a tap frame: band and write head only
 	const float row_h = RowHeight();
 	const float thick = row_h * 0.5f;
 	const float min_len = w_ / 160.f;   // 2 px at MetaModule's 320-wide fullscreen

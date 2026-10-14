@@ -1,11 +1,15 @@
 #include "Lucarne.hpp"
+#include "BeadsModule.hpp"
 #include "GrainLayout.hpp"
 #include "ScopeLayout.hpp"
-#include "BeadsModule.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
-#include <vector>
+
+using robotboy_beads::GrainFeed;
+using robotboy_beads::GrainLiveFrame;
+using robotboy_beads::GrainStartEvent;
 
 // Display rect (mm). VCV: the SCREEN rect in res/Lucarne.svg
 // (panel-specs/lucarne.yaml), tall, with the key printed below it.
@@ -29,84 +33,113 @@ static const char* const kNoSource = "";
 
 enum class Source { None, Particules, Retours };
 
-// The module on Lucarne's left, if it is one Lucarne can show.
-static Source FindSource(Module* left, robotboy_beads::GrainFeed** feed) {
-	auto* m = dynamic_cast<BeadsModule*>(left);
-	*feed = m ? &m->grainFeed : nullptr;
-	return !m ? Source::None : m->delayMode ? Source::Retours : Source::Particules;
-}
-
 struct LucarneDisplay : widget::Widget {
 	Lucarne* module = nullptr;
-	lucarne::GrainLayout layout;
-	// Retours (running or Slice): the echo scope instead of the grain layout.
-	lucarne::ScopeLayout scope;
-	bool scope_primed = false;    // false: read the whole scope ring next time
-	uint32_t scope_epoch = 0;     // the scope ring's epoch when last read
-	int8_t scope_lo[robotboy_beads::GrainFeed::kScopeEntries] = {};
-	int8_t scope_hi[robotboy_beads::GrainFeed::kScopeEntries] = {};
-	const robotboy_beads::GrainFeed* feed = nullptr;   // the feed event_cursor belongs to
-	uint32_t event_cursor = 0;
 	Source source = Source::None;   // what sits on the left; the panel swap reads it
-	double last_time = -1.0;
-	int8_t lo[robotboy_beads::GrainFeed::kColumns] = {};
-	int8_t hi[robotboy_beads::GrainFeed::kColumns] = {};
-	robotboy_beads::GrainLiveFrame frame;
-	std::vector<robotboy_beads::GrainStartEvent> events =
-		std::vector<robotboy_beads::GrainStartEvent>(robotboy_beads::GrainFeed::kEvents);
-	bool demo_primed = false;
 
-	// Module browser: a decaying sine and a few grains at different pitches.
-	lucarne::GrainLayout::Input demoInput() {
-		using namespace robotboy_beads;
-		for (int c = 0; c < GrainFeed::kColumns; ++c) {
-			const float env = 1.f - float(c) / GrainFeed::kColumns;
-			const float v = std::fabs(std::sin(c * 0.35f)) * env;
-			hi[c] = int8_t(v * 110.f);
-			lo[c] = int8_t(-v * 100.f);
-		}
-		frame = GrainLiveFrame();
-		frame.write_index = 30000;
-		frame.max_delay = 384000;
-		static const float kSpeeds[6] = {1.f, 1.5f, 2.f, 0.5f, 0.75f, -1.f};
-		static const float kPans[6] = {0.5f, 0.15f, 0.8f, 0.35f, 0.95f, 0.6f};
-		lucarne::GrainLayout::Input in;
-		int n = 0;
-		if (!demo_primed) {
-			for (int i = 0; i < 6; ++i) {
-				const int32_t start = 60000 + i * 50000;
-				events[size_t(i)] = {1, i, start, kSpeeds[i], 24000.f, kPans[i]};
-				++n;
+	// Particules: grains over the buffer. Retours (running or Slice): the echo scope.
+	lucarne::GrainLayout grainView;
+	lucarne::ScopeLayout scopeView;
+
+	// Where reading the source's feed has got to.
+	const GrainFeed* feed = nullptr;   // the feed eventCursor belongs to
+	uint32_t eventCursor = 0;
+	bool scopePrimed = false;   // false: read the whole scope ring next time
+	uint32_t scopeEpoch = 0;    // the scope ring's epoch when last read
+	double lastTime = -1.0;
+
+	// Copies of the feed, refilled every frame.
+	std::array<int8_t, GrainFeed::kColumns> peakLo{}, peakHi{};
+	std::array<int8_t, GrainFeed::kScopeEntries> scopeLo{}, scopeHi{};
+	std::array<GrainStartEvent, GrainFeed::kEvents> events{};
+	GrainLiveFrame frame;
+	bool demoPrimed = false;
+
+	void drawLayer(const DrawArgs& args, int layer) override {
+		if (layer == 1) {
+			const double now = system::getTime();
+			const float dt = lastTime < 0.0 ? 0.f : float(std::clamp(now - lastTime, 0.0, 0.5));
+			lastTime = now;
+			grainView.SetSize(box.size.x, box.size.y);
+			scopeView.SetSize(box.size.x, box.size.y);
+
+			BeadsModule* left = module ? dynamic_cast<BeadsModule*>(module->leftExpander.module) : nullptr;
+			source = !left ? Source::None : left->delayMode ? Source::Retours : Source::Particules;
+			if (!module) {
+				lucarne::GrainLayout::Input in = demoInput();
+				in.dt = dt;
+				drawGrains(args, in);
 			}
-			demo_primed = true;
+			else if (!left) {
+				feed = nullptr;
+				scopeView.Clear();
+				scopePrimed = false;
+				grainView.Clear();
+				paint(args, grainView.draw_list(), kNoSource);
+			}
+			else {
+				drawFeed(args, left->grainFeed, dt);
+			}
 		}
-		for (int i = 0; i < 6; ++i) {
-			const int32_t start = 60000 + i * 50000;
-			frame.slots[i] = {1, start - int32_t(kSpeeds[i] * 12000.f), 0.9f, false, 12000.f};
-		}
-		in.peak_lo = lo;
-		in.peak_hi = hi;
-		in.frame = &frame;
-		in.events = events.data();
-		in.num_events = n;
-		return in;
+		Widget::drawLayer(args, layer);
 	}
 
-	// Fill a ScopeLayout::Input from the feed's scope ring and the frame.
-	lucarne::ScopeLayout::Input scopeInput(const robotboy_beads::GrainFeed& f,
-	                                       const robotboy_beads::GrainLiveFrame& fr, float dt) {
-		using robotboy_beads::GrainFeed;
-		lucarne::ScopeLayout::Input in;
-		in.max_delay = std::max<int32_t>(fr.max_delay, 1);
-		in.frozen = fr.frozen;
+	void drawFeed(const DrawArgs& args, const GrainFeed& f, float dt) {
+		if (feed != &f) {   // new source: start at its newest event
+			feed = &f;
+			eventCursor = f.event_write();
+			scopeView.Clear();
+			scopePrimed = false;
+		}
+		f.ReadPeaks(peakLo.data(), peakHi.data());
+		// Events first, then the frame: the frame is at least as new, so
+		// every event's grain is already in it. Without a frame, leave the
+		// events unread.
+		const uint32_t before = eventCursor;
+		const int numEvents = f.ReadEvents(&eventCursor, events.data(), int(events.size()));
+		const bool haveFrame = f.ReadFrame(&frame);
+		if (!haveFrame)
+			eventCursor = before;
+
+		if (haveFrame && frame.tap_mode) {
+			grainView.Clear();
+			scopeView.Update(scopeInput(f, dt));
+			paint(args, scopeView.draw_list(), nullptr);
+			return;
+		}
+		lucarne::GrainLayout::Input in;
+		in.epoch = f.epoch();
+		in.peak_lo = peakLo.data();
+		in.peak_hi = peakHi.data();
+		in.frame = haveFrame ? &frame : nullptr;
+		in.events = events.data();
+		in.num_events = haveFrame ? numEvents : 0;
 		in.dt = dt;
+		drawGrains(args, in);
+	}
+
+	void drawGrains(const DrawArgs& args, const lucarne::GrainLayout::Input& in) {
+		scopeView.Clear();
+		scopePrimed = false;
+		grainView.Update(in);
+		paint(args, grainView.draw_list(), nullptr);
+	}
+
+	// The scope's input: the audible taps from the frame, and as much of the
+	// feed's scope ring as this frame's window can show.
+	lucarne::ScopeLayout::Input scopeInput(const GrainFeed& f, float dt) {
+		lucarne::ScopeLayout::Input in;
+		in.max_delay = std::max<int32_t>(frame.max_delay, 1);
+		in.frozen = frame.frozen;
+		in.dt = dt;
+		const int32_t m = in.max_delay;
+		// Delay-line indices: larger = older.
+		auto age = [&](int32_t index) { return float(((index - frame.write_index) % m + m) % m); };
 		float longest = 0.f;
-		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps && in.num_taps < robotboy_beads::GrainLiveFrame::kTaps; ++i) {
-			const auto& t = fr.taps[i];
-			if (!(t.level > lucarne::GrainLayout::kTapMinLevel)) continue;
-			// Delay-line indices: larger = older.
-			const int32_t m = in.max_delay;
-			auto age = [&](int32_t index) { return float(((index - fr.write_index) % m + m) % m); };
+		for (int i = 0; i < GrainLiveFrame::kTaps; i++) {
+			const auto& t = frame.taps[i];
+			if (!(t.level > lucarne::ScopeLayout::kTapMinLevel))
+				continue;
 			lucarne::ScopeLayout::Tap tap{age(t.read_index), t.level, i};
 			if (t.slice) {
 				tap.slice = true;
@@ -116,93 +149,61 @@ struct LucarneDisplay : widget::Widget {
 			in.taps[in.num_taps++] = tap;
 			longest = std::max(longest, tap.slice ? tap.slice_oldest : tap.delay);
 		}
+
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
 		in.epoch = info.epoch;
 		in.samples_per_entry = std::max<int32_t>(info.samples_per_entry, 1);
 		// Zero until the feed's first ScopeReset; keep the Input default
 		// then so the zoom floor never reaches zero.
-		if (info.line_rate > 0.f) in.line_rate = info.line_rate;
-		// Read only what this frame's window can show: it eases from the
-		// current window toward the longest tap x kZoomMargin, so the larger
-		// of those bounds it. After a source or epoch change the window
-		// snaps, so read everything.
+		if (info.line_rate > 0.f)
+			in.line_rate = info.line_rate;
+		// The window eases from where it is toward the longest tap x
+		// kZoomMargin, so the larger of the two bounds what it shows. After a
+		// source or epoch change the window snaps, so read everything.
 		int want = GrainFeed::kScopeEntries;
-		if (scope_primed && info.epoch == scope_epoch) {
-			const float span = std::max(scope.window(), lucarne::ScopeLayout::kZoomMargin * longest);
-			want = int(std::min<double>(GrainFeed::kScopeEntries,
-			                            std::ceil(double(span) / in.samples_per_entry) + 2.0));
+		if (scopePrimed && info.epoch == scopeEpoch) {
+			const float span = std::max(scopeView.window(), lucarne::ScopeLayout::kZoomMargin * longest);
+			want = int(std::min<double>(GrainFeed::kScopeEntries, std::ceil(double(span) / in.samples_per_entry) + 2.0));
 		}
-		int n = f.ReadScope(info.head, scope_lo, scope_hi, want);
+		int n = f.ReadScope(info.head, scopeLo.data(), scopeHi.data(), want);
 		// A reset during the copy may go unnoticed by ReadScope: recheck.
-		if (f.ReadScopeInfo().epoch != info.epoch) n = 0;
-		scope_primed = n > 0;
-		scope_epoch = info.epoch;
-		in.lo = scope_lo;
-		in.hi = scope_hi;
+		if (f.ReadScopeInfo().epoch != info.epoch)
+			n = 0;
+		scopePrimed = n > 0;
+		scopeEpoch = info.epoch;
+		in.lo = scopeLo.data();
+		in.hi = scopeHi.data();
 		in.entries = n;
 		return in;
 	}
 
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1) {
-			const double now = system::getTime();
-			const float dt = last_time < 0.0 ? 0.f : float(std::min(std::max(now - last_time, 0.0), 0.5));
-			last_time = now;
-			layout.SetSize(box.size.x, box.size.y);
-			scope.SetSize(box.size.x, box.size.y);
-			bool show_scope = false;
-
-			const char* message = nullptr;
-			lucarne::GrainLayout::Input in;
-			robotboy_beads::GrainFeed* src_feed = nullptr;
-			source = module ? FindSource(module->leftExpander.module, &src_feed) : Source::None;
-			if (!module) {
-				in = demoInput();
-			} else if (source == Source::None) {
-				message = kNoSource;
-				feed = nullptr;
-			} else {
-				auto& f = *src_feed;
-				if (feed != &f) {   // new source: start at its newest event
-					feed = &f;
-					event_cursor = f.event_write();
-					scope.Clear();
-					scope_primed = false;
-				}
-				f.ReadPeaks(lo, hi);
-				// Events first, then the frame: the frame is at least as new, so
-				// every event's grain is already in it. Without a frame, leave the
-				// events unread.
-				const uint32_t before = event_cursor;
-				const int n_events = f.ReadEvents(&event_cursor, events.data(), int(events.size()));
-				const bool have = f.ReadFrame(&frame);
-				if (!have) event_cursor = before;
-				in.epoch = f.epoch();
-				in.peak_lo = lo;
-				in.peak_hi = hi;
-				in.frame = have ? &frame : nullptr;
-				in.events = events.data();
-				in.num_events = have ? n_events : 0;
-				if (have && lucarne::GrainLayout::ScopeView(frame)) {
-					show_scope = true;
-					scope.Update(scopeInput(f, frame, dt));
-				}
-			}
-			in.dt = dt;
-			if (show_scope) {
-				layout.Clear();
-				paint(args, scope.draw_list(), message);
-			} else {
-				scope.Clear();
-				scope_primed = false;
-				if (message)
-					layout.Clear();
-				else
-					layout.Update(in);
-				paint(args, layout.draw_list(), message);
-			}
+	// Module browser: a decaying sine and a few grains at different pitches.
+	lucarne::GrainLayout::Input demoInput() {
+		for (int c = 0; c < GrainFeed::kColumns; c++) {
+			const float env = 1.f - float(c) / GrainFeed::kColumns;
+			const float v = std::fabs(std::sin(c * 0.35f)) * env;
+			peakHi[c] = int8_t(v * 110.f);
+			peakLo[c] = int8_t(-v * 100.f);
 		}
-		Widget::drawLayer(args, layer);
+		static const float kSpeeds[6] = {1.f, 1.5f, 2.f, 0.5f, 0.75f, -1.f};
+		static const float kPans[6] = {0.5f, 0.15f, 0.8f, 0.35f, 0.95f, 0.6f};
+		frame = GrainLiveFrame();
+		frame.write_index = 30000;
+		frame.max_delay = 384000;
+		for (int i = 0; i < 6; i++) {
+			const int32_t start = 60000 + i * 50000;
+			frame.slots[i] = {1, start - int32_t(kSpeeds[i] * 12000.f), 0.9f, false, 12000.f};
+			events[i] = {1, i, start, kSpeeds[i], 24000.f, kPans[i]};
+		}
+		lucarne::GrainLayout::Input in;
+		in.peak_lo = peakLo.data();
+		in.peak_hi = peakHi.data();
+		in.frame = &frame;
+		in.events = events.data();
+		// The grains are born once, then play on.
+		in.num_events = demoPrimed ? 0 : 6;
+		demoPrimed = true;
+		return in;
 	}
 
 	void paint(const DrawArgs& args, const lucarne::DrawList& l, const char* message) {
@@ -221,7 +222,8 @@ struct LucarneDisplay : widget::Widget {
 		}
 		if (!l.wave.empty()) {
 			nvgBeginPath(vg);
-			for (const lucarne::Rect& r : l.wave) nvgRect(vg, r.x, r.y, r.w, r.h);
+			for (const lucarne::Rect& r : l.wave)
+				nvgRect(vg, r.x, r.y, r.w, r.h);
 			nvgFillColor(vg, nvgRGB(l.wave_color.r, l.wave_color.g, l.wave_color.b));
 			nvgFill(vg);
 		}
@@ -232,8 +234,7 @@ struct LucarneDisplay : widget::Widget {
 			nvgFill(vg);
 		}
 		if (message && *message) {
-			auto font =
-				APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+			std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 			if (font) {
 				nvgFontFaceId(vg, font->handle);
 				// Sized from the width so both display shapes match; wrapped
@@ -254,53 +255,52 @@ struct LucarneDisplay : widget::Widget {
 };
 
 struct LucarneWidget : ModuleWidget {
+	LucarneDisplay* display;
 #ifndef METAMODULE
 	// Three VCV panels, identical but for the key area: Lucarne-Empty.svg has
-	// the setup instruction (nothing attached, and the module browser), Lucarne.svg the
-	// Particules key, Lucarne-Retours.svg the Retours key. step() swaps them
-	// when the display's source changes. MetaModule's faceplate has no key.
-	std::shared_ptr<window::Svg> empty_svg, particules_svg, retours_svg;
-	LucarneDisplay* display = nullptr;
+	// the setup instruction (nothing attached, and the module browser),
+	// Lucarne.svg the Particules key, Lucarne-Retours.svg the Retours key.
+	// step() swaps them when the display's source changes. MetaModule's
+	// faceplate has no key.
+	std::shared_ptr<window::Svg> emptySvg, particulesSvg, retoursSvg;
 	Source showing = Source::None;
+#endif
 
+	LucarneWidget(Lucarne* module) {
+		setModule(module);
+#ifdef METAMODULE
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne.svg")));
+#else
+		emptySvg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg"));
+		particulesSvg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne.svg"));
+		retoursSvg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Retours.svg"));
+		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg")));
+#endif
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+
+		display = createWidget<LucarneDisplay>(mm2px(Vec(kScreenX, kScreenY)));
+		display->box.size = mm2px(Vec(kScreenW, kScreenH));
+		display->module = module;
+		addChild(display);
+	}
+
+#ifndef METAMODULE
 	void step() override {
-		const Source want = display ? display->source : Source::None;
-		if (want != showing) {
-			showing = want;
-			if (auto* panel = dynamic_cast<SvgPanel*>(getPanel())) {
-				panel->setBackground(want == Source::Retours ? retours_svg
-				                     : want == Source::Particules ? particules_svg
-				                     : empty_svg);
+		if (display->source != showing) {
+			showing = display->source;
+			if (SvgPanel* panel = dynamic_cast<SvgPanel*>(getPanel())) {
+				panel->setBackground(showing == Source::Retours ? retoursSvg
+					: showing == Source::Particules ? particulesSvg
+					: emptySvg);
 				panel->fb->setDirty();   // the SDK headers don't promise setBackground redraws
 			}
 		}
 		ModuleWidget::step();
 	}
 #endif
-
-	LucarneWidget(Lucarne* module) {
-		setModule(module);
-#ifndef METAMODULE
-		empty_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg"));
-		particules_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne.svg"));
-		retours_svg = window::Svg::load(asset::plugin(pluginInstance, "res/Lucarne-Retours.svg"));
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne-Empty.svg")));
-#else
-		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lucarne.svg")));
-#endif
-		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
-		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
-		auto* screen = new LucarneDisplay();
-		screen->module = module;
-		screen->box.pos = mm2px(Vec(kScreenX, kScreenY));
-		screen->box.size = mm2px(Vec(kScreenW, kScreenH));
-		addChild(screen);
-#ifndef METAMODULE
-		display = screen;
-#endif
-	}
 };
 
 Model* modelLucarne = createModel<Lucarne, LucarneWidget>("Lucarne");

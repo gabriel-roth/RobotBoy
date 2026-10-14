@@ -37,19 +37,6 @@ static GrainLayout::Input In(const GrainLiveFrame* f, const GrainStartEvent* e, 
     return in;
 }
 
-static GrainLiveFrame TapFrame(bool slice = false) {
-    GrainLiveFrame f = Frame();          // write 500, M = 1000
-    f.tap_mode = true;
-    for (auto& s : f.slots) s.done = true;
-    for (auto& t : f.taps) { t = {}; t.read_index = 500; t.slice = slice; }
-    return f;
-}
-static int CountColor(const DrawList& l, Rgb c) {
-    int n = 0;
-    for (const Rect& r : l.marks) if (r.color.r == c.r && r.color.g == c.g && r.color.b == c.b) ++n;
-    return n;
-}
-
 int main() {
     GrainLayout L;
     L.SetSize(320.f, 180.f);
@@ -247,45 +234,6 @@ int main() {
         check(G.draw_list().wave.size() == 256, "256 waveform columns");
         const Rect& r = G.draw_list().wave[10];
         check(near(r.y, 72.f) && near(r.h, 36.f), "full-scale column fills the band");
-    }
-
-    // --- Tap frames (Retours): drawn by ScopeLayout ---
-    {   // tap colors
-        const Rgb g = GrainLayout::TapColor(2), w = GrainLayout::TapColor(0);
-        check(g.r == 0x8F && g.g == 0xD3 && g.b == 0xA0, "ratio 1 is green");
-        const Rgb c = GrainLayout::PanColor(0.5f);
-        check(w.r == c.r && w.g == c.g && w.b == c.b, "ratio 0 is warm white");
-    }
-    {   // a tap frame, running or Slice: band and write head only
-        for (bool slice : {false, true}) {
-            GrainLayout L; L.SetSize(320.f, 180.f);
-            GrainLiveFrame f = TapFrame(slice);
-            f.taps[0].read_index = 700; f.taps[0].level = 1.f;
-            f.taps[0].slice_start = 700; f.taps[0].slice_length = 100;
-            f.taps[3].read_index = 50; f.taps[3].level = 0.5f;
-            L.Update(In(&f, nullptr, 0));
-            check(L.draw_list().marks.size() == 1, slice ? "slice tap frame draws only band and write head"
-                                                        : "running tap frame draws only band and write head");
-            check(L.grains().empty() && L.draw_list().under.empty(), "tap frame keeps no visuals");
-        }
-    }
-    {   // routing: every tap frame goes to the scope, grain frames do not
-        GrainLiveFrame f = TapFrame();
-        check(GrainLayout::ScopeView(f), "scope view: tap mode, no slice");
-        f.taps[5].slice = true;
-        check(GrainLayout::ScopeView(f), "scope view: tap mode with a slice");
-        check(!GrainLayout::ScopeView(Frame()), "no scope view for a grain frame");
-    }
-    {   // grain -> tap switch clears grains
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = Frame();
-        Live(f, 0, 1, 400);
-        GrainStartEvent e{1, 0, 400, 1.f, 100.f, 0.5f};
-        L.Update(In(&f, &e, 1));
-        check(L.grains().size() == 1, "a grain before the switch");
-        GrainLiveFrame t = TapFrame();
-        L.Update(In(&t, nullptr, 0));
-        check(L.grains().empty(), "grains cleared in tap view");
     }
 
     std::printf(g_failures ? "\n%d FAILED\n" : "\nall passed\n", g_failures);

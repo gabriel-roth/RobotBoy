@@ -3,8 +3,6 @@
 #include <algorithm>
 #include <cmath>
 
-#include "LayoutColor.hpp"
-
 namespace lucarne {
 
 void ScopeLayout::SetSize(float w, float h) {
@@ -14,9 +12,7 @@ void ScopeLayout::SetSize(float w, float h) {
 
 void ScopeLayout::Clear() {
 	have_window_ = false;
-	list_.under.clear();
-	list_.wave.clear();
-	list_.marks.clear();
+	list_.Clear();
 }
 
 float ScopeLayout::XForAge(float age) const {
@@ -73,9 +69,7 @@ void ScopeLayout::Update(const Input& in) {
 	if (in.frozen) window_ = max_delay;
 	have_window_ = true;
 
-	list_.under.clear();
-	list_.wave.clear();
-	list_.marks.clear();
+	list_.Clear();
 	const float mid = h_ * 0.5f;
 	const float full = kWaveFraction * h_;
 	const float hair = full * 0.02f;
@@ -125,10 +119,10 @@ void ScopeLayout::Update(const Input& in) {
 			const float x1 = std::min(XForAge(std::max(t.slice_oldest - t.slice_length, 0.f)), NowX());
 			if (x1 > x0)
 				list_.under.push_back({x0, 0.f, x1 - x0, h_,
-				                       Mix(list_.background, GrainLayout::TapColor(t.slot), kSliceBandMix)});
+				                       Mix(list_.background, TapColor(t.slot), kSliceBandMix)});
 		}
 		if (t.delay > window_ || t.delay < 0.f) continue;
-		marker(XForAge(t.delay), GrainLayout::TapColor(t.slot), TapOutput(in, t.delay, t.level));
+		marker(XForAge(t.delay), TapColor(t.slot), TapOutput(in, t.delay, t.level));
 	}
 }
 

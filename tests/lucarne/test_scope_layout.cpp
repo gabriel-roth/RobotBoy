@@ -1,6 +1,4 @@
 #include "../../src/lucarne/ScopeLayout.hpp"
-#include "../../src/lucarne/GrainLayout.hpp"
-#include "../../src/lucarne/LayoutColor.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -9,6 +7,7 @@ using namespace lucarne;
 static int g_failures = 0;
 static void check(bool c, const char* n) { std::printf(c ? "ok:   %s\n" : "FAIL: %s\n", n); if (!c) ++g_failures; }
 static bool near(float a, float b, float e = 1e-2f) { return std::fabs(a - b) <= e; }
+static bool sameColor(Rgb a, Rgb b) { return a.r == b.r && a.g == b.g && a.b == b.b; }
 
 static std::vector<int8_t> LO(8192, 0), HI(8192, 0);
 static ScopeLayout::Input In(int entries, float dt = 0.f) {
@@ -19,6 +18,11 @@ static ScopeLayout::Input In(int entries, float dt = 0.f) {
 }
 
 int main() {
+    {   // tap colors: ratio 0 warm white (the grain view's center), ratio 1 green
+        const Rgb w = ScopeLayout::TapColor(0), w1 = ScopeLayout::TapColor(1), g = ScopeLayout::TapColor(2);
+        check(w.r == 0xE8 && w.g == 0xE4 && w.b == 0xDA && sameColor(w, w1), "ratio 0 is warm white");
+        check(g.r == 0x8F && g.g == 0xD3 && g.b == 0xA0, "ratio 1 is green");
+    }
     {   // age -> x
         ScopeLayout L; L.SetSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
@@ -141,7 +145,6 @@ int main() {
         t.slice = true; t.slice_oldest = oldest; t.slice_length = length;
         return t;
     };
-    auto sameColor = [](Rgb a, Rgb b) { return a.r == b.r && a.g == b.g && a.b == b.b; };
     {   // one band over the slice, behind the waveform, in a faint tap color
         for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
         ScopeLayout L; L.SetSize(320.f, 180.f);
@@ -157,7 +160,7 @@ int main() {
             check(near(u[0].x, L.XForAge(4800.f), 0.05f), "band starts at the slice's oldest end");
             check(near(u[0].x + u[0].w, L.XForAge(0.f), 0.05f), "band ends at the slice's newest end (now)");
             check(near(u[0].y, 0.f) && near(u[0].h, 180.f), "band is full height");
-            const Rgb want = Mix(L.draw_list().background, GrainLayout::TapColor(0), ScopeLayout::kSliceBandMix);
+            const Rgb want = Mix(L.draw_list().background, ScopeLayout::TapColor(0), ScopeLayout::kSliceBandMix);
             check(sameColor(u[0].color, want), "band color: 15% tap color over the background");
         }
         check(near(ScopeLayout::kSliceBandMix, 0.15f), "slice band mix is 0.15");
@@ -196,7 +199,7 @@ int main() {
         in.num_taps = 1;
         L.Update(in);
         const auto& u = L.draw_list().under;
-        const Rgb want = Mix(L.draw_list().background, GrainLayout::kRatioGreen, 0.15f);
+        const Rgb want = Mix(L.draw_list().background, ScopeLayout::kTapGreen, 0.15f);
         check(u.size() == 1 && sameColor(u[0].color, want), "second-ratio slice band is green");
     }
     {   // a band reaching past the window's left edge is clipped to [0, NowX]
