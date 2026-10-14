@@ -8,7 +8,7 @@
 struct Lucarne : Module {
 	// Retours' echo scope: true shows the whole buffer at a fixed scale;
 	// false zooms to follow the taps. Slice always shows the whole buffer.
-	bool scopeWholeBuffer = true;
+	bool scopeWholeBuffer = false;
 
 	Lucarne() { config(0, 0, 0, 0); }
 
@@ -21,6 +21,6 @@ struct Lucarne : Module {
 	void dataFromJson(json_t* rootJ) override {
 		// Patches from before the option load with the default.
 		json_t* j = json_object_get(rootJ, "scopeWholeBuffer");
-		scopeWholeBuffer = j ? json_boolean_value(j) : true;
+		scopeWholeBuffer = j ? json_boolean_value(j) : false;
 	}
 };

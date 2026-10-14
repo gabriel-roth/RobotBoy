@@ -184,6 +184,11 @@ struct Retours : BeadsModule {
 		c->density.base = intervalPot.Process(knob(INTERVAL_PARAM));
 		// beads.cc zeroes an unpatched Density CV, to ignore ADC noise.
 		c->density.cv = patched(INTERVAL_INPUT) ? intervalCv.Process(cv(INTERVAL_INPUT)) : 0.f;
+		// Off noon, the Time attenurandomizer moves Time (randomly, or by its
+		// CV); at noon a Time CV does nothing. Read raw so the dead band
+		// matches the engine's.
+		tapsModulated.store(robotboy_beads::AttenuverterLaw(bipolar(TIME_AR_PARAM)) != 0.f
+			|| patched(INTERVAL_INPUT), std::memory_order_relaxed);
 
 		c->mix.feedback = robotboy_beads::MixParameter(knob(FEEDBACK_PARAM),
 			feedbackCv.Process(cv(FEEDBACK_INPUT)), knob(FEEDBACK_CV_PARAM));

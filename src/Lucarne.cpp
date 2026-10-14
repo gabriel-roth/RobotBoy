@@ -78,13 +78,13 @@ struct LucarneDisplay : widget::Widget {
 				paint(args, grainView.getDrawList(), kNoSource);
 			}
 			else {
-				drawFeed(args, left->grainFeed, dt);
+				drawFeed(args, left->grainFeed, left->tapsModulated.load(std::memory_order_relaxed), dt);
 			}
 		}
 		Widget::drawLayer(args, layer);
 	}
 
-	void drawFeed(const DrawArgs& args, const GrainFeed& f, float dt) {
+	void drawFeed(const DrawArgs& args, const GrainFeed& f, bool modulated, float dt) {
 		if (feed != &f) {   // new source: start at its newest event
 			feed = &f;
 			eventCursor = f.event_write();
@@ -103,7 +103,7 @@ struct LucarneDisplay : widget::Widget {
 
 		if (haveFrame && frame.tap_mode) {
 			grainView.clear();
-			scopeView.update(scopeInput(f, dt));
+			scopeView.update(scopeInput(f, modulated, dt));
 			paint(args, scopeView.getDrawList(), nullptr);
 			return;
 		}
@@ -125,13 +125,14 @@ struct LucarneDisplay : widget::Widget {
 		paint(args, grainView.getDrawList(), nullptr);
 	}
 
-	// The scope's input: the audible taps from the frame, and as much of the
+	// The scope's input: every tap from the frame, and as much of the
 	// feed's scope ring as this frame's window can show.
-	lucarne::ScopeLayout::Input scopeInput(const GrainFeed& f, float dt) {
+	lucarne::ScopeLayout::Input scopeInput(const GrainFeed& f, bool modulated, float dt) {
 		lucarne::ScopeLayout::Input in;
 		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
 		in.wholeBuffer = module->scopeWholeBuffer;
+		in.modulated = modulated;
 		in.dt = dt;
 		const int32_t m = in.maxDelay;
 		// Delay-line indices: larger = older.
@@ -139,16 +140,16 @@ struct LucarneDisplay : widget::Widget {
 		float longest = 0.f;
 		for (int i = 0; i < GrainLiveFrame::kTaps; i++) {
 			const auto& t = frame.taps[i];
-			if (!(t.level > lucarne::ScopeLayout::kTapMinLevel))
-				continue;
 			lucarne::ScopeLayout::Tap tap{age(t.read_index), t.level, i};
 			if (t.slice) {
 				tap.slice = true;
 				tap.sliceOldest = age(t.slice_start);
 				tap.sliceLength = float(t.slice_length);
 			}
+			// Silent taps too: ScopeLayout holds them through Shape's dips.
 			in.taps[in.numTaps++] = tap;
-			longest = std::max(longest, tap.slice ? tap.sliceOldest : tap.delay);
+			if (t.level > lucarne::ScopeLayout::kTapMinLevel)
+				longest = std::max(longest, tap.slice ? tap.sliceOldest : tap.delay);
 		}
 
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();

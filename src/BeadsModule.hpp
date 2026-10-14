@@ -38,6 +38,10 @@ struct BeadsModule : Module, robotboy_beads::ControlSource {
 	// Commands from the menu or a reset.
 	std::atomic<bool> clearRequested{false};
 	std::atomic<bool> recalibrateRequested{false};
+	// Retours: the delay moves on its own (Time attenurandomizer off noon,
+	// or Interval CV patched), so Lucarne shows the whole buffer. Particules
+	// never sets it.
+	std::atomic<bool> tapsModulated{false};
 
 	// Input level for the gain menu (+-5 V = 1.0).
 	float inputPeak = 0.f;
