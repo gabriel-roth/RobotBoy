@@ -13,7 +13,7 @@
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
+# Key: 2 x 2 cells under the screen (Scroll, Marker / Color, Brightness),
 # each a glyph over a two-line caption (property on the display / what it
 # shows). The cursor and write-head line are self-explanatory, so they have
 # no cells. Columns sit 13.5 mm either side of the panel center (30.48), so
@@ -60,18 +60,22 @@ elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
   - row: {grid: key, at: cap1a}
-    place: [{text: Length, size: 1.8}, {text: Height, size: 1.8}]
+    place: [{text: Scroll, size: 1.8}, {text: Marker, size: 1.8}]
   - row: {grid: key, at: cap1b}
-    place: [{text: Delay or slice, size: 1.8, color: "#b0b0b0"}, {text: One row per tap, size: 1.8, color: "#b0b0b0"}]
+    place: [{text: Newest at right, size: 1.8, color: "#b0b0b0"}, {text: One per tap, size: 1.8, color: "#b0b0b0"}]
   - row: {grid: key, at: cap2a}
     place: [{text: Color, size: 1.8}, {text: Brightness, size: 1.8}]
   - row: {grid: key, at: cap2b}
-    place: [{text: Tap ratio, size: 1.8, color: "#b0b0b0"}, {text: Level, size: 1.8, color: "#b0b0b0"}]
+    place: [{text: Tap ratio, size: 1.8, color: "#b0b0b0"}, {text: Tap output, size: 1.8, color: "#b0b0b0"}]
 
 glyphs:
-  - {src: glyphs/lucarne/length.svg,   at: [16.98, 87.6]}
-  # rows.svg: pitch.svg's band (#7d9ab5, lighter than the display's #51667a so
-  # it shows on the lavender) with one tap row in each of the four lanes.
-  - {src: glyphs/lucarne/rows.svg,     at: [43.98, 87.4], scale: 0.8}   # taller glyph: shrunk to clear its caption
+  # scroll.svg and marker.svg draw the scope's waveform as a band of uneven
+  # bars in #7d9ab5 (lighter than the display's #51667a so it shows on the
+  # lavender). scroll.svg: the band with a left-pointing arrow (audio moves
+  # right to left). marker.svg: the band crossed by the two tap lines, in
+  # the tap-ratio colors. Both are 4.8 mm tall, so they clear their captions
+  # without scaling.
+  - {src: glyphs/lucarne/scroll.svg,   at: [16.98, 87.6]}
+  - {src: glyphs/lucarne/marker.svg,   at: [43.98, 87.6]}
   - {src: glyphs/lucarne/ratio.svg,    at: [16.98, 105.8]}
   - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8]}
