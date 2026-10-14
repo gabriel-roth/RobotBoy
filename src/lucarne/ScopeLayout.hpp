@@ -25,7 +25,7 @@ public:
 		int32_t samples_per_entry = 1;
 		float line_rate = 48000.f;
 		int32_t max_delay = 1;
-		Tap taps[8];
+		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
 		int num_taps = 0;   // audible taps only (level > GrainLayout::kTapMinLevel)
 		float dt = 0.f;
 	};

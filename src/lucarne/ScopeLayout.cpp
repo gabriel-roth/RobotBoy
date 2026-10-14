@@ -39,14 +39,14 @@ void ScopeLayout::Update(const Input& in) {
 
 	float longest = 0.f;
 	bool audible = false;
-	for (int i = 0; i < std::min(in.num_taps, 8); ++i) {
+	for (int i = 0; i < std::min(in.num_taps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
 		longest = std::max(longest, in.taps[i].delay);
 		audible = true;
 	}
 	if (snap) window_ = max_delay;   // initial: whole buffer
 	if (audible) {
 		const float lo = std::min(kMinWindowSeconds * in.line_rate, max_delay);
-		const float target = std::min(std::max(kZoomMargin * longest, lo), max_delay);
+		const float target = std::max(std::min(std::max(kZoomMargin * longest, lo), max_delay), 1.f);
 		if (snap) {
 			window_ = target;
 		} else {
@@ -92,13 +92,14 @@ void ScopeLayout::Update(const Input& in) {
 	}
 
 	const float line_w = std::max(w_ * 0.004f, 1.f);
-	for (int i = 0; i < std::min(in.num_taps, 8); ++i) {
+	for (int i = 0; i < std::min(in.num_taps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
 		const Tap& t = in.taps[i];
 		if (t.delay > window_ || t.delay < 0.f) continue;
 		const float x = XForAge(t.delay);
 		const float o = TapOutput(in, t.delay, t.level);
 		const Rgb base = GrainLayout::TapColor(t.slot);
 		list_.marks.push_back({x - line_w * 0.5f, 0.f, line_w, h_, Mix(list_.background, base, 0.3f + 0.7f * o)});
+		if (!(o > 0.f)) continue;
 		const float bar_h = o * full;
 		list_.marks.push_back({x - line_w * 1.5f, mid - bar_h * 0.5f, line_w * 3.f, bar_h, Lighten(base, 0.4f)});
 	}

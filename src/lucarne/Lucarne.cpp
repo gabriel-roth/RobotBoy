@@ -99,7 +99,7 @@ struct LucarneDisplay : widget::Widget {
 		in.max_delay = std::max<int32_t>(fr.max_delay, 1);
 		in.dt = dt;
 		float longest = 0.f;
-		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps; ++i) {
+		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps && in.num_taps < robotboy_beads::GrainLiveFrame::kTaps; ++i) {
 			const auto& t = fr.taps[i];
 			if (!(t.level > lucarne::GrainLayout::kTapMinLevel)) continue;
 			// read_index is a delay-line index: larger = older.

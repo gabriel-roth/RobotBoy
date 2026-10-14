@@ -91,8 +91,9 @@ void GrainCapture::Backfill(const Line& line, int32_t write, int32_t max_delay) 
 // After a scope reset, fill the ring's older entries from the audio that
 // was already in the line, newest first: entry kScopeEntries - 1 - j covers
 // the spe samples starting at offset 1 + j * spe above the write pointer at
-// the reset (larger index = older). Same flat budget as the columns: a full
-// ring takes 0.5 s (Bright) to 1 s (Scorched mono).
+// the reset (larger index = older). Same flat budget as the columns (blocks
+// run at 4000/s, 192 reads each): a full ring takes about 0.26 s at Bright
+// stereo (spe 24), 0.5 s at Bright mono and 1 s at Scorched mono.
 constexpr int kScopeBackfillReads = 192;
 
 template <typename Line>

@@ -30,6 +30,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 - *Each line flashes as sound passes it.* The line brightens and a short bar appears on it as the audio reaches that tap, so you see each echo as you hear it. The bar's height follows that tap's output level.
 - *The view zooms to fit.* The longest audible echo sits near the left edge, and the view glides smoothly to a new zoom when you change Time or Interval.
+- *Changing Quality or switching between mono and stereo input clears the scope.* It refills as Retours records.
 
 **Slice.** With Slice on, the tape stops and the display switches to the slice view: each looping play head draws as a line over the slice it plays, with a cursor running along it. Turn Slice off and the display goes back to the scrolling scope.
 

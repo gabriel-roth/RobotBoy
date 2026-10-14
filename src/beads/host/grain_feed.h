@@ -1,8 +1,9 @@
 // The hand-off from Particules' audio thread to Lucarne's display: the
 // buffer's waveform peaks, an event per grain start, the live state of
 // every grain slot and, for Retours (delay mode), a finer ring of the
-// line's recent audio for the echo scope. One producer (the engine's GrainCapture, audio thread),
-// one consumer (Lucarne's widget, UI thread). Nothing here blocks or
+// line's recent audio for the echo scope. One producer (the engine's
+// GrainCapture, audio thread), one consumer (Lucarne's widget, UI
+// thread). Nothing here blocks or
 // allocates; a slow reader loses old data, never corrupts it.
 
 #pragma once

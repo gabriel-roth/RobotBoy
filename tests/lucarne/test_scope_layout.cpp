@@ -37,6 +37,15 @@ int main() {
         M.Update(in);
         check(near(M.window(), 196608.f, 1.f), "window capped at max_delay");
     }
+    {   // zero line rate never yields a zero or NaN window
+        ScopeLayout L; L.SetSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.line_rate = 0.f;
+        in.taps[0] = {0.f, 1.f, 0}; in.num_taps = 1;
+        L.Update(in);
+        L.Update(in);
+        check(std::isfinite(L.window()) && L.window() > 0.f, "zero line rate: window finite and positive");
+    }
     {   // easing and snap
         ScopeLayout L; L.SetSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
