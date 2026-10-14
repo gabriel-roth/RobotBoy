@@ -13,15 +13,17 @@
 # tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
 #
 # Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
-# each a glyph over a two-line caption (property on the display / what it
-# shows). The cursor and write-head line are self-explanatory, so they have
-# no cells. Columns sit 13.5 mm either side of the panel center (30.48), so
-# each cell has \~25 mm. A cell spans glyph top (y - 1.5) to caption line 2
-# (y + 7.6) = 9.1 mm; the band from the screen bottom (74) to the screw line
-# (125.5) is 51.5 mm, so the leftover 33.3 mm splits into 3 gaps of 11.1:
-# glyph rows at 86.6 and 106.8; then pulled 1 mm each toward the middle
-# (rows 18.2 mm apart, user choice) to 87.6 and 105.8. Captions: line 1 baseline glyph + 5.0,
-# line 2 + 7.6, cap size 1.8.
+# each a glyph over a two-line caption: the property on the display, 2.3 mm
+# in gray, then what it shows, 2.6 mm in white (the meaning carries the
+# emphasis). The cursor and write-head line are self-explanatory, so
+# they have no cells.
+# Columns sit 13.5 mm either side of the panel center (30.48), so each cell
+# has \~25 mm; the widest caption, Retours' "Newest at right", is \~23 mm.
+# Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
+# 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
+# 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
+# split into 3 gaps of 5.1: glyph rows at 87.4 and 105.8. Captions: line 1
+# baseline glyph + 6.35, line 2 + 10.1.
 slug: Lucarne
 name: LUCARNE
 hp: 12
@@ -37,8 +39,8 @@ title:
 
 # Key backdrop: a lavender zone behind the key, in the house zone style (1.5 mm
 # from the panel edges, rx 2, like Particules). y 79 to 121: 5 mm below the
-# screen, clear of the bottom screws (125.5), and centered on the key's
-# content (glyph tops 85.1 to last caption 114.4, midpoint 99.75).
+# screen and clear of the bottom screws (125.5). The key, or the setup
+# instruction, is centered in it.
 # Dusty lavender at 0.4 over #3d3d3d resolves to #625e6b: between
 # Particules' rose and the display's blues.
 zones:
@@ -48,29 +50,29 @@ grids:
   key:
     cols: [16.98, 43.98]
     rows:
-      glyph1: 87.6
-      cap1a: 92.6
-      cap1b: 95.2
+      glyph1: 87.4
+      cap1a: 93.7
+      cap1b: 97.5
       glyph2: 105.8
-      cap2a: 110.8
-      cap2b: 113.4
+      cap2a: 112.2
+      cap2b: 115.9
 
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
   - row: {grid: key, at: cap1a}
-    place: [{text: Length, size: 1.8}, {text: Height, size: 1.8}]
+    place: [{text: Length, size: 2.3, color: "#b0b0b0"}, {text: Height, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap1b}
-    place: [{text: Buffer segment, size: 1.8, color: "#b0b0b0"}, {text: Pitch, size: 1.8, color: "#b0b0b0"}]
+    place: [{text: Buffer segment, size: 2.6}, {text: Pitch, size: 2.6}]
   - row: {grid: key, at: cap2a}
-    place: [{text: Color, size: 1.8}, {text: Brightness, size: 1.8}]
+    place: [{text: Color, size: 2.3, color: "#b0b0b0"}, {text: Brightness, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap2b}
-    place: [{text: Stereo pan, size: 1.8, color: "#b0b0b0"}, {text: Envelope, size: 1.8, color: "#b0b0b0"}]
+    place: [{text: Stereo pan, size: 2.6}, {text: Envelope, size: 2.6}]
 
 glyphs:
-  - {src: glyphs/lucarne/length.svg,   at: [16.98, 87.6]}
+  - {src: glyphs/lucarne/length.svg,   at: [16.98, 87.4], scale: 1.375}
   # pitch.svg's band is a lighter blue (#7d9ab5) than the display's waveform
   # (#51667a), which disappears against the lavender backdrop.
-  - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 87.4], scale: 0.8}   # taller glyph: shrunk to clear its caption
-  - {src: glyphs/lucarne/pan.svg,      at: [16.98, 105.8]}
-  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8]}
+  - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 87.1], scale: 1.1}   # taller glyph: 0.8 x 1.375 to clear its caption
+  - {src: glyphs/lucarne/pan.svg,      at: [16.98, 105.8], scale: 1.375}
+  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8], scale: 1.375}
