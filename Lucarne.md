@@ -24,7 +24,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 ## What it shows with Retours
 
-**The buffer.** The waveform band and the write head work as with Particules, and Freeze dims and stops the line in the same way.
+**The buffer.** The waveform band and the write head work as with Particules, and Slice dims and stops the line in the same way.
 
 **The delay taps.** Each audible delay tap is a line above or below the band, running from the point where that tap reads the buffer to the write head, so its length is the delay time. Turn Time and the lines stretch and shrink.
 
