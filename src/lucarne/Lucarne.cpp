@@ -19,10 +19,13 @@ static constexpr float kScreenH = 30.375f;
 static constexpr float kScreenH = 60.f;
 #endif
 
+// With nothing attached the screen is cleared. On VCV it stays blank: the
+// instruction is printed on the panel (Lucarne-Empty.svg). MetaModule's
+// faceplate has no room for it, so the screen says it.
 #ifdef METAMODULE
 static const char* const kNoSource = "Add from the Expanders menu of Particules or Retours";
 #else
-static const char* const kNoSource = "Place right of Particules or Retours";
+static const char* const kNoSource = "";
 #endif
 
 enum class Source { None, Particules, Retours };
@@ -234,7 +237,7 @@ struct LucarneDisplay : widget::Widget {
 			nvgFillColor(vg, nvgRGB(r.color.r, r.color.g, r.color.b));
 			nvgFill(vg);
 		}
-		if (message) {
+		if (message && *message) {
 			auto font =
 				APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 			if (font) {
@@ -259,7 +262,7 @@ struct LucarneDisplay : widget::Widget {
 struct LucarneWidget : ModuleWidget {
 #ifndef METAMODULE
 	// Three VCV panels, identical but for the key area: Lucarne-Empty.svg has
-	// an emblem (nothing attached, and the module browser), Lucarne.svg the
+	// the setup instruction (nothing attached, and the module browser), Lucarne.svg the
 	// Particules key, Lucarne-Retours.svg the Retours key. step() swaps them
 	// when the display's source changes. MetaModule's faceplate has no key.
 	std::shared_ptr<window::Svg> empty_svg, particules_svg, retours_svg;

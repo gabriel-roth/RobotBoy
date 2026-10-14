@@ -3,7 +3,7 @@
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne-empty.yaml --out res/Lucarne-Empty.svg
 #
 # Twin of lucarne.yaml shown when nothing is attached and in the module browser:
-# the key backdrop holds an emblem instead of a key. Keep everything else in sync
+# the key backdrop holds the setup instruction instead of a key. Keep everything else in sync
 # with lucarne.yaml and lucarne-retours.yaml.
 #
 # Lucarne is a display-only expander for Particules: a wordmark, one screen
@@ -58,8 +58,7 @@ grids:
 
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
-
-# Emblem: a skylight (a lucarne) with a waveform behind the glass, centered
-# in the key backdrop (zone y 79 to 121, center 100). 28 mm square glyph.
-glyphs:
-  - {src: glyphs/lucarne/skylight.svg, at: [30.48, 100]}
+  # Setup instruction in the key backdrop (zone y 79 to 121, center 100):
+  # two lines centered on the panel, caption-title size and color.
+  - {text: "Place right of", x: 30.48, y: 98.6, size: 2.4}
+  - {text: "Particules or Retours", x: 30.48, y: 102.6, size: 2.4}

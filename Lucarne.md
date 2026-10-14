@@ -16,7 +16,7 @@
 - *Brightness and fade.* Lines brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
 - *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 
-In VCV, a key under the display sums this up. Until Lucarne is attached to Particules or Retours, the key area shows a Lucarne emblem instead. On MetaModule the display is smaller (16:9, to fill the screen when you tap it) and the faceplate has no key.
+In VCV, a key under the display sums this up. Until Lucarne is attached to Particules or Retours, the key area shows where to place it instead, and the screen stays blank. On MetaModule the display is smaller (16:9, to fill the screen when you tap it) and the faceplate has no key.
 
 Changing Quality, switching between mono and stereo input, or clearing the buffer clears the display, which then fills in again as Particules records.
 
@@ -42,7 +42,7 @@ In VCV, the key under the display changes to match the module Lucarne is attache
 
 ## Setup
 
-- **VCV Rack:** place Lucarne directly to the right of Particules or Retours. Until it is, the display reads "Place right of Particules or Retours".
+- **VCV Rack:** place Lucarne directly to the right of Particules or Retours. Until it is, the panel under the display reads "Place right of Particules or Retours" and the screen stays blank.
 - **MetaModule:** add Lucarne to the patch, then attach it from the **Expanders…** menu of Particules or Retours (this needs firmware 2.4 or later). Tap the display to see it fullscreen. Until it is attached, the display reads "Add from the Expanders menu of Particules or Retours".
 
 ---
