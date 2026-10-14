@@ -11,7 +11,7 @@
 //
 // Only the audio thread touches the engine (and Rack's locked calls: reset,
 // sample rate, port changes). The UI thread works through the module: clear
-// requests and the menu's frozen/clear state are atomics there, and the
+// requests and the menu's clear state are atomics there, and the
 // engine's menu items are built from module state alone.
 struct Particules;
 

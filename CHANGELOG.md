@@ -2,7 +2,7 @@
 
 ## [Unreleased]
 
-- Classic mode is gone: Particules, Retours and Ondes always run the Beads engines. Patches made with 2.1 or earlier open with the Beads engines too, so they may sound different. For the old engines, install the 2.2.0 beta 4 pre-release from GitHub, which still has Classic mode.
+- Classic mode is gone: Particules, Retours and Ondes always run the Beads engines. Patches made with 2.1 or earlier, or saved in Classic mode in the 2.2 betas, open with the Beads engines too, so they may sound different. For the old engines, install the 2.2.0 beta 4 pre-release from GitHub, which still has Classic mode.
 
 ## [2.2.0-beta.4] — 2026-10-13 (pre-release)
 

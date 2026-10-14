@@ -81,7 +81,6 @@ Retours::Retours() {
 	configLight(CLOCK_LIGHT, "Clock");
 
 	engine_ = MakeRetoursBeads(*this, APP->engine->getSampleRate());
-	grain_feed_.Reset();
 	if (!engine_ || !engine_->ok()) {
 		// WARN is defined identically by both hosts' logger.hpp.
 		WARN("Retours: could not allocate the Beads delay memory");
