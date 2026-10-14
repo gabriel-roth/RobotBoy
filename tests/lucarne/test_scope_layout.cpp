@@ -232,27 +232,23 @@ int main() {
         L.Clear();
         check(L.draw_list().under.empty(), "Clear empties the bands");
     }
-    {   // Slice (frozen): the zoom only widens, so the waveform keeps its size
+    {   // Slice (frozen): the whole buffer, fixed, until Slice turns off
         for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
         ScopeLayout L; L.SetSize(320.f, 180.f);
-        ScopeLayout::Input in = In(8192, 0.016f);
+        ScopeLayout::Input run = In(8192, 0.016f);
+        run.taps[0] = {4800.f, 1.f, 0}; run.num_taps = 1;
+        L.Update(run);
+        ScopeLayout::Input in = run;
         in.frozen = true;
-        in.taps[0] = {1000.f, 1.f, 0, true, 9600.f, 4800.f}; in.num_taps = 1;
+        in.taps[0] = {1000.f, 1.f, 0, true, 9600.f, 4800.f};
         L.Update(in);
-        const float w0 = L.window();
-        check(near(w0, 9600.f * 1.15f, 1.f), "Slice: snaps to fit the slice");
-        in.taps[0] = {1000.f, 1.f, 0, true, 2400.f, 1200.f};   // a newer, shorter slice
-        for (int i = 0; i < 60; ++i) L.Update(in);
-        check(near(L.window(), w0, 1.f), "Slice: a nearer slice does not shrink the view");
-        in.num_taps = 0;                                         // all heads silent
-        for (int i = 0; i < 10; ++i) L.Update(in);
-        check(near(L.window(), w0, 1.f), "Slice: silent heads keep the view");
-        in.taps[0] = {1000.f, 1.f, 0, true, 19200.f, 4800.f}; in.num_taps = 1;
-        for (int i = 0; i < 60; ++i) L.Update(in);
-        check(near(L.window(), 19200.f * 1.15f, 50.f), "Slice: an older slice widens the view");
-        in.frozen = false;                                       // Slice off: follows taps again
-        in.taps[0] = {4800.f, 1.f, 0}; 
-        for (int i = 0; i < 60; ++i) L.Update(in);
+        check(near(L.window(), 196608.f, 1.f), "Slice on: window jumps to the whole buffer");
+        in.taps[0] = {1000.f, 1.f, 0, true, 2400.f, 1200.f};
+        for (int i = 0; i < 30; ++i) L.Update(in);
+        in.num_taps = 0;
+        for (int i = 0; i < 30; ++i) L.Update(in);
+        check(near(L.window(), 196608.f, 1.f), "Slice: window never changes while frozen");
+        for (int i = 0; i < 120; ++i) L.Update(run);
         check(near(L.window(), 4800.f * 1.15f, 50.f), "Slice off: zoom follows the taps again");
     }
     return g_failures ? 1 : 0;

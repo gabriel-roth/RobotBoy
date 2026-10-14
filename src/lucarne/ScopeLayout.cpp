@@ -14,7 +14,6 @@ void ScopeLayout::SetSize(float w, float h) {
 
 void ScopeLayout::Clear() {
 	have_window_ = false;
-	slice_target_ = 0.f;
 	list_.under.clear();
 	list_.wave.clear();
 	list_.marks.clear();
@@ -60,14 +59,7 @@ void ScopeLayout::Update(const Input& in) {
 	if (snap) window_ = max_delay;   // initial: whole buffer
 	if (audible) {
 		const float lo = std::min(kMinWindowSeconds * in.line_rate, max_delay);
-		float target = std::max(std::min(std::max(kZoomMargin * longest, lo), max_delay), 1.f);
-		// In Slice the heads fade in and out and restart, so the set of
-		// audible ones keeps changing; following it would make the frozen
-		// waveform breathe. The view only widens until Slice turns off.
-		if (in.frozen) {
-			target = std::max(target, slice_target_);
-			slice_target_ = target;
-		}
+		const float target = std::max(std::min(std::max(kZoomMargin * longest, lo), max_delay), 1.f);
 		if (snap) {
 			window_ = target;
 		} else {
@@ -75,7 +67,10 @@ void ScopeLayout::Update(const Input& in) {
 			window_ = std::exp(std::log(window_) + (std::log(target) - std::log(window_)) * k);
 		}
 	}
-	if (!in.frozen) slice_target_ = 0.f;
+	// Slice: show the whole buffer, fixed, until Slice turns off. The slices
+	// can be anywhere in it, and a zoom that followed the heads (which fade
+	// in and out and restart) would keep changing the frozen waveform.
+	if (in.frozen) window_ = max_delay;
 	have_window_ = true;
 
 	list_.under.clear();

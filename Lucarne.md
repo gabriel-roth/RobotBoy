@@ -34,7 +34,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 - *The view zooms to fit.* The longest audible echo sits near the left edge, and the view glides smoothly to a new zoom when you change Time or Interval.
 - *Changing Quality or switching between mono and stereo input clears the scope.* It refills as Retours records.
 
-**Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (warm white or green, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view zooms out to include every slice and then holds its size, widening only if you move to an older slice. Turn Slice off and the waveform starts scrolling again.
+**Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (warm white or green, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view shows the whole buffer and holds it, unchanged, until Slice turns off. Turn Slice off and the waveform starts scrolling again.
 
 In VCV, the key under the display changes to match the module Lucarne is attached to: Scroll shows that audio enters at the right and moves left, Marker shows one line per tap, Color shows the tap ratio, and Brightness shows the tap's output. On MetaModule there is no key.
 
