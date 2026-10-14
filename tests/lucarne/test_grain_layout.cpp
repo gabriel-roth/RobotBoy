@@ -133,14 +133,16 @@ int main() {
         check(pieces == 2, "wrapped line draws as two pieces");
     }
 
-    // Collisions push to the next free row; non-overlapping grains share a row.
+    // Collisions take the nearest free row (unison crosses the band);
+    // non-overlapping grains share a row.
     {
         GrainLayout G; G.setSize(320.f, 180.f);
         GrainLiveFrame f = Frame();
         Live(f, 0, 1, 600); Live(f, 1, 1, 600); Live(f, 2, 1, 100);
         GrainStartEvent e[3] = {{1, 0, 600, 1.f, 100.f}, {1, 1, 600, 1.f, 100.f}, {1, 2, 100, 1.f, 100.f}};
         G.update(In(&f, e, 3));
-        check(G.getGrains()[0].row == 0 && G.getGrains()[1].row == 1, "overlap moves outward");
+        check(G.getGrains()[0].side == +1 && G.getGrains()[0].row == 0
+              && G.getGrains()[1].side == -1 && G.getGrains()[1].row == 0, "unison overlap crosses the band");
         check(G.getGrains()[2].row == 0, "no overlap: same row");
     }
 

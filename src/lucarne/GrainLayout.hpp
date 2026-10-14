@@ -70,7 +70,7 @@ private:
 	float bandHeight() const;
 	float rowHeight() const;
 	void birth(const robotboy_beads::GrainStartEvent& e, const robotboy_beads::GrainLiveFrame& f);
-	int chooseRow(int side, int preferred, float x0, float span) const;
+	void chooseRow(float speed, float x0, float span, int& side, int& row) const;
 	void build(const Input& in);
 	void addSpan(float x, float len, float y, float h, Rgb c);
 	void makeRoom();

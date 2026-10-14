@@ -66,19 +66,36 @@ int GrainLayout::preferredRow(float speed, int rowsPerSide) {
 
 int GrainLayout::sideFor(float speed) { return semitones(speed) >= 0.f ? +1 : -1; }
 
-int GrainLayout::chooseRow(int side, int preferred, float x0, float span) const {
+void GrainLayout::chooseRow(float speed, float x0, float span, int& side, int& row) const {
 	const float a = std::min(x0, x0 + span), la = std::max(std::fabs(span), 1e-3f);
-	auto taken = [&](int row) {
+	auto taken = [&](int s, int r) {
 		for (const VisualGrain& g : grains) {
-			if (g.side != side || g.row != row) continue;
+			if (g.side != s || g.row != r) continue;
 			if (overlaps(a, la, std::min(g.x0, g.x0 + g.span), std::max(std::fabs(g.span), 1e-3f), width))
 				return true;
 		}
 		return false;
 	};
-	for (int r = preferred; r < rows; ++r) if (!taken(r)) return r;
-	for (int r = preferred - 1; r >= 0; --r) if (!taken(r)) return r;
-	return preferred;
+	// Take the free row whose pitch is nearest the grain's. Row 0 on either
+	// side reads as unison, so a grain that wants row 0 may cross the band
+	// (unison stacks grow both ways); any other grain stays on its own side
+	// so it never reads as pitched the wrong way.
+	const float st = semitones(speed);
+	const float perRow = rows > 1 ? kMaxSemitones / float(rows - 1) : kMaxSemitones;
+	side = sideFor(speed);
+	row = preferredRow(speed, rows);
+	const bool cross = row == 0;
+	float best = 1e9f;
+	int bestSide = side, bestRow = row;
+	for (int s : {side, -side}) {
+		if (s != side && !cross) continue;
+		for (int r = 0; r < rows; ++r) {
+			const float err = std::fabs(float(s * r) * perRow - st);
+			if (err < best && !taken(s, r)) { best = err; bestSide = s; bestRow = r; }
+		}
+	}
+	side = bestSide;
+	row = bestRow;
 }
 
 Rgb GrainLayout::panColor(float pan) {
@@ -111,8 +128,7 @@ void GrainLayout::birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	g.pan = e.pan;
 	g.x0 = xForIndex(start, m);
 	g.span = std::min(std::max(e.speed * e.duration / float(m) * width, -width), width);
-	g.side = sideFor(e.speed);
-	g.row = chooseRow(g.side, preferredRow(e.speed, rows), g.x0, g.span);
+	chooseRow(e.speed, g.x0, g.span, g.side, g.row);
 	const auto& slot = f.slots[g.slot];
 	if (slot.serial == e.serial && !slot.done) {
 		g.ended = false;
