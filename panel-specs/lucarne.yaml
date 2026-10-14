@@ -18,7 +18,7 @@
 # emphasis). The cursor and write-head line are self-explanatory, so
 # they have no cells.
 # Columns sit 13.5 mm either side of the panel center (30.48), so each cell
-# has \~25 mm; the widest caption, Retours' "Newest at right", is \~23 mm.
+# has \~25 mm; the widest caption, "Buffer segment", is \~22.5 mm.
 # Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
 # 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
 # 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
