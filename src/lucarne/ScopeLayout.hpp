@@ -26,6 +26,12 @@ public:
 	// A Slice head's band: this much of the tap color over the background.
 	static constexpr float kSliceBandMix = 0.15f;
 	static constexpr float kTapMinLevel = 0.01f;   // at or below: silent, not drawn
+	// Zoom hold: a running tap that goes silent still counts toward the zoom
+	// for this fraction of its delay plus kHoldFloor seconds. Shape's
+	// envelope drops each tap to zero once per repeat for about 2% of its
+	// delay; a real fade-out is only this much late.
+	static constexpr float kHoldFraction = 0.05f;
+	static constexpr float kHoldFloor = 0.05f;
 	// Tap colors: tap slot i's ratio, (i / 2) % 2, picks warm white (the
 	// grain view's center color) or green.
 	static constexpr Rgb kTapWhite{0xE8, 0xE4, 0xDA};
@@ -49,9 +55,10 @@ public:
 		float lineRate = 48000.f;
 		int32_t maxDelay = 1;
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
-		int numTaps = 0;   // audible taps only (level > kTapMinLevel)
+		int numTaps = 0;   // taps passed; silent ones (level <= kTapMinLevel) count toward the hold only
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
 		bool wholeBuffer = false;   // menu: always the whole buffer, never follow the taps
+		bool modulated = false;     // Retours: the delay moves on its own; aim at the whole buffer
 		float dt = 0.f;
 	};
 
@@ -70,6 +77,7 @@ private:
 	float window = 1.f;
 	uint32_t epoch = 0;
 	bool haveWindow = false;
+	float hold[robotboy_beads::GrainLiveFrame::kTaps] = {};   // seconds each slot still counts
 	DrawList list;
 };
 

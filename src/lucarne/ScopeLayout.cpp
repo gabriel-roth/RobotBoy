@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
 namespace lucarne {
 
@@ -12,6 +13,7 @@ void ScopeLayout::setSize(float w, float h) {
 
 void ScopeLayout::clear() {
 	haveWindow = false;
+	std::fill(std::begin(hold), std::end(hold), 0.f);
 	list.clear();
 }
 
@@ -43,23 +45,45 @@ void ScopeLayout::update(const Input& in) {
 	const float maxDelay = float(std::max<int32_t>(in.maxDelay, 1));
 	const bool snap = !haveWindow || in.epoch != epoch;
 	epoch = in.epoch;
+	if (snap) std::fill(std::begin(hold), std::end(hold), 0.f);
 
+	// Every slot's hold runs down, passed this frame or not; an audible
+	// tap refills its own. A Slice head's view must hold its whole slice,
+	// not just its read point (Slice shows the whole buffer anyway).
+	const float dt = std::max(in.dt, 0.f);
+	const float rate = in.lineRate > 0.f ? in.lineRate : 48000.f;   // as Lucarne's default
+	for (float& h : hold) h = std::max(h - dt, 0.f);
+	const int numTaps = std::min(in.numTaps, int(robotboy_beads::GrainLiveFrame::kTaps));
 	float longest = 0.f;
-	bool audible = false;
-	for (int i = 0; i < std::min(in.numTaps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
-		// A Slice head's view must hold its whole slice, not just its read point.
+	bool present = false;
+	for (int i = 0; i < numTaps; ++i) {
 		const Tap& t = in.taps[i];
-		longest = std::max(longest, t.slice ? t.sliceOldest : t.delay);
-		audible = true;
+		const bool audible = t.level > kTapMinLevel;
+		if (t.slice) {
+			if (audible) {
+				longest = std::max(longest, t.sliceOldest);
+				present = true;
+			}
+			continue;
+		}
+		float* h = t.slot >= 0 && t.slot < int(robotboy_beads::GrainLiveFrame::kTaps) ? &hold[t.slot] : nullptr;
+		if (audible && h) *h = kHoldFraction * t.delay / rate + kHoldFloor;
+		if (audible || (h && *h > 0.f)) {
+			longest = std::max(longest, t.delay);
+			present = true;
+		}
 	}
 	if (snap) window = maxDelay;   // initial: whole buffer
-	if (audible) {
+	// Modulated: the delay moves on its own, so aim at the whole buffer
+	// instead of chasing it, easing there as after a knob turn.
+	if (present || in.modulated) {
 		const float lo = std::min(kMinWindowSeconds * in.lineRate, maxDelay);
-		const float target = std::max(std::min(std::max(kZoomMargin * longest, lo), maxDelay), 1.f);
+		const float target = in.modulated ? maxDelay
+			: std::max(std::min(std::max(kZoomMargin * longest, lo), maxDelay), 1.f);
 		if (snap) {
 			window = target;
 		} else {
-			const float k = 1.f - std::exp(-std::max(in.dt, 0.f) / kZoomTau);
+			const float k = 1.f - std::exp(-dt / kZoomTau);
 			window = std::exp(std::log(window) + (std::log(target) - std::log(window)) * k);
 		}
 	}
@@ -112,8 +136,9 @@ void ScopeLayout::update(const Input& in) {
 		list.marks.push_back({x - lineW * 1.5f, mid - barH * 0.5f, lineW * 3.f, barH, lighten(base, 0.4f)});
 	};
 	marker(nowX(), kDryColor, dryOutput(in));
-	for (int i = 0; i < std::min(in.numTaps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
+	for (int i = 0; i < numTaps; ++i) {
 		const Tap& t = in.taps[i];
+		if (!(t.level > kTapMinLevel)) continue;   // held or silent: no band, no marker
 		if (t.slice) {
 			// The stretch of audio the slice loops, behind the waveform.
 			const float x0 = std::max(xForAge(t.sliceOldest), 0.f);

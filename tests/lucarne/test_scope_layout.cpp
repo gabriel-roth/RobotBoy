@@ -268,5 +268,112 @@ int main() {
         for (int i = 0; i < 120; ++i) L.update(in);
         check(near(L.getWindow(), 9600.f * 1.15f, 50.f), "follow taps: zoom eases back to the taps");
     }
+    {   // Modulated: the zoom eases out to the whole buffer and stays
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        const float w0 = L.getWindow();
+        in.modulated = true;
+        L.update(in);
+        check(L.getWindow() > w0 && L.getWindow() < 196608.f, "modulated: zoom eases part-way out");
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "modulated: zoom reaches the whole buffer");
+        in.taps[0].delay = 9600.f;
+        for (int i = 0; i < 30; ++i) L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "modulated: a tap change doesn't zoom");
+        in.taps[0].level = 0.f;
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "modulated with no audible tap: whole buffer");
+        in.taps[0].level = 1.f; in.modulated = false;
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), 9600.f * 1.15f, 50.f), "modulation off: zoom eases back to the taps");
+    }
+    {   // Modulated on the first update snaps
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "modulated snap: whole buffer at once");
+    }
+    {   // Frozen (Slice) and Whole buffer still jump, even while modulated
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        in.modulated = true; in.frozen = true;
+        L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "frozen wins over easing");
+    }
+    {   // Shape dip: the longest tap silent for 2% of its period doesn't move the zoom
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 1.f / 60.f);
+        in.taps[0] = {48000.f, 1.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;   // 1 s and 0.1 s
+        for (int i = 0; i < 120; ++i) L.update(in);
+        const float w0 = L.getWindow();
+        in.taps[0].level = 0.f;                   // 20 ms dip: 2 frames at 60 fps
+        L.update(in); L.update(in);
+        in.taps[0].level = 1.f;
+        L.update(in);
+        check(near(L.getWindow(), w0, 1.f), "Shape dip: zoom doesn't move");
+    }
+    {   // Real fade-out: held for the hold time, then eases in
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.01f);
+        in.taps[0] = {48000.f, 1.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;
+        for (int i = 0; i < 120; ++i) L.update(in);
+        const float w0 = L.getWindow();
+        in.taps[0].level = 0.f;
+        for (int i = 0; i < 8; ++i) L.update(in);     // 80 ms of the 100 ms hold (5% of 1 s + 50 ms)
+        check(near(L.getWindow(), w0, 1.f), "fade-out: zoom holds during the hold");
+        for (int i = 0; i < 200; ++i) L.update(in);
+        check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "fade-out: zoom then eases to the next tap");
+    }
+    {   // A held, silent tap draws no marker
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {48000.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        const size_t marksAudible = L.getDrawList().marks.size();
+        in.taps[0].level = 0.f;
+        L.update(in);
+        check(L.getDrawList().marks.size() < marksAudible, "held tap draws no marker");
+        in.taps[0] = {1000.f, 0.f, 0, true, 9600.f, 4800.f};
+        L.update(in);
+        check(L.getDrawList().under.empty(), "silent slice head draws no band");
+    }
+    {   // Stale hold decays even when the slot isn't passed; clear() resets holds
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {96000.f, 1.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;
+        L.update(in);                                        // slot 0 hold: 0.15 s
+        in.taps[0] = in.taps[1]; in.numTaps = 1;             // slot 0 absent for 1 s
+        in.dt = 1.f; L.update(in);
+        in.dt = 0.016f;
+        // The dt = 1 s update eased the window all the way to slot 2's zoom.
+        // A stale slot 0 hold (0.15 s) would pull it back out within 5 frames.
+        in.taps[0] = {96000.f, 0.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;
+        for (int i = 0; i < 5; ++i) L.update(in);
+        check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "stale hold decays");
+        ScopeLayout M; M.setSize(320.f, 180.f);
+        ScopeLayout::Input m = In(8192, 0.016f);
+        m.taps[0] = {96000.f, 1.f, 0}; m.taps[1] = {4800.f, 1.f, 2}; m.numTaps = 2;
+        M.update(m);
+        M.clear();
+        m.taps[0].level = 0.f;
+        M.update(m);
+        check(near(M.getWindow(), 4800.f * 1.15f, 1.f), "clear resets holds");
+    }
+    {   // Zero line rate: the hold stays finite
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.lineRate = 0.f;
+        in.taps[0] = {48000.f, 1.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;
+        L.update(in);
+        in.taps[0].level = 0.f;
+        in.dt = 0.5f;
+        for (int i = 0; i < 200; ++i) L.update(in);
+        check(std::isfinite(L.getWindow()) && near(L.getWindow(), 4800.f * 1.15f, 50.f), "zero line rate hold finite");
+    }
     return g_failures ? 1 : 0;
 }
