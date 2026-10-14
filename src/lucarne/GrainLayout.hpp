@@ -17,6 +17,7 @@ struct Rect { float x, y, w, h; Rgb color; };
 struct DrawList {
 	Rgb background{0x10, 0x14, 0x18};   // Loooop's display background
 	Rgb wave_color{0x51, 0x66, 0x7A};   // Loooop's waveform blue-gray
+	std::vector<Rect> under;            // behind the waveform, each its own color (ScopeLayout only)
 	std::vector<Rect> wave;             // one per peak column, all wave_color
 	std::vector<Rect> marks;            // write head, grain lines, cursors (in paint order)
 };
@@ -75,25 +76,14 @@ public:
 	// center, orange at hard right.
 	static Rgb PanColor(float pan);
 
-	// Tap view (Retours delay mode, Slice): one line per slice head, in two
-	// lanes on each side of the band. Tap slot i: ratio (i / 2) % 2 picks the
-	// side and color, bit i & 1 the lane. A running (non-Slice) tap frame is
-	// drawn by ScopeLayout instead; ScopeView() says which.
+	// Retours (delay mode) is drawn by ScopeLayout; these are its tap colors.
+	// Tap slot i: ratio (i / 2) % 2 picks the color.
 	static constexpr Rgb kRatioGreen{0x8F, 0xD3, 0xA0};
 	static constexpr float kTapMinLevel = 0.01f;   // at or below: silent, not drawn
 	static Rgb TapColor(int slot);
-	static int TapSide(int slot);   // +1 above (ratio 0), -1 below (ratio 1)
-	static int TapLane(int slot);   // 0 = nearer the band
-	float LaneY(int side, int lane) const;   // center of the lane
-	bool tap_view() const { return view_ != View::Grains; }
 	// True when Lucarne should show this frame as the echo scope: delay
-	// mode with no Slice head.
-	static bool ScopeView(const robotboy_beads::GrainLiveFrame& f) {
-		if (!f.tap_mode) return false;
-		for (const auto& t : f.taps)
-			if (t.slice) return false;
-		return true;
-	}
+	// mode, running or Slice.
+	static bool ScopeView(const robotboy_beads::GrainLiveFrame& f) { return f.tap_mode; }
 
 private:
 	float BandHeight() const;
@@ -103,14 +93,10 @@ private:
 	void Build(const Input& in);
 	void AddSpan(float x, float len, float y, float h, Rgb c);
 	void MakeRoom();
-	// Slice heads live in grains_ (slot = tap slot, row = lane).
-	void TapBirthsAndEnds(const robotboy_beads::GrainLiveFrame& f);
-	void BuildTaps();
 
-	// TapsNoSlice: a tap frame with no Slice head. Nothing but the band and
-	// write head is drawn; Lucarne shows that state with ScopeLayout.
-	enum class View { Grains, TapsNoSlice, Slice };
-	View view_ = View::Grains;
+	// A tap frame (ScopeView) keeps no grains: only the band and write head
+	// are drawn. Lucarne shows that state with ScopeLayout instead.
+	bool taps_ = false;
 
 	float w_ = 1.f, h_ = 1.f;
 	int rows_ = kRowsPerSide;

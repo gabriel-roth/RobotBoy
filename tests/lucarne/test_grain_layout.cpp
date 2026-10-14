@@ -249,76 +249,32 @@ int main() {
         check(near(r.y, 72.f) && near(r.h, 36.f), "full-scale column fills the band");
     }
 
-    // --- Tap view (Retours) ---
-    {   // slot -> side, lane, color
-        check(GrainLayout::TapSide(0) == +1 && GrainLayout::TapSide(1) == +1, "ratio 0 above");
-        check(GrainLayout::TapSide(2) == -1 && GrainLayout::TapSide(7) == -1, "ratio 1 below");
-        check(GrainLayout::TapLane(4) == 0 && GrainLayout::TapLane(5) == 1, "lane = slot bit");
+    // --- Tap frames (Retours): drawn by ScopeLayout ---
+    {   // tap colors
         const Rgb g = GrainLayout::TapColor(2), w = GrainLayout::TapColor(0);
         check(g.r == 0x8F && g.g == 0xD3 && g.b == 0xA0, "ratio 1 is green");
         const Rgb c = GrainLayout::PanColor(0.5f);
         check(w.r == c.r && w.g == c.g && w.b == c.b, "ratio 0 is warm white");
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        check(L.LaneY(+1, 0) > L.LaneY(+1, 1), "above: lane 0 nearer band");
-        check(L.LaneY(-1, 0) < L.LaneY(-1, 1), "below: lane 0 nearer band");
-        check(L.LaneY(+1, 1) > 0.f && L.LaneY(-1, 1) < 180.f, "lanes inside display");
     }
-    {   // a tap frame without slices: band and write head only (ScopeLayout draws it)
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = TapFrame();
-        f.taps[0].read_index = 700; f.taps[0].level = 1.f;
-        f.taps[3].read_index = 50; f.taps[3].level = 0.5f;
-        L.Update(In(&f, nullptr, 0));
-        check(L.tap_view(), "tap view on");
-        check(L.draw_list().marks.size() == 1, "tap frame without slices draws only band and write head");
-        check(L.grains().empty(), "tap frame without slices keeps no visuals");
+    {   // a tap frame, running or Slice: band and write head only
+        for (bool slice : {false, true}) {
+            GrainLayout L; L.SetSize(320.f, 180.f);
+            GrainLiveFrame f = TapFrame(slice);
+            f.taps[0].read_index = 700; f.taps[0].level = 1.f;
+            f.taps[0].slice_start = 700; f.taps[0].slice_length = 100;
+            f.taps[3].read_index = 50; f.taps[3].level = 0.5f;
+            L.Update(In(&f, nullptr, 0));
+            check(L.draw_list().marks.size() == 1, slice ? "slice tap frame draws only band and write head"
+                                                        : "running tap frame draws only band and write head");
+            check(L.grains().empty() && L.draw_list().under.empty(), "tap frame keeps no visuals");
+        }
     }
-    {   // routing: scope for running taps, GrainLayout for slices and grains
+    {   // routing: every tap frame goes to the scope, grain frames do not
         GrainLiveFrame f = TapFrame();
         check(GrainLayout::ScopeView(f), "scope view: tap mode, no slice");
         f.taps[5].slice = true;
-        check(!GrainLayout::ScopeView(f), "no scope view when any tap is a slice");
+        check(GrainLayout::ScopeView(f), "scope view: tap mode with a slice");
         check(!GrainLayout::ScopeView(Frame()), "no scope view for a grain frame");
-    }
-    {   // out-of-range slice indices are clamped
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = TapFrame(true);
-        f.taps[0] = {-7, 1.f, true, 1, 5000, 300};
-        f.taps[2] = {5000, 1.f, true, 1, -7, 5000};
-        L.Update(In(&f, nullptr, 0));
-        check(L.grains().size() == 2, "both clamped slices shown");
-        bool inside = true;
-        for (const Rect& r : L.draw_list().marks) if (r.x < -0.01f || r.x + r.w > 320.01f) inside = false;
-        check(inside, "clamped slices stay inside the display");
-    }
-    {   // slice head: line of the slice's length, cursor, fade after serial change
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = TapFrame(true);
-        f.taps[0] = {650, 0.8f, true, 1, 700, 100};   // read 650 inside slice 700 -> 600
-        L.Update(In(&f, nullptr, 0, 0.01f));
-        check(L.grains().size() == 1, "one slice visual");
-        const VisualGrain& g = L.grains()[0];
-        check(near(g.x0, L.XForIndex(700, M), 0.5f), "slice starts at its oldest end");
-        check(near(g.span, 100.f / M * 320.f, 0.5f), "slice spans its length rightward");
-        check(near(g.cursor, 0.5f, 0.02f), "cursor halfway");
-        f.taps[0] = {700, 0.8f, true, 2, 700, 100};   // restarted
-        L.Update(In(&f, nullptr, 0, 0.01f));
-        int ended = 0, live = 0;
-        for (const VisualGrain& v : L.grains()) (v.ended ? ended : live)++;
-        check(ended == 1 && live == 1, "restart ends the old slice and births a new one");
-        L.Update(In(&f, nullptr, 0, 0.2f));
-        check(L.grains().size() == 1, "old slice gone after the fade");
-    }
-    {   // slice -> running switch drops the slice visuals
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame s = TapFrame(true);
-        s.taps[0] = {650, 0.8f, true, 1, 700, 100};
-        L.Update(In(&s, nullptr, 0, 0.01f));
-        GrainLiveFrame r = TapFrame();
-        r.taps[0].read_index = 700; r.taps[0].level = 1.f;
-        L.Update(In(&r, nullptr, 0, 0.01f));
-        check(L.grains().empty(), "slice visuals dropped when Slice ends");
-        check(L.draw_list().marks.size() == 1, "only the write head after Slice ends");
     }
     {   // grain -> tap switch clears grains
         GrainLayout L; L.SetSize(320.f, 180.f);
@@ -329,7 +285,7 @@ int main() {
         check(L.grains().size() == 1, "a grain before the switch");
         GrainLiveFrame t = TapFrame();
         L.Update(In(&t, nullptr, 0));
-        check(L.grains().empty() && L.tap_view(), "grains cleared in tap view");
+        check(L.grains().empty(), "grains cleared in tap view");
     }
 
     std::printf(g_failures ? "\n%d FAILED\n" : "\nall passed\n", g_failures);

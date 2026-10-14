@@ -22,7 +22,17 @@ public:
 	static constexpr float kDryWindowSeconds = 0.005f;
 	static constexpr Rgb kDryColor{0xC0, 0xC8, 0xD0};   // the ring view's write head
 
-	struct Tap { float delay; float level; int slot; };   // delay in line samples
+	// A Slice head's band: this much of the tap color over the background.
+	static constexpr float kSliceBandMix = 0.15f;
+
+	struct Tap {
+		float delay;   // age of the read point, line samples
+		float level;
+		int slot;
+		bool slice = false;          // a Slice play head
+		float slice_oldest = 0.f;    // age of the slice's oldest end (slice only)
+		float slice_length = 0.f;    // line samples (slice only)
+	};
 	struct Input {
 		uint32_t epoch = 0;
 		const int8_t* lo = nullptr;   // newest first

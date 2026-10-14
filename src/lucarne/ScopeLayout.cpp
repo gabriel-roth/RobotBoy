@@ -14,6 +14,7 @@ void ScopeLayout::SetSize(float w, float h) {
 
 void ScopeLayout::Clear() {
 	have_window_ = false;
+	list_.under.clear();
 	list_.wave.clear();
 	list_.marks.clear();
 }
@@ -50,7 +51,9 @@ void ScopeLayout::Update(const Input& in) {
 	float longest = 0.f;
 	bool audible = false;
 	for (int i = 0; i < std::min(in.num_taps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
-		longest = std::max(longest, in.taps[i].delay);
+		// A Slice head's view must hold its whole slice, not just its read point.
+		const Tap& t = in.taps[i];
+		longest = std::max(longest, t.slice ? t.slice_oldest : t.delay);
 		audible = true;
 	}
 	if (snap) window_ = max_delay;   // initial: whole buffer
@@ -66,6 +69,7 @@ void ScopeLayout::Update(const Input& in) {
 	}
 	have_window_ = true;
 
+	list_.under.clear();
 	list_.wave.clear();
 	list_.marks.clear();
 	const float mid = h_ * 0.5f;
@@ -111,6 +115,14 @@ void ScopeLayout::Update(const Input& in) {
 	marker(NowX(), kDryColor, DryOutput(in));
 	for (int i = 0; i < std::min(in.num_taps, int(robotboy_beads::GrainLiveFrame::kTaps)); ++i) {
 		const Tap& t = in.taps[i];
+		if (t.slice) {
+			// The stretch of audio the slice loops, behind the waveform.
+			const float x0 = std::max(XForAge(t.slice_oldest), 0.f);
+			const float x1 = std::min(XForAge(std::max(t.slice_oldest - t.slice_length, 0.f)), NowX());
+			if (x1 > x0)
+				list_.under.push_back({x0, 0.f, x1 - x0, h_,
+				                       Mix(list_.background, GrainLayout::TapColor(t.slot), kSliceBandMix)});
+		}
 		if (t.delay > window_ || t.delay < 0.f) continue;
 		marker(XForAge(t.delay), GrainLayout::TapColor(t.slot), TapOutput(in, t.delay, t.level));
 	}

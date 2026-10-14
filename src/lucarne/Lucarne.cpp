@@ -38,7 +38,7 @@ static Source FindSource(Module* left, robotboy_beads::GrainFeed** feed) {
 struct LucarneDisplay : widget::Widget {
 	Lucarne* module = nullptr;
 	lucarne::GrainLayout layout;
-	// Retours running (no Slice): the echo scope instead of the grain layout.
+	// Retours (running or Slice): the echo scope instead of the grain layout.
 	lucarne::ScopeLayout scope;
 	bool scope_primed = false;    // false: read the whole scope ring next time
 	uint32_t scope_epoch = 0;     // the scope ring's epoch when last read
@@ -102,10 +102,17 @@ struct LucarneDisplay : widget::Widget {
 		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps && in.num_taps < robotboy_beads::GrainLiveFrame::kTaps; ++i) {
 			const auto& t = fr.taps[i];
 			if (!(t.level > lucarne::GrainLayout::kTapMinLevel)) continue;
-			// read_index is a delay-line index: larger = older.
-			const int32_t d = ((t.read_index - fr.write_index) % in.max_delay + in.max_delay) % in.max_delay;
-			in.taps[in.num_taps++] = {float(d), t.level, i};
-			longest = std::max(longest, float(d));
+			// Delay-line indices: larger = older.
+			const int32_t m = in.max_delay;
+			auto age = [&](int32_t index) { return float(((index - fr.write_index) % m + m) % m); };
+			lucarne::ScopeLayout::Tap tap{age(t.read_index), t.level, i};
+			if (t.slice) {
+				tap.slice = true;
+				tap.slice_oldest = age(t.slice_start);
+				tap.slice_length = float(t.slice_length);
+			}
+			in.taps[in.num_taps++] = tap;
+			longest = std::max(longest, tap.slice ? tap.slice_oldest : tap.delay);
 		}
 		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
 		in.epoch = info.epoch;
@@ -209,6 +216,12 @@ struct LucarneDisplay : widget::Widget {
 		nvgRect(vg, 0.f, 0.f, box.size.x, box.size.y);
 		nvgFillColor(vg, nvgRGB(l.background.r, l.background.g, l.background.b));
 		nvgFill(vg);
+		for (const lucarne::Rect& r : l.under) {
+			nvgBeginPath(vg);
+			nvgRect(vg, r.x, r.y, r.w, r.h);
+			nvgFillColor(vg, nvgRGB(r.color.r, r.color.g, r.color.b));
+			nvgFill(vg);
+		}
 		if (!l.wave.empty()) {
 			nvgBeginPath(vg);
 			for (const lucarne::Rect& r : l.wave) nvgRect(vg, r.x, r.y, r.w, r.h);
