@@ -1,8 +1,10 @@
 #include "Lucarne.hpp"
 #include "GrainLayout.hpp"
+#include "ScopeLayout.hpp"
 #include "particules/Particules.hpp"
 #include "retours_delay/Retours.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <vector>
 
@@ -36,6 +38,12 @@ static Source FindSource(Module* left, robotboy_beads::GrainFeed** feed) {
 struct LucarneDisplay : widget::Widget {
 	Lucarne* module = nullptr;
 	lucarne::GrainLayout layout;
+	// Retours running (no Slice): the echo scope instead of the grain layout.
+	lucarne::ScopeLayout scope;
+	bool scope_primed = false;    // false: read the whole scope ring next time
+	uint32_t scope_epoch = 0;     // the scope ring's epoch when last read
+	int8_t scope_lo[robotboy_beads::GrainFeed::kScopeEntries] = {};
+	int8_t scope_hi[robotboy_beads::GrainFeed::kScopeEntries] = {};
 	const robotboy_beads::GrainFeed* feed = nullptr;   // the feed event_cursor belongs to
 	uint32_t event_cursor = 0;
 	Source source = Source::None;   // what sits on the left; the panel swap reads it
@@ -83,12 +91,55 @@ struct LucarneDisplay : widget::Widget {
 		return in;
 	}
 
+	// Fill a ScopeLayout::Input from the feed's scope ring and the frame.
+	lucarne::ScopeLayout::Input scopeInput(const robotboy_beads::GrainFeed& f,
+	                                       const robotboy_beads::GrainLiveFrame& fr, float dt) {
+		using robotboy_beads::GrainFeed;
+		lucarne::ScopeLayout::Input in;
+		in.max_delay = std::max<int32_t>(fr.max_delay, 1);
+		in.dt = dt;
+		float longest = 0.f;
+		for (int i = 0; i < robotboy_beads::GrainLiveFrame::kTaps; ++i) {
+			const auto& t = fr.taps[i];
+			if (!(t.level > lucarne::GrainLayout::kTapMinLevel)) continue;
+			// read_index is a delay-line index: larger = older.
+			const int32_t d = ((t.read_index - fr.write_index) % in.max_delay + in.max_delay) % in.max_delay;
+			in.taps[in.num_taps++] = {float(d), t.level, i};
+			longest = std::max(longest, float(d));
+		}
+		const GrainFeed::ScopeInfo info = f.ReadScopeInfo();
+		in.epoch = info.epoch;
+		in.samples_per_entry = std::max<int32_t>(info.samples_per_entry, 1);
+		in.line_rate = info.line_rate;
+		// Read only what this frame's window can show: it eases from the
+		// current window toward the longest tap x kZoomMargin, so the larger
+		// of those bounds it. After a source or epoch change the window
+		// snaps, so read everything.
+		int want = GrainFeed::kScopeEntries;
+		if (scope_primed && info.epoch == scope_epoch) {
+			const float span = std::max(scope.window(), lucarne::ScopeLayout::kZoomMargin * longest);
+			want = int(std::min<double>(GrainFeed::kScopeEntries,
+			                            std::ceil(double(span) / in.samples_per_entry) + 2.0));
+		}
+		int n = f.ReadScope(info.head, scope_lo, scope_hi, want);
+		// A reset during the copy may go unnoticed by ReadScope: recheck.
+		if (f.ReadScopeInfo().epoch != info.epoch) n = 0;
+		scope_primed = n > 0;
+		scope_epoch = info.epoch;
+		in.lo = scope_lo;
+		in.hi = scope_hi;
+		in.entries = n;
+		return in;
+	}
+
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			const double now = system::getTime();
 			const float dt = last_time < 0.0 ? 0.f : float(std::min(std::max(now - last_time, 0.0), 0.5));
 			last_time = now;
 			layout.SetSize(box.size.x, box.size.y);
+			scope.SetSize(box.size.x, box.size.y);
+			bool show_scope = false;
 
 			const char* message = nullptr;
 			lucarne::GrainLayout::Input in;
@@ -109,6 +160,8 @@ struct LucarneDisplay : widget::Widget {
 				if (feed != &f) {   // new source: start at its newest event
 					feed = &f;
 					event_cursor = f.event_write();
+					scope.Clear();
+					scope_primed = false;
 				}
 				f.ReadPeaks(lo, hi);
 				// Events first, then the frame: the frame is at least as new, so
@@ -124,20 +177,30 @@ struct LucarneDisplay : widget::Widget {
 				in.frame = have ? &frame : nullptr;
 				in.events = events.data();
 				in.num_events = have ? n_events : 0;
+				if (have && lucarne::GrainLayout::ScopeView(frame)) {
+					show_scope = true;
+					scope.Update(scopeInput(f, frame, dt));
+				}
 			}
 			in.dt = dt;
-			if (message)
+			if (show_scope) {
 				layout.Clear();
-			else
-				layout.Update(in);
-			paint(args, message);
+				paint(args, scope.draw_list(), message);
+			} else {
+				scope.Clear();
+				scope_primed = false;
+				if (message)
+					layout.Clear();
+				else
+					layout.Update(in);
+				paint(args, layout.draw_list(), message);
+			}
 		}
 		Widget::drawLayer(args, layer);
 	}
 
-	void paint(const DrawArgs& args, const char* message) {
+	void paint(const DrawArgs& args, const lucarne::DrawList& l, const char* message) {
 		NVGcontext* vg = args.vg;
-		const lucarne::DrawList& l = layout.draw_list();
 		nvgSave(vg);
 		nvgScissor(vg, 0.f, 0.f, box.size.x, box.size.y);
 		nvgBeginPath(vg);

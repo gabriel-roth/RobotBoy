@@ -263,41 +263,33 @@ int main() {
         check(L.LaneY(-1, 0) < L.LaneY(-1, 1), "below: lane 0 nearer band");
         check(L.LaneY(+1, 1) > 0.f && L.LaneY(-1, 1) < 180.f, "lanes inside display");
     }
-    {   // running tap: span from read point to write head, at full level
+    {   // a tap frame without slices: band and write head only (ScopeLayout draws it)
         GrainLayout L; L.SetSize(320.f, 180.f);
         GrainLiveFrame f = TapFrame();
-        f.taps[0].read_index = 700; f.taps[0].level = 1.f;   // 200 samples behind write 500
+        f.taps[0].read_index = 700; f.taps[0].level = 1.f;
+        f.taps[3].read_index = 50; f.taps[3].level = 0.5f;
         L.Update(In(&f, nullptr, 0));
         check(L.tap_view(), "tap view on");
-        const float x_read = L.XForIndex(700, M), x_write = L.XForIndex(500, M);
-        bool found = false;
-        for (const Rect& r : L.draw_list().marks)
-            if (near(r.x, x_read, 0.5f) && near(r.w, x_write - x_read, 0.5f)) found = true;
-        check(found, "running tap spans read point to write head");
+        check(L.draw_list().marks.size() == 1, "tap frame without slices draws only band and write head");
+        check(L.grains().empty(), "tap frame without slices keeps no visuals");
     }
-    {   // running tap span wraps
-        GrainLayout L; L.SetSize(320.f, 180.f);
+    {   // routing: scope for running taps, GrainLayout for slices and grains
         GrainLiveFrame f = TapFrame();
-        f.write_index = 950; f.taps[1].read_index = 50; f.taps[1].level = 1.f;   // delay 100, wraps
-        L.Update(In(&f, nullptr, 0));
-        // At level 1 the line is exactly TapColor; the cursor is lighter.
-        check(CountColor(L.draw_list(), GrainLayout::TapColor(1)) == 2, "running tap span wraps into two pieces");
+        check(GrainLayout::ScopeView(f), "scope view: tap mode, no slice");
+        f.taps[5].slice = true;
+        check(!GrainLayout::ScopeView(f), "no scope view when any tap is a slice");
+        check(!GrainLayout::ScopeView(Frame()), "no scope view for a grain frame");
     }
-    {   // silent taps are not drawn
+    {   // out-of-range slice indices are clamped
         GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = TapFrame();
+        GrainLiveFrame f = TapFrame(true);
+        f.taps[0] = {-7, 1.f, true, 1, 5000, 300};
+        f.taps[2] = {5000, 1.f, true, 1, -7, 5000};
         L.Update(In(&f, nullptr, 0));
-        check(L.draw_list().marks.size() == 1, "only the write head when all taps silent");
-    }
-    {   // out-of-range indices are clamped
-        GrainLayout L; L.SetSize(320.f, 180.f);
-        GrainLiveFrame f = TapFrame();
-        f.taps[0].read_index = 5000; f.taps[0].level = 1.f;
-        f.taps[2].read_index = -7; f.taps[2].level = 1.f;
-        L.Update(In(&f, nullptr, 0));
+        check(L.grains().size() == 2, "both clamped slices shown");
         bool inside = true;
         for (const Rect& r : L.draw_list().marks) if (r.x < -0.01f || r.x + r.w > 320.01f) inside = false;
-        check(inside, "clamped taps stay inside the display");
+        check(inside, "clamped slices stay inside the display");
     }
     {   // slice head: line of the slice's length, cursor, fade after serial change
         GrainLayout L; L.SetSize(320.f, 180.f);
@@ -317,7 +309,7 @@ int main() {
         L.Update(In(&f, nullptr, 0, 0.2f));
         check(L.grains().size() == 1, "old slice gone after the fade");
     }
-    {   // running <-> slice switch drops the old view
+    {   // slice -> running switch drops the slice visuals
         GrainLayout L; L.SetSize(320.f, 180.f);
         GrainLiveFrame s = TapFrame(true);
         s.taps[0] = {650, 0.8f, true, 1, 700, 100};
@@ -326,6 +318,7 @@ int main() {
         r.taps[0].read_index = 700; r.taps[0].level = 1.f;
         L.Update(In(&r, nullptr, 0, 0.01f));
         check(L.grains().empty(), "slice visuals dropped when Slice ends");
+        check(L.draw_list().marks.size() == 1, "only the write head after Slice ends");
     }
     {   // grain -> tap switch clears grains
         GrainLayout L; L.SetSize(320.f, 180.f);

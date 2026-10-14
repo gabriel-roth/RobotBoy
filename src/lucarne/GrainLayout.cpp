@@ -153,7 +153,7 @@ void GrainLayout::Update(const Input& in) {
 		const GrainLiveFrame& f = *in.frame;
 		View v = View::Grains;
 		if (f.tap_mode) {
-			v = View::Running;
+			v = View::TapsNoSlice;
 			for (const auto& t : f.taps)
 				if (t.slice) v = View::Slice;
 		}
@@ -271,7 +271,7 @@ void GrainLayout::Build(const Input& in) {
 		                       in.frame->frozen ? kWriteHeadFrozen : kWriteHead});
 	}
 	if (view_ != View::Grains) {
-		BuildTaps(in);
+		BuildTaps();
 		return;
 	}
 	const float row_h = RowHeight();
@@ -294,32 +294,17 @@ void GrainLayout::Build(const Input& in) {
 	}
 }
 
-void GrainLayout::BuildTaps(const Input& in) {
-	// Lines twice the grain line's thickness; cursors as wide as grain
-	// cursors and half a lane tall.
+void GrainLayout::BuildTaps() {
+	// Slice heads only: a tap frame without slices draws nothing here
+	// (Lucarne shows it as ScopeLayout). Lines twice the grain line's
+	// thickness; cursors as wide as grain cursors and half a lane tall.
 	const float thick = RowHeight();
 	const float lane_h = (h_ - BandHeight()) * 0.25f;
 	const float cursor_h = lane_h * 0.5f;
 	const float cw = std::max(w_ * 0.008f, RowHeight() * 0.5f);
 	const float min_len = w_ / 160.f;
 	const Rgb bg = list_.background;
-	if (view_ == View::Running && in.frame) {
-		// Drawn straight from the live frame: no state, no fade.
-		const GrainLiveFrame& f = *in.frame;
-		const int32_t m = std::max<int32_t>(f.max_delay, 1);
-		const int32_t write = ClampIndex(f.write_index, m);
-		for (int i = 0; i < GrainLiveFrame::kTaps; ++i) {
-			const auto& t = f.taps[i];
-			if (t.level <= kTapMinLevel) continue;
-			const int32_t read = ClampIndex(t.read_index, m);
-			const float x = XForIndex(read, m);
-			const float len = std::max(float(Wrap(read - write, m)) / float(m) * w_, min_len);
-			const float y = LaneY(TapSide(i), TapLane(i));
-			const Rgb base = TapColor(i);
-			AddSpan(x, len, y - thick * 0.5f, thick, Mix(bg, base, 0.15f + 0.85f * std::min(t.level, 1.f)));
-			AddSpan(x - cw * 0.5f, cw, y - cursor_h * 0.5f, cursor_h, Lighten(base, 0.5f));
-		}
-	} else if (view_ == View::Slice) {
+	if (view_ == View::Slice) {
 		for (const VisualGrain& g : grains_) {
 			const Rgb base = TapColor(g.slot);
 			const float k = g.ended ? 0.6f * (g.fade / kFadeSeconds) : 0.35f + 0.65f * g.level;
