@@ -34,8 +34,7 @@ target_include_directories(catch2_amalgamated PUBLIC ${CMAKE_CURRENT_LIST_DIR}/c
 file(GLOB TEST_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/test_*.cpp)
 add_executable(beads_engine_tests ${TEST_SRC})
 target_include_directories(beads_engine_tests PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/catch2
-    ${REPO_ROOT}/src/particules)   # particules_scales.h
+    ${CMAKE_CURRENT_LIST_DIR}/catch2)
 target_link_libraries(beads_engine_tests PRIVATE robotboy_beads catch2_amalgamated)
 
 enable_testing()

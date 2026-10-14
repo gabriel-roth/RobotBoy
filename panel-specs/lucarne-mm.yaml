@@ -6,7 +6,7 @@
 # (the SVG must be named Lucarne.svg so the PNG lands as Lucarne.png).
 #
 # Screen: 54 x 30.375 mm (16:9) at (3.48, 14). Keep in sync with the
-# METAMODULE kScreen* values in src/lucarne/Lucarne.cpp.
+# METAMODULE kScreen* values in src/Lucarne.cpp.
 slug: Lucarne
 name: LUCARNE
 hp: 12

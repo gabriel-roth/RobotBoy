@@ -1,6 +1,6 @@
 #include "BeadsModule.hpp"
-#include "lucarne/Lucarne.hpp"
-#include "metamodule_fpu.h"
+#include "Lucarne.hpp"
+#include "host/flush_to_zero.h"
 
 #include <algorithm>
 #include <cmath>
@@ -66,7 +66,7 @@ robotboy_beads::HostFrameOut BeadsModule::processEngine(const ProcessArgs& args,
 	// Re-armed on a sample rate change, which may come with a new audio thread.
 	if (!fpuConfigured) {
 		fpuConfigured = true;
-		particules::EnableMetaModuleFlushToZero();
+		robotboy_beads::EnableMetaModuleFlushToZero();
 	}
 
 #ifdef METAMODULE

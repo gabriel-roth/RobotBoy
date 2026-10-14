@@ -1,5 +1,5 @@
 #include "plugin.hpp"
-#include "ondes_voice.h"
+#include "host/ondes_voice.h"
 #include "stmlib/dsp/hysteresis_quantizer.h"
 
 #include <atomic>

@@ -104,37 +104,68 @@ TEST_CASE("Mix parameter: knob scaling, attenuverted CV, clamping") {
   CHECK(std::isfinite(mix.Process(NAN)));                         // NaN reads 0
 }
 
+TEST_CASE("Scale tables: ascending degrees ending on the octave") {
+  for (int mode = kPitchChromatic; mode <= kPitchMinorPentatonic; ++mode) {
+    CAPTURE(mode);
+    uint32_t count = 0;
+    const int* degrees = ScaleSemitones(mode, &count);
+    REQUIRE(degrees != nullptr);
+    int previous = 0;
+    for (uint32_t i = 0; i < count; ++i) {
+      CHECK(degrees[i] > previous);
+      previous = degrees[i];
+    }
+    CHECK(degrees[count - 1] == 12);
+  }
+  uint32_t count = 0;
+  ScaleSemitones(kPitchChromatic, &count);
+  CHECK(count == 12);
+  ScaleSemitones(kPitchMajor, &count);
+  CHECK(count == 7);
+  ScaleSemitones(kPitchMinor, &count);
+  CHECK(count == 7);
+  ScaleSemitones(kPitchMajorPentatonic, &count);
+  CHECK(count == 5);
+  ScaleSemitones(kPitchMinorPentatonic, &count);
+  CHECK(count == 5);
+  for (int mode : {kPitchOff, kPitchOctaves, kPitchOctavesFifths}) {
+    count = 99;
+    CHECK(ScaleSemitones(mode, &count) == nullptr);
+    CHECK(count == 0);
+  }
+}
+
 TEST_CASE("Pitch lock modes") {
   ScalePitchLock lock;
-  lock.Set(particules::kPitchOff, 0);
+  lock.Set(kPitchOff, 0);
   CHECK_FALSE(lock.active());
   CHECK(lock.hook() == nullptr);
 
-  lock.Set(particules::kPitchOctaves, 5);  // root ignored for octaves
+  lock.Set(kPitchOctaves, 5);  // root ignored for octaves
   CHECK(lock.active());
   CHECK(lock.Quantize(5.9f) == 0.0f);
   CHECK(lock.Quantize(6.1f) == 12.0f);
   CHECK(lock.Quantize(-17.0f) == -12.0f);
 
-  lock.Set(particules::kPitchOctavesFifths, 0);
+  lock.Set(kPitchOctavesFifths, 0);
   CHECK(lock.Quantize(4.0f) == 7.0f);
   CHECK(lock.Quantize(-4.0f) == -5.0f);   // the fifth below the octave
   CHECK(lock.Quantize(10.0f) == 12.0f);
 
-  lock.Set(particules::kPitchChromatic, 0);
+  lock.Set(kPitchChromatic, 0);
   CHECK(lock.Quantize(3.4f) == 3.0f);
   CHECK(lock.Quantize(-3.6f) == -4.0f);
 
-  lock.Set(particules::kPitchMajor, 0);   // C major: 0 2 4 5 7 9 11
+  lock.Set(kPitchMajor, 0);   // C major: 0 2 4 5 7 9 11
   CHECK(lock.Quantize(1.2f) == 2.0f);
   CHECK(lock.Quantize(6.2f) == 7.0f);
   CHECK(lock.Quantize(-1.2f) == -1.0f);   // B below
 
-  lock.Set(particules::kPitchMajor, 2);   // D major: C# is in, C is not
+  lock.Set(kPitchMajor, 2);   // D major: C# is in, C is not
   CHECK(lock.Quantize(0.2f) == 1.0f);
   CHECK(lock.Quantize(NAN) == 0.0f);
 
-  lock.Set(particules::kPitchMinorPentatonic, 9);  // A minor pentatonic
+  lock.Set(kPitchMinorPentatonic, 9);  // A minor pentatonic
   for (float st = -30.0f; st <= 30.0f; st += 0.25f) {
     const int q = int(lock.Quantize(st));
     const int degree = (((q - 9) % 12) + 12) % 12;

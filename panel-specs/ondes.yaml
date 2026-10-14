@@ -4,7 +4,7 @@
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/ondes.yaml --out res/Ondes.svg
 #
 # Component `name`s are the FULL C++ enum names (helper.py reads the id
-# verbatim, splitting off "#Widget"), matching src/particules/Ondes.cpp.
+# verbatim, splitting off "#Widget"), matching src/Ondes.cpp.
 #
 # All x/y values below (grid columns/rows, absolute positions, label
 # baselines) are the exact centers/baselines of the shipped panel — this

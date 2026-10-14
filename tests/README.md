@@ -10,7 +10,7 @@ pure-DSP classes/headers directly.
 cd tests && ./run.sh
 ```
 
-`run.sh` builds and runs every `tests/{mf20,loooop,particules,onbetap,vespid,lucarne}/test_*.cpp`
+`run.sh` builds and runs every `tests/{mf20,loooop,onbetap,vespid,lucarne}/test_*.cpp`
 against `../src`, then the Python guard tests and the Beads engine suite
 (lane 2 below), and exits non-zero if anything fails.
 
@@ -25,7 +25,7 @@ automatically — see `tests/loooop/test_loop_engine.cpp.extra` and
 This repo has two test lanes; `tests/run.sh` runs both:
 
 - **Lane 1 — `tests/run.sh`** — zero-dependency `g++` DSP tests (MF-20, Loooop,
-  Particules, Onbetap, Vespid), plain-assert style, followed by a
+  Onbetap, Vespid, Lucarne), plain-assert style, followed by a
   `python3 -m unittest discover` pass over `tests/test_*.py` (identity/build
   guard tests — plugin metadata, slug parity between `plugin.json` and
   `metamodule/plugin-mm.json`, and head-color

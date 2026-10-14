@@ -14,7 +14,7 @@
 # like FEEDBACK and DRY/WET.
 #
 # Every x/y here must match the mm2px(Vec(...)) centers in
-# src/retours_delay/Retours.cpp, which are carried verbatim from this spec.
+# src/Retours.cpp, which are carried verbatim from this spec.
 #
 # Transport row: SLICE (input + latch button) on the left and CLOCK (tap
 # button + input) on the right are mirror images about the panel center

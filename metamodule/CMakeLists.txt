@@ -28,7 +28,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/Retours.cpp
     ${SRC}/src/Ondes.cpp
     ${SRC}/src/Vespid.cpp
-    ${SRC}/src/lucarne/Lucarne.cpp
+    ${SRC}/src/Lucarne.cpp
     ${SRC}/src/lucarne/GrainLayout.cpp
     ${SRC}/src/lucarne/ScopeLayout.cpp
     # Native Loooop/Löp cores
@@ -54,7 +54,6 @@ target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
     ${SRC}/src/loooop
     ${SRC}/src/mf20
-    ${SRC}/src/particules
     ${SRC}/src/beads
     ${SRC}/src/beads/vendor
     ${CMAKE_CURRENT_LIST_DIR}/loooop

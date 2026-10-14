@@ -2,12 +2,12 @@
 
 #include <cstdint>
 
-namespace particules {
+namespace robotboy_beads {
 
 // Sets the ARM FPU's flush-to-zero and default-NaN mode bits (FZ, DN) in
 // FPSCR. This intentionally mutates thread-wide FPU state for the lifetime
-// of the audio thread it's called from — it is not scoped to this module
-// or restored afterward. No-op on non-ARM / non-MetaModule builds.
+// of the audio thread it's called from: it is not scoped to one module or
+// restored afterward. No-op except on MetaModule (ARM).
 inline void EnableMetaModuleFlushToZero() {
 #if defined(METAMODULE) && defined(__arm__)
 	std::uint32_t fpscr;
@@ -17,4 +17,4 @@ inline void EnableMetaModuleFlushToZero() {
 #endif
 }
 
-}  // namespace particules
+}  // namespace robotboy_beads

@@ -1,6 +1,5 @@
 #include "BeadsModule.hpp"
 #include "host/pitch_lock.h"
-#include "particules_scales.h"
 
 // Particules: the granular mode of Mutable Instruments Beads. The panel is
 // Beads' own, with a CV input and trimpot for Feedback, Dry/wet and Reverb
@@ -78,8 +77,8 @@ struct Particules : BeadsModule {
 	float seedPulsePhase = 0.f;
 	dsp::BooleanTrigger seedButton;
 
-	// Lock pitch: 0 = off, 1-2 = octaves (+ fifths), 3-7 = scales (see
-	// particules_scales.h); the root applies to the scale modes only. The
+	// Lock pitch: a robotboy_beads::PitchLockMode (0 = off, 1-2 = octaves
+	// (+ fifths), 3-7 = scales); the root applies to the scale modes only. The
 	// menu sets scaleChanged; the next engine block applies the change.
 	int pitchScale = 0;
 	int pitchRoot = 0;
@@ -354,7 +353,7 @@ struct ParticulesWidget : ModuleWidget {
 					module->scaleChanged = true;
 				});
 			});
-		rootItem->disabled = module->pitchScale < particules::kPitchChromatic;
+		rootItem->disabled = module->pitchScale < robotboy_beads::kPitchChromatic;
 		menu->addChild(rootItem);
 
 		menu->addChild(createClearBufferItem(module));

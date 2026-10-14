@@ -12,7 +12,7 @@ ifneq (,$(findstring SYNC_FAILED,$(_sync)))
 $(error failed to sync plugin.json/res from repo root)
 endif
 
-FLAGS += -I../src -I../src/loooop -I../src/mf20 -I../src/particules
+FLAGS += -I../src -I../src/loooop -I../src/mf20
 
 SOURCES += $(wildcard ../src/*.cpp)
 SOURCES += ../src/loooop/Loooop.cpp ../src/loooop/Lop.cpp

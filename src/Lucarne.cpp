@@ -1,7 +1,7 @@
 #include "Lucarne.hpp"
 #include "BeadsModule.hpp"
-#include "GrainLayout.hpp"
-#include "ScopeLayout.hpp"
+#include "lucarne/GrainLayout.hpp"
+#include "lucarne/ScopeLayout.hpp"
 
 #include <algorithm>
 #include <array>

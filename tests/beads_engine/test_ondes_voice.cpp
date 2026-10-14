@@ -82,7 +82,7 @@ TEST_CASE("Ondes voice crossfades between banks without a jump") {
 
 // --- OndesVoice: the optional oversampling ---------------------------------
 
-#include "ondes_voice.h"
+#include "host/ondes_voice.h"
 
 namespace {
 

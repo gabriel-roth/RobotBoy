@@ -11,7 +11,7 @@
 # lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
 #
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
-# tall. Keep the SCREEN rect in sync with kScreen* in src/lucarne/Lucarne.cpp.
+# tall. Keep the SCREEN rect in sync with kScreen* in src/Lucarne.cpp.
 #
 # Key: 2 x 2 cells under the screen (Length, Height / Color, Brightness),
 # each a glyph over a two-line caption (property on the display / what it
