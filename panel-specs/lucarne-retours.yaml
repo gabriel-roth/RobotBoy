@@ -13,24 +13,24 @@
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Buffer, Tap markers / Color,
-# Brightness), each a glyph over a caption. The top glyphs explain
-# themselves, so their captions are one line, 2.6 mm in white. The bottom
-# cells have two lines: the property on the display, 2.3 mm in gray, then
-# what it shows, 2.6 mm in white (the meaning carries the emphasis). The
-# write head and cursors have no cells of their own.
-# Columns sit 13.5 mm either side of the panel center (30.48), so each cell
-# has \~25 mm.
-# Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
-# 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
-# 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
-# split into 3 gaps of 5.1: glyph rows at 87.4 and 105.8. Captions: line 1
-# baseline glyph + 6.35, line 2 + 10.1. Here the top cells are one line: a
-# 2.6 mm caption at glyph + 6.6 (the 1.3 mm gap under the glyph, plus its cap
-# height), so a cell spans y - 3.3 to y + 6.6, center y + 1.65. lucarne.yaml's
-# top cells span 84.1 to 97.5, center 90.8; centering on that puts this
-# glyph row at 89.15 (89.2) and the caption at 95.8. The bottom row matches
-# lucarne.yaml's.
+# Key: two full-width cells under the screen, one per row, each a glyph
+# 44 mm wide (the bars' span) over its captions. The scrolling waveform
+# explains itself, so it has no cell of its own.
+# - Tap markers: the waveform crossed by a warm-white and a green tap line,
+#   18 mm apart, with "Primary" and "Secondary" (2.3 mm, gray) under them and
+#   "Tap markers" (2.6 mm, white) below. Lucarne draws the louder ratio's
+#   taps white and the other's green (ScopeLayout::tapColor).
+# - Tap level: a crescendo waveform with seven markers whose lines brighten
+#   and whose bars grow with the waveform under them, as a tap flashes on the
+#   display; captioned "Tap level" (2.6 mm, white).
+# Both glyphs are drawn in panel mm (scale 1), 6.6 mm tall (half-height 3.3).
+# Each cell is centered on the matching row of lucarne.yaml's key, so the
+# twins line up: top row 84.1 to 97.5 (center 90.8), bottom row 102.5 to
+# 115.9 (center 109.2).
+# - Top: glyph top (y - 3.0) to "Tap markers" (y + 9.8): y = 87.4; the
+#   gray line at y + 6.1 (93.5), "Tap markers" at 97.2.
+# - Bottom: glyph top (y - 3.3) to "Tap level" (y + 6.6): y = 107.55 (107.6),
+#   caption at 114.2; then lowered 0.4 to 114.6 (user choice).
 slug: Lucarne
 name: LUCARNE
 hp: 12
@@ -53,34 +53,17 @@ title:
 zones:
   - {x: 1.5, y: 79, w: 57.96, h: 42, rx: 2, fill: "#9a8fb0", opacity: 0.4}
 
-grids:
-  key:
-    cols: [16.98, 43.98]
-    rows:
-      glyph1: 89.2
-      cap1: 95.8
-      glyph2: 105.8
-      cap2a: 112.2
-      cap2b: 115.9
-
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
-  - row: {grid: key, at: cap1}
-    place: [{text: Buffer, size: 2.6}, {text: Tap markers, size: 2.6}]
-  - row: {grid: key, at: cap2a}
-    place: [{text: Color, size: 2.3, color: "#b0b0b0"}, {text: Brightness, size: 2.3, color: "#b0b0b0"}]
-  - row: {grid: key, at: cap2b}
-    place: [{text: Tap ratio, size: 2.6}, {text: Tap output, size: 2.6}]
+  # Under the tap lines, which sit 9 mm either side of the panel center.
+  - {text: Primary, x: 21.48, y: 93.5, size: 2.3, color: "#b0b0b0"}
+  - {text: Secondary, x: 39.48, y: 93.5, size: 2.3, color: "#b0b0b0"}
+  - {text: Tap markers, x: 30.48, y: 97.2, size: 2.6}
+  - {text: Tap level, x: 30.48, y: 114.6, size: 2.6}
 
 glyphs:
-  # scroll.svg and marker.svg draw the scope's waveform as a band of uneven
-  # bars in #7d9ab5 (lighter than the display's #51667a so it shows on the
-  # lavender). scroll.svg: the band with a left-pointing arrow (audio moves
-  # right to left). marker.svg: the band crossed by the two tap lines, in
-  # the tap-ratio colors. Both are 4.8 mm tall, the height the key's rows
-  # are spaced for, so they take the key's 1.375x like the rest.
-  - {src: glyphs/lucarne/scroll.svg,   at: [16.98, 89.2], scale: 1.375}
-  - {src: glyphs/lucarne/marker.svg,   at: [43.98, 89.2], scale: 1.375}
-  - {src: glyphs/lucarne/ratio.svg,    at: [16.98, 105.8], scale: 1.375}
-  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8], scale: 1.375}
+  # Bars in #7d9ab5 (lighter than the display's #51667a so they show on the
+  # lavender); tap-level.svg's at half opacity, behind its markers.
+  - {src: glyphs/lucarne/tap-markers.svg, at: [30.48, 87.4]}
+  - {src: glyphs/lucarne/tap-level.svg,   at: [30.48, 107.6]}
