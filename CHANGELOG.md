@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## [2.3.0] — 2026-10-15 (MetaModule)
 
+- Particules and Retours use much less CPU in Cold digital and Scorched cassette, and on VCV in every Quality setting when Rack runs at a sample rate other than 48 kHz.
+- Changing Quality on Particules or Retours, or plugging or unplugging an audio input, no longer causes a CPU spike that could make MetaModule drop audio.
+- Ondes' 2x and 4x anti-aliasing uses less CPU.
+- MetaModule: Particules and Retours list their controls in panel order (firmware 2.4 or later). Before, Retours' Filter and Particules' Seed came after the CV amounts.
+- MetaModule: Lucarne's "Add from the Expanders menu" message now fits on its screen.
 - Retours' Lucarne view now holds still while Time or Interval is modulated, showing the whole buffer, instead of zooming with every change.
 - Lucarne now works on either side of Particules or Retours, not just the right. Between two of them, it shows the one on its left.
 - Bypassing Lucarne now turns it off: its screen goes blank, and Particules or Retours stops sending it data.
