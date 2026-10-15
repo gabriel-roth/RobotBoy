@@ -54,8 +54,14 @@ class Resampler {
   // the largest common case, needs 320 x 50.
   static constexpr int kMaxPolyphaseCoefficients = 16384;
 
-  // Allocates the polyphase storage here, so Init never allocates.
-  Resampler() { coefficients_.reserve(kMaxPolyphaseCoefficients); }
+  // Allocates the polyphase storage and computes the kernel shape here,
+  // so Init never allocates and only scales the shape (Init runs on the
+  // audio thread at every Quality change; the Bessel series in double
+  // precision took milliseconds on MetaModule).
+  Resampler() {
+    coefficients_.reserve(kMaxPolyphaseCoefficients);
+    KernelShape();
+  }
 
   // Rebuilds the kernel only when the rates change; always clears the
   // stream (Init on the audio thread is cheap when the rates are the same).
@@ -71,21 +77,11 @@ class Resampler {
         fc_ = kCutoff * std::min(1.0f, out_rate / in_rate);
         half_width_ = std::min(
             kMaxHalfWidth, int(std::ceil(kZeroCrossings / (2.0f * fc_))));
-        // Kernel in units of zero crossings: z = 2 * fc * x.
-        const double i0_beta = BesselI0(kKaiserBeta);
+        // The kernel's shape doesn't depend on the rates; only its height
+        // (2 * fc) does.
+        const std::array<double, kTableSize>& shape = KernelShape();
         for (int k = 0; k < kTableSize; ++k) {
-          const double z = double(k) / kTablePointsPerCrossing;
-          const double u = z / kZeroCrossings;
-          double h = 0.0;
-          if (u < 1.0) {
-            const double sinc = z == 0.0
-                ? 1.0
-                : std::sin(kPi * z) / (kPi * z);
-            const double window =
-                BesselI0(kKaiserBeta * std::sqrt(1.0 - u * u)) / i0_beta;
-            h = 2.0 * fc_ * sinc * window;
-          }
-          table_[k] = float(h);
+          table_[k] = float(2.0 * fc_ * shape[k]);
         }
         index_scale_ = 2.0f * fc_ * float(kTablePointsPerCrossing);
         InitPolyphase();
@@ -226,6 +222,27 @@ class Resampler {
       }
     }
     polyphase_ = true;
+  }
+
+  // The windowed sinc in units of zero crossings (z = 2 * fc * x), at unit
+  // height, sampled kTablePointsPerCrossing times per crossing.
+  static const std::array<double, kTableSize>& KernelShape() {
+    static const std::array<double, kTableSize> shape = [] {
+      std::array<double, kTableSize> t{};
+      const double i0_beta = BesselI0(kKaiserBeta);
+      for (int k = 0; k < kTableSize; ++k) {
+        const double z = double(k) / kTablePointsPerCrossing;
+        const double u = z / kZeroCrossings;
+        if (u < 1.0) {
+          const double sinc = z == 0.0
+              ? 1.0
+              : std::sin(kPi * z) / (kPi * z);
+          t[k] = sinc * BesselI0(kKaiserBeta * std::sqrt(1.0 - u * u)) / i0_beta;
+        }
+      }
+      return t;
+    }();
+    return shape;
   }
 
   static double BesselI0(double x) {
