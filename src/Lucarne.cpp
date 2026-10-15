@@ -253,7 +253,14 @@ struct LucarneDisplay : widget::Widget {
 				// nvgText per '\n'-separated line, the block centered: no
 				// nvgTextBox, which MetaModule doesn't wrap.
 				const float size = box.size.x * 0.05f, lineH = size * 1.4f;
+#ifdef METAMODULE
+				// The firmware draws ShareTechMono below 12 px at 1.5x
+				// (corrected_ttf_size in its gui/fonts/ttf.cc), which pushed
+				// the lines past the screen's edges; ask for 1/1.5 of it.
+				nvgFontSize(vg, size < 12.f ? size / 1.5f : size);
+#else
 				nvgFontSize(vg, size);
+#endif
 				nvgFillColor(vg, nvgRGB(0x80, 0x8a, 0x94));
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 				int lines = 1;
