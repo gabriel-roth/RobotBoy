@@ -1,10 +1,20 @@
-// Arbitrary-ratio streaming resampler (Kaiser-windowed sinc, table-driven).
+// Arbitrary-ratio streaming resampler (Kaiser-windowed sinc).
 //
 // The Beads engine runs at the hardware's native rate for each quality
 // setting (48, 32 or 24 kHz). This converts between that rate and whatever
 // rate the host runs at, identically on VCV and MetaModule so both platforms
 // produce the same numbers. When the two rates are equal it is a
 // pass-through and adds no latency.
+//
+// When the ratio reduces to a fraction with a small denominator (every
+// common pair: 48k <-> 32k is 3:2, 44.1k <-> 32k is 441:320), the output
+// instants fall on only that many positions between input samples, so the
+// kernel is sampled once per position at Init, and each output is a plain
+// multiply-accumulate. Other ratios read the kernel table at every tap.
+//
+// The last num_held channels aren't filtered: each output takes the
+// nearest input frame's value (for gate streams, where a sinc would only
+// smear an edge that a threshold then puts back at the same place).
 //
 // Usage: Push() one input frame, then Pop() until it returns false.
 
@@ -14,14 +24,17 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <numeric>
+#include <vector>
 
 namespace robotboy_beads {
 
 constexpr double kPi = 3.14159265358979323846;
 
-template <int num_channels>
+template <int num_channels, int num_held = 0>
 class Resampler {
  public:
+  static constexpr int kFrameSize = num_channels + num_held;
   // Zero crossings of the sinc on each side of the centre tap, measured at
   // the lower of the two rates. 16 keeps the passband flat to ~0.37 of the
   // lower rate (Beads' own 2x decimator in "Sunny tape" stops at ~0.26).
@@ -37,6 +50,12 @@ class Resampler {
   static constexpr int kMaxHalfWidth =
       int(kZeroCrossings * 32 / (2 * kCutoff)) + 2;
   static constexpr int kRingSize = 2048;  // power of two, > 2 * kMaxHalfWidth
+  // Room for the per-position kernels (positions x taps): 44.1k -> 32k,
+  // the largest common case, needs 320 x 50.
+  static constexpr int kMaxPolyphaseCoefficients = 16384;
+
+  // Allocates the polyphase storage here, so Init never allocates.
+  Resampler() { coefficients_.reserve(kMaxPolyphaseCoefficients); }
 
   // Rebuilds the kernel only when the rates change; always clears the
   // stream (Init on the audio thread is cheap when the rates are the same).
@@ -46,6 +65,7 @@ class Resampler {
       out_rate_ = out_rate;
       bypass_ = in_rate == out_rate;
       step_ = double(in_rate) / double(out_rate);
+      polyphase_ = false;
       if (!bypass_) {
         // Cutoff in cycles per input sample.
         fc_ = kCutoff * std::min(1.0f, out_rate / in_rate);
@@ -68,6 +88,7 @@ class Resampler {
           table_[k] = float(h);
         }
         index_scale_ = 2.0f * fc_ * float(kTablePointsPerCrossing);
+        InitPolyphase();
       }
     }
     Reset();
@@ -80,10 +101,12 @@ class Resampler {
     in_count_ = 0;
     t_integral_ = 0;
     t_fractional_ = 0.0;
+    phase_ = 0;
     pending_ = false;
   }
 
   bool bypass() const { return bypass_; }
+  bool polyphase() const { return polyphase_; }
 
   // Group delay, in output samples.
   float delay_in_output_samples() const {
@@ -92,11 +115,11 @@ class Resampler {
 
   void Push(const float* frame) {
     if (bypass_) {
-      std::copy(frame, frame + num_channels, pending_frame_.begin());
+      std::copy(frame, frame + kFrameSize, pending_frame_.begin());
       pending_ = true;
       return;
     }
-    std::copy(frame, frame + num_channels, ring_[in_count_ & kMask].begin());
+    std::copy(frame, frame + kFrameSize, ring_[in_count_ & kMask].begin());
     ++in_count_;
   }
 
@@ -117,28 +140,45 @@ class Resampler {
 
     std::array<float, num_channels> acc;
     acc.fill(0.0f);
-    const float fractional = float(t_fractional_);
-    for (int64_t j = t_integral_ - half_width_ + 1;
-         j <= t_integral_ + half_width_; ++j) {
-      // Distance from the output instant to input sample j.
-      const float d = std::fabs(fractional + float(t_integral_ - j));
-      const float index = std::min(d * index_scale_, float(kTableSize - 2));
-      const int index_integral = int(index);
-      const float index_fractional = index - float(index_integral);
-      const float h = table_[index_integral] + \
-          (table_[index_integral + 1] - table_[index_integral]) * \
-          index_fractional;
-      const auto& x = ring_[j & kMask];
-      for (int c = 0; c < num_channels; ++c) {
-        acc[c] += h * x[c];
+    const int64_t first = t_integral_ - half_width_ + 1;
+    const int taps = 2 * half_width_;
+    bool nearest_is_next;
+    if (polyphase_) {
+      const float* h = &coefficients_[size_t(phase_) * size_t(taps)];
+      for (int k = 0; k < taps; ++k) {
+        const auto& x = ring_[(first + k) & kMask];
+        for (int c = 0; c < num_channels; ++c) {
+          acc[c] += h[k] * x[c];
+        }
       }
+      nearest_is_next = 2 * phase_ > phase_count_;
+    } else {
+      const float fractional = float(t_fractional_);
+      for (int k = 0; k < taps; ++k) {
+        const float h = Kernel(fractional, half_width_ - 1 - k);
+        const auto& x = ring_[(first + k) & kMask];
+        for (int c = 0; c < num_channels; ++c) {
+          acc[c] += h * x[c];
+        }
+      }
+      nearest_is_next = t_fractional_ > 0.5;
     }
     std::copy(acc.begin(), acc.end(), frame);
+    const auto& nearest = ring_[(t_integral_ + (nearest_is_next ? 1 : 0)) & kMask];
+    for (int c = num_channels; c < kFrameSize; ++c) {
+      frame[c] = nearest[c];
+    }
 
-    t_fractional_ += step_;
-    const double whole = std::floor(t_fractional_);
-    t_integral_ += int64_t(whole);
-    t_fractional_ -= whole;
+    if (polyphase_) {
+      phase_ += phase_step_;
+      t_integral_ += phase_ / phase_count_;
+      phase_ %= phase_count_;
+    } else {
+      t_fractional_ += step_;
+      const double whole = std::floor(t_fractional_);
+      t_integral_ += int64_t(whole);
+      t_fractional_ -= whole;
+    }
     return true;
   }
 
@@ -146,6 +186,47 @@ class Resampler {
   static constexpr int64_t kMask = kRingSize - 1;
   static_assert((kRingSize & (kRingSize - 1)) == 0, "ring must be 2^n");
   static_assert(kRingSize > 2 * kMaxHalfWidth + 2, "ring too small");
+
+  // The kernel at fractional + offset input samples from the output
+  // instant, linearly interpolated from the table.
+  float Kernel(float fractional, int offset) const {
+    const float d = std::fabs(fractional + float(offset));
+    const float index = std::min(d * index_scale_, float(kTableSize - 2));
+    const int index_integral = int(index);
+    const float index_fractional = index - float(index_integral);
+    return table_[index_integral] +
+        (table_[index_integral + 1] - table_[index_integral]) *
+        index_fractional;
+  }
+
+  // in_rate / out_rate = phase_step_ / phase_count_ in lowest terms; output
+  // n sits n * phase_step_ / phase_count_ input samples in, so its position
+  // between inputs is one of phase_count_ values. The kernels are read from
+  // the same table, at the same points, as the per-tap path.
+  void InitPolyphase() {
+    if (in_rate_ != std::floor(in_rate_) || out_rate_ != std::floor(out_rate_) ||
+        in_rate_ < 1.0f || out_rate_ < 1.0f) {
+      return;
+    }
+    const int64_t in = int64_t(in_rate_);
+    const int64_t out = int64_t(out_rate_);
+    const int64_t g = std::gcd(in, out);
+    const int64_t taps = 2 * half_width_;
+    if ((out / g) * taps > kMaxPolyphaseCoefficients) {
+      return;
+    }
+    phase_step_ = int(in / g);
+    phase_count_ = int(out / g);
+    coefficients_.resize(size_t(phase_count_ * taps));
+    for (int p = 0; p < phase_count_; ++p) {
+      const float fractional = float(double(p) / double(phase_count_));
+      for (int k = 0; k < taps; ++k) {
+        coefficients_[size_t(p * taps + k)] =
+            Kernel(fractional, half_width_ - 1 - k);
+      }
+    }
+    polyphase_ = true;
+  }
 
   static double BesselI0(double x) {
     double sum = 1.0;
@@ -169,12 +250,18 @@ class Resampler {
   int half_width_ = 1;
 
   std::array<float, kTableSize> table_ = {};
-  std::array<std::array<float, num_channels>, kRingSize> ring_ = {};
+  std::array<std::array<float, kFrameSize>, kRingSize> ring_ = {};
   int64_t in_count_ = 0;
   int64_t t_integral_ = 0;
-  double t_fractional_ = 0.0;
+  double t_fractional_ = 0.0;  // per-tap path
 
-  std::array<float, num_channels> pending_frame_ = {};
+  bool polyphase_ = false;
+  std::vector<float> coefficients_;  // phase_count_ rows of 2 * half_width_ taps
+  int phase_step_ = 1;
+  int phase_count_ = 1;
+  int phase_ = 0;  // current output's position, in 1 / phase_count_ samples
+
+  std::array<float, kFrameSize> pending_frame_ = {};
   bool pending_ = false;
 };
 

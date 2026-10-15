@@ -148,7 +148,7 @@ class EngineHost {
 
   GainControl gain_control_;
   Resampler<2> input_resampler_;
-  Resampler<3> output_resampler_;
+  Resampler<2, 1> output_resampler_;  // L, R filtered; the gate held
 
   float host_rate_ = 48000.0f;
   float engine_rate_ = 48000.0f;
