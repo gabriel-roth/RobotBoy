@@ -17,10 +17,28 @@
     { "slug": "Lop", "name": "Löp", "displayName": "Löp" },
     { "slug": "MF20Filter", "name": "MF-20", "displayName": "MF-20" },
     { "slug": "Onbetap", "name": "Onbetap", "displayName": "Onbetap" },
-    { "slug": "Particules", "name": "Particules", "displayName": "Particules" },
+    { "slug": "Particules", "name": "Particules", "displayName": "Particules",
+      "order": ["Freeze", "Quality", "Seed (hold 4 s to lock)",
+                "Time", "Density", "Pitch", "Size", "Shape", "Feedback", "Reverb", "Dry/wet",
+                "Time attenurandomizer", "Pitch attenurandomizer", "Size attenurandomizer",
+                "Shape attenurandomizer", "Feedback CV amount", "Reverb CV amount", "Dry/wet CV amount",
+                "Audio L In", "Audio R In", "Freeze gate In", "Seed/clock In",
+                "Time CV In", "Density CV In", "1V/octave pitch In", "Size CV In",
+                "Shape CV In", "Feedback CV In", "Reverb CV In", "Dry/wet CV In",
+                "Audio L Out", "Audio R Out", "Grain gate Out"]
+    },
     { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" },
     { "slug": "Vespid", "name": "Vespid", "displayName": "Vespid" },
-    { "slug": "Retours", "name": "Retours", "displayName": "Retours" },
+    { "slug": "Retours", "name": "Retours", "displayName": "Retours",
+      "order": ["Slice", "Quality", "Tap tempo",
+                "Time", "Interval", "Pitch", "Filter", "Shape", "Feedback", "Reverb", "Dry/wet",
+                "Time attenurandomizer", "Pitch attenurandomizer", "Filter CV amount",
+                "Shape attenurandomizer", "Feedback CV amount", "Reverb CV amount", "Dry/wet CV amount",
+                "Audio L In", "Audio R In", "Slice gate In", "Clock In",
+                "Time CV In", "Interval CV In", "1V/octave pitch In", "Filter CV In",
+                "Shape CV In", "Feedback CV In", "Reverb CV In", "Dry/wet CV In",
+                "Audio L Out", "Audio R Out", "Repeat gate Out"]
+    },
     { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne" }
   ]
 }
