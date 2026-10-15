@@ -125,12 +125,17 @@ class EngineHost {
     kSeedDelaySize = 256,
     kTransitionBlocks = 1000,  // 0.25 s at Beads' 4 kHz block rate
     kOutputFifoSize = 4096,
+    // Delay memory cleared per muted block. The largest medium has about
+    // 1.2 million units (8-bit mono and stereo lines), so the clearing
+    // ends well inside the 1000 muted blocks.
+    kClearUnitsPerBlock = 2048,
   };
 
   void Reconfigure(bool reset_gain, bool apply_quality);
   void InitGainControl(bool reset);
   void ResetStreams();
   void RunBlock(ControlSource* controls);
+  void ClearMemoryStep(bool finish);
   void PushOutputFrame(float l, float r, float gate);
 
   static constexpr float kHissLevel = 0.00025f;
@@ -175,6 +180,7 @@ class EngineHost {
   stmlib::GateFlags previous_seed_ = stmlib::GATE_FLAG_LOW;
 
   int transition_blocks_ = 0;
+  size_t clear_position_ = 0;  // delay memory cleared so far (units)
   bool hiss_enabled_ = true;
   uint32_t hiss_state_ = 0x2545f491u;  // separate from Beads' own RNG
   bool clear_requested_ = false;

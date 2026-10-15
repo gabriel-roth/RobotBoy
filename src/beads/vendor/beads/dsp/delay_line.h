@@ -289,6 +289,38 @@ class DelayLine {
     Reset(true);
   }
   
+  // RobotBoy: Reset(true)'s clearing a piece at a time, so the host can
+  // spread it over several audio blocks. Units 0 to num_items() - 1 are the
+  // items, unit num_items() the freeze tail; clearing every unit in order
+  // writes what Reset(true) writes, in the same order.
+  inline size_t num_clear_units() const {
+    return num_banks * items_per_bank() + 1;
+  }
+  
+  inline void ClearUnits(size_t begin, size_t end) {
+    FloatFrame zero;
+    zero.l = zero.r = 0.0f;
+
+    ItemType zero_item;
+    zero_item.Store(0, zero);
+    zero_item.Store(1, zero);
+    const size_t per_bank = items_per_bank();
+    const size_t num_items = num_banks * per_bank;
+    size_t i = begin;
+    while (i < end && i < num_items) {
+      const size_t bank = i / per_bank;
+      const size_t bank_end = std::min(end, (bank + 1) * per_bank);
+      std::fill(
+          &items_[bank][i - bank * per_bank],
+          &items_[bank][bank_end - bank * per_bank],
+          zero_item);
+      i = bank_end;
+    }
+    if (begin <= num_items && num_items < end) {
+      std::fill(&freeze_tail_[0], &freeze_tail_[freeze_tail_size], zero);
+    }
+  }
+  
   inline void Write(FloatFrame in) {
     Store(write_ptr_, in);
     if (write_ptr_ < interpolation_tail) {

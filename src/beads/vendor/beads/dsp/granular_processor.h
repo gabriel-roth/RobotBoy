@@ -96,6 +96,32 @@ class GranularProcessor {
     multitap_delay_.Reset();
   }
   
+  // RobotBoy: Reset() without clearing the delay memory, then that
+  // clearing in pieces (the mono line's units, then the stereo line's: the
+  // same writes in the same order as Reset()).
+  inline void ResetKeepingMemory() {
+    mono_delay_line_.Reset(false);
+    stereo_delay_line_.Reset(false);
+    granular_player_.Reset();
+    multitap_delay_.Reset();
+  }
+  
+  inline size_t num_clear_units() const {
+    return mono_delay_line_.num_clear_units() +
+        stereo_delay_line_.num_clear_units();
+  }
+  
+  inline void ClearUnits(size_t begin, size_t end) {
+    const size_t mono_units = mono_delay_line_.num_clear_units();
+    if (begin < mono_units) {
+      mono_delay_line_.ClearUnits(begin, std::min(end, mono_units));
+    }
+    if (end > mono_units) {
+      stereo_delay_line_.ClearUnits(
+          std::max(begin, mono_units) - mono_units, end - mono_units);
+    }
+  }
+  
   // RobotBoy: exposed for the grain-activity LED.
   inline int num_active_grains() const {
     return granular_player_.CountActiveGrains();

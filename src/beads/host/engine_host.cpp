@@ -111,7 +111,11 @@ void EngineHost::Reconfigure(bool reset_gain, bool apply_quality) {
   }
   mono_ = !(left_patched_ && right_patched_);
   const beads::Processor::Media media = MediaForQuality(quality_);
-  processor_->Configure(media, mono_);
+  // Beads clears its delay memory here; all at once, that took longer than
+  // an audio block on MetaModule. So it's cleared in pieces during the
+  // muted blocks that follow (ClearMemoryStep), which ends in the same state.
+  processor_->Configure(media, mono_, false);
+  clear_position_ = 0;
   engine_rate_ = processor_->sample_rate();
   block_size_ = size_t(engine_rate_ / 4000.0f);
 
@@ -163,6 +167,17 @@ void EngineHost::PushOutputFrame(float l, float r, float gate) {
     }
     std::copy(out, out + 3, output_fifo_[fifo_write_].begin());
     fifo_write_ = next;
+  }
+}
+
+void EngineHost::ClearMemoryStep(bool finish) {
+  const size_t total = processor_->num_clear_units();
+  const size_t end = finish
+      ? total
+      : std::min(total, clear_position_ + size_t(kClearUnitsPerBlock));
+  if (clear_position_ < end) {
+    processor_->ClearUnits(clear_position_, end);
+    clear_position_ = end;
   }
 }
 
@@ -236,6 +251,7 @@ void EngineHost::RunBlock(ControlSource* controls) {
 
   if (transition_blocks_) {
     --transition_blocks_;
+    ClearMemoryStep(transition_blocks_ == 0);
     for (size_t i = 0; i < size; ++i) {
       PushOutputFrame(0.0f, 0.0f, 0.0f);
     }

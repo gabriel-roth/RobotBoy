@@ -104,3 +104,37 @@ TEST_CASE("Granular lock ignores a fully-clockwise Size") {
   Render(rig.processor.get(), 3.0f, 1.0f, 0.8f);
   CHECK(rig.processor->num_active_grains() > 0);
 }
+
+TEST_CASE("Clearing the delay memory in pieces matches Beads' own clear") {
+  for (int media = 0; media < 4; ++media) {
+    for (int mono = 0; mono < 2; ++mono) {
+      CAPTURE(media, mono);
+      ProcessorRig whole, pieces;
+      // The same leftover recording in both.
+      robotboy_stmlib::Random::Seed(7);
+      for (size_t i = 0; i < whole.delay_memory.size(); ++i)
+        whole.delay_memory[i] = pieces.delay_memory[i] =
+            uint8_t(robotboy_stmlib::Random::GetWord());
+
+      whole.processor->Configure(Processor::Media(media), mono != 0);
+      pieces.processor->Configure(Processor::Media(media), mono != 0, false);
+      const size_t units = pieces.processor->num_clear_units();
+      // EngineHost clears 2048 units per muted block and has 1000 of them
+      // (its last block finishes the rest regardless).
+      CHECK(units <= 2048u * 999u);
+      for (size_t begin = 0; begin < units; begin += 2047)
+        pieces.processor->ClearUnits(begin, std::min(units, begin + 2047));
+      CHECK(pieces.delay_memory == whole.delay_memory);
+
+      // And the processors carry on identically.
+      for (Processor* p : {whole.processor.get(), pieces.processor.get()})
+        p->set_mode_lock(mono ? Processor::MODE_DELAY : Processor::MODE_GRANULAR);
+      robotboy_stmlib::Random::Seed(3);
+      const float a = Render(whole.processor.get(), 0.5f, 0.6f, 0.8f);
+      robotboy_stmlib::Random::Seed(3);
+      const float b = Render(pieces.processor.get(), 0.5f, 0.6f, 0.8f);
+      CHECK(a == b);
+      CHECK(pieces.delay_memory == whole.delay_memory);
+    }
+  }
+}

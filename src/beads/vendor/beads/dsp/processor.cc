@@ -70,7 +70,7 @@ void Processor::Init(
   delay_mode_transition_ = -kDelayModeTransitionTime;
 }
 
-void Processor::Configure(Media media, bool mono) {
+void Processor::Configure(Media media, bool mono, bool clear_memory) {  // RobotBoy: clear_memory
   media_ = media;
   mono_ = mono;
   
@@ -78,19 +78,19 @@ void Processor::Configure(Media media, bool mono) {
 
   switch (media_) {
     case MEDIA_DIGITAL:
-      processor_digital_.Reset();
+      if (clear_memory) processor_digital_.Reset(); else processor_digital_.ResetKeepingMemory();  // RobotBoy
       max_delay = processor_digital_.max_delay_times_ratio();
       break;
     case MEDIA_VINTAGE_DIGITAL:
-      processor_vintage_digital_.Reset();
+      if (clear_memory) processor_vintage_digital_.Reset(); else processor_vintage_digital_.ResetKeepingMemory();  // RobotBoy
       max_delay = processor_vintage_digital_.max_delay_times_ratio();
       break;
     case MEDIA_CLEAN_TAPE:
-      processor_clean_tape_.Reset();
+      if (clear_memory) processor_clean_tape_.Reset(); else processor_clean_tape_.ResetKeepingMemory();  // RobotBoy
       max_delay = processor_clean_tape_.max_delay_times_ratio();
       break;
     case MEDIA_DIRTY_TAPE:
-      processor_dirty_tape_.Reset();
+      if (clear_memory) processor_dirty_tape_.Reset(); else processor_dirty_tape_.ResetKeepingMemory();  // RobotBoy
       max_delay = processor_dirty_tape_.max_delay_times_ratio();
       break;
   }

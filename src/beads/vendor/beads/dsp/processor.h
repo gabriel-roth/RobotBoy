@@ -78,7 +78,9 @@ class Processor {
   };
   
   void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
-  void Configure(Media media, bool mono);
+  // RobotBoy: clear_memory = false leaves the delay memory for the caller
+  // to clear with ClearUnits() before the next Process().
+  void Configure(Media media, bool mono, bool clear_memory = true);
   
   // RobotBoy: mode pinning, optional reverb, buffer clear, grain count.
   inline void set_mode_lock(ModeLock mode_lock) { mode_lock_ = mode_lock; }
@@ -98,6 +100,40 @@ class Processor {
       case MEDIA_DIGITAL:
       default:
         processor_digital_.Reset();
+        break;
+    }
+  }
+  
+  // RobotBoy: the current medium's delay memory clearing, in pieces (see
+  // GranularProcessor::ClearUnits).
+  inline size_t num_clear_units() const {
+    switch (media_) {
+      case MEDIA_DIRTY_TAPE:
+        return processor_dirty_tape_.num_clear_units();
+      case MEDIA_CLEAN_TAPE:
+        return processor_clean_tape_.num_clear_units();
+      case MEDIA_VINTAGE_DIGITAL:
+        return processor_vintage_digital_.num_clear_units();
+      case MEDIA_DIGITAL:
+      default:
+        return processor_digital_.num_clear_units();
+    }
+  }
+  
+  inline void ClearUnits(size_t begin, size_t end) {
+    switch (media_) {
+      case MEDIA_DIRTY_TAPE:
+        processor_dirty_tape_.ClearUnits(begin, end);
+        break;
+      case MEDIA_CLEAN_TAPE:
+        processor_clean_tape_.ClearUnits(begin, end);
+        break;
+      case MEDIA_VINTAGE_DIGITAL:
+        processor_vintage_digital_.ClearUnits(begin, end);
+        break;
+      case MEDIA_DIGITAL:
+      default:
+        processor_digital_.ClearUnits(begin, end);
         break;
     }
   }

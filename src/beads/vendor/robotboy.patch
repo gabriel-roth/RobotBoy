@@ -181,7 +181,7 @@ index 4d91ed4..4dddd3f 100644
            p.shape.value(),
            amplitude, pan,
 diff --git a/beads/dsp/delay_line.h b/beads/dsp/delay_line.h
-index 8d16bfd..7c118a9 100644
+index 8d16bfd..9983a81 100644
 --- a/beads/dsp/delay_line.h
 +++ b/beads/dsp/delay_line.h
 @@ -40,6 +40,15 @@
@@ -244,6 +244,45 @@ index 8d16bfd..7c118a9 100644
    
    inline void Reset(bool clear) {
      write_ptr_ = 0;
+@@ -268,6 +289,38 @@ class DelayLine {
+     Reset(true);
+   }
+   
++  // RobotBoy: Reset(true)'s clearing a piece at a time, so the host can
++  // spread it over several audio blocks. Units 0 to num_items() - 1 are the
++  // items, unit num_items() the freeze tail; clearing every unit in order
++  // writes what Reset(true) writes, in the same order.
++  inline size_t num_clear_units() const {
++    return num_banks * items_per_bank() + 1;
++  }
++  
++  inline void ClearUnits(size_t begin, size_t end) {
++    FloatFrame zero;
++    zero.l = zero.r = 0.0f;
++
++    ItemType zero_item;
++    zero_item.Store(0, zero);
++    zero_item.Store(1, zero);
++    const size_t per_bank = items_per_bank();
++    const size_t num_items = num_banks * per_bank;
++    size_t i = begin;
++    while (i < end && i < num_items) {
++      const size_t bank = i / per_bank;
++      const size_t bank_end = std::min(end, (bank + 1) * per_bank);
++      std::fill(
++          &items_[bank][i - bank * per_bank],
++          &items_[bank][bank_end - bank * per_bank],
++          zero_item);
++      i = bank_end;
++    }
++    if (begin <= num_items && num_items < end) {
++      std::fill(&freeze_tail_[0], &freeze_tail_[freeze_tail_size], zero);
++    }
++  }
++  
+   inline void Write(FloatFrame in) {
+     Store(write_ptr_, in);
+     if (write_ptr_ < interpolation_tail) {
 diff --git a/beads/dsp/grain.h b/beads/dsp/grain.h
 index 33c14b4..bcf46d0 100644
 --- a/beads/dsp/grain.h
@@ -311,7 +350,7 @@ index 2823848..a3b8c46 100644
    inline void Tick() {
      ++grain_interval_;
 diff --git a/beads/dsp/granular_processor.h b/beads/dsp/granular_processor.h
-index 8b1039e..5dc0b42 100644
+index 8b1039e..ab197d0 100644
 --- a/beads/dsp/granular_processor.h
 +++ b/beads/dsp/granular_processor.h
 @@ -46,6 +46,11 @@ class GranularProcessor {
@@ -341,10 +380,36 @@ index 8b1039e..5dc0b42 100644
      
      for (size_t i = 0; i < 2; ++i) {
        dc_blocker_[i].Init();
-@@ -83,6 +96,22 @@ class GranularProcessor {
+@@ -83,6 +96,48 @@ class GranularProcessor {
      multitap_delay_.Reset();
    }
    
++  // RobotBoy: Reset() without clearing the delay memory, then that
++  // clearing in pieces (the mono line's units, then the stereo line's: the
++  // same writes in the same order as Reset()).
++  inline void ResetKeepingMemory() {
++    mono_delay_line_.Reset(false);
++    stereo_delay_line_.Reset(false);
++    granular_player_.Reset();
++    multitap_delay_.Reset();
++  }
++  
++  inline size_t num_clear_units() const {
++    return mono_delay_line_.num_clear_units() +
++        stereo_delay_line_.num_clear_units();
++  }
++  
++  inline void ClearUnits(size_t begin, size_t end) {
++    const size_t mono_units = mono_delay_line_.num_clear_units();
++    if (begin < mono_units) {
++      mono_delay_line_.ClearUnits(begin, std::min(end, mono_units));
++    }
++    if (end > mono_units) {
++      stereo_delay_line_.ClearUnits(
++          std::max(begin, mono_units) - mono_units, end - mono_units);
++    }
++  }
++  
 +  // RobotBoy: exposed for the grain-activity LED.
 +  inline int num_active_grains() const {
 +    return granular_player_.CountActiveGrains();
@@ -364,7 +429,7 @@ index 8b1039e..5dc0b42 100644
    inline int max_delay_times_ratio() const {
      return max_delay * ratio;
    }
-@@ -133,6 +162,7 @@ class GranularProcessor {
+@@ -133,6 +188,7 @@ class GranularProcessor {
      p.pitch.has_cv = false;
      
      p.monophonic_mode = false;
@@ -372,7 +437,7 @@ index 8b1039e..5dc0b42 100644
  
      FloatFrame out;
      out.l = 0.0f;
-@@ -160,6 +190,9 @@ class GranularProcessor {
+@@ -160,6 +216,9 @@ class GranularProcessor {
      if (ratio == 1) {
        ProcessInternal(
            triggers, taps, freeze, parameters, feedback, mono, in, out, size);
@@ -382,7 +447,7 @@ index 8b1039e..5dc0b42 100644
      } else {
        size_t d_size = size / size_t(ratio);
  
-@@ -196,6 +229,9 @@ class GranularProcessor {
+@@ -196,6 +255,9 @@ class GranularProcessor {
            d_freeze,
            parameters, feedback,
            mono, d_in, d_out, d_size);
@@ -392,7 +457,7 @@ index 8b1039e..5dc0b42 100644
        
        for (size_t channel = 0; channel < 2; ++channel) {
          for (size_t i = 0; i < d_size; ++i) {
-@@ -389,6 +425,10 @@ class GranularProcessor {
+@@ -389,6 +451,10 @@ class GranularProcessor {
    float speed_;
    float bandwidth_;
    FloatFrame previous_sample_;
@@ -404,10 +469,10 @@ index 8b1039e..5dc0b42 100644
    stmlib::Svf dc_blocker_[2];
    
 diff --git a/beads/dsp/processor.cc b/beads/dsp/processor.cc
-index 1bcd1ce..1e4f6f1 100644
+index 1bcd1ce..aa51c13 100644
 --- a/beads/dsp/processor.cc
 +++ b/beads/dsp/processor.cc
-@@ -62,6 +62,10 @@ void Processor::Init(
+@@ -62,11 +62,15 @@ void Processor::Init(
  
    Configure(MEDIA_DIGITAL, false);
    
@@ -418,6 +483,36 @@ index 1bcd1ce..1e4f6f1 100644
    // Used for the timing of the delay to granular transition.
    delay_mode_transition_ = -kDelayModeTransitionTime;
  }
+ 
+-void Processor::Configure(Media media, bool mono) {
++void Processor::Configure(Media media, bool mono, bool clear_memory) {  // RobotBoy: clear_memory
+   media_ = media;
+   mono_ = mono;
+   
+@@ -74,19 +78,19 @@ void Processor::Configure(Media media, bool mono) {
+ 
+   switch (media_) {
+     case MEDIA_DIGITAL:
+-      processor_digital_.Reset();
++      if (clear_memory) processor_digital_.Reset(); else processor_digital_.ResetKeepingMemory();  // RobotBoy
+       max_delay = processor_digital_.max_delay_times_ratio();
+       break;
+     case MEDIA_VINTAGE_DIGITAL:
+-      processor_vintage_digital_.Reset();
++      if (clear_memory) processor_vintage_digital_.Reset(); else processor_vintage_digital_.ResetKeepingMemory();  // RobotBoy
+       max_delay = processor_vintage_digital_.max_delay_times_ratio();
+       break;
+     case MEDIA_CLEAN_TAPE:
+-      processor_clean_tape_.Reset();
++      if (clear_memory) processor_clean_tape_.Reset(); else processor_clean_tape_.ResetKeepingMemory();  // RobotBoy
+       max_delay = processor_clean_tape_.max_delay_times_ratio();
+       break;
+     case MEDIA_DIRTY_TAPE:
+-      processor_dirty_tape_.Reset();
++      if (clear_memory) processor_dirty_tape_.Reset(); else processor_dirty_tape_.ResetKeepingMemory();  // RobotBoy
+       max_delay = processor_dirty_tape_.max_delay_times_ratio();
+       break;
+   }
 @@ -109,6 +113,13 @@ void Processor::Process(
      const FloatFrame* in,
      FloatFrame* out,
@@ -477,7 +572,7 @@ index 1bcd1ce..1e4f6f1 100644
  }  // namespace beads
 \ No newline at end of file
 diff --git a/beads/dsp/processor.h b/beads/dsp/processor.h
-index f01765b..8c90a15 100644
+index f01765b..ce00ee3 100644
 --- a/beads/dsp/processor.h
 +++ b/beads/dsp/processor.h
 @@ -62,6 +62,14 @@ class Processor {
@@ -495,10 +590,15 @@ index f01765b..8c90a15 100644
    struct MixParameters {
      float feedback;
      float dry_wet;
-@@ -72,6 +80,71 @@ class Processor {
-   void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
-   void Configure(Media media, bool mono);
+@@ -70,8 +78,109 @@ class Processor {
+   };
    
+   void Init(uint8_t* buffers[], uint16_t* reverb_buffer);
+-  void Configure(Media media, bool mono);
++  // RobotBoy: clear_memory = false leaves the delay memory for the caller
++  // to clear with ClearUnits() before the next Process().
++  void Configure(Media media, bool mono, bool clear_memory = true);
++  
 +  // RobotBoy: mode pinning, optional reverb, buffer clear, grain count.
 +  inline void set_mode_lock(ModeLock mode_lock) { mode_lock_ = mode_lock; }
 +  inline void set_reverb_enabled(bool enabled) { reverb_enabled_ = enabled; }
@@ -521,6 +621,40 @@ index f01765b..8c90a15 100644
 +    }
 +  }
 +  
++  // RobotBoy: the current medium's delay memory clearing, in pieces (see
++  // GranularProcessor::ClearUnits).
++  inline size_t num_clear_units() const {
++    switch (media_) {
++      case MEDIA_DIRTY_TAPE:
++        return processor_dirty_tape_.num_clear_units();
++      case MEDIA_CLEAN_TAPE:
++        return processor_clean_tape_.num_clear_units();
++      case MEDIA_VINTAGE_DIGITAL:
++        return processor_vintage_digital_.num_clear_units();
++      case MEDIA_DIGITAL:
++      default:
++        return processor_digital_.num_clear_units();
++    }
++  }
++  
++  inline void ClearUnits(size_t begin, size_t end) {
++    switch (media_) {
++      case MEDIA_DIRTY_TAPE:
++        processor_dirty_tape_.ClearUnits(begin, end);
++        break;
++      case MEDIA_CLEAN_TAPE:
++        processor_clean_tape_.ClearUnits(begin, end);
++        break;
++      case MEDIA_VINTAGE_DIGITAL:
++        processor_vintage_digital_.ClearUnits(begin, end);
++        break;
++      case MEDIA_DIGITAL:
++      default:
++        processor_digital_.ClearUnits(begin, end);
++        break;
++    }
++  }
+   
 +  inline int num_active_grains() const {
 +    switch (media_) {
 +      case MEDIA_DIRTY_TAPE:
@@ -567,7 +701,7 @@ index f01765b..8c90a15 100644
    inline Media media() const { return media_; }
    inline bool mono() const { return mono_; }
    
-@@ -192,6 +265,9 @@ class Processor {
+@@ -192,6 +301,9 @@ class Processor {
    DelayController delay_controller_;
    
    Media media_;
