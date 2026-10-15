@@ -70,12 +70,14 @@ struct LucarneDisplay : widget::Widget {
 				in.dt = dt;
 				drawGrains(args, in);
 			}
-			else if (!left) {
+			else if (!left || module->isBypassed()) {
+				// Nothing attached, or bypassed (the source stops capturing
+				// too): a blank screen. Attaching again starts afresh.
 				feed = nullptr;
 				scopeView.clear();
 				scopePrimed = false;
 				grainView.clear();
-				paint(args, grainView.getDrawList(), kNoSource);
+				paint(args, grainView.getDrawList(), left ? nullptr : kNoSource);
 			}
 			else {
 				drawFeed(args, left->grainFeed, left->tapsModulated.load(std::memory_order_relaxed), dt);

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Retours' Lucarne view now holds still while Time or Interval is modulated, showing the whole buffer, instead of zooming with every change.
+- Bypassing Lucarne now turns it off: its screen goes blank, and Particules or Retours stops sending it data.
 - Lucarne's key for Retours is redrawn: it labels the primary and secondary tap colors and shows how a tap's marker flashes with its level.
 - Lucarne with a clocked Retours: the echoes of the louder division are always white and the other division's green. Before, a division could be white or green depending on which step of Interval it was on.
 
