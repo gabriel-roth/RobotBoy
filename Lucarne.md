@@ -42,8 +42,10 @@ In VCV, the key under the display changes to match the module Lucarne is attache
 
 ## Setup
 
-- **VCV Rack:** place Lucarne directly to the right of Particules or Retours. Until it is, the panel under the display reads "Place right of Particules or Retours" and the screen stays blank.
-- **MetaModule:** add Lucarne to the patch, then attach it from the **Expanders…** menu of Particules or Retours (this needs firmware 2.4 or later). Tap the display to see it fullscreen. Until it is attached, the display reads "Add from the Expanders menu of Particules or Retours".
+- **VCV Rack:** place Lucarne directly beside Particules or Retours, on either side. Until it is, the panel under the display reads "Place next to Particules or Retours" and the screen stays blank.
+- **MetaModule:** add Lucarne to the patch, then attach it on either side from the **Expanders…** menu of Particules or Retours (this needs firmware 2.4 or later). Tap the display to see it fullscreen. Until it is attached, the display reads "Add from the Expanders menu of Particules or Retours".
+
+If Lucarne sits between two of them, it shows the one on its left.
 
 ---
 

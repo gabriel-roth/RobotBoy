@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 
 using robotboy_beads::GrainFeed;
 using robotboy_beads::GrainLiveFrame;
@@ -26,16 +27,25 @@ static constexpr float kScreenH = 60.f;
 // instruction is printed on the panel (Lucarne-Empty.svg). MetaModule's
 // faceplate has no room for it, so the screen says it.
 #ifdef METAMODULE
-static const char* const kNoSource = "Add from the Expanders menu of Particules or Retours";
+// MetaModule doesn't wrap text (no nvgTextBox wrapping or nvgTextBoxBounds),
+// so the lines are broken by hand.
+static const char* const kNoSource = "Add from the Expanders menu\nof Particules or Retours";
 #else
 static const char* const kNoSource = "";
 #endif
+
+BeadsModule* Lucarne::source() const {
+	// dynamic_cast, not model ==: MetaModule SDK < 2.4 leaves model unset.
+	if (BeadsModule* m = dynamic_cast<BeadsModule*>(leftExpander.module))
+		return m;
+	return dynamic_cast<BeadsModule*>(rightExpander.module);
+}
 
 enum class Source { None, Particules, Retours };
 
 struct LucarneDisplay : widget::Widget {
 	Lucarne* module = nullptr;
-	Source source = Source::None;   // what sits on the left; the panel swap reads it
+	Source source = Source::None;   // what Lucarne shows; the panel swap reads it
 
 	// Particules: grains over the buffer. Retours (running or Slice): the echo scope.
 	lucarne::GrainLayout grainView;
@@ -63,24 +73,24 @@ struct LucarneDisplay : widget::Widget {
 			grainView.setSize(box.size.x, box.size.y);
 			scopeView.setSize(box.size.x, box.size.y);
 
-			BeadsModule* left = module ? dynamic_cast<BeadsModule*>(module->leftExpander.module) : nullptr;
-			source = !left ? Source::None : left->delayMode ? Source::Retours : Source::Particules;
+			BeadsModule* src = module ? module->source() : nullptr;
+			source = !src ? Source::None : src->delayMode ? Source::Retours : Source::Particules;
 			if (!module) {
 				lucarne::GrainLayout::Input in = demoInput();
 				in.dt = dt;
 				drawGrains(args, in);
 			}
-			else if (!left || module->isBypassed()) {
+			else if (!src || module->isBypassed()) {
 				// Nothing attached, or bypassed (the source stops capturing
 				// too): a blank screen. Attaching again starts afresh.
 				feed = nullptr;
 				scopeView.clear();
 				scopePrimed = false;
 				grainView.clear();
-				paint(args, grainView.getDrawList(), left ? nullptr : kNoSource);
+				paint(args, grainView.getDrawList(), src ? nullptr : kNoSource);
 			}
 			else {
-				drawFeed(args, left->grainFeed, left->tapsModulated.load(std::memory_order_relaxed), dt);
+				drawFeed(args, src->grainFeed, src->tapsModulated.load(std::memory_order_relaxed), dt);
 			}
 		}
 		Widget::drawLayer(args, layer);
@@ -239,17 +249,23 @@ struct LucarneDisplay : widget::Widget {
 			std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 			if (font) {
 				nvgFontFaceId(vg, font->handle);
-				// Sized from the width so both display shapes match; wrapped
-				// to 86% of the width and centered vertically.
-				nvgFontSize(vg, box.size.x * 0.05f);
+				// Sized from the width so both display shapes match. One
+				// nvgText per '\n'-separated line, the block centered: no
+				// nvgTextBox, which MetaModule doesn't wrap.
+				const float size = box.size.x * 0.05f, lineH = size * 1.4f;
+				nvgFontSize(vg, size);
 				nvgFillColor(vg, nvgRGB(0x80, 0x8a, 0x94));
-				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
-				const float wrap = box.size.x * 0.86f;
-				const float left = (box.size.x - wrap) * 0.5f;
-				float bounds[4];
-				nvgTextBoxBounds(vg, left, 0.f, wrap, message, nullptr, bounds);
-				const float top = (box.size.y - (bounds[3] - bounds[1])) * 0.5f;
-				nvgTextBox(vg, left, top, wrap, message, nullptr);
+				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+				int lines = 1;
+				for (const char* c = message; *c; c++)
+					lines += *c == '\n';
+				float y = box.size.y * 0.5f - (lines - 1) * lineH * 0.5f;
+				for (const char* start = message;; y += lineH) {
+					const char* end = std::strchr(start, '\n');
+					nvgText(vg, box.size.x * 0.5f, y, start, end);
+					if (!end) break;
+					start = end + 1;
+				}
 			}
 		}
 		nvgRestore(vg);

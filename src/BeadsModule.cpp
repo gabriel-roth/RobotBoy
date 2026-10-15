@@ -58,11 +58,16 @@ BeadsModule::Gates BeadsModule::processGates() {
 }
 
 robotboy_beads::HostFrameOut BeadsModule::processEngine(const ProcessArgs& args, Gates gates) {
-	// Is a Lucarne attached on the right, and not bypassed? dynamic_cast,
-	// not model ==: MetaModule SDK < 2.4 leaves model unset on adapter modules.
+	// Is a Lucarne on either side showing this module, and not bypassed?
+	// (A Lucarne between two of them shows the left one.) dynamic_cast, not
+	// model ==: MetaModule SDK < 2.4 leaves model unset on adapter modules.
 	if (expanderDivider.process()) {
-		Lucarne* lucarne = dynamic_cast<Lucarne*>(rightExpander.module);
-		grainFeed.attached.store(lucarne && !lucarne->isBypassed(), std::memory_order_relaxed);
+		auto shows = [this](Module* m) {
+			Lucarne* l = dynamic_cast<Lucarne*>(m);
+			return l && !l->isBypassed() && l->source() == this;
+		};
+		grainFeed.attached.store(shows(rightExpander.module) || shows(leftExpander.module),
+		                         std::memory_order_relaxed);
 	}
 	// Re-armed on a sample rate change, which may come with a new audio thread.
 	if (!fpuConfigured) {

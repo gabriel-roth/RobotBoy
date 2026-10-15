@@ -64,6 +64,6 @@ elements:
   # three lines at 4.75 mm, white, 1.35 x size apart, the block centered on
   # the panel and on y 100. Two lines would need \~58 mm for "Particules or
   # Retours", the whole backdrop.
-  - {text: "Place right of", x: 30.48, y: 95.4, size: 4.75}
+  - {text: "Place next to", x: 30.48, y: 95.4, size: 4.75}
   - {text: "Particules", x: 30.48, y: 101.8, size: 4.75}
   - {text: "or Retours", x: 30.48, y: 108.2, size: 4.75}

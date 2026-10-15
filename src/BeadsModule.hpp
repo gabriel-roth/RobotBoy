@@ -24,8 +24,8 @@ struct BeadsModule : Module, robotboy_beads::ControlSource {
 	static constexpr int QUALITY_R_LIGHT = 0, QUALITY_G_LIGHT = 1, QUALITY_B_LIGHT = 2, FREEZE_LIGHT = 3;
 
 	robotboy_beads::EngineHost host;
-	// Filled by the host while a Lucarne sits to the right; read by Lucarne's
-	// widget on the UI thread.
+	// Filled by the host while a Lucarne beside it shows this module; read
+	// by Lucarne's widget on the UI thread.
 	robotboy_beads::GrainFeed grainFeed;
 	const bool delayMode;   // Retours: Lucarne shows its echo scope
 
