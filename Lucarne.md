@@ -36,7 +36,7 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 **Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (warm white or green, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view shows the whole buffer and holds it, unchanged, until Slice turns off. Turn Slice off and the waveform starts scrolling again.
 
-In VCV, the key under the display changes to match the module Lucarne is attached to. With Retours, it shows the primary (white) and secondary (green) tap markers, and how a marker brightens and flashes with the level of what it plays. On MetaModule there is no key.
+In VCV, the key under the display changes to match the module Lucarne is attached to. With Retours, it labels the primary (amber) and secondary (cyan) tap markers and the play head, and shows how each marker flashes with the level of what it plays. On MetaModule there is no key.
 
 ---
 
