@@ -50,6 +50,27 @@ int main() {
         check(bar, "a flash bar is its color, 10% lighter");
         HI[size_t(4800 / 24)] = 0; LO[size_t(4800 / 24)] = 0;
     }
+    {   // a tap fading out of a crossfade dims with its weight
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 0.9f, 0}; in.taps[0].weight = 0.9f;   // Time multiple N
+        in.taps[1] = {9600.f, 0.1f, 1}; in.taps[1].weight = 0.1f;   // N + 1, fading out
+        in.numTaps = 2;
+        L.update(in);
+        const Rgb bg = L.getDrawList().background;
+        auto lineAt = [&](float age) {
+            for (const Rect& r : L.getDrawList().marks)
+                if (near(r.h, 180.f) && std::fabs(r.x + r.w * 0.5f - L.xForAge(age)) < 0.5f) return r.color;
+            return Rgb{0, 0, 0};
+        };
+        check(sameColor(lineAt(4800.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.9f)), "crossfade: the main tap's quiet line at its weight");
+        check(sameColor(lineAt(9600.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.1f)), "crossfade: the fading tap's line is faint");
+        HI[size_t(9600 / 24)] = 127; LO[size_t(9600 / 24)] = -127;
+        L.update(in);
+        check(sameColor(lineAt(9600.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.1f + 0.4f * 0.1f)), "crossfade: a faint tap flashes by its output");
+        HI[size_t(9600 / 24)] = 0; LO[size_t(9600 / 24)] = 0;
+    }
     {   // age -> x
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);

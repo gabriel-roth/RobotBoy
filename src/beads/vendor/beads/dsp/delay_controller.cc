@@ -46,6 +46,7 @@ void DelayController::Init(float sample_rate, int max_delay) {
   max_delay_ = max_delay;
   ratio_gain_[0] = 1.0f;  // RobotBoy
   ratio_gain_[1] = 0.0f;  // RobotBoy
+  for (int i = 0; i < NUM_TAPS; ++i) tap_weight_[i] = 0.0f;  // RobotBoy
 
   clock_.Init(sample_rate);
   
@@ -296,6 +297,8 @@ void DelayController::RenderInternal(
         }
         play_head_[i].Render(&out->tap[2 * i], shape, false);
         slave_play_head_[i].Render(&out->tap[2 * i + 1], shape, true);
+        tap_weight_[2 * i] = play_head_[i].done() ? 0.0f : play_head_[i].gain();  // RobotBoy
+        tap_weight_[2 * i + 1] = slave_play_head_[i].done() ? 0.0f : slave_play_head_[i].gain();  // RobotBoy
       }
       out->gate = \
           play_head_[clock_.new_interval_index() * NUM_RATIOS].phase() < 0.5f;
@@ -348,6 +351,7 @@ void DelayController::RenderInternal(
         const float base_gain = tap_gain[ratio] * ratio_fade * \
             clock_.gain(interval);
         out->tap[i].gain = base_gain * tap_envelope_[i].Render(shape);
+        tap_weight_[i] = base_gain;  // RobotBoy
         if (base_gain > loudest) {
           loudest = base_gain;
           loudest_index = i;

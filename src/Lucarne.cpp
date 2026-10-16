@@ -160,6 +160,7 @@ struct LucarneDisplay : widget::Widget {
 		for (int i = 0; i < GrainLiveFrame::kTaps; i++) {
 			const auto& t = frame.taps[i];
 			lucarne::ScopeLayout::Tap tap{age(t.read_index), t.level, i};
+			tap.weight = t.weight;
 			if (t.slice) {
 				tap.slice = true;
 				tap.sliceOldest = age(t.slice_start);

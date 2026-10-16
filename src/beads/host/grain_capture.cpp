@@ -231,6 +231,7 @@ void GrainCapture::Capture(const Line& line, const Player& player, bool mono,
       TapState& s = frame.taps[i];
       s.read_index = t.delay > 0 ? ReadIndex(write, t.delay, max_delay) : write;
       s.level = t.delay > 0 ? t.gain : 0.0f;
+      s.weight = t.delay > 0 ? taps->controller->tap_weight(i) : 0.0f;
       s.slice = sliced;
       if (sliced) {
         const int h = i / 2;

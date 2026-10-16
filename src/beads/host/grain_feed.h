@@ -39,6 +39,7 @@ struct GrainSlotState {
 struct TapState {
   int32_t read_index = 0;    // delay-line index the tap reads (nominal delay)
   float level = 0.0f;        // gain the tap rendered with (envelope and crossfades included)
+  float weight = 0.0f;       // the same without the envelope: crossfades only
   bool slice = false;        // a Slice play head: the fields below are valid
   uint32_t serial = 0;       // play head start counter
   int32_t slice_start = 0;   // index where the slice starts playing (its oldest end)

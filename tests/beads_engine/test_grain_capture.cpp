@@ -594,3 +594,43 @@ TEST_CASE("Clocked: the primary ratio alternates as Density steps through divisi
   CHECK(primary(13.25f / 20.0f) == 1);
   CHECK(primary(14.25f / 20.0f) == 0);
 }
+
+TEST_CASE("Tap weights: the gain without the envelope") {
+  DelayRun r;
+  r.Seconds(1.5f);
+  GrainLiveFrame f;
+  REQUIRE(r.feed.ReadFrame(&f));
+  REQUIRE(f.tap_mode);
+  int weighted = 0;
+  for (const TapState& t : f.taps) {
+    CHECK(t.weight >= 0.0f);
+    CHECK(t.weight <= 1.0f + 1e-6f);
+    CHECK(t.level <= t.weight + 1e-6f);   // level = weight x envelope
+    if (t.weight > 0.0f) ++weighted;
+  }
+  CHECK(weighted >= 1);
+}
+
+TEST_CASE("Tap weights: Time between two multiples crossfades the pair") {
+  // Unclocked, Time picks a multiple N of the interval (1..16, from
+  // 1.005 x Time x 15 + 1) and crossfades taps N and N + 1 over the middle
+  // eighth of each step. Interval 1 holds the sound (slots 4..7); its
+  // ratio-0 pair is slots 4 and 5.
+  auto weights = [](float multiple) {
+    DelayRun r;
+    r.controls.c.density.base = 0.45f;   // below noon: ratio 1 silent
+    r.controls.c.parameters.time = Knob((multiple - 1.0f) / 15.0f / 1.005f);
+    r.Seconds(1.0f);
+    GrainLiveFrame f;
+    REQUIRE(r.feed.ReadFrame(&f));
+    REQUIRE(f.tap_mode);
+    return std::make_pair(f.taps[4].weight, f.taps[5].weight);
+  };
+  const auto mid = weights(3.5f);
+  CHECK(mid.first > 0.3f);
+  CHECK(mid.second > 0.3f);
+  CHECK(std::fabs(mid.first - mid.second) < 0.05f);
+  const auto off = weights(3.1f);
+  CHECK(std::min(off.first, off.second) < 0.01f);
+  CHECK(std::max(off.first, off.second) > 0.9f);
+}

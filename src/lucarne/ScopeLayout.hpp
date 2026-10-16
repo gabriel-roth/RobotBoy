@@ -40,8 +40,9 @@ public:
 	static constexpr float kNowInset = 0.06f;
 	static constexpr float kDryWindowSeconds = 0.005f;
 	static constexpr Rgb kDryColor{0xE6, 0xEA, 0xF0};   // near white, apart from both tap hues
-	// Markers: a quiet line at kMarkerFloor of its color, rising to full as
-	// it flashes; the flash bar its color, kBarLighten toward white.
+	// Markers: a quiet line at kMarkerFloor of its color (scaled by the tap's
+	// crossfade weight, so a tap fading out fades from view), rising to full
+	// as it flashes; the flash bar its color, kBarLighten toward white.
 	static constexpr float kMarkerFloor = 0.6f;
 	static constexpr float kFarEdgePx = 1.f;   // the farthest tap's flash bar keeps this clear of the left edge
 	static constexpr float kBarLighten = 0.1f;
@@ -76,6 +77,7 @@ public:
 		bool slice = false;          // a Slice play head
 		float sliceOldest = 0.f;    // age of the slice's oldest end (slice only)
 		float sliceLength = 0.f;    // line samples (slice only)
+		float weight = 1.f;         // gain without the envelope: crossfades only
 	};
 	struct Input {
 		uint32_t epoch = 0;

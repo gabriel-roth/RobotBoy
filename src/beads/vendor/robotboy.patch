@@ -1,17 +1,18 @@
 diff --git a/beads/dsp/delay_controller.cc b/beads/dsp/delay_controller.cc
-index 60f9567..27d847f 100644
+index 60f9567..e301109 100644
 --- a/beads/dsp/delay_controller.cc
 +++ b/beads/dsp/delay_controller.cc
-@@ -44,6 +44,8 @@ const int kMinDelay = 64 + 4;
+@@ -44,6 +44,9 @@ const int kMinDelay = 64 + 4;
  
  void DelayController::Init(float sample_rate, int max_delay) {
    max_delay_ = max_delay;
 +  ratio_gain_[0] = 1.0f;  // RobotBoy
 +  ratio_gain_[1] = 0.0f;  // RobotBoy
++  for (int i = 0; i < NUM_TAPS; ++i) tap_weight_[i] = 0.0f;  // RobotBoy
  
    clock_.Init(sample_rate);
    
-@@ -236,6 +238,8 @@ void DelayController::RenderInternal(
+@@ -236,6 +239,8 @@ void DelayController::RenderInternal(
        tap_gain[0] = 1.0f - fade_to_odd * 0.2f;
        tap_gain[1] = fade_to_odd * 0.8f;
      }
@@ -20,8 +21,25 @@ index 60f9567..27d847f 100644
  
      const float shape = modulated_shape.Next();
      
+@@ -292,6 +297,8 @@ void DelayController::RenderInternal(
+         }
+         play_head_[i].Render(&out->tap[2 * i], shape, false);
+         slave_play_head_[i].Render(&out->tap[2 * i + 1], shape, true);
++        tap_weight_[2 * i] = play_head_[i].done() ? 0.0f : play_head_[i].gain();  // RobotBoy
++        tap_weight_[2 * i + 1] = slave_play_head_[i].done() ? 0.0f : slave_play_head_[i].gain();  // RobotBoy
+       }
+       out->gate = \
+           play_head_[clock_.new_interval_index() * NUM_RATIOS].phase() < 0.5f;
+@@ -344,6 +351,7 @@ void DelayController::RenderInternal(
+         const float base_gain = tap_gain[ratio] * ratio_fade * \
+             clock_.gain(interval);
+         out->tap[i].gain = base_gain * tap_envelope_[i].Render(shape);
++        tap_weight_[i] = base_gain;  // RobotBoy
+         if (base_gain > loudest) {
+           loudest = base_gain;
+           loudest_index = i;
 diff --git a/beads/dsp/delay_controller.h b/beads/dsp/delay_controller.h
-index caf878a..36cbb30 100644
+index caf878a..89c9a65 100644
 --- a/beads/dsp/delay_controller.h
 +++ b/beads/dsp/delay_controller.h
 @@ -47,7 +47,7 @@ struct DelayTap {
@@ -41,7 +59,7 @@ index caf878a..36cbb30 100644
    }
    
    inline bool done() const { return remaining_ == 0; }
-@@ -64,6 +65,11 @@ class PlayHead {
+@@ -64,6 +65,12 @@ class PlayHead {
      return remaining_ && (remaining_ == mid_point_);
    }
    inline float phase() const { return phase_; }
@@ -50,10 +68,11 @@ index caf878a..36cbb30 100644
 +  inline int duration() const { return duration_; }
 +  inline int remaining() const { return remaining_; }
 +  inline uint32_t serial() const { return serial_; }
++  inline float gain() const { return gain_; }
  
    inline void Start(int start, int duration, float gain) {
      start_ = start;
-@@ -72,6 +78,8 @@ class PlayHead {
+@@ -72,6 +79,8 @@ class PlayHead {
      phase_ = 0.0f;
      phase_increment_ = 1.0f / float(duration);
      gain_ = gain;
@@ -62,7 +81,7 @@ index caf878a..36cbb30 100644
    }
  
    static inline float Triangle(float phase, float pw) {
-@@ -117,6 +125,8 @@ class PlayHead {
+@@ -117,6 +126,8 @@ class PlayHead {
    float phase_;
    float phase_increment_;
    float gain_;
@@ -71,7 +90,7 @@ index caf878a..36cbb30 100644
  
    DISALLOW_COPY_AND_ASSIGN(PlayHead);
  };
-@@ -197,6 +207,14 @@ class DelayController {
+@@ -197,6 +208,18 @@ class DelayController {
        const RandomizedParameter& shape,
        Output* out,
        size_t size);
@@ -83,14 +102,19 @@ index caf878a..36cbb30 100644
 +  // RobotBoy: each ratio's crossfade gain (no envelope) from the last sample
 +  // rendered; Lucarne colors the louder ratio's taps as the primary ones.
 +  inline float ratio_gain(int r) const { return ratio_gain_[r]; }
++  // RobotBoy: each tap's gain without its envelope (ratio, Time multiple
++  // and clock crossfades) from the last sample rendered; Lucarne dims a tap
++  // that's fading out of a crossfade.
++  inline float tap_weight(int t) const { return tap_weight_[t]; }
    
   private:
    template<bool synchronized>
-@@ -213,6 +231,7 @@ class DelayController {
+@@ -213,6 +236,8 @@ class DelayController {
        size_t size);
    
    int max_delay_;
 +  float ratio_gain_[NUM_RATIOS];  // RobotBoy
++  float tap_weight_[NUM_TAPS];  // RobotBoy
    
    DelayClock clock_;
    

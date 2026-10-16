@@ -70,6 +70,7 @@ class PlayHead {
   inline int duration() const { return duration_; }
   inline int remaining() const { return remaining_; }
   inline uint32_t serial() const { return serial_; }
+  inline float gain() const { return gain_; }
 
   inline void Start(int start, int duration, float gain) {
     start_ = start;
@@ -215,6 +216,10 @@ class DelayController {
   // RobotBoy: each ratio's crossfade gain (no envelope) from the last sample
   // rendered; Lucarne colors the louder ratio's taps as the primary ones.
   inline float ratio_gain(int r) const { return ratio_gain_[r]; }
+  // RobotBoy: each tap's gain without its envelope (ratio, Time multiple
+  // and clock crossfades) from the last sample rendered; Lucarne dims a tap
+  // that's fading out of a crossfade.
+  inline float tap_weight(int t) const { return tap_weight_[t]; }
   
  private:
   template<bool synchronized>
@@ -232,6 +237,7 @@ class DelayController {
   
   int max_delay_;
   float ratio_gain_[NUM_RATIOS];  // RobotBoy
+  float tap_weight_[NUM_TAPS];  // RobotBoy
   
   DelayClock clock_;
   
