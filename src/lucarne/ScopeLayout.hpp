@@ -2,6 +2,7 @@
 // Lucarne's echo scope for Retours: turns a ring of recent-audio min/max
 // entries plus tap states into rectangles. Pure C++ (no Rack, no nanovg).
 
+#include <algorithm>
 #include <cstdint>
 
 #include "DrawList.hpp"
@@ -16,7 +17,7 @@ namespace lucarne {
 // conflict the farthest tap stays on screen.
 struct ZoomTuning {
 	float minGap = 0.2f;          // now line to nearest tap, fraction of the width
-	float farMargin = 1.15f;      // window at least the farthest tap's delay x this
+	float farMargin = 1.f;        // window at least the farthest tap's delay x this (and kFarEdgePx kept)
 	float bandPosition = 1.f;     // 0: narrowest allowed, 1: widest
 	float deadband = 0.f;         // stay put while the window keeps both rules and the target is within this ratio
 	float modHoldSeconds = 3.f;   // modulated: how long a delay extreme is remembered
@@ -43,6 +44,7 @@ public:
 	// Markers: a quiet line at kMarkerFloor of its color, rising to full as
 	// it flashes; the flash bar its color, kBarLighten toward white.
 	static constexpr float kMarkerFloor = 0.6f;
+	static constexpr float kFarEdgePx = 1.f;   // the farthest tap's flash bar keeps this clear of the left edge
 	static constexpr float kBarLighten = 0.1f;
 
 	// A Slice head's band: this much of the tap color over the background.
@@ -101,6 +103,7 @@ public:
 	float getWindow() const { return window; }   // current window, line samples
 	int getPrimary() const { return primary; }   // the primary ratio, 0 or 1
 	float nowX() const { return width * (1.f - kNowInset); }
+	float markerWidth() const { return std::max(width * 0.004f, 1.f); }   // a marker line; its flash bar is 3x
 	float xForAge(float age) const;            // age 0 (newest) -> nowX(), age window -> 0
 	static float tapOutput(const Input& in, float delay, float level);   // 0..1
 	static float dryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds

@@ -14,6 +14,7 @@ static ScopeLayout::Input In(int entries, float dt = 0.f) {
     ScopeLayout::Input in;
     in.epoch = 1; in.lo = LO.data(); in.hi = HI.data(); in.entries = entries;
     in.samplesPerEntry = 24; in.lineRate = 48000.f; in.maxDelay = 196608; in.dt = dt;
+    in.tuning.farMargin = 1.15f;   // wider than the 1 px edge rule, so it shows in the expectations
     return in;
 }
 // The default zoom for lone taps: the widest window that keeps the minGap
@@ -300,6 +301,23 @@ int main() {
         L.update(in);
         check(near(L.getWindow(), 48000.f * 1.15f, 1.f), "conflict: the far tap's margin wins");
     }
+    {   // The far tap's flash bar stays at least 1 px clear of the left edge
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        HI[size_t(48000 / 24)] = 127; LO[size_t(48000 / 24)] = -127;
+        const float sizes[2][2] = {{320.f, 180.f}, {159.4f, 177.2f}};   // MetaModule, VCV at 100%
+        for (const auto& sz : sizes) {
+            ScopeLayout L; L.setSize(sz[0], sz[1]);
+            ScopeLayout::Input in = In(8192);
+            in.tuning.farMargin = 1.f;
+            in.taps[0] = {4800.f, 1.f, 0}; in.taps[1] = {48000.f, 1.f, 2}; in.numTaps = 2;
+            L.update(in);
+            float left = 1e9f;
+            for (const Rect& r : L.getDrawList().marks)
+                if (r.h < sz[1] && std::fabs(r.x + r.w * 0.5f - L.xForAge(48000.f)) < 0.5f) left = r.x;
+            check(left >= 1.f - 1e-3f && left < 1.05f, "far tap's flash bar sits 1 px from the left edge");
+        }
+        HI[size_t(48000 / 24)] = 0; LO[size_t(48000 / 24)] = 0;
+    }
     {   // A long delay: the whole buffer already keeps the gap
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
@@ -505,7 +523,7 @@ int main() {
         check(ScopeLayout::entriesToRead(48000.f, 4800.f, false, 24, 8192) == 2002, "read: the current window when wider");
         check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 942, "read: the widest zoom the longest tap allows");
         {
-            ScopeLayout::ZoomTuning t; t.minGap = 0.94f;   // reach 1: the far margin is wider
+            ScopeLayout::ZoomTuning t; t.minGap = 0.94f; t.farMargin = 1.15f;   // reach 1: the far margin is wider
             check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192, t) == 232, "read: the far margin when wider");
         }
         check(ScopeLayout::entriesToRead(5520.f, 4800.f, true, 24, 8192) == 8192, "read: everything when heading for the whole buffer");

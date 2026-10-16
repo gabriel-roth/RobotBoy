@@ -137,7 +137,11 @@ void ScopeLayout::update(const Input& in) {
 		// Narrowest: the farthest tap and its margin on screen. Widest: the
 		// nearest tap's gap to the now line kept. A conflict goes to the far tap.
 		const float floor = std::min(kMinWindowSeconds * in.lineRate, maxDelay);
-		const float lo = std::max(std::min(std::max(z.farMargin * rangeFar, floor), maxDelay), 1.f);
+		// The farthest tap's flash bar (1.5 marker widths each side) clear of the edge.
+		const float edge = kFarEdgePx + 1.5f * markerWidth();
+		const float edgeMargin = nowX() > 2.f * edge ? nowX() / (nowX() - edge) : 1.f;
+		const float margin = std::max(z.farMargin, edgeMargin);
+		const float lo = std::max(std::min(std::max(margin * rangeFar, floor), maxDelay), 1.f);
 		const float hi = std::max(std::min(z.reach() * rangeNear, maxDelay), 1.f);
 		float target = lo;
 		if (hi > lo) {
@@ -204,7 +208,7 @@ void ScopeLayout::update(const Input& in) {
 		list.wave.push_back({c * colW, top, colW, h, list.waveColor});
 	}
 
-	const float lineW = std::max(width * 0.004f, 1.f);
+	const float lineW = markerWidth();
 	auto marker = [&](float x, Rgb base, float o) {
 		list.marks.push_back({x - lineW * 0.5f, 0.f, lineW, height, mix(list.background, base, kMarkerFloor + (1.f - kMarkerFloor) * o)});
 		if (!(o > 0.f)) return;

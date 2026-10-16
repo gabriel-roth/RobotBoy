@@ -49,7 +49,7 @@ struct ZoomKnob {
 };
 static const ZoomKnob kZoomKnobs[Lucarne::NUM_PARAMS] = {
 	{Lucarne::ZOOM_GAP_PARAM,        "Gap",        0.05f, 0.6f, 0.2f,   "% of width", 100.f, "%.0f%%"},
-	{Lucarne::ZOOM_FAR_PARAM,        "Far margin", 1.f,   1.5f, 1.15f,  "x",          1.f,   "x%.2f"},
+	{Lucarne::ZOOM_FAR_PARAM,        "Far margin", 1.f,   1.5f, 1.f,    "x",          1.f,   "x%.2f"},
 	{Lucarne::ZOOM_BAND_PARAM,       "Band pos",   0.f,   1.f,  1.f,    "%",          100.f, "%.0f%%"},
 	{Lucarne::ZOOM_DEADBAND_PARAM,   "Deadband",   0.f,   2.f,  0.f,    "%",          100.f, "%.0f%%"},
 	{Lucarne::ZOOM_HOLD_PARAM,       "Mod hold",   0.f,   10.f, 3.f,    " s",         1.f,   "%.1f s"},
