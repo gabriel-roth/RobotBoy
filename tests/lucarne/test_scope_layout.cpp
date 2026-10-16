@@ -16,6 +16,9 @@ static ScopeLayout::Input In(int entries, float dt = 0.f) {
     in.samplesPerEntry = 24; in.lineRate = 48000.f; in.maxDelay = 196608; in.dt = dt;
     return in;
 }
+// The default zoom for lone taps: the widest window that keeps the minGap
+// (0.2 of the width) between the now line and the tap.
+static float W(float d) { return std::min(d * (1.f - ScopeLayout::kNowInset) / 0.2f, 196608.f); }
 
 int main() {
     {   // tap colors: ratio 0 warm white (the grain view's center), ratio 1 green
@@ -28,7 +31,8 @@ int main() {
         ScopeLayout::Input in = In(8192);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;          // 100 ms
         L.update(in);                                              // first update snaps
-        check(near(L.getWindow(), 4800.f * 1.15f, 1.f), "window = longest delay x margin");
+        check(near(L.getWindow(), W(4800.f), 1.f), "lone tap: widest window that keeps the gap");
+        check(near(L.nowX() - L.xForAge(4800.f), 0.2f * 320.f, 0.05f), "lone tap: gap is minGap of the width");
         check(near(L.nowX(), 320.f * (1.f - ScopeLayout::kNowInset)), "now sits inset from the right edge");
         check(near(L.xForAge(0.f), L.nowX()), "newest audio at the now line");
         check(near(L.xForAge(L.getWindow()), 0.f), "window age at left edge");
@@ -61,14 +65,14 @@ int main() {
         const float w0 = L.getWindow();
         in.taps[0].delay = 19200.f; in.dt = 0.016f;
         L.update(in);
-        check(L.getWindow() > w0 && L.getWindow() < 19200.f * 1.15f, "zoom eases part-way");
+        check(L.getWindow() > w0 && L.getWindow() < W(19200.f), "zoom eases part-way");
         for (int i = 0; i < 60; ++i) L.update(in);
-        check(near(L.getWindow(), 19200.f * 1.15f, 50.f), "zoom settles within a second");
+        check(near(L.getWindow(), W(19200.f), 50.f), "zoom settles within a second");
         L.clear(); in.taps[0].delay = 4800.f; L.update(in);
-        check(near(L.getWindow(), 4800.f * 1.15f, 1.f), "Clear makes the next update snap");
+        check(near(L.getWindow(), W(4800.f), 1.f), "Clear makes the next update snap");
         ScopeLayout::Input e = in; e.epoch = 2; e.taps[0].delay = 9600.f; e.dt = 0.016f;
         L.update(e);
-        check(near(L.getWindow(), 9600.f * 1.15f, 1.f), "epoch change snaps");
+        check(near(L.getWindow(), W(9600.f), 1.f), "epoch change snaps");
     }
     {   // no audible tap keeps window
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -152,6 +156,7 @@ int main() {
         in.taps[0] = sliceTap(2400.f, 0, 4800.f, 4800.f);
         in.taps[1] = {9600.f / 1.15f, 1.f, 1};   // a running tap sets a 9600-wide window
         in.numTaps = 2;
+        in.tuning.bandPosition = 0.f;             // tightest: the far tap's margin
         L.update(in);
         check(near(L.getWindow(), 9600.f, 1.f), "slice band test: 9600-wide window");
         const auto& u = L.getDrawList().under;
@@ -206,6 +211,7 @@ int main() {
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        in.tuning.bandPosition = 0.f;                 // tightest: the far tap's margin
         L.update(in);                                  // window snaps to 5520
         in.taps[0] = sliceTap(2400.f, 0, 19200.f, 19200.f); in.dt = 0.016f;
         L.update(in);                                  // eases part-way toward 22080
@@ -218,6 +224,7 @@ int main() {
         }
         ScopeLayout M; M.setSize(320.f, 180.f);
         ScopeLayout::Input c = In(8192);
+        c.tuning.bandPosition = 0.f;
         c.maxDelay = 10000;                           // window capped at 10000
         c.taps[0] = sliceTap(9000.f, 0, 40000.f, 20000.f);
         c.numTaps = 1;
@@ -252,40 +259,131 @@ int main() {
         for (int i = 0; i < 30; ++i) L.update(in);
         check(near(L.getWindow(), 196608.f, 1.f), "Slice: window never changes while frozen");
         for (int i = 0; i < 120; ++i) L.update(run);
-        check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "Slice off: zoom follows the taps again");
+        check(near(L.getWindow(), W(4800.f), 50.f), "Slice off: zoom follows the taps again");
     }
-    {   // Modulated: the zoom eases out to the whole buffer and stays
+    {   // Two taps: the far one fixes the narrowest window, the near one the widest
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {9600.f, 1.f, 0}; in.taps[1] = {19200.f, 1.f, 2}; in.numTaps = 2;
+        L.update(in);
+        check(near(L.getWindow(), W(9600.f), 1.f), "two taps: widest that keeps the near tap's gap");
+        in.tuning.bandPosition = 0.f; L.clear(); L.update(in);
+        check(near(L.getWindow(), 19200.f * 1.15f, 1.f), "band position 0: the far tap's margin");
+        in.tuning.bandPosition = 0.5f; L.clear(); L.update(in);
+        check(near(L.getWindow(), std::sqrt(19200.f * 1.15f * W(9600.f)), 2.f), "band position 0.5: halfway, in log");
+    }
+    {   // Taps too far apart for both rules: the far tap stays on screen
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 1.f, 0}; in.taps[1] = {48000.f, 1.f, 2}; in.numTaps = 2;
+        L.update(in);
+        check(near(L.getWindow(), 48000.f * 1.15f, 1.f), "conflict: the far tap's margin wins");
+    }
+    {   // A long delay: the whole buffer already keeps the gap
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {100000.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        check(near(L.getWindow(), 196608.f, 1.f), "long delay: whole buffer");
+    }
+    {   // Tuning: minGap and farMargin
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        in.tuning.minGap = 0.4f;
+        L.update(in);
+        check(near(L.nowX() - L.xForAge(4800.f), 0.4f * 320.f, 0.05f), "minGap 0.4: gap is 0.4 of the width");
+        in.tuning.minGap = 0.2f; in.tuning.bandPosition = 0.f; in.tuning.farMargin = 1.3f;
+        L.clear(); L.update(in);
+        check(near(L.getWindow(), 4800.f * 1.3f, 1.f), "farMargin 1.3 at band position 0");
+        in.tuning.minGap = 5.f;   // out of range: clamped, finite
+        L.clear(); L.update(in);
+        check(std::isfinite(L.getWindow()) && L.getWindow() >= 1.f, "absurd minGap: window stays sane");
+    }
+    {   // Deadband: small target changes are ignored, leaving the band is not
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.tuning.deadband = 0.25f;
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        in.taps[0].delay = 5000.f;   // target 4% wider, and the window still keeps the gap
+        for (int i = 0; i < 60; ++i) L.update(in);
+        check(near(L.getWindow(), W(4800.f), 1.f), "deadband: a small change doesn't zoom");
+        in.taps[0].delay = 4000.f;   // only 20% narrower, but the gap would fall short
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), W(4000.f), 1.f), "deadband: leaving the band glides all the way");
+        in.taps[0].delay = 7000.f;   // 75% wider: past the deadband
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), W(7000.f), 1.f), "deadband: a big change glides all the way");
+    }
+    // A Retours delay hopping between two places, as Interval CV or a random source does.
+    auto hop = [](ScopeLayout& L, ScopeLayout::Input& in, int frames, float a, float b, float* lo, float* hi) {
+        for (int i = 0; i < frames; ++i) {
+            in.taps[0].delay = (i / 10) % 2 ? b : a;
+            L.update(in);
+            if (lo) *lo = std::min(*lo, L.getWindow());
+            if (hi) *hi = std::max(*hi, L.getWindow());
+        }
+    };
+    {   // Modulated: the zoom settles on a window that fits the recent range
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        hop(L, in, 120, 4800.f, 19200.f, nullptr, nullptr);
+        float lo = 1e9f, hi = 0.f;
+        hop(L, in, 200, 4800.f, 19200.f, &lo, &hi);
+        check(hi / lo < 1.01f, "modulated: the window holds still while the tap hops");
+        check(near(lo, W(4800.f), 50.f), "modulated: it fits both the near gap and the far tap");
+        ScopeLayout M; M.setSize(320.f, 180.f);
+        ScopeLayout::Input u = In(8192, 0.016f);
+        u.taps[0] = {4800.f, 1.f, 0}; u.numTaps = 1;
+        float ulo = 1e9f, uhi = 0.f;
+        hop(M, u, 320, 4800.f, 19200.f, &ulo, &uhi);
+        check(uhi / ulo > 2.f, "unmodulated: the window follows each hop");
+    }
+    {   // Modulated: a range the tap left is held, then released
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        hop(L, in, 120, 4800.f, 19200.f, nullptr, nullptr);
+        in.taps[0].delay = 19200.f;
+        for (int i = 0; i < 125; ++i) L.update(in);   // 2 s of the 3 s hold
+        check(near(L.getWindow(), W(4800.f), 50.f), "modulated: the near extreme is held");
+        for (int i = 0; i < 940; ++i) L.update(in);   // 15 s more: hold over, release done
+        check(near(L.getWindow(), W(19200.f), W(19200.f) * 0.02f), "modulated: then released to the tap");
+    }
+    {   // Modulated: the glide is slower than a knob's
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192, 0.016f);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
         L.update(in);
         const float w0 = L.getWindow();
-        in.modulated = true;
-        L.update(in);
-        check(L.getWindow() > w0 && L.getWindow() < 196608.f, "modulated: zoom eases part-way out");
-        for (int i = 0; i < 14; ++i) L.update(in);   // 0.24 s: the normal glide would be ~95% there
-        {
-            const float done = std::log(L.getWindow() / w0) / std::log(196608.f / w0);
-            check(done > 0.6f && done < 0.85f, "modulated: the ease-out is slower than a knob glide");
-        }
-        for (int i = 0; i < 240; ++i) L.update(in);
-        check(near(L.getWindow(), 196608.f, 1.f), "modulated: zoom reaches the whole buffer");
-        in.taps[0].delay = 9600.f;
-        for (int i = 0; i < 30; ++i) L.update(in);
-        check(near(L.getWindow(), 196608.f, 1.f), "modulated: a tap change doesn't zoom");
+        in.modulated = true; in.taps[0].delay = 48000.f;
+        for (int i = 0; i < 15; ++i) L.update(in);   // 0.24 s: the knob glide would be ~95% there
+        // The 4800 it just left is recent history: the far tap's margin.
+        const float done = std::log(L.getWindow() / w0) / std::log(48000.f * 1.15f / w0);
+        check(done > 0.6f && done < 0.85f, "modulated: the glide is slower than a knob glide");
         in.taps[0].level = 0.f;
+        for (int i = 0; i < 10; ++i) L.update(in);   // past the 100 ms Shape-dip hold
+        const float w1 = L.getWindow();
         for (int i = 0; i < 120; ++i) L.update(in);
-        check(near(L.getWindow(), 196608.f, 1.f), "modulated with no audible tap: whole buffer");
-        in.taps[0].level = 1.f; in.modulated = false;
-        for (int i = 0; i < 120; ++i) L.update(in);
-        check(near(L.getWindow(), 9600.f * 1.15f, 50.f), "modulation off: zoom eases back to the taps");
+        check(near(L.getWindow(), w1, 1.f), "modulated with no audible tap: window kept");
     }
-    {   // Modulated on the first update snaps
+    {   // Modulation off: no memory, back to following the taps
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        hop(L, in, 120, 4800.f, 19200.f, nullptr, nullptr);
+        in.modulated = false; in.taps[0].delay = 19200.f;
+        for (int i = 0; i < 120; ++i) L.update(in);
+        check(near(L.getWindow(), W(19200.f), 50.f), "modulation off: zoom follows the tap");
+    }
+    {   // Modulated on the first update snaps to the taps' zoom
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192, 0.016f);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
         L.update(in);
-        check(near(L.getWindow(), 196608.f, 1.f), "modulated snap: whole buffer at once");
+        check(near(L.getWindow(), W(4800.f), 1.f), "modulated snap: straight to the zoom");
     }
     {   // Frozen (Slice) still jumps, even while modulated
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -318,7 +416,7 @@ int main() {
         for (int i = 0; i < 8; ++i) L.update(in);     // 80 ms of the 100 ms hold (5% of 1 s + 50 ms)
         check(near(L.getWindow(), w0, 1.f), "fade-out: zoom holds during the hold");
         for (int i = 0; i < 200; ++i) L.update(in);
-        check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "fade-out: zoom then eases to the next tap");
+        check(near(L.getWindow(), W(4800.f), 50.f), "fade-out: zoom then eases to the next tap");
     }
     {   // A held, silent tap draws no marker
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -345,7 +443,7 @@ int main() {
         // A stale slot 0 hold (0.15 s) would pull it back out within 5 frames.
         in.taps[0] = {96000.f, 0.f, 0}; in.taps[1] = {4800.f, 1.f, 2}; in.numTaps = 2;
         for (int i = 0; i < 5; ++i) L.update(in);
-        check(near(L.getWindow(), 4800.f * 1.15f, 50.f), "stale hold decays");
+        check(near(L.getWindow(), W(4800.f), 50.f), "stale hold decays");
         ScopeLayout M; M.setSize(320.f, 180.f);
         ScopeLayout::Input m = In(8192, 0.016f);
         m.taps[0] = {96000.f, 1.f, 0}; m.taps[1] = {4800.f, 1.f, 2}; m.numTaps = 2;
@@ -353,7 +451,7 @@ int main() {
         M.clear();
         m.taps[0].level = 0.f;
         M.update(m);
-        check(near(M.getWindow(), 4800.f * 1.15f, 1.f), "clear resets holds");
+        check(near(M.getWindow(), W(4800.f), 1.f), "clear resets holds");
     }
     {   // Zero line rate: the hold stays finite
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -364,11 +462,15 @@ int main() {
         in.taps[0].level = 0.f;
         in.dt = 0.5f;
         for (int i = 0; i < 200; ++i) L.update(in);
-        check(std::isfinite(L.getWindow()) && near(L.getWindow(), 4800.f * 1.15f, 50.f), "zero line rate hold finite");
+        check(std::isfinite(L.getWindow()) && near(L.getWindow(), W(4800.f), 50.f), "zero line rate hold finite");
     }
     {   // How much of the scope ring to read before an update
         check(ScopeLayout::entriesToRead(48000.f, 4800.f, false, 24, 8192) == 2002, "read: the current window when wider");
-        check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 232, "read: the longest tap's zoom when wider");
+        check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 942, "read: the widest zoom the longest tap allows");
+        {
+            ScopeLayout::ZoomTuning t; t.minGap = 0.94f;   // reach 1: the far margin is wider
+            check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192, t) == 232, "read: the far margin when wider");
+        }
         check(ScopeLayout::entriesToRead(5520.f, 4800.f, true, 24, 8192) == 8192, "read: everything when heading for the whole buffer");
         check(ScopeLayout::entriesToRead(1e9f, 0.f, false, 24, 8192) == 8192, "read: capped at the ring");
         check(ScopeLayout::entriesToRead(4800.f, 0.f, false, 0, 8192) > 0, "read: zero samples per entry is safe");

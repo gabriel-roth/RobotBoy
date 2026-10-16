@@ -6,7 +6,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstdio>
 #include <cstring>
+#include <string>
+#include <vector>
 
 using robotboy_beads::GrainFeed;
 using robotboy_beads::GrainLiveFrame;
@@ -33,6 +36,55 @@ static const char* const kNoSource = "Add from the Expanders menu\nof Particules
 #else
 static const char* const kNoSource = "";
 #endif
+
+#ifndef METAMODULE
+// TEMPORARY zoom-tuning knobs: see Lucarne.hpp. Defaults match ZoomTuning's.
+struct ZoomKnob {
+	int param;
+	const char* label;   // on the panel overlay
+	float min, max, def;
+	const char* unit;
+	float displayMul;
+	const char* format;   // the overlay's value, from the displayed value
+};
+static const ZoomKnob kZoomKnobs[Lucarne::NUM_PARAMS] = {
+	{Lucarne::ZOOM_GAP_PARAM,        "Gap",        0.05f, 0.6f, 0.2f,   "% of width", 100.f, "%.0f%%"},
+	{Lucarne::ZOOM_FAR_PARAM,        "Far margin", 1.f,   1.5f, 1.15f,  "x",          1.f,   "x%.2f"},
+	{Lucarne::ZOOM_BAND_PARAM,       "Band pos",   0.f,   1.f,  1.f,    "%",          100.f, "%.0f%%"},
+	{Lucarne::ZOOM_DEADBAND_PARAM,   "Deadband",   0.f,   2.f,  0.f,    "%",          100.f, "%.0f%%"},
+	{Lucarne::ZOOM_HOLD_PARAM,       "Mod hold",   0.f,   10.f, 3.f,    " s",         1.f,   "%.1f s"},
+	{Lucarne::ZOOM_RELEASE_PARAM,    "Mod release", 0.f,  10.f, 2.f,    " s",         1.f,   "%.1f s"},
+	{Lucarne::ZOOM_KNOB_GLIDE_PARAM, "Knob glide", 0.f,   1.f,  0.08f,  " s",         1.f,   "%.2f s"},
+	{Lucarne::ZOOM_MOD_GLIDE_PARAM,  "Mod glide",  0.f,   2.f,  0.2f,   " s",         1.f,   "%.2f s"},
+};
+
+Lucarne::Lucarne() {
+	config(NUM_PARAMS, 0, 0, 0);
+	for (const ZoomKnob& k : kZoomKnobs)
+		configParam(k.param, k.min, k.max, k.def, std::string("Zoom: ") + k.label, k.unit, 0.f, k.displayMul);
+}
+#endif
+
+// The zoom's tuning: the temporary knobs on VCV, the defaults on MetaModule.
+static lucarne::ZoomTuning zoomTuning(Lucarne* m) {
+	lucarne::ZoomTuning t;
+#ifndef METAMODULE
+	if (m) {
+		auto v = [&](int id) { return m->params[id].getValue(); };
+		t.minGap = v(Lucarne::ZOOM_GAP_PARAM);
+		t.farMargin = v(Lucarne::ZOOM_FAR_PARAM);
+		t.bandPosition = v(Lucarne::ZOOM_BAND_PARAM);
+		t.deadband = v(Lucarne::ZOOM_DEADBAND_PARAM);
+		t.modHoldSeconds = v(Lucarne::ZOOM_HOLD_PARAM);
+		t.modReleaseSeconds = v(Lucarne::ZOOM_RELEASE_PARAM);
+		t.knobGlide = v(Lucarne::ZOOM_KNOB_GLIDE_PARAM);
+		t.modGlide = v(Lucarne::ZOOM_MOD_GLIDE_PARAM);
+	}
+#else
+	(void)m;
+#endif
+	return t;
+}
 
 BeadsModule* Lucarne::source() const {
 	// dynamic_cast, not model ==: MetaModule SDK < 2.4 leaves model unset.
@@ -144,6 +196,7 @@ struct LucarneDisplay : widget::Widget {
 		in.maxDelay = std::max<int32_t>(frame.max_delay, 1);
 		in.frozen = frame.frozen;
 		in.modulated = modulated;
+		in.tuning = zoomTuning(module);
 		in.ratioGain[0] = frame.ratio_gain[0];
 		in.ratioGain[1] = frame.ratio_gain[1];
 		in.dt = dt;
@@ -176,7 +229,7 @@ struct LucarneDisplay : widget::Widget {
 		int want = GrainFeed::kScopeEntries;
 		if (scopePrimed && info.epoch == scopeEpoch)
 			want = lucarne::ScopeLayout::entriesToRead(scopeView.getWindow(), longest,
-				in.modulated || in.frozen, in.samplesPerEntry, GrainFeed::kScopeEntries);
+				in.modulated || in.frozen, in.samplesPerEntry, GrainFeed::kScopeEntries, in.tuning);
 		int n = f.ReadScope(info.head, scopeLo.data(), scopeHi.data(), want);
 		// A reset during the copy may go unnoticed by ReadScope: recheck.
 		if (f.ReadScopeInfo().epoch != info.epoch)
@@ -279,6 +332,43 @@ struct LucarneDisplay : widget::Widget {
 	}
 };
 
+#ifndef METAMODULE
+// TEMPORARY: covers the Retours key with its plain lavender zone and labels
+// the zoom-tuning knobs, each with its current value.
+static constexpr float kZoomColX[4] = {9.48f, 23.48f, 37.48f, 51.48f};   // mm
+static constexpr float kZoomRowY[2] = {87.f, 107.f};                     // knob centers, mm
+
+struct ZoomTuningOverlay : widget::Widget {
+	Lucarne* module = nullptr;
+
+	void draw(const DrawArgs& args) override {
+		NVGcontext* vg = args.vg;
+		// The box is the key zone (panel-specs/lucarne-retours.yaml).
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, 0.f, 0.f, box.size.x, box.size.y, mm2px(2.f));
+		nvgFillColor(vg, nvgRGB(0x62, 0x5e, 0x6b));
+		nvgFill(vg);
+		std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+		if (!font) return;
+		nvgFontFaceId(vg, font->handle);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		nvgFontSize(vg, mm2px(2.4f));
+		for (int i = 0; i < Lucarne::NUM_PARAMS; i++) {
+			const ZoomKnob& k = kZoomKnobs[i];
+			const float x = mm2px(kZoomColX[i % 4]) - box.pos.x;
+			const float y = mm2px(kZoomRowY[i / 4]) - box.pos.y;
+			nvgFillColor(vg, nvgRGB(0xff, 0xff, 0xff));
+			nvgText(vg, x, y - mm2px(5.2f), k.label, nullptr);
+			const float value = (module ? module->params[k.param].getValue() : k.def) * k.displayMul;
+			char buf[24];
+			std::snprintf(buf, sizeof buf, k.format, value);
+			nvgFillColor(vg, nvgRGB(0xd0, 0xd0, 0xd0));
+			nvgText(vg, x, y + mm2px(5.4f), buf, nullptr);
+		}
+	}
+};
+#endif
+
 struct LucarneWidget : ModuleWidget {
 	LucarneDisplay* display;
 #ifndef METAMODULE
@@ -289,6 +379,8 @@ struct LucarneWidget : ModuleWidget {
 	// faceplate has no key.
 	std::shared_ptr<window::Svg> emptySvg, particulesSvg, retoursSvg;
 	Source showing = Source::None;
+	ZoomTuningOverlay* zoomOverlay = nullptr;   // TEMPORARY, with zoomKnobs
+	std::vector<Widget*> zoomKnobs;
 #endif
 
 	LucarneWidget(Lucarne* module) {
@@ -310,6 +402,20 @@ struct LucarneWidget : ModuleWidget {
 		display->box.size = mm2px(Vec(kScreenW, kScreenH));
 		display->module = module;
 		addChild(display);
+
+#ifndef METAMODULE
+		zoomOverlay = createWidget<ZoomTuningOverlay>(mm2px(Vec(1.5f, 79.f)));   // the key zone
+		zoomOverlay->box.size = mm2px(Vec(57.96f, 42.f));
+		zoomOverlay->module = module;
+		zoomOverlay->visible = false;
+		addChild(zoomOverlay);
+		for (int i = 0; i < Lucarne::NUM_PARAMS; i++) {
+			Widget* knob = createParamCentered<Trimpot>(mm2px(Vec(kZoomColX[i % 4], kZoomRowY[i / 4])), module, kZoomKnobs[i].param);
+			knob->visible = false;
+			addParam(dynamic_cast<ParamWidget*>(knob));
+			zoomKnobs.push_back(knob);
+		}
+#endif
 	}
 
 #ifndef METAMODULE
@@ -322,6 +428,9 @@ struct LucarneWidget : ModuleWidget {
 					: emptySvg);
 				panel->fb->setDirty();   // the SDK headers don't promise setBackground redraws
 			}
+			const bool tuning = showing == Source::Retours;
+			zoomOverlay->visible = tuning;
+			for (Widget* k : zoomKnobs) k->visible = tuning;
 		}
 		ModuleWidget::step();
 	}

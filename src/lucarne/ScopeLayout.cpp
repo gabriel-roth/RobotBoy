@@ -11,10 +11,46 @@ void ScopeLayout::setSize(float w, float h) {
 	height = std::max(h, 1.f);
 }
 
+float ZoomTuning::reach() const {
+	const float kNowInset = ScopeLayout::kNowInset;
+	// The nearest tap sits at nowX() x (1 - delay / window); its gap to the
+	// now line, delay / window x nowX(), must be at least minGap x width.
+	const float gap = std::min(std::max(minGap, 0.01f), 0.9f * (1.f - kNowInset));
+	return (1.f - kNowInset) / gap;
+}
+
 void ScopeLayout::clear() {
 	haveWindow = false;
+	gliding = false;
+	haveRange = false;
 	std::fill(std::begin(hold), std::end(hold), 0.f);
 	list.clear();
+}
+
+void ScopeLayout::trackRange(float nearest, float farthest, bool modulated, float dt, const ZoomTuning& z) {
+	// Unmodulated: just this frame's taps (the hold covers Shape's dips).
+	// Modulated: a new extreme is taken at once and held, then released
+	// toward the taps, so a delay that wanders settles on one zoom.
+	const float hold = std::max(z.modHoldSeconds, 0.f);
+	if (!modulated || !haveRange) {
+		rangeNear = nearest;
+		rangeFar = farthest;
+		holdNear = holdFar = hold;
+		haveRange = true;
+		return;
+	}
+	const float k = z.modReleaseSeconds > 0.f ? 1.f - std::exp(-dt / z.modReleaseSeconds) : 1.f;
+	auto follow = [&](float& range, float& left, float now, bool wider) {
+		if (wider) {
+			range = now;
+			left = hold;
+		} else if ((left -= dt) <= 0.f) {
+			left = 0.f;
+			range = std::exp(std::log(range) + (std::log(now) - std::log(range)) * k);
+		}
+	};
+	follow(rangeNear, holdNear, nearest, nearest <= rangeNear);
+	follow(rangeFar, holdFar, farthest, farthest >= rangeFar);
 }
 
 float ScopeLayout::xForAge(float age) const {
@@ -42,9 +78,10 @@ float ScopeLayout::dryOutput(const Input& in) {
 }
 
 int ScopeLayout::entriesToRead(float window, float longest, bool toWholeBuffer,
-                               int32_t samplesPerEntry, int maxEntries) {
+                               int32_t samplesPerEntry, int maxEntries, const ZoomTuning& tuning) {
 	if (toWholeBuffer) return maxEntries;
-	const double span = std::max(window, kZoomMargin * longest);
+	// The widest target: the nearest tap is no farther than the longest.
+	const double span = std::max(window, std::max(tuning.farMargin, tuning.reach()) * longest);
 	const double spe = double(std::max<int32_t>(samplesPerEntry, 1));
 	return int(std::min<double>(maxEntries, std::ceil(span / spe) + 2.0));
 }
@@ -53,7 +90,11 @@ void ScopeLayout::update(const Input& in) {
 	const float maxDelay = float(std::max<int32_t>(in.maxDelay, 1));
 	const bool snap = !haveWindow || in.epoch != epoch;
 	epoch = in.epoch;
-	if (snap) std::fill(std::begin(hold), std::end(hold), 0.f);
+	if (snap) {
+		std::fill(std::begin(hold), std::end(hold), 0.f);
+		gliding = false;
+		haveRange = false;
+	}
 	// Primary ratio: the louder one, with hysteresis once running.
 	if (snap)
 		primary = in.ratioGain[1] > in.ratioGain[0] ? 1 : 0;
@@ -67,7 +108,7 @@ void ScopeLayout::update(const Input& in) {
 	const float rate = in.lineRate > 0.f ? in.lineRate : 48000.f;   // as Lucarne's default
 	for (float& h : hold) h = std::max(h - dt, 0.f);
 	const int numTaps = std::min(in.numTaps, int(robotboy_beads::GrainLiveFrame::kTaps));
-	float longest = 0.f;
+	float longest = 0.f, nearest = maxDelay;
 	bool present = false;
 	for (int i = 0; i < numTaps; ++i) {
 		const Tap& t = in.taps[i];
@@ -75,6 +116,7 @@ void ScopeLayout::update(const Input& in) {
 		if (t.slice) {
 			if (audible) {
 				longest = std::max(longest, t.sliceOldest);
+				nearest = std::min(nearest, t.delay);
 				present = true;
 			}
 			continue;
@@ -83,23 +125,42 @@ void ScopeLayout::update(const Input& in) {
 		if (audible && h) *h = kHoldFraction * t.delay / rate + kHoldFloor;
 		if (audible || (h && *h > 0.f)) {
 			longest = std::max(longest, t.delay);
+			nearest = std::min(nearest, t.delay);
 			present = true;
 		}
 	}
 	if (snap) window = maxDelay;   // initial: whole buffer
-	// Modulated: the delay moves on its own, so aim at the whole buffer
-	// instead of chasing it, easing there as after a knob turn.
-	if (present || in.modulated) {
-		const float lo = std::min(kMinWindowSeconds * in.lineRate, maxDelay);
-		const float target = in.modulated ? maxDelay
-			: std::max(std::min(std::max(kZoomMargin * longest, lo), maxDelay), 1.f);
+	if (present) {
+		const ZoomTuning& z = in.tuning;
+		trackRange(std::max(nearest, 1.f), std::max(longest, 1.f), in.modulated, dt, z);
+		// Narrowest: the farthest tap and its margin on screen. Widest: the
+		// nearest tap's gap to the now line kept. A conflict goes to the far tap.
+		const float floor = std::min(kMinWindowSeconds * in.lineRate, maxDelay);
+		const float lo = std::max(std::min(std::max(z.farMargin * rangeFar, floor), maxDelay), 1.f);
+		const float hi = std::max(std::min(z.reach() * rangeNear, maxDelay), 1.f);
+		float target = lo;
+		if (hi > lo) {
+			const float b = std::min(std::max(z.bandPosition, 0.f), 1.f);
+			target = std::exp(std::log(lo) + b * (std::log(hi) - std::log(lo)));
+		}
 		if (snap) {
 			window = target;
 		} else {
-			const float k = 1.f - std::exp(-dt / (in.modulated ? kModulatedZoomTau : kZoomTau));
+			// Deadband: while the window keeps both rules and the target is
+			// near, stay put. Once out, glide all the way to the target.
 			const float d = std::log(target) - std::log(window);
-			// Land exactly once close: float steps stall a few samples short.
-			window = std::fabs(d) < 1e-4f ? target : std::exp(std::log(window) + d * k);
+			const bool inBand = window >= lo * (1.f - 1e-4f) && window <= std::max(hi, lo) * (1.f + 1e-4f);
+			const bool stay = !gliding && inBand && std::fabs(d) <= std::log1p(std::max(z.deadband, 0.f));
+			if (stay) {
+			} else if (std::fabs(d) < 1e-4f) {   // land exactly: float steps stall a few samples short
+				window = target;
+				gliding = false;
+			} else {
+				gliding = true;
+				const float tau = in.modulated ? z.modGlide : z.knobGlide;
+				const float k = tau > 0.f ? 1.f - std::exp(-dt / tau) : 1.f;
+				window = std::exp(std::log(window) + d * k);
+			}
 		}
 	}
 	// Slice: show the whole buffer, fixed, until Slice turns off. The slices

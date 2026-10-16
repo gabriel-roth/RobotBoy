@@ -9,14 +9,31 @@
 
 namespace lucarne {
 
+// The zoom's tradeoffs: a wide view, a visible gap between the now line
+// and the nearest tap, and few zoom changes. The farthest tap sets the
+// narrowest window (farMargin), the nearest the widest (minGap); the
+// target sits bandPosition of the way between them, in log. When the two
+// conflict the farthest tap stays on screen.
+struct ZoomTuning {
+	float minGap = 0.2f;          // now line to nearest tap, fraction of the width
+	float farMargin = 1.15f;      // window at least the farthest tap's delay x this
+	float bandPosition = 1.f;     // 0: narrowest allowed, 1: widest
+	float deadband = 0.f;         // stay put while the window keeps both rules and the target is within this ratio
+	float modHoldSeconds = 3.f;   // modulated: how long a delay extreme is remembered
+	float modReleaseSeconds = 2.f;   // ... then how slowly it's let go (time constant)
+	float knobGlide = 0.08f;      // seconds, time constant; ~0.25 s to settle
+	float modGlide = 0.2f;        // seconds, time constant, while modulated
+	// Widest window per sample of the nearest tap's delay.
+	float reach() const;   // uses ScopeLayout::kNowInset
+};
+
 class ScopeLayout {
 public:
 	static constexpr int kColumns = 320;           // MetaModule fullscreen width
 	static constexpr float kWaveFraction = 0.7f;   // waveform height / display height
-	static constexpr float kZoomMargin = 1.15f;    // window = longest audible (or held) delay x this
 	static constexpr float kMinWindowSeconds = 0.05f;
-	static constexpr float kZoomTau = 0.08f;       // seconds; ~0.25 s to settle
-	static constexpr float kModulatedZoomTau = 0.2f;   // easing out to the whole buffer; ~0.6 s
+
+	using ZoomTuning = lucarne::ZoomTuning;
 	// The dry playhead: "now" sits this fraction of the width in from the
 	// right edge (the strip to its right stays empty, like the space past a
 	// tape head), and flashes with the input of the last kDryWindowSeconds.
@@ -65,7 +82,8 @@ public:
 		Tap taps[robotboy_beads::GrainLiveFrame::kTaps];
 		int numTaps = 0;   // taps passed; silent ones (level <= kTapMinLevel) count toward the hold only
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
-		bool modulated = false;     // Retours: the delay moves on its own; aim at the whole buffer
+		bool modulated = false;     // Retours: the delay moves on its own; zoom to its recent range
+		ZoomTuning tuning;
 		float ratioGain[2] = {1.f, 0.f};   // each ratio's crossfade gain (no envelope); picks the primary
 		float dt = 0.f;
 	};
@@ -81,17 +99,26 @@ public:
 	static float tapOutput(const Input& in, float delay, float level);   // 0..1
 	static float dryOutput(const Input& in);   // 0..1: peak of the newest kDryWindowSeconds
 	// Scope ring entries to read before update(): enough for the current
-	// window or the longest tap's zoom, whichever is wider, or all of them
-	// when the window is heading for the whole buffer (it widens past what
-	// was read on every frame of the glide).
+	// window or the widest zoom the longest tap allows, whichever is wider,
+	// or all of them when the zoom follows more than this frame's taps
+	// (modulated: it remembers wider ranges; it widens past what was read
+	// on every frame of the glide).
 	static int entriesToRead(float window, float longest, bool toWholeBuffer,
-	                         int32_t samplesPerEntry, int maxEntries);
+	                         int32_t samplesPerEntry, int maxEntries, const ZoomTuning& tuning = {});
 
 private:
+	void trackRange(float nearest, float farthest, bool modulated, float dt, const ZoomTuning& z);
+
 	float width = 1.f, height = 1.f;
 	float window = 1.f;
 	uint32_t epoch = 0;
 	bool haveWindow = false;
+	bool gliding = false;   // left the deadband: glide until the target is reached
+	// Modulated: the nearest and farthest recent delays, and how long each
+	// is still held before it releases toward the taps.
+	bool haveRange = false;
+	float rangeNear = 1.f, rangeFar = 1.f;
+	float holdNear = 0.f, holdFar = 0.f;
 	int primary = 0;
 	float hold[robotboy_beads::GrainLiveFrame::kTaps] = {};   // seconds each slot still counts
 	DrawList list;
