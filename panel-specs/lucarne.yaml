@@ -12,14 +12,18 @@
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/Lucarne.cpp.
 #
-# Key: 2 x 2 cells under the screen (Length & position, Height / Color,
+# Key: 2 x 2 cells under the screen (Length & position, Color / Height,
 # Brightness), each a glyph over a two-line caption: the property on the
 # display, 2.3 mm in gray, then what it shows, 2.6 mm in white (the meaning
 # carries the emphasis). A grain's line starts where it reads and spans what
 # it plays, hence "Length & position". The cursor and write-head line are
 # self-explanatory, so they have no cells.
-# Columns sit 13.5 mm either side of the panel center (30.48), so each cell
-# has \~25 mm; the widest caption, "Length & position", is \~23.2 mm.
+# The two wide cells (Length & position, Color) share the top row and the
+# narrow ones (Height, Brightness) the bottom, so neither column carries all
+# the wide captions. Columns sit 27 mm apart, so each cell has \~25 mm (the
+# widest caption, "Length & position", is \~23.2 mm), and both are shifted
+# 1.62 mm right of the panel center (at 18.6 and 45.6 instead of 16.98 and
+# 43.98) to even the left and right margins of the wide top row.
 # Glyphs are scaled 1.375x (the tallest, 4.8 mm unscaled, have half-height
 # 3.3). A cell spans glyph top (y - 3.3) to caption line 2 (y + 10.1) =
 # 13.4 mm; two cells in the 42 mm backdrop (y 79 to 121) leave 15.2 mm,
@@ -49,7 +53,7 @@ zones:
 
 grids:
   key:
-    cols: [16.98, 43.98]
+    cols: [18.6, 45.6]
     rows:
       glyph1: 87.4
       cap1a: 93.7
@@ -62,18 +66,18 @@ elements:
   - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
 
   - row: {grid: key, at: cap1a}
-    place: [{text: "Length & position", size: 2.3, color: "#b0b0b0"}, {text: Height, size: 2.3, color: "#b0b0b0"}]
+    place: [{text: "Length & position", size: 2.3, color: "#b0b0b0"}, {text: Color, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap1b}
-    place: [{text: Buffer segment, size: 2.6}, {text: Pitch, size: 2.6}]
+    place: [{text: Buffer segment, size: 2.6}, {text: Stereo pan, size: 2.6}]
   - row: {grid: key, at: cap2a}
-    place: [{text: Color, size: 2.3, color: "#b0b0b0"}, {text: Brightness, size: 2.3, color: "#b0b0b0"}]
+    place: [{text: Height, size: 2.3, color: "#b0b0b0"}, {text: Brightness, size: 2.3, color: "#b0b0b0"}]
   - row: {grid: key, at: cap2b}
-    place: [{text: Stereo pan, size: 2.6}, {text: Envelope, size: 2.6}]
+    place: [{text: Pitch, size: 2.6}, {text: Envelope, size: 2.6}]
 
 glyphs:
-  - {src: glyphs/lucarne/length.svg,   at: [16.98, 87.4], scale: 1.375}
+  - {src: glyphs/lucarne/length.svg,   at: [18.6, 87.4], scale: 1.375}
+  - {src: glyphs/lucarne/pan.svg,      at: [45.6, 87.4], scale: 1.375}
   # pitch.svg's band is a lighter blue (#7d9ab5) than the display's waveform
   # (#51667a), which disappears against the lavender backdrop.
-  - {src: glyphs/lucarne/pitch.svg,    at: [43.98, 87.1], scale: 1.1}   # taller glyph: 0.8 x 1.375 to clear its caption
-  - {src: glyphs/lucarne/pan.svg,      at: [16.98, 105.8], scale: 1.375}
-  - {src: glyphs/lucarne/envelope.svg, at: [43.98, 105.8], scale: 1.375}
+  - {src: glyphs/lucarne/pitch.svg,    at: [18.6, 105.5], scale: 1.1}   # taller glyph: 0.8 x 1.375 to clear its caption
+  - {src: glyphs/lucarne/envelope.svg, at: [45.6, 105.8], scale: 1.375}
