@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased]
+
+- Display improvements for Lucarne with Retours.
+
 ## [2.3.0] — 2026-10-15 (MetaModule)
 
 - Particules and Retours use much less CPU in Cold digital and Scorched cassette, and on VCV in every Quality setting when Rack runs at a sample rate other than 48 kHz.
