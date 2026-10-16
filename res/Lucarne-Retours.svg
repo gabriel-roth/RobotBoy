@@ -53,8 +53,8 @@
     <polygon points="49.73,86.182 50.418,86.182 50.418,88.618 49.73,88.618" fill="#7d9ab5"/>
     <polygon points="50.761,86.366 51.449,86.366 51.449,88.434 50.761,88.434" fill="#7d9ab5"/>
     <polygon points="51.792,86.762 52.48,86.762 52.48,88.038 51.792,88.038" fill="#7d9ab5"/>
-    <line x1="21.48" y1="84.375" x2="21.48" y2="90.425" stroke="#e8e4da" stroke-width="0.619" stroke-linecap="round"/>
-    <line x1="39.48" y1="84.375" x2="39.48" y2="90.425" stroke="#8fd3a0" stroke-width="0.619" stroke-linecap="round"/>
+    <line x1="21.48" y1="84.375" x2="21.48" y2="90.425" stroke="#ffb23e" stroke-width="0.619" stroke-linecap="round"/>
+    <line x1="39.48" y1="84.375" x2="39.48" y2="90.425" stroke="#3fd6ff" stroke-width="0.619" stroke-linecap="round"/>
     <polygon points="8.484,107.48 9.174,107.48 9.174,107.72 8.484,107.72" fill="#7d9ab5" fill-opacity="0.5"/>
     <polygon points="9.515,107.467 10.205,107.467 10.205,107.733 9.515,107.733" fill="#7d9ab5" fill-opacity="0.5"/>
     <polygon points="10.546,107.419 11.236,107.419 11.236,107.781 10.546,107.781" fill="#7d9ab5" fill-opacity="0.5"/>

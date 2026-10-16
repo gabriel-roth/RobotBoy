@@ -205,10 +205,10 @@ void ScopeLayout::update(const Input& in) {
 
 	const float lineW = std::max(width * 0.004f, 1.f);
 	auto marker = [&](float x, Rgb base, float o) {
-		list.marks.push_back({x - lineW * 0.5f, 0.f, lineW, height, mix(list.background, base, 0.3f + 0.7f * o)});
+		list.marks.push_back({x - lineW * 0.5f, 0.f, lineW, height, mix(list.background, base, kMarkerFloor + (1.f - kMarkerFloor) * o)});
 		if (!(o > 0.f)) return;
 		const float barH = o * full;
-		list.marks.push_back({x - lineW * 1.5f, mid - barH * 0.5f, lineW * 3.f, barH, lighten(base, 0.4f)});
+		list.marks.push_back({x - lineW * 1.5f, mid - barH * 0.5f, lineW * 3.f, barH, lighten(base, kBarLighten)});
 	};
 	marker(nowX(), kDryColor, dryOutput(in));
 	for (int i = 0; i < numTaps; ++i) {

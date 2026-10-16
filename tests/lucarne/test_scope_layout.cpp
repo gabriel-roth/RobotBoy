@@ -21,10 +21,31 @@ static ScopeLayout::Input In(int entries, float dt = 0.f) {
 static float W(float d) { return std::min(d * (1.f - ScopeLayout::kNowInset) / 0.2f, 196608.f); }
 
 int main() {
-    {   // tap colors: ratio 0 warm white (the grain view's center), ratio 1 green
+    {   // tap colors: ratio 0 amber, ratio 1 cyan; the dry cursor near white
         const Rgb w = ScopeLayout::tapColor(0), w1 = ScopeLayout::tapColor(1), g = ScopeLayout::tapColor(2);
-        check(w.r == 0xE8 && w.g == 0xE4 && w.b == 0xDA && sameColor(w, w1), "ratio 0 is warm white");
-        check(g.r == 0x8F && g.g == 0xD3 && g.b == 0xA0, "ratio 1 is green");
+        check(w.r == 0xFF && w.g == 0xB2 && w.b == 0x3E && sameColor(w, w1), "ratio 0 is amber");
+        check(g.r == 0x3F && g.g == 0xD6 && g.b == 0xFF, "ratio 1 is cyan");
+        const Rgb d = ScopeLayout::kDryColor;
+        check(d.r == 0xE6 && d.g == 0xEA && d.b == 0xF0, "dry cursor is near white");
+    }
+    {   // marker brightness: a quiet line at 60% of its color, a flash bar 10% lighter
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        L.update(in);
+        const Rgb bg = L.getDrawList().background;
+        bool quiet = false;
+        for (const Rect& r : L.getDrawList().marks)
+            if (sameColor(r.color, mix(bg, ScopeLayout::kTapPrimary, 0.6f))) quiet = true;
+        check(quiet, "a quiet tap line is 60% of its color");
+        HI[size_t(4800 / 24)] = 127; LO[size_t(4800 / 24)] = -127;
+        L.update(in);
+        bool bar = false;
+        for (const Rect& r : L.getDrawList().marks)
+            if (r.h < 180.f && sameColor(r.color, lighten(ScopeLayout::kTapPrimary, 0.1f))) bar = true;
+        check(bar, "a flash bar is its color, 10% lighter");
+        HI[size_t(4800 / 24)] = 0; LO[size_t(4800 / 24)] = 0;
     }
     {   // age -> x
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -197,15 +218,15 @@ int main() {
         check(bar, "slice marker flashes with a loud entry at its read point");
         for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
     }
-    {   // second-ratio slice head: green band
+    {   // second-ratio slice head: cyan band
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
         in.taps[0] = sliceTap(2400.f, 2, 4800.f, 4800.f);
         in.numTaps = 1;
         L.update(in);
         const auto& u = L.getDrawList().under;
-        const Rgb want = mix(L.getDrawList().background, ScopeLayout::kTapGreen, 0.15f);
-        check(u.size() == 1 && sameColor(u[0].color, want), "second-ratio slice band is green");
+        const Rgb want = mix(L.getDrawList().background, ScopeLayout::kTapSecondary, 0.15f);
+        check(u.size() == 1 && sameColor(u[0].color, want), "second-ratio slice band is cyan");
     }
     {   // a band reaching past the window's left edge is clipped to [0, nowX()]
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -475,9 +496,9 @@ int main() {
         check(ScopeLayout::entriesToRead(1e9f, 0.f, false, 24, 8192) == 8192, "read: capped at the ring");
         check(ScopeLayout::entriesToRead(4800.f, 0.f, false, 0, 8192) > 0, "read: zero samples per entry is safe");
     }
-    {   // primary ratio: the louder group is white, whichever slots it holds
-        check(sameColor(ScopeLayout::tapColor(2, 1), ScopeLayout::kTapWhite), "ratio 1 is white when primary");
-        check(sameColor(ScopeLayout::tapColor(0, 1), ScopeLayout::kTapGreen), "ratio 0 is green when not primary");
+    {   // primary ratio: the louder group is amber, whichever slots it holds
+        check(sameColor(ScopeLayout::tapColor(2, 1), ScopeLayout::kTapPrimary), "ratio 1 is amber when primary");
+        check(sameColor(ScopeLayout::tapColor(0, 1), ScopeLayout::kTapSecondary), "ratio 0 is cyan when not primary");
         auto markerColor = [](const ScopeLayout& L) {   // the first tap's line (after the dry playhead's)
             return L.getDrawList().marks.at(1).color;
         };
@@ -487,18 +508,18 @@ int main() {
         in.ratioGain[0] = 0.2f; in.ratioGain[1] = 0.8f;
         L.update(in);                                       // first update: louder group, no hysteresis
         check(L.getPrimary() == 1, "snap: the louder group is primary");
-        const Rgb whiteLine = markerColor(L);
+        const Rgb primaryLine = markerColor(L);
         in.ratioGain[0] = 0.8f; in.ratioGain[1] = 0.2f;
         L.update(in);
         check(L.getPrimary() == 0, "a clearly louder group takes over");
-        check(!sameColor(markerColor(L), whiteLine), "the ratio-1 tap turns green");
+        check(!sameColor(markerColor(L), primaryLine), "the ratio-1 tap turns cyan");
         in.ratioGain[0] = 0.47f; in.ratioGain[1] = 0.53f;   // just past even: inside the hysteresis
         L.update(in);
         check(L.getPrimary() == 0, "hysteresis: a slight lead doesn't swap");
         in.ratioGain[0] = 0.4f; in.ratioGain[1] = 0.6f;
         L.update(in);
         check(L.getPrimary() == 1, "past the hysteresis it swaps");
-        check(sameColor(markerColor(L), whiteLine), "the ratio-1 tap is white again");
+        check(sameColor(markerColor(L), primaryLine), "the ratio-1 tap is amber again");
         in.ratioGain[0] = 0.8f; in.ratioGain[1] = 0.8f;     // unclocked at full: a tie
         L.clear(); L.update(in);
         check(L.getPrimary() == 0, "a tie on snap goes to ratio 0");

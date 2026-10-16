@@ -16,10 +16,10 @@
 # Key: two full-width cells under the screen, one per row, each a glyph
 # 44 mm wide (the bars' span) over its captions. The scrolling waveform
 # explains itself, so it has no cell of its own.
-# - Tap markers: the waveform crossed by a warm-white and a green tap line,
+# - Tap markers: the waveform crossed by an amber and a cyan tap line,
 #   18 mm apart, with "Primary" and "Secondary" (2.3 mm, gray) under them and
 #   "Tap markers" (2.6 mm, white) below. Lucarne draws the louder ratio's
-#   taps white and the other's green (ScopeLayout::tapColor).
+#   taps amber and the other's cyan (ScopeLayout::tapColor).
 # - Tap level: a crescendo waveform with seven markers whose lines brighten
 #   and whose bars grow with the waveform under them, as a tap flashes on the
 #   display; captioned "Tap level" (2.6 mm, white).

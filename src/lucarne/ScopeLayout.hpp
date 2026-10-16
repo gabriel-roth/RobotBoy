@@ -39,7 +39,11 @@ public:
 	// tape head), and flashes with the input of the last kDryWindowSeconds.
 	static constexpr float kNowInset = 0.06f;
 	static constexpr float kDryWindowSeconds = 0.005f;
-	static constexpr Rgb kDryColor{0xC0, 0xC8, 0xD0};   // the ring view's write head
+	static constexpr Rgb kDryColor{0xE6, 0xEA, 0xF0};   // near white, apart from both tap hues
+	// Markers: a quiet line at kMarkerFloor of its color, rising to full as
+	// it flashes; the flash bar its color, kBarLighten toward white.
+	static constexpr float kMarkerFloor = 0.6f;
+	static constexpr float kBarLighten = 0.1f;
 
 	// A Slice head's band: this much of the tap color over the background.
 	static constexpr float kSliceBandMix = 0.15f;
@@ -50,18 +54,19 @@ public:
 	// delay; a real fade-out is only this much late.
 	static constexpr float kHoldFraction = 0.05f;
 	static constexpr float kHoldFloor = 0.05f;
-	// Tap colors: taps of the primary ratio are warm white (the grain view's
-	// center color), the other ratio's green. Tap slot i belongs to ratio
+	// Tap colors: taps of the primary ratio are amber, the other ratio's
+	// cyan (warm against cool, clear of the cursor and the blue-gray
+	// waveform, and apart for red-green colorblindness). Tap slot i belongs to ratio
 	// (i / 2) % 2. The primary ratio is the one with the larger crossfade
 	// gain: always ratio 0 unclocked; clocked, the two ratios hold
 	// neighboring divisions and trade places as Density sweeps.
-	static constexpr Rgb kTapWhite{0xE8, 0xE4, 0xDA};
-	static constexpr Rgb kTapGreen{0x8F, 0xD3, 0xA0};
+	static constexpr Rgb kTapPrimary{0xFF, 0xB2, 0x3E};
+	static constexpr Rgb kTapSecondary{0x3F, 0xD6, 0xFF};
 	// The other ratio takes over as primary only once its gain leads by this
 	// much, so a Density sitting at the crossover doesn't flicker the colors.
 	static constexpr float kPrimaryHysteresis = 0.1f;
 	static int ratioOf(int slot) { return (slot / 2) % 2; }
-	static Rgb tapColor(int slot, int primary = 0) { return ratioOf(slot) == primary ? kTapWhite : kTapGreen; }
+	static Rgb tapColor(int slot, int primary = 0) { return ratioOf(slot) == primary ? kTapPrimary : kTapSecondary; }
 
 	struct Tap {
 		float delay;   // age of the read point, line samples

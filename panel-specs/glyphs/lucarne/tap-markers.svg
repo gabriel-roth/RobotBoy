@@ -42,6 +42,6 @@
   <polygon points="19.250,-1.218 19.938,-1.218 19.938,1.218 19.250,1.218" fill="#7d9ab5"/>
   <polygon points="20.281,-1.034 20.969,-1.034 20.969,1.034 20.281,1.034" fill="#7d9ab5"/>
   <polygon points="21.312,-0.638 22.000,-0.638 22.000,0.638 21.312,0.638" fill="#7d9ab5"/>
-  <line x1="-9.0" y1="-3.025" x2="-9.0" y2="3.025" stroke="#e8e4da" stroke-width="0.619" stroke-linecap="round"/>
-  <line x1="9.0" y1="-3.025" x2="9.0" y2="3.025" stroke="#8fd3a0" stroke-width="0.619" stroke-linecap="round"/>
+  <line x1="-9.0" y1="-3.025" x2="-9.0" y2="3.025" stroke="#ffb23e" stroke-width="0.619" stroke-linecap="round"/>
+  <line x1="9.0" y1="-3.025" x2="9.0" y2="3.025" stroke="#3fd6ff" stroke-width="0.619" stroke-linecap="round"/>
 </svg>
