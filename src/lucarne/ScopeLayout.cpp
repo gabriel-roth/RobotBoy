@@ -21,7 +21,6 @@ float ZoomTuning::reach() const {
 
 void ScopeLayout::clear() {
 	haveWindow = false;
-	gliding = false;
 	haveRange = false;
 	std::fill(std::begin(hold), std::end(hold), 0.f);
 	list.clear();
@@ -93,7 +92,6 @@ void ScopeLayout::update(const Input& in) {
 	epoch = in.epoch;
 	if (snap) {
 		std::fill(std::begin(hold), std::end(hold), 0.f);
-		gliding = false;
 		haveRange = false;
 	}
 	// Primary ratio: the louder one, with hysteresis once running.
@@ -143,29 +141,15 @@ void ScopeLayout::update(const Input& in) {
 		const float margin = std::max(z.farMargin, edgeMargin);
 		const float lo = std::max(std::min(std::max(margin * rangeFar, floor), maxDelay), 1.f);
 		const float hi = std::max(std::min(z.reach() * rangeNear, maxDelay), 1.f);
-		float target = lo;
-		if (hi > lo) {
-			const float b = std::min(std::max(z.bandPosition, 0.f), 1.f);
-			target = std::exp(std::log(lo) + b * (std::log(hi) - std::log(lo)));
-		}
+		const float target = std::max(hi, lo);
 		if (snap) {
 			window = target;
 		} else {
-			// Deadband: while the window keeps both rules and the target is
-			// near, stay put. Once out, glide all the way to the target.
 			const float d = std::log(target) - std::log(window);
-			const bool inBand = window >= lo * (1.f - 1e-4f) && window <= std::max(hi, lo) * (1.f + 1e-4f);
-			const bool stay = !gliding && inBand && std::fabs(d) <= std::log1p(std::max(z.deadband, 0.f));
-			if (stay) {
-			} else if (std::fabs(d) < 1e-4f) {   // land exactly: float steps stall a few samples short
-				window = target;
-				gliding = false;
-			} else {
-				gliding = true;
-				const float tau = in.modulated ? z.modGlide : z.knobGlide;
-				const float k = tau > 0.f ? 1.f - std::exp(-dt / tau) : 1.f;
-				window = std::exp(std::log(window) + d * k);
-			}
+			const float tau = in.modulated ? z.modGlide : z.knobGlide;
+			const float k = tau > 0.f ? 1.f - std::exp(-dt / tau) : 1.f;
+			// Land exactly once close: float steps stall a few samples short.
+			window = std::fabs(d) < 1e-4f ? target : std::exp(std::log(window) + d * k);
 		}
 	}
 	// Slice: show the whole buffer, fixed, until Slice turns off. The slices

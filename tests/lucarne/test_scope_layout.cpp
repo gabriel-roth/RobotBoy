@@ -18,8 +18,10 @@ static ScopeLayout::Input In(int entries, float dt = 0.f) {
     return in;
 }
 // The default zoom for lone taps: the widest window that keeps the minGap
-// (0.2 of the width) between the now line and the tap.
-static float W(float d) { return std::min(d * (1.f - ScopeLayout::kNowInset) / 0.2f, 196608.f); }
+// (0.12 of the width) between the now line and the tap.
+static float W(float d) { return std::min(d * (1.f - ScopeLayout::kNowInset) / 0.12f, 196608.f); }
+// Zoom only as far as the far tap needs (the nearest tap's widest is no wider).
+static void tight(ScopeLayout::Input& in) { in.tuning.minGap = 1.f - ScopeLayout::kNowInset; }
 
 int main() {
     {   // tap colors: ratio 0 amber, ratio 1 cyan; the dry cursor near white
@@ -54,7 +56,7 @@ int main() {
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;          // 100 ms
         L.update(in);                                              // first update snaps
         check(near(L.getWindow(), W(4800.f), 1.f), "lone tap: widest window that keeps the gap");
-        check(near(L.nowX() - L.xForAge(4800.f), 0.2f * 320.f, 0.05f), "lone tap: gap is minGap of the width");
+        check(near(L.nowX() - L.xForAge(4800.f), 0.12f * 320.f, 0.05f), "lone tap: gap is minGap of the width");
         check(near(L.nowX(), 320.f * (1.f - ScopeLayout::kNowInset)), "now sits inset from the right edge");
         check(near(L.xForAge(0.f), L.nowX()), "newest audio at the now line");
         check(near(L.xForAge(L.getWindow()), 0.f), "window age at left edge");
@@ -178,7 +180,7 @@ int main() {
         in.taps[0] = sliceTap(2400.f, 0, 4800.f, 4800.f);
         in.taps[1] = {9600.f / 1.15f, 1.f, 1};   // a running tap sets a 9600-wide window
         in.numTaps = 2;
-        in.tuning.bandPosition = 0.f;             // tightest: the far tap's margin
+        tight(in);
         L.update(in);
         check(near(L.getWindow(), 9600.f, 1.f), "slice band test: 9600-wide window");
         const auto& u = L.getDrawList().under;
@@ -233,7 +235,7 @@ int main() {
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
-        in.tuning.bandPosition = 0.f;                 // tightest: the far tap's margin
+        tight(in);
         L.update(in);                                  // window snaps to 5520
         in.taps[0] = sliceTap(2400.f, 0, 19200.f, 19200.f); in.dt = 0.016f;
         L.update(in);                                  // eases part-way toward 22080
@@ -246,7 +248,7 @@ int main() {
         }
         ScopeLayout M; M.setSize(320.f, 180.f);
         ScopeLayout::Input c = In(8192);
-        c.tuning.bandPosition = 0.f;
+        tight(c);
         c.maxDelay = 10000;                           // window capped at 10000
         c.taps[0] = sliceTap(9000.f, 0, 40000.f, 20000.f);
         c.numTaps = 1;
@@ -289,10 +291,8 @@ int main() {
         in.taps[0] = {9600.f, 1.f, 0}; in.taps[1] = {19200.f, 1.f, 2}; in.numTaps = 2;
         L.update(in);
         check(near(L.getWindow(), W(9600.f), 1.f), "two taps: widest that keeps the near tap's gap");
-        in.tuning.bandPosition = 0.f; L.clear(); L.update(in);
-        check(near(L.getWindow(), 19200.f * 1.15f, 1.f), "band position 0: the far tap's margin");
-        in.tuning.bandPosition = 0.5f; L.clear(); L.update(in);
-        check(near(L.getWindow(), std::sqrt(19200.f * 1.15f * W(9600.f)), 2.f), "band position 0.5: halfway, in log");
+        tight(in); L.clear(); L.update(in);
+        check(near(L.getWindow(), 19200.f * 1.15f, 1.f), "the far tap's margin when the gap allows no wider");
     }
     {   // Taps too far apart for both rules: the far tap stays on screen
         ScopeLayout L; L.setSize(320.f, 180.f);
@@ -332,28 +332,12 @@ int main() {
         in.tuning.minGap = 0.4f;
         L.update(in);
         check(near(L.nowX() - L.xForAge(4800.f), 0.4f * 320.f, 0.05f), "minGap 0.4: gap is 0.4 of the width");
-        in.tuning.minGap = 0.2f; in.tuning.bandPosition = 0.f; in.tuning.farMargin = 1.3f;
+        tight(in); in.tuning.farMargin = 1.3f;
         L.clear(); L.update(in);
-        check(near(L.getWindow(), 4800.f * 1.3f, 1.f), "farMargin 1.3 at band position 0");
+        check(near(L.getWindow(), 4800.f * 1.3f, 1.f), "farMargin 1.3");
         in.tuning.minGap = 5.f;   // out of range: clamped, finite
         L.clear(); L.update(in);
         check(std::isfinite(L.getWindow()) && L.getWindow() >= 1.f, "absurd minGap: window stays sane");
-    }
-    {   // Deadband: small target changes are ignored, leaving the band is not
-        ScopeLayout L; L.setSize(320.f, 180.f);
-        ScopeLayout::Input in = In(8192, 0.016f);
-        in.tuning.deadband = 0.25f;
-        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
-        L.update(in);
-        in.taps[0].delay = 5000.f;   // target 4% wider, and the window still keeps the gap
-        for (int i = 0; i < 60; ++i) L.update(in);
-        check(near(L.getWindow(), W(4800.f), 1.f), "deadband: a small change doesn't zoom");
-        in.taps[0].delay = 4000.f;   // only 20% narrower, but the gap would fall short
-        for (int i = 0; i < 120; ++i) L.update(in);
-        check(near(L.getWindow(), W(4000.f), 1.f), "deadband: leaving the band glides all the way");
-        in.taps[0].delay = 7000.f;   // 75% wider: past the deadband
-        for (int i = 0; i < 120; ++i) L.update(in);
-        check(near(L.getWindow(), W(7000.f), 1.f), "deadband: a big change glides all the way");
     }
     // A Retours delay hopping between two places, as Interval CV or a random source does.
     auto hop = [](ScopeLayout& L, ScopeLayout::Input& in, int frames, float a, float b, float* lo, float* hi) {
@@ -384,6 +368,7 @@ int main() {
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192, 0.016f);
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        in.tuning.modHoldSeconds = 3.f; in.tuning.modReleaseSeconds = 2.f;   // shorter than the defaults
         hop(L, in, 120, 4800.f, 19200.f, nullptr, nullptr);
         in.taps[0].delay = 19200.f;
         for (int i = 0; i < 125; ++i) L.update(in);   // 2 s of the 3 s hold
@@ -521,9 +506,9 @@ int main() {
     }
     {   // How much of the scope ring to read before an update
         check(ScopeLayout::entriesToRead(48000.f, 4800.f, false, 24, 8192) == 2002, "read: the current window when wider");
-        check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 942, "read: the widest zoom the longest tap allows");
+        check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192) == 1569, "read: the widest zoom the longest tap allows");
         {
-            ScopeLayout::ZoomTuning t; t.minGap = 0.94f; t.farMargin = 1.15f;   // reach 1: the far margin is wider
+            ScopeLayout::ZoomTuning t; t.minGap = 1.f - ScopeLayout::kNowInset; t.farMargin = 1.15f;   // reach 1: the far margin is wider
             check(ScopeLayout::entriesToRead(2400.f, 4800.f, false, 24, 8192, t) == 232, "read: the far margin when wider");
         }
         check(ScopeLayout::entriesToRead(5520.f, 4800.f, true, 24, 8192) == 8192, "read: everything when heading for the whole buffer");
@@ -557,6 +542,12 @@ int main() {
         in.ratioGain[0] = 0.8f; in.ratioGain[1] = 0.8f;     // unclocked at full: a tie
         L.clear(); L.update(in);
         check(L.getPrimary() == 0, "a tie on snap goes to ratio 0");
+    }
+    {   // the chosen zoom defaults
+        const ScopeLayout::ZoomTuning t;
+        check(near(t.minGap, 0.12f, 1e-6f) && near(t.farMargin, 1.f, 1e-6f), "defaults: 12% gap, no extra far margin");
+        check(near(t.modHoldSeconds, 10.f, 1e-6f) && near(t.modReleaseSeconds, 10.f, 1e-6f), "defaults: 10 s hold and release");
+        check(near(t.knobGlide, 0.08f, 1e-6f) && near(t.modGlide, 0.2f, 1e-6f), "defaults: glides");
     }
     {   // default Input: ratio 0 primary, as before
         ScopeLayout::Input in;

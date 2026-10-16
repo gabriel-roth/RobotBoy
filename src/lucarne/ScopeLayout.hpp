@@ -11,17 +11,16 @@
 namespace lucarne {
 
 // The zoom's tradeoffs: a wide view, a visible gap between the now line
-// and the nearest tap, and few zoom changes. The farthest tap sets the
-// narrowest window (farMargin), the nearest the widest (minGap); the
-// target sits bandPosition of the way between them, in log. When the two
-// conflict the farthest tap stays on screen.
+// and the nearest tap, and a steady view while the taps are modulated.
+// The zoom is the widest window that keeps the nearest tap minGap from the
+// now line, but never narrower than the farthest tap needs (farMargin, and
+// its flash bar kFarEdgePx clear of the edge): when the two conflict the
+// farthest tap stays on screen. Values tuned by ear in VCV, 2026-10-16.
 struct ZoomTuning {
-	float minGap = 0.2f;          // now line to nearest tap, fraction of the width
-	float farMargin = 1.f;        // window at least the farthest tap's delay x this (and kFarEdgePx kept)
-	float bandPosition = 1.f;     // 0: narrowest allowed, 1: widest
-	float deadband = 0.f;         // stay put while the window keeps both rules and the target is within this ratio
-	float modHoldSeconds = 3.f;   // modulated: how long a delay extreme is remembered
-	float modReleaseSeconds = 2.f;   // ... then how slowly it's let go (time constant)
+	float minGap = 0.12f;         // now line to nearest tap, fraction of the width
+	float farMargin = 1.f;        // window at least the farthest tap's delay x this
+	float modHoldSeconds = 10.f;  // modulated: how long a delay extreme is remembered
+	float modReleaseSeconds = 10.f;  // ... then how slowly it's let go (time constant)
 	float knobGlide = 0.08f;      // seconds, time constant; ~0.25 s to settle
 	float modGlide = 0.2f;        // seconds, time constant, while modulated
 	// Widest window per sample of the nearest tap's delay.
@@ -122,7 +121,6 @@ private:
 	float window = 1.f;
 	uint32_t epoch = 0;
 	bool haveWindow = false;
-	bool gliding = false;   // left the deadband: glide until the target is reached
 	// Modulated: the nearest and farthest recent delays, and how long each
 	// is still held before it releases toward the taps.
 	bool haveRange = false;
