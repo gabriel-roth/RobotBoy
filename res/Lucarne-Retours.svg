@@ -98,20 +98,20 @@
     <polygon points="49.724,105.655 50.414,105.655 50.414,109.545 49.724,109.545" fill="#7d9ab5" fill-opacity="0.5"/>
     <polygon points="50.755,106.005 51.445,106.005 51.445,109.195 50.755,109.195" fill="#7d9ab5" fill-opacity="0.5"/>
     <polygon points="51.786,105.704 52.476,105.704 52.476,109.496 51.786,109.496" fill="#7d9ab5" fill-opacity="0.5"/>
-    <line x1="9.86" y1="104.575" x2="9.86" y2="110.625" stroke="#908c91" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="9.365,107.467 10.355,107.467 10.355,107.733 9.365,107.733" fill="#f1efe9"/>
-    <line x1="16.046" y1="104.575" x2="16.046" y2="110.625" stroke="#999599" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="15.551,107.258 16.541,107.258 16.541,107.942 15.551,107.942" fill="#f1efe9"/>
-    <line x1="23.263" y1="104.575" x2="23.263" y2="110.625" stroke="#a8a4a5" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="22.768,106.919 23.758,106.919 23.758,108.281 22.768,108.281" fill="#f1efe9"/>
-    <line x1="30.48" y1="104.575" x2="30.48" y2="110.625" stroke="#b2aead" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="29.985,106.697 30.975,106.697 30.975,108.503 29.985,108.503" fill="#f1efe9"/>
-    <line x1="37.697" y1="104.575" x2="37.697" y2="110.625" stroke="#cac6c1" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="37.202,106.166 38.192,106.166 38.192,109.034 37.202,109.034" fill="#f1efe9"/>
-    <line x1="44.914" y1="104.575" x2="44.914" y2="110.625" stroke="#cecac5" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="44.419,106.065 45.409,106.065 45.409,109.135 44.419,109.135" fill="#f1efe9"/>
-    <line x1="51.1" y1="104.575" x2="51.1" y2="110.625" stroke="#d1cdc7" stroke-width="0.619" stroke-linecap="round"/>
-    <polygon points="50.605,106.005 51.595,106.005 51.595,109.195 50.605,109.195" fill="#f1efe9"/>
+    <line x1="9.86" y1="104.575" x2="9.86" y2="110.625" stroke="#c4924f" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="9.365,107.467 10.355,107.467 10.355,107.733 9.365,107.733" fill="#ffba51"/>
+    <line x1="16.046" y1="104.575" x2="16.046" y2="110.625" stroke="#ca964d" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="15.551,107.258 16.541,107.258 16.541,107.942 15.551,107.942" fill="#ffba51"/>
+    <line x1="23.263" y1="104.575" x2="23.263" y2="110.625" stroke="#d49b4a" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="22.768,106.919 23.758,106.919 23.758,108.281 22.768,108.281" fill="#ffba51"/>
+    <line x1="30.48" y1="104.575" x2="30.48" y2="110.625" stroke="#db9f48" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="29.985,106.697 30.975,106.697 30.975,108.503 29.985,108.503" fill="#ffba51"/>
+    <line x1="37.697" y1="104.575" x2="37.697" y2="110.625" stroke="#eba744" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="37.202,106.166 38.192,106.166 38.192,109.034 37.202,109.034" fill="#ffba51"/>
+    <line x1="44.914" y1="104.575" x2="44.914" y2="110.625" stroke="#eea943" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="44.419,106.065 45.409,106.065 45.409,109.135 44.419,109.135" fill="#ffba51"/>
+    <line x1="51.1" y1="104.575" x2="51.1" y2="110.625" stroke="#f0aa42" stroke-width="0.619" stroke-linecap="round"/>
+    <polygon points="50.605,106.005 51.595,106.005 51.595,109.195 50.605,109.195" fill="#ffba51"/>
   </g>
   <g inkscape:label="components" inkscape:groupmode="layer" id="components" style="display:none">
     <rect id="SCREEN#Widget" x="3.48" y="14.0" width="54.0" height="60.0" fill="#ffff00"/>

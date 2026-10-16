@@ -42,18 +42,18 @@
   <polygon points="19.244,-1.945 19.934,-1.945 19.934,1.945 19.244,1.945" fill="#7d9ab5" fill-opacity="0.5"/>
   <polygon points="20.275,-1.595 20.965,-1.595 20.965,1.595 20.275,1.595" fill="#7d9ab5" fill-opacity="0.5"/>
   <polygon points="21.306,-1.896 21.996,-1.896 21.996,1.896 21.306,1.896" fill="#7d9ab5" fill-opacity="0.5"/>
-  <line x1="-20.620" y1="-3.025" x2="-20.620" y2="3.025" stroke="#908c91" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="-21.115,-0.133 -20.125,-0.133 -20.125,0.133 -21.115,0.133" fill="#f1efe9"/>
-  <line x1="-14.434" y1="-3.025" x2="-14.434" y2="3.025" stroke="#999599" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="-14.929,-0.342 -13.939,-0.342 -13.939,0.342 -14.929,0.342" fill="#f1efe9"/>
-  <line x1="-7.217" y1="-3.025" x2="-7.217" y2="3.025" stroke="#a8a4a5" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="-7.712,-0.681 -6.722,-0.681 -6.722,0.681 -7.712,0.681" fill="#f1efe9"/>
-  <line x1="0.000" y1="-3.025" x2="0.000" y2="3.025" stroke="#b2aead" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="-0.495,-0.903 0.495,-0.903 0.495,0.903 -0.495,0.903" fill="#f1efe9"/>
-  <line x1="7.217" y1="-3.025" x2="7.217" y2="3.025" stroke="#cac6c1" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="6.722,-1.434 7.712,-1.434 7.712,1.434 6.722,1.434" fill="#f1efe9"/>
-  <line x1="14.434" y1="-3.025" x2="14.434" y2="3.025" stroke="#cecac5" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="13.939,-1.535 14.929,-1.535 14.929,1.535 13.939,1.535" fill="#f1efe9"/>
-  <line x1="20.620" y1="-3.025" x2="20.620" y2="3.025" stroke="#d1cdc7" stroke-width="0.619" stroke-linecap="round"/>
-  <polygon points="20.125,-1.595 21.115,-1.595 21.115,1.595 20.125,1.595" fill="#f1efe9"/>
+  <line x1="-20.620" y1="-3.025" x2="-20.620" y2="3.025" stroke="#c4924f" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="-21.115,-0.133 -20.125,-0.133 -20.125,0.133 -21.115,0.133" fill="#ffba51"/>
+  <line x1="-14.434" y1="-3.025" x2="-14.434" y2="3.025" stroke="#ca964d" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="-14.929,-0.342 -13.939,-0.342 -13.939,0.342 -14.929,0.342" fill="#ffba51"/>
+  <line x1="-7.217" y1="-3.025" x2="-7.217" y2="3.025" stroke="#d49b4a" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="-7.712,-0.681 -6.722,-0.681 -6.722,0.681 -7.712,0.681" fill="#ffba51"/>
+  <line x1="0.000" y1="-3.025" x2="0.000" y2="3.025" stroke="#db9f48" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="-0.495,-0.903 0.495,-0.903 0.495,0.903 -0.495,0.903" fill="#ffba51"/>
+  <line x1="7.217" y1="-3.025" x2="7.217" y2="3.025" stroke="#eba744" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="6.722,-1.434 7.712,-1.434 7.712,1.434 6.722,1.434" fill="#ffba51"/>
+  <line x1="14.434" y1="-3.025" x2="14.434" y2="3.025" stroke="#eea943" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="13.939,-1.535 14.929,-1.535 14.929,1.535 13.939,1.535" fill="#ffba51"/>
+  <line x1="20.620" y1="-3.025" x2="20.620" y2="3.025" stroke="#f0aa42" stroke-width="0.619" stroke-linecap="round"/>
+  <polygon points="20.125,-1.595 21.115,-1.595 21.115,1.595 20.125,1.595" fill="#ffba51"/>
 </svg>

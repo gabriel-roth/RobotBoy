@@ -20,9 +20,9 @@
 #   18 mm apart, with "Primary" and "Secondary" (2.3 mm, gray) under them and
 #   "Tap markers" (2.6 mm, white) below. Lucarne draws the louder ratio's
 #   taps amber and the other's cyan (ScopeLayout::tapColor).
-# - Tap level: a crescendo waveform with seven markers whose lines brighten
-#   and whose bars grow with the waveform under them, as a tap flashes on the
-#   display; captioned "Tap level" (2.6 mm, white).
+# - Tap level: a crescendo waveform with seven primary (amber) markers whose
+#   lines brighten and whose bars grow with the waveform under them, as a tap
+#   flashes on the display; captioned "Tap level" (2.6 mm, white).
 # Both glyphs are drawn in panel mm (scale 1), 6.6 mm tall (half-height 3.3).
 # Each cell is centered on the matching row of lucarne.yaml's key, so the
 # twins line up: top row 84.1 to 97.5 (center 90.8), bottom row 102.5 to
