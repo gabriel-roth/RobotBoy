@@ -39,9 +39,12 @@ struct BeadsModule : Module, robotboy_beads::ControlSource {
 	std::atomic<bool> clearRequested{false};
 	std::atomic<bool> recalibrateRequested{false};
 	// Retours: the delay moves on its own (Time attenurandomizer off noon,
-	// or Interval CV patched), so Lucarne shows the whole buffer. Particules
-	// never sets it.
+	// or Interval CV patched), so Lucarne's zoom remembers the range the
+	// taps visit. Particules never sets it.
 	std::atomic<bool> tapsModulated{false};
+	// Retours: counts turns of the knobs that move the taps (Time, Interval,
+	// Time attenurandomizer); Lucarne forgets that range when it changes.
+	std::atomic<uint32_t> tapKnobMoves{0};
 
 	// Input level for the gain menu (+-5 V = 1.0).
 	float inputPeak = 0.f;

@@ -78,6 +78,11 @@ struct Retours : BeadsModule {
 	robotboy_beads::RandomizedChannel time, pitch, shape;
 	robotboy_beads::PotChannel intervalPot, filterPot;
 	robotboy_beads::CvChannel intervalCv, filterCv, feedbackCv, dryWetCv, reverbCv;
+	// Where Time, Interval and the Time attenurandomizer (0..1) last counted
+	// as a turn (tapKnobMoves). A knob counts once it's this far from there:
+	// past MetaModule pot jitter, and a slow turn still adds up.
+	static constexpr float kTapKnobStep = 0.005f;
+	float tapKnobAt[3] = {-1.f, -1.f, -1.f};   // -1: not read yet
 
 	dsp::BooleanTrigger repeatTrigger;
 	float clockLight = 0.f;
@@ -189,6 +194,16 @@ struct Retours : BeadsModule {
 		// matches the engine's.
 		tapsModulated.store(robotboy_beads::AttenuverterLaw(bipolar(TIME_AR_PARAM)) != 0.f
 			|| patched(INTERVAL_INPUT), std::memory_order_relaxed);
+		const float tapKnobs[3] = {knob(TIME_PARAM), knob(INTERVAL_PARAM), bipolar(TIME_AR_PARAM)};
+		bool turned = false;
+		for (int i = 0; i < 3; i++) {
+			if (std::fabs(tapKnobs[i] - tapKnobAt[i]) > kTapKnobStep) {
+				turned |= tapKnobAt[i] >= 0.f;
+				tapKnobAt[i] = tapKnobs[i];
+			}
+		}
+		if (turned)
+			tapKnobMoves.fetch_add(1, std::memory_order_relaxed);
 
 		c->mix.feedback = robotboy_beads::MixParameter(knob(FEEDBACK_PARAM),
 			feedbackCv.Process(cv(FEEDBACK_INPUT)), knob(FEEDBACK_CV_PARAM));

@@ -399,6 +399,22 @@ int main() {
         for (int i = 0; i < 120; ++i) L.update(in);
         check(near(L.getWindow(), W(19200.f), 50.f), "modulation off: zoom follows the tap");
     }
+    {   // Modulated: turning a knob that moves the taps drops the memory
+        ScopeLayout L; L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192, 0.016f);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1; in.modulated = true;
+        in.tuning.modHoldSeconds = 10.f; in.tuning.modReleaseSeconds = 10.f;
+        hop(L, in, 120, 4800.f, 19200.f, nullptr, nullptr);
+        in.taps[0].delay = 19200.f; in.tapKnobMoved = true;
+        L.update(in);
+        in.tapKnobMoved = false;
+        for (int i = 0; i < 90; ++i) L.update(in);   // 1.5 s: well inside the 10 s hold
+        check(near(L.getWindow(), W(19200.f), W(19200.f) * 0.02f), "knob turn: zoom follows the taps despite the hold");
+        hop(L, in, 120, 19200.f, 9600.f, nullptr, nullptr);
+        in.taps[0].delay = 19200.f;
+        for (int i = 0; i < 60; ++i) L.update(in);
+        check(near(L.getWindow(), W(9600.f), 50.f), "after a knob turn, modulation builds a new memory");
+    }
     {   // Modulated on the first update snaps to the taps' zoom
         ScopeLayout L; L.setSize(320.f, 180.f);
         ScopeLayout::Input in = In(8192, 0.016f);

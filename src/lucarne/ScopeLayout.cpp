@@ -27,12 +27,13 @@ void ScopeLayout::clear() {
 	list.clear();
 }
 
-void ScopeLayout::trackRange(float nearest, float farthest, bool modulated, float dt, const ZoomTuning& z) {
-	// Unmodulated: just this frame's taps (the hold covers Shape's dips).
-	// Modulated: a new extreme is taken at once and held, then released
-	// toward the taps, so a delay that wanders settles on one zoom.
+void ScopeLayout::trackRange(float nearest, float farthest, bool remember, float dt, const ZoomTuning& z) {
+	// Unmodulated, or a knob that moves the taps just turned: just this
+	// frame's taps (the hold covers Shape's dips). Modulated: a new extreme
+	// is taken at once and held, then released toward the taps, so a delay
+	// that wanders settles on one zoom.
 	const float hold = std::max(z.modHoldSeconds, 0.f);
-	if (!modulated || !haveRange) {
+	if (!remember || !haveRange) {
 		rangeNear = nearest;
 		rangeFar = farthest;
 		holdNear = holdFar = hold;
@@ -132,7 +133,7 @@ void ScopeLayout::update(const Input& in) {
 	if (snap) window = maxDelay;   // initial: whole buffer
 	if (present) {
 		const ZoomTuning& z = in.tuning;
-		trackRange(std::max(nearest, 1.f), std::max(longest, 1.f), in.modulated, dt, z);
+		trackRange(std::max(nearest, 1.f), std::max(longest, 1.f), in.modulated && !in.tapKnobMoved, dt, z);
 		// Narrowest: the farthest tap and its margin on screen. Widest: the
 		// nearest tap's gap to the now line kept. A conflict goes to the far tap.
 		const float floor = std::min(kMinWindowSeconds * in.lineRate, maxDelay);

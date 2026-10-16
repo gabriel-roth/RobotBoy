@@ -88,6 +88,7 @@ public:
 		int numTaps = 0;   // taps passed; silent ones (level <= kTapMinLevel) count toward the hold only
 		bool frozen = false;   // Slice: the window is the whole buffer, fixed
 		bool modulated = false;     // Retours: the delay moves on its own; zoom to its recent range
+		bool tapKnobMoved = false;  // a knob that moves the taps turned: forget that range
 		ZoomTuning tuning;
 		float ratioGain[2] = {1.f, 0.f};   // each ratio's crossfade gain (no envelope); picks the primary
 		float dt = 0.f;
@@ -112,7 +113,7 @@ public:
 	                         int32_t samplesPerEntry, int maxEntries, const ZoomTuning& tuning = {});
 
 private:
-	void trackRange(float nearest, float farthest, bool modulated, float dt, const ZoomTuning& z);
+	void trackRange(float nearest, float farthest, bool remember, float dt, const ZoomTuning& z);
 
 	float width = 1.f, height = 1.f;
 	float window = 1.f;

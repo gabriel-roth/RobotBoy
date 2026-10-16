@@ -108,6 +108,7 @@ struct LucarneDisplay : widget::Widget {
 	uint32_t eventCursor = 0;
 	bool scopePrimed = false;   // false: read the whole scope ring next time
 	uint32_t scopeEpoch = 0;    // the scope ring's epoch when last read
+	uint32_t tapKnobMoves = 0;  // the source's tapKnobMoves when last read
 	double lastTime = -1.0;
 
 	// Copies of the feed, refilled every frame.
@@ -142,16 +143,18 @@ struct LucarneDisplay : widget::Widget {
 				paint(args, grainView.getDrawList(), src ? nullptr : kNoSource);
 			}
 			else {
-				drawFeed(args, src->grainFeed, src->tapsModulated.load(std::memory_order_relaxed), dt);
+				drawFeed(args, src->grainFeed, src->tapsModulated.load(std::memory_order_relaxed),
+					src->tapKnobMoves.load(std::memory_order_relaxed), dt);
 			}
 		}
 		Widget::drawLayer(args, layer);
 	}
 
-	void drawFeed(const DrawArgs& args, const GrainFeed& f, bool modulated, float dt) {
+	void drawFeed(const DrawArgs& args, const GrainFeed& f, bool modulated, uint32_t knobMoves, float dt) {
 		if (feed != &f) {   // new source: start at its newest event
 			feed = &f;
 			eventCursor = f.event_write();
+			tapKnobMoves = knobMoves;
 			scopeView.clear();
 			scopePrimed = false;
 		}
@@ -167,7 +170,10 @@ struct LucarneDisplay : widget::Widget {
 
 		if (haveFrame && frame.tap_mode) {
 			grainView.clear();
-			scopeView.update(scopeInput(f, modulated, dt));
+			lucarne::ScopeLayout::Input in = scopeInput(f, modulated, dt);
+			in.tapKnobMoved = knobMoves != tapKnobMoves;
+			tapKnobMoves = knobMoves;
+			scopeView.update(in);
 			paint(args, scopeView.getDrawList(), nullptr);
 			return;
 		}
