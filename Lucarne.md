@@ -12,7 +12,7 @@
 
 - *Height shows pitch.* Unison sits just above the band; higher pitches sit further up, and lower pitches go below the band. The display covers ±2 octaves; anything beyond that pins to the edge.
 - *A brighter cursor* moves along the line as the grain plays.
-- *Color shows stereo position.* Each grain is colored by where Particules pans it: blue for hard left, warm white for center, orange for hard right. Beads picks a random pan for each grain, within a range that widens as more grains overlap and as you add randomness (the attenurandomizers, or Density clockwise of 12 o'clock). With a steady pulse of grains and no randomness, every grain is centered and the display is all white; as you add randomness, the colors fan out.
+- *Color shows stereo position.* Each grain is colored by where Particules pans it. In the default color scheme that is blue for hard left, warm white for center, orange for hard right. Beads picks a random pan for each grain, within a range that widens as more grains overlap and as you add randomness (the attenurandomizers, or Density clockwise of 12 o'clock). With a steady pulse of grains and no randomness, every grain is centered and the display is all white; as you add randomness, the colors fan out.
 - *Brightness and fade.* Lines brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
 - *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 
@@ -26,17 +26,33 @@ Changing Quality, switching between mono and stereo input, or clearing the buffe
 
 **The scope.** While Retours is running, Lucarne shows Retours' recent audio as a waveform scrolling from right to left. The waveform fills about 70% of the display height.
 
-**The dry playhead.** A light gray-blue line just in from the right edge marks "now": the audio coming into Retours, which you hear as the dry sound. New audio appears there and scrolls away to the left. Like the tap lines, it brightens and shows a bar with the level of the incoming sound. It shows the input, so it still flashes with Mix turned fully wet.
+**The dry playhead.** A near-white line just in from the right edge marks "now": the audio coming into Retours, which you hear as the dry sound. New audio appears there and scrolls away to the left. Like the tap lines, it brightens and shows a bar with the level of the incoming sound. It shows the input, so it still flashes with Mix turned fully wet.
 
-**The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are warm white; taps of the second ratio are green. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon. Clocked, Interval blends between two neighboring divisions, and the louder one is white: as you turn Interval from one division to the next, the colors swap partway through the blend.
+**The delay taps.** Each audible tap is a full-height vertical line at its delay: the farther left the line, the longer the echo. Taps of the main ratio are amber; taps of the second ratio are cyan. Unclocked, the second ratio is the 0.77 taps that fade in as Interval passes noon. Clocked, Interval blends between two neighboring divisions, and the louder one is amber: as you turn Interval from one division to the next, the colors swap partway through the blend.
 
 - *Each line flashes as sound passes it.* The line brightens and a short bar appears on it as the audio reaches that tap, so you see each echo as you hear it. The bar's height follows that tap's output level.
 - *The view zooms to fit.* The longest echo sits near the left edge, and the view glides to a new zoom when you change Time or Interval. While the delay is being modulated (the Time attenurandomizer is turned away from noon, or a cable is in Interval CV) it shows the whole buffer instead, so the waveform holds still.
 - *Changing Quality or switching between mono and stereo input clears the scope.* It refills as Retours records.
 
-**Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (warm white or green, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view shows the whole buffer and holds it, unchanged, until Slice turns off. Turn Slice off and the waveform starts scrolling again.
+**Slice.** With Slice on, the tape stops and the waveform freezes. Each looping play head shows as a line (amber or cyan, by ratio) moving through a faint shaded band over the slice it plays, and it flashes with what it plays, just like a tap line. The view shows the whole buffer and holds it, unchanged, until Slice turns off. Turn Slice off and the waveform starts scrolling again.
 
 In VCV, the key under the display changes to match the module Lucarne is attached to. With Retours, it labels the primary (amber) and secondary (cyan) tap markers and the play head, and shows how each marker flashes with the level of what it plays. On MetaModule there is no key.
+
+---
+
+## Color schemes
+
+Right-click Lucarne and choose **Color scheme** to change how the display looks. Each Lucarne keeps its own scheme, saved with the patch. Changing it can be undone, and Initialize keeps it. The colors described above are the default scheme, Lucarne; the others recolor the same display (and, in VCV, the key under it):
+
+- **Lucarne:** the default look.
+- **Darkroom:** dim and warm only, for dark stages.
+- **Paper:** a light background, for bright rooms.
+- **Cyanotype:** white and pink on deep blue.
+- **Thermal:** amber and violet on near-black.
+- **Bakelite:** warm cream with olive and orchid.
+- **Anaglyph:** red on the left, cyan on the right, like 3D glasses.
+
+In VCV, **Make default** in the same submenu makes this Lucarne's scheme the one every newly added Lucarne starts with, in any patch. Patches saved before color schemes existed, or without a scheme, open in the default Lucarne look regardless. On MetaModule there is no Make default; new Lucarnes start as Lucarne.
 
 ---
 
