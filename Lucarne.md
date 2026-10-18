@@ -47,12 +47,12 @@ Right-click Lucarne and choose **Color scheme** to change how the display looks.
 - **Lucarne:** the default look.
 - **Darkroom:** dim and warm only, for dark stages.
 - **Paper:** a light background, for bright rooms.
-- **Cyanotype:** white and pink on deep blue.
+- **Cyanotype:** white, pink and mint on deep blue.
 - **Thermal:** amber and violet on near-black.
 - **Bakelite:** warm cream with olive and orchid.
 - **Anaglyph:** red on the left, cyan on the right, like 3D glasses.
 
-In VCV, **Make default** in the same submenu makes this Lucarne's scheme the one every newly added Lucarne starts with, in any patch. Patches saved before color schemes existed, or without a scheme, open in the default Lucarne look regardless. On MetaModule there is no Make default; new Lucarnes start as Lucarne.
+In VCV, **Make default** in the same submenu makes this Lucarne's scheme the one every newly added Lucarne starts with, in any patch. Patches saved before color schemes existed, or without a scheme, open in the default Lucarne look regardless of your Make default choice. On MetaModule there is no Make default; new Lucarnes start as Lucarne.
 
 ---
 

@@ -396,13 +396,13 @@ struct LucarneWidget : ModuleWidget {
 						withMenuUndo(lucarneModule, "change color scheme",
 							[&]() { lucarneModule->colorScheme = i; });
 					}));
-		}));
 #ifndef METAMODULE
-		menu->addChild(new MenuSeparator);
-		menu->addChild(createCheckMenuItem("Make default", "",
-			[=]() { return lucarneModule->colorScheme == lucarneDefaultScheme; },
-			[=]() { lucarneDefaultScheme = lucarneModule->colorScheme; }));
+			sub->addChild(new MenuSeparator);
+			sub->addChild(createCheckMenuItem("Make default", "",
+				[=]() { return lucarneModule->colorScheme == lucarneDefaultScheme; },
+				[=]() { lucarneDefaultScheme = lucarneModule->colorScheme; }));
 #endif
+		}));
 	}
 
 #ifndef METAMODULE
