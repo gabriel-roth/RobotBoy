@@ -17,6 +17,15 @@ struct Lucarne : Module {
 	}
 	json_t* dataToJson() override;
 	void dataFromJson(json_t* rootJ) override;
+#ifndef METAMODULE
+	// Rack calls dataFromJson only when the patch has a "data" object, so a
+	// Lucarne saved before this setting existed would keep the user's default
+	// scheme. A patch without a scheme always means the first one.
+	void fromJson(json_t* rootJ) override {
+		colorScheme = 0;
+		Module::fromJson(rootJ);
+	}
+#endif
 	// The module it shows: Particules or Retours on the left, else on the
 	// right, else null. Called from the audio and UI threads.
 	BeadsModule* source() const;
