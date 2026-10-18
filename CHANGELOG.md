@@ -1,5 +1,9 @@
 # Changelog
 
+## [2.2.1] — 2026-10-18
+
+- VCV Library listing: Loooop and Löp are tagged Recording instead of Looper, and Ondes is tagged Oscillator only, so all modules use valid library tags.
+
 ## [2.2.0] — 2026-10-14
 
 This release collects the 2.2.0 betas, without their Classic mode.
