@@ -239,7 +239,8 @@ int main() {
         bool cursor = false, span = false;
         for (const Rect& m : G.getDrawList().marks) {
             if (m.color.r == want.r && m.color.g == want.g && m.color.b == want.b) cursor = true;
-            if (m.h < 4.f && m.color.r == mix(G.getDrawList().background, base, 1.f).r) span = true;
+            const Rgb sp = mix(G.getDrawList().background, base, 1.f);
+            if (m.h < 4.f && m.color.r == sp.r && m.color.g == sp.g && m.color.b == sp.b) span = true;
         }
         check(cursor, "default scheme: cursor is the pan color lightened 50% toward white");
         check(span, "default scheme: span is the pan color at full level");
@@ -250,10 +251,38 @@ int main() {
         check(P.getDrawList().waveColor.r == paper.wave.r, "Paper: wave color from the scheme");
         const Rgb pb = GrainLayout::panColor(0.5f, paper);
         const int baseSum = pb.r + pb.g + pb.b;
-        bool darker = false;
+        const Rgb wantCursor = mix(pb, paper.hi, 0.5f);
+        int cursors = 0;   // the cursor is the only mark taller than 4 and shorter than 8 at 320x180
+        bool cursorOk = true;
         for (const Rect& m : P.getDrawList().marks)
-            if (m.h > 4.f && m.h < 8.f && m.color.r + m.color.g + m.color.b < baseSum) darker = true;
-        check(darker, "Paper: cursor is darker than the pan color");
+            if (m.h > 4.f && m.h < 8.f) {
+                ++cursors;
+                cursorOk = cursorOk && m.color.r == wantCursor.r && m.color.g == wantCursor.g
+                           && m.color.b == wantCursor.b;
+            }
+        check(cursors == 1 && cursorOk, "Paper: cursor is the pan color mixed 50% toward the scheme's hi");
+
+        // The write head (a band-height mark) is scheme.head, or scheme.frozen when frozen.
+        for (int si : {0, 2}) {
+            const ColorScheme& sc = scheme(si);
+            for (bool frozen : {false, true}) {
+                GrainLayout H; H.setScheme(sc); H.setSize(320.f, 180.f);
+                GrainLiveFrame f = Frame();
+                f.frozen = frozen;
+                H.update(In(&f, nullptr, 0));
+                const Rgb want = frozen ? sc.frozen : sc.head;
+                int heads = 0;
+                bool ok = true;
+                for (const Rect& m : H.getDrawList().marks)
+                    if (near(m.h, 36.f)) {
+                        ++heads;
+                        ok = ok && m.color.r == want.r && m.color.g == want.g && m.color.b == want.b;
+                    }
+                char name[96];
+                std::snprintf(name, sizeof name, "%s: write head is scheme.%s", sc.id, frozen ? "frozen" : "head");
+                check(heads == 1 && ok, name);
+            }
+        }
     }
 
     // A born-ended grain holds steady through its hold, no fade.

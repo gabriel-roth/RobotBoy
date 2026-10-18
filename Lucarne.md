@@ -45,7 +45,7 @@ In VCV, the key under the display changes to match the module Lucarne is attache
 Right-click Lucarne and choose **Color scheme** to change how the display looks. Each Lucarne keeps its own scheme, saved with the patch. Changing it can be undone, and Initialize keeps it. The colors described above are the default scheme, Lucarne; the others recolor the same display (and, in VCV, the key under it):
 
 - **Lucarne:** the default look.
-- **Darkroom:** dim and warm only, for dark stages.
+- **Darkroom:** warm reds and oranges on near-black, for dark stages.
 - **Paper:** a light background, for bright rooms.
 - **Cyanotype:** white, pink and mint on deep blue.
 - **Thermal:** amber and violet on near-black.

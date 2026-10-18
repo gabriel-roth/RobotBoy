@@ -378,7 +378,7 @@ struct LucarneWidget : ModuleWidget {
 		addChild(display);
 #ifndef METAMODULE
 		key = createWidget<LucarneKey>(Vec(0.f, 0.f));
-		key->box.size = box.size;
+		key->box.size = box.size;   // relies on setPanel (top of this ctor) having already sized the widget
 		key->module = module;
 		addChild(key);
 #endif
