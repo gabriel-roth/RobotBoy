@@ -18,6 +18,10 @@
 - Lucarne's key for Retours is redrawn: it labels the primary and secondary tap colors and shows how a tap's marker flashes with its level.
 - Lucarne with a clocked Retours: the echoes of the louder division are always white and the other division's green. Before, a division could be white or green depending on which step of Interval it was on.
 
+## [2.2.1] — 2026-10-18
+
+- VCV Library listing: Loooop and Löp are tagged Recording instead of Looper, and Ondes is tagged Oscillator only, so all modules use valid library tags.
+
 ## [2.2.0] — 2026-10-14
 
 This release collects the 2.2.0 betas, without their Classic mode.
