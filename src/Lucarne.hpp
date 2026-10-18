@@ -7,13 +7,15 @@ struct BeadsModule;
 // either side, it draws that module's buffer and grains, or delay taps (see
 // LucarneDisplay in Lucarne.cpp). Particules and Retours find it with
 // dynamic_cast and turn on capture while it shows them.
-extern int lucarneDefaultScheme;   // VCV: the "Make default" scheme, kept in settings.json
+// Each Lucarne keeps one color scheme per module it can show.
+enum LucarneSlot { kSlotParticules = 0, kSlotRetours = 1, kNumSlots = 2 };
+extern int lucarneDefaultScheme[kNumSlots];   // VCV: the "Make default" schemes, kept in settings.json
 
 struct Lucarne : Module {
-	int colorScheme;   // index into lucarne::kSchemes; saved with the patch
+	int colorScheme[kNumSlots];   // indexes into lucarne::kSchemes; saved with the patch
 	Lucarne() {
 		config(0, 0, 0, 0);
-		colorScheme = lucarneDefaultScheme;
+		for (int i = 0; i < kNumSlots; i++) colorScheme[i] = lucarneDefaultScheme[i];
 	}
 	json_t* dataToJson() override;
 	void dataFromJson(json_t* rootJ) override;
@@ -22,7 +24,7 @@ struct Lucarne : Module {
 	// Lucarne saved before this setting existed would keep the user's default
 	// scheme. A patch without a scheme always means the first one.
 	void fromJson(json_t* rootJ) override {
-		colorScheme = 0;
+		for (int i = 0; i < kNumSlots; i++) colorScheme[i] = 0;
 		Module::fromJson(rootJ);
 	}
 #endif

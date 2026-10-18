@@ -46,16 +46,20 @@ void init(Plugin* p) {
 	p->addModel(modelLucarne);
 }
 
-// Rack's settings.json carries the Lucarne "Make default" scheme.
+// Rack's settings.json carries the Lucarne "Make default" schemes.
 extern "C" json_t* settingsToJson() {
 	json_t* rootJ = json_object();
-	json_object_set_new(rootJ, "lucarneColorScheme",
-		json_string(lucarne::scheme(lucarneDefaultScheme).id));
+	json_object_set_new(rootJ, "lucarneParticulesColorScheme",
+		json_string(lucarne::scheme(lucarneDefaultScheme[kSlotParticules]).id));
+	json_object_set_new(rootJ, "lucarneRetoursColorScheme",
+		json_string(lucarne::scheme(lucarneDefaultScheme[kSlotRetours]).id));
 	return rootJ;
 }
 
 extern "C" void settingsFromJson(json_t* rootJ) {
-	lucarneDefaultScheme = lucarne::schemeFromPatch(
-		json_string_value(json_object_get(rootJ, "lucarneColorScheme")));
+	lucarneDefaultScheme[kSlotParticules] = lucarne::schemeFromPatch(
+		json_string_value(json_object_get(rootJ, "lucarneParticulesColorScheme")));
+	lucarneDefaultScheme[kSlotRetours] = lucarne::schemeFromPatch(
+		json_string_value(json_object_get(rootJ, "lucarneRetoursColorScheme")));
 }
 #endif

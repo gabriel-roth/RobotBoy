@@ -43,16 +43,26 @@ BeadsModule* Lucarne::source() const {
 	return dynamic_cast<BeadsModule*>(rightExpander.module);
 }
 
-int lucarneDefaultScheme = 0;
+int lucarneDefaultScheme[kNumSlots] = {0, 0};
+
+// The patch keys for the two schemes, indexed by slot.
+static const char* const kSchemeKeys[kNumSlots] = {"particulesColorScheme", "retoursColorScheme"};
+
+// The scheme slot for what Lucarne is attached to; nothing attached uses Particules.
+static int slotFor(const BeadsModule* src) {
+	return src && src->delayMode ? kSlotRetours : kSlotParticules;
+}
 
 json_t* Lucarne::dataToJson() {
 	json_t* rootJ = json_object();
-	json_object_set_new(rootJ, "colorScheme", json_string(lucarne::scheme(colorScheme).id));
+	for (int i = 0; i < kNumSlots; i++)
+		json_object_set_new(rootJ, kSchemeKeys[i], json_string(lucarne::scheme(colorScheme[i]).id));
 	return rootJ;
 }
 
 void Lucarne::dataFromJson(json_t* rootJ) {
-	colorScheme = lucarne::schemeFromPatch(json_string_value(json_object_get(rootJ, "colorScheme")));
+	for (int i = 0; i < kNumSlots; i++)
+		colorScheme[i] = lucarne::schemeFromPatch(json_string_value(json_object_get(rootJ, kSchemeKeys[i])));
 }
 
 enum class Source { None, Particules, Retours };
@@ -86,13 +96,13 @@ struct LucarneDisplay : widget::Widget {
 			const double now = system::getTime();
 			const float dt = lastTime < 0.0 ? 0.f : float(std::clamp(now - lastTime, 0.0, 0.5));
 			lastTime = now;
-			scheme = lucarne::scheme(module ? module->colorScheme : 0);
+			BeadsModule* src = module ? module->source() : nullptr;
+			scheme = lucarne::scheme(module ? module->colorScheme[slotFor(src)] : 0);
 			grainView.setScheme(scheme);
 			scopeView.setScheme(scheme);
 			grainView.setSize(box.size.x, box.size.y);
 			scopeView.setSize(box.size.x, box.size.y);
 
-			BeadsModule* src = module ? module->source() : nullptr;
 			source = !src ? Source::None : src->delayMode ? Source::Retours : Source::Particules;
 			if (!module) {
 				lucarne::GrainLayout::Input in = demoInput();
@@ -335,7 +345,8 @@ struct LucarneKey : widget::Widget {
 	}
 
 	void draw(const DrawArgs& args) override {
-		const lucarne::ColorScheme& s = lucarne::scheme(module ? module->colorScheme : 0);
+		const lucarne::ColorScheme& s = lucarne::scheme(module ?
+			module->colorScheme[source == Source::Retours ? kSlotRetours : kSlotParticules] : 0);
 		nvgSave(args.vg);
 		if (source == Source::Particules) paint(args.vg, lucarne::kParticulesKey, s);
 		else if (source == Source::Retours) paint(args.vg, lucarne::kRetoursKey, s);
@@ -384,25 +395,36 @@ struct LucarneWidget : ModuleWidget {
 #endif
 	}
 
+	// A submenu of the seven schemes for one slot (and, in VCV, its Make default).
+	static ui::MenuItem* schemeMenu(Lucarne* lucarneModule, const char* label, int slot) {
+		return createSubmenuItem(label, "", [=](Menu* sub) {
+			for (int i = 0; i < lucarne::kNumSchemes; i++)
+				sub->addChild(createCheckMenuItem(lucarne::kSchemes[i].name, "",
+					[=]() { return lucarneModule->colorScheme[slot] == i; },
+					[=]() {
+						withMenuUndo(lucarneModule, "change color scheme",
+							[&]() { lucarneModule->colorScheme[slot] = i; });
+					}));
+#ifndef METAMODULE
+			sub->addChild(new MenuSeparator);
+			sub->addChild(createCheckMenuItem(
+				slot == kSlotRetours ? "Make default for Retours" : "Make default for Particules", "",
+				[=]() { return lucarneModule->colorScheme[slot] == lucarneDefaultScheme[slot]; },
+				[=]() { lucarneDefaultScheme[slot] = lucarneModule->colorScheme[slot]; }));
+#endif
+		});
+	}
+
 	void appendContextMenu(Menu* menu) override {
 		Lucarne* lucarneModule = dynamic_cast<Lucarne*>(module);
 		if (!lucarneModule) return;
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createSubmenuItem("Color scheme", "", [=](Menu* sub) {
-			for (int i = 0; i < lucarne::kNumSchemes; i++)
-				sub->addChild(createCheckMenuItem(lucarne::kSchemes[i].name, "",
-					[=]() { return lucarneModule->colorScheme == i; },
-					[=]() {
-						withMenuUndo(lucarneModule, "change color scheme",
-							[&]() { lucarneModule->colorScheme = i; });
-					}));
-#ifndef METAMODULE
-			sub->addChild(new MenuSeparator);
-			sub->addChild(createCheckMenuItem("Make default", "",
-				[=]() { return lucarneModule->colorScheme == lucarneDefaultScheme; },
-				[=]() { lucarneDefaultScheme = lucarneModule->colorScheme; }));
-#endif
-		}));
+		if (lucarneModule->source())
+			menu->addChild(schemeMenu(lucarneModule, "Color scheme", slotFor(lucarneModule->source())));
+		else {
+			menu->addChild(schemeMenu(lucarneModule, "Particules color scheme", kSlotParticules));
+			menu->addChild(schemeMenu(lucarneModule, "Retours color scheme", kSlotRetours));
+		}
 	}
 
 #ifndef METAMODULE

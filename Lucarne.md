@@ -42,7 +42,7 @@ In VCV, the key under the display changes to match the module Lucarne is attache
 
 ## Color schemes
 
-Right-click Lucarne and choose **Color scheme** to change how the display looks. Each Lucarne keeps its own scheme, saved with the patch. Changing it can be undone, and Initialize keeps it. The colors described above are the default scheme, Lucarne; the others recolor the same display (and, in VCV, the key under it):
+Right-click Lucarne and choose **Color scheme** to change how the display looks. Each Lucarne keeps two schemes, one for when it is next to Particules and one for Retours, so switching it from one to the other brings back that module's own look. Both are saved with the patch. Changing it can be undone, and Initialize keeps it. The colors described above are the default scheme, Lucarne; the others recolor the same display (and, in VCV, the key under it):
 
 - **Lucarne:** the default look.
 - **Darkroom:** warm reds and oranges on near-black, for dark stages.
@@ -52,7 +52,7 @@ Right-click Lucarne and choose **Color scheme** to change how the display looks.
 - **Bakelite:** warm cream with olive and orchid.
 - **Anaglyph:** red on the left, cyan on the right, like 3D glasses.
 
-In VCV, **Make default** in the same submenu makes this Lucarne's scheme the one every newly added Lucarne starts with, in any patch. Patches saved before color schemes existed, or without a scheme, open in the default Lucarne look regardless of your Make default choice. On MetaModule there is no Make default; new Lucarnes start as Lucarne.
+When Lucarne is next to Particules or Retours, the menu shows one **Color scheme** submenu for that module. With nothing next to it, the menu shows two, **Particules color scheme** and **Retours color scheme**. In VCV, **Make default for Particules** or **Make default for Retours** at the bottom of a submenu makes that scheme the one every newly added Lucarne uses for that module, in any patch; the two defaults are separate. Patches saved before color schemes existed, or without a scheme, open in the default Lucarne look regardless of your Make default choices. On MetaModule there is no Make default; new Lucarnes start as Lucarne for both modules.
 
 ---
 

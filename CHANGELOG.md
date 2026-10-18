@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 - Display improvements for Lucarne with Retours.
-- Lucarne has seven color schemes (Lucarne, Darkroom, Paper, Cyanotype, Thermal, Bakelite, Anaglyph), chosen per module from its right-click menu and saved with the patch. On VCV, Make default (in the Color scheme submenu) sets the scheme new Lucarnes start with, and the key under the display follows the scheme; MetaModule has no Make default and no key.
+- Lucarne has seven color schemes (Lucarne, Darkroom, Paper, Cyanotype, Thermal, Bakelite, Anaglyph), chosen from its right-click menu and saved with the patch. Particules and Retours get separate schemes, so a Lucarne moved from one to the other keeps a look for each; with nothing attached the menu offers both (Particules color scheme, Retours color scheme). On VCV, Make default for Particules and Make default for Retours set the schemes new Lucarnes start with, and the key under the display follows the scheme; MetaModule has no Make default and no key.
 - Lucarne with Particules: grains disappear as soon as they stop sounding, instead of fading out, so dense clouds are easier to read.
 
 ## [2.3.0] — 2026-10-15 (MetaModule)
