@@ -1,8 +1,10 @@
 #include "../../src/lucarne/ColorScheme.hpp"
+#include "../../src/lucarne/KeyLayout.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 using namespace lucarne;
@@ -14,6 +16,11 @@ static void check(bool cond, const char* name) {
 }
 static bool eq(Rgb c, uint32_t hex) {
     return c.r == ((hex >> 16) & 0xFF) && c.g == ((hex >> 8) & 0xFF) && c.b == (hex & 0xFF);
+}
+// Within `tol` levels per channel.
+static bool near(Rgb c, uint32_t hex, int tol) {
+    return std::abs(c.r - int((hex >> 16) & 0xFF)) <= tol &&
+           std::abs(c.g - int((hex >> 8) & 0xFF)) <= tol && std::abs(c.b - int(hex & 0xFF)) <= tol;
 }
 static float hue(Rgb c) {
     float r = c.r / 255.f, g = c.g / 255.f, b = c.b / 255.f;
@@ -51,6 +58,17 @@ int main() {
           eq(l.hi, 0xFFFFFF), "lucarne tap/text/hi");
     check(eq(l.keyWave, 0x7D9AB5) && eq(l.keyLineA, 0xF0AA42) && eq(l.keyLineB, 0x4BAECE) &&
           eq(l.keyLineDry, 0xC9CBD3), "lucarne key colors");
+
+    // The key in the lucarne scheme matches today's panel colors (one level
+    // per channel: the rule-derived chips and flash bars round differently).
+    check(eq(keyColor(KeyRole::Wave, l), 0x7D9AB5), "key wave");
+    check(eq(keyColor(KeyRole::PanL, l), 0x3FA9F5) && near(keyColor(KeyRole::PanLC, l), 0x94C6E8, 1) &&
+          eq(keyColor(KeyRole::PanC, l), 0xE8E4DA) && near(keyColor(KeyRole::PanCR, l), 0xF4B78C, 1) &&
+          eq(keyColor(KeyRole::PanR, l), 0xFF8A3D), "key pan chips");
+    check(eq(keyColor(KeyRole::LineA, l), 0xF0AA42) && eq(keyColor(KeyRole::LineB, l), 0x4BAECE) &&
+          eq(keyColor(KeyRole::LineDry, l), 0xC9CBD3), "key marker lines");
+    check(near(keyColor(KeyRole::BarA, l), 0xFFBA51, 1) && near(keyColor(KeyRole::BarB, l), 0x52DAFF, 1) &&
+          near(keyColor(KeyRole::BarDry, l), 0xE8ECF2, 1), "key flash bars");
 
     check(schemeFromPatch(nullptr) == 0, "null id -> 0");
     check(schemeFromPatch("nope") == 0, "unknown id -> 0");

@@ -79,5 +79,9 @@ glyphs:
   - {src: glyphs/lucarne/pan.svg,      at: [45.6, 87.4], scale: 1.375}
   # pitch.svg's band is a lighter blue (#7d9ab5) than the display's waveform
   # (#51667a), which disappears against the lavender backdrop.
+  # The pan chips and the pitch band are invisible placeholders (opacity 0):
+  # LucarneKey (src/Lucarne.cpp) paints them in the module's color scheme at
+  # the positions in src/lucarne/KeyLayout.hpp, which tests/test_lucarne_key.py
+  # checks against this panel. Move a glyph, then update KeyLayout.hpp.
   - {src: glyphs/lucarne/pitch.svg,    at: [18.6, 105.5], scale: 1.1}   # taller glyph: 0.8 x 1.375 to clear its caption
   - {src: glyphs/lucarne/envelope.svg, at: [45.6, 105.8], scale: 1.375}

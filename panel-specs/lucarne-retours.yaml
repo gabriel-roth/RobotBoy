@@ -30,6 +30,10 @@
 # Labels (2.3 mm, white) are stacked on two lines, at 113.0 and 115.9, each
 # centered under its marker; the play head's x is fixed (49.84), and the taps
 # are placed so the three labels have even gaps.
+# The glyph's colored shapes are invisible placeholders (opacity 0):
+# LucarneKey (src/Lucarne.cpp) paints them in the module's color scheme at the
+# positions in src/lucarne/KeyLayout.hpp, which tests/test_lucarne_key.py
+# checks against this panel. Move the glyph, then update KeyLayout.hpp.
 slug: Lucarne
 name: LUCARNE
 hp: 12

@@ -2,6 +2,7 @@
 #include "BeadsModule.hpp"
 #include "lucarne/ColorScheme.hpp"
 #include "lucarne/GrainLayout.hpp"
+#include "lucarne/KeyLayout.hpp"
 #include "lucarne/ScopeLayout.hpp"
 
 #include <algorithm>
@@ -303,6 +304,46 @@ struct LucarneDisplay : widget::Widget {
 	}
 };
 
+#ifndef METAMODULE
+// The VCV key's colored shapes (lucarne/KeyLayout.hpp), painted over the
+// panel in the module's color scheme: the panels carry them only as
+// invisible placeholders. Draws the key of the panel showing, nothing on the
+// empty one (no source attached, or the module browser).
+struct LucarneKey : widget::Widget {
+	Lucarne* module = nullptr;
+	Source source = Source::None;   // set by LucarneWidget::step() with the panel swap
+
+	template <size_t N>
+	static void paint(NVGcontext* vg, const lucarne::KeyShape (&shapes)[N], const lucarne::ColorScheme& s) {
+		for (const lucarne::KeyShape& k : shapes) {
+			const lucarne::Rgb c = lucarne::keyColor(k.role, s);
+			nvgBeginPath(vg);
+			if (k.stroke == 0.f) {
+				nvgRect(vg, mm2px(k.x1), mm2px(k.y1), mm2px(k.x2 - k.x1), mm2px(k.y2 - k.y1));
+				nvgFillColor(vg, nvgRGB(c.r, c.g, c.b));
+				nvgFill(vg);
+			}
+			else {
+				nvgMoveTo(vg, mm2px(k.x1), mm2px(k.y1));
+				nvgLineTo(vg, mm2px(k.x2), mm2px(k.y2));
+				nvgLineCap(vg, NVG_ROUND);
+				nvgStrokeWidth(vg, mm2px(k.stroke));
+				nvgStrokeColor(vg, nvgRGB(c.r, c.g, c.b));
+				nvgStroke(vg);
+			}
+		}
+	}
+
+	void draw(const DrawArgs& args) override {
+		const lucarne::ColorScheme& s = lucarne::scheme(module ? module->colorScheme : 0);
+		nvgSave(args.vg);
+		if (source == Source::Particules) paint(args.vg, lucarne::kParticulesKey, s);
+		else if (source == Source::Retours) paint(args.vg, lucarne::kRetoursKey, s);
+		nvgRestore(args.vg);
+	}
+};
+#endif
+
 struct LucarneWidget : ModuleWidget {
 	LucarneDisplay* display;
 #ifndef METAMODULE
@@ -313,6 +354,7 @@ struct LucarneWidget : ModuleWidget {
 	// faceplate has no key.
 	std::shared_ptr<window::Svg> emptySvg, particulesSvg, retoursSvg;
 	Source showing = Source::None;
+	LucarneKey* key;
 #endif
 
 	LucarneWidget(Lucarne* module) {
@@ -334,6 +376,12 @@ struct LucarneWidget : ModuleWidget {
 		display->box.size = mm2px(Vec(kScreenW, kScreenH));
 		display->module = module;
 		addChild(display);
+#ifndef METAMODULE
+		key = createWidget<LucarneKey>(Vec(0.f, 0.f));
+		key->box.size = box.size;
+		key->module = module;
+		addChild(key);
+#endif
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -361,6 +409,7 @@ struct LucarneWidget : ModuleWidget {
 	void step() override {
 		if (display->source != showing) {
 			showing = display->source;
+			key->source = showing;
 			if (SvgPanel* panel = dynamic_cast<SvgPanel*>(getPanel())) {
 				panel->setBackground(showing == Source::Retours ? retoursSvg
 					: showing == Source::Particules ? particulesSvg
