@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Display improvements for Lucarne with Retours.
+- Lucarne with Particules: grains disappear as soon as they stop sounding, instead of fading out, so dense clouds are easier to read.
 
 ## [2.3.0] — 2026-10-15 (MetaModule)
 

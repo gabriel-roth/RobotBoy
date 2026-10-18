@@ -111,7 +111,7 @@ void GrainLayout::makeRoom() {
 		// Make room: the ended grain closest to vanishing, else the oldest.
 		auto victim = grains.end();
 		for (auto it = grains.begin(); it != grains.end(); ++it)
-			if (it->ended && (victim == grains.end() || it->fade < victim->fade)) victim = it;
+			if (it->ended && (victim == grains.end() || it->hold < victim->hold)) victim = it;
 		grains.erase(victim != grains.end() ? victim : grains.begin());
 	}
 }
@@ -137,7 +137,7 @@ void GrainLayout::birth(const GrainStartEvent& e, const GrainLiveFrame& f) {
 	} else {
 		g.ended = true;   // started and finished between two UI frames
 		g.cursor = 1.f;
-		g.fade = kFadeSeconds;
+		g.hold = kBornEndedSeconds;
 	}
 	grains.push_back(g);
 }
@@ -149,10 +149,7 @@ void GrainLayout::update(const Input& in) {
 		haveEpoch = true;
 	}
 	for (VisualGrain& g : grains)
-		if (g.ended) g.fade -= in.dt;
-	grains.erase(std::remove_if(grains.begin(), grains.end(),
-	                             [](const VisualGrain& g) { return g.ended && g.fade <= 0.f; }),
-	              grains.end());
+		if (g.ended) g.hold -= in.dt;
 	if (in.frame) {
 		const GrainLiveFrame& f = *in.frame;
 		for (int i = 0; i < in.numEvents; ++i) birth(in.events[i], f);
@@ -164,11 +161,14 @@ void GrainLayout::update(const Input& in) {
 				g.cursor = g.duration > 0.f ? std::min(std::max(slot.elapsed / g.duration, 0.f), 1.f) : 1.f;
 				g.level = slot.level;
 			} else {
-				g.ended = true;
-				g.fade = kFadeSeconds;
+				g.ended = true;   // seen live: vanishes now
+				g.hold = 0.f;
 			}
 		}
 	}
+	grains.erase(std::remove_if(grains.begin(), grains.end(),
+	                             [](const VisualGrain& g) { return g.ended && g.hold <= 0.f; }),
+	              grains.end());
 	build(in);
 }
 
@@ -209,18 +209,17 @@ void GrainLayout::build(const Input& in) {
 	const float minLen = width / 160.f;   // 2 px at MetaModule's 320-wide fullscreen
 	for (const VisualGrain& g : grains) {
 		const Rgb base = panColor(g.pan);
-		const float k = g.ended ? 0.6f * (g.fade / kFadeSeconds) : 0.35f + 0.65f * g.level;
+		const float k = g.ended ? kBornEndedLevel : 0.35f + 0.65f * g.level;
 		const float y = rowY(g.side, g.row);
 		const float len = std::max(std::fabs(g.span), minLen);
 		const float start = g.span >= 0.f ? g.x0 : g.x0 - len;
-		// Dim and fade toward the background, not black, so a fading grain
-		// never shows darker than the display behind it.
+		// Dim toward the background, not black, so a quiet grain never
+		// shows darker than the display behind it.
 		const Rgb bg = list.background;
 		addSpan(start, len, y - thick * 0.5f, thick, mix(bg, base, std::min(std::max(k, 0.f), 1.f)));
 		const float cx = g.x0 + g.span * g.cursor;
 		const float cw = std::max(width * 0.008f, thick);
-		const float fade = g.ended ? g.fade / kFadeSeconds : 1.f;
-		addSpan(cx - cw * 0.5f, cw, y - rowH * 0.45f, rowH * 0.9f, mix(bg, lighten(base, 0.5f), std::min(std::max(fade, 0.f), 1.f)));
+		addSpan(cx - cw * 0.5f, cw, y - rowH * 0.45f, rowH * 0.9f, lighten(base, 0.5f));
 	}
 }
 

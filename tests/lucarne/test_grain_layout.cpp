@@ -72,7 +72,7 @@ int main() {
     check(GrainLayout::preferredRow(16.f) == 11, "beyond +24 st clamps");
     check(GrainLayout::sideFor(-2.f) == +1 && GrainLayout::preferredRow(-2.f) == 6, "reverse +12 st: above, row 6");
 
-    // Birth, live cursor, end, fade.
+    // Birth, live cursor, end: a grain seen live vanishes when it ends.
     {
         GrainLayout G; G.setSize(320.f, 180.f);
         GrainLiveFrame f = Frame();
@@ -89,11 +89,20 @@ int main() {
         check(near(G.getGrains()[0].cursor, 0.5f), "cursor halfway");
         f.slots[3].done = true;
         G.update(In(&f, nullptr, 0, 0.02f));
-        check(G.getGrains()[0].ended && near(G.getGrains()[0].cursor, 0.5f), "ended keeps its cursor");
-        G.update(In(&f, nullptr, 0, 0.10f));
-        check(G.getGrains().size() == 1, "still fading at 100 ms");
-        G.update(In(&f, nullptr, 0, 0.06f));
-        check(G.getGrains().empty(), "gone after 150 ms");
+        check(G.getGrains().empty(), "an ended live grain vanishes at once");
+        bool drawn = false;
+        for (const Rect& m : G.getDrawList().marks) drawn |= m.y < 72.f;
+        check(!drawn, "an ended live grain draws nothing");
+    }
+    {   // A voice-stolen grain (its slot's serial changes) vanishes too.
+        GrainLayout G; G.setSize(320.f, 180.f);
+        GrainLiveFrame f = Frame();
+        Live(f, 3, 7, 600);
+        GrainStartEvent e{7, 3, 600, 1.f, 100.f};
+        G.update(In(&f, &e, 1));
+        Live(f, 3, 8, 400);
+        G.update(In(&f, nullptr, 0, 0.02f));
+        check(G.getGrains().empty(), "a stolen grain vanishes at once");
     }
 
     // A grain spanning more than half the buffer: the cursor must not wrap.
@@ -117,6 +126,10 @@ int main() {
         G.update(In(&f, &e, 1));
         check(G.getGrains().size() == 1 && G.getGrains()[0].ended && near(G.getGrains()[0].cursor, 1.f),
               "born-ended grain shows with cursor at end");
+        G.update(In(&f, nullptr, 0, GrainLayout::kBornEndedSeconds - 0.01f));
+        check(G.getGrains().size() == 1, "born-ended grain held for kBornEndedSeconds");
+        G.update(In(&f, nullptr, 0, 0.02f));
+        check(G.getGrains().empty(), "born-ended grain gone after its hold");
     }
 
     // Reversed grain spans leftward and wraps at the left edge.
@@ -209,23 +222,20 @@ int main() {
         check(found, "a hard-right live grain draws orange");
     }
 
-    // A fading grain fades into the background, never darker than it.
+    // A born-ended grain holds steady through its hold, no fade.
     {
         GrainLayout G; G.setSize(320.f, 180.f);
         GrainLiveFrame f = Frame();
         f.slots[0] = {1, 600, 0.f, true};
         GrainStartEvent e{1, 0, 600, 1.f, 100.f, 1.f};   // born ended, hard right
         G.update(In(&f, &e, 1));
-        G.update(In(&f, nullptr, 0, 0.149f));            // 1 ms of fade left
+        G.update(In(&f, nullptr, 0, GrainLayout::kBornEndedSeconds - 0.001f));   // 1 ms of hold left
         const Rgb bg = G.getDrawList().background;
-        bool never_darker = true, near_bg = true;
-        for (const Rect& m : G.getDrawList().marks) {
-            if (m.y >= 72.f) continue;                    // grain marks only (above the band)
-            never_darker &= m.color.r >= bg.r && m.color.g >= bg.g && m.color.b >= bg.b;
-            near_bg &= std::abs(m.color.r - bg.r) <= 4 && std::abs(m.color.g - bg.g) <= 4 && std::abs(m.color.b - bg.b) <= 4;
-        }
-        check(never_darker, "fading grain is never darker than the background");
-        check(near_bg, "an almost-faded grain is almost the background color");
+        const Rgb want = mix(bg, GrainLayout::panColor(1.f), GrainLayout::kBornEndedLevel);
+        bool found = false;
+        for (const Rect& m : G.getDrawList().marks)
+            if (m.y < 72.f && m.color.r == want.r && m.color.g == want.g && m.color.b == want.b) found = true;
+        check(found, "born-ended grain keeps its brightness to the end of its hold");
     }
 
     // Waveform: one rect per column, sized by the peaks.

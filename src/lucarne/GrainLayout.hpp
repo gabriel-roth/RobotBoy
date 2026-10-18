@@ -25,8 +25,8 @@ struct VisualGrain {
 	int row;       // 0 = next to the band
 	float cursor;  // 0..1 along span
 	float level;   // envelope while live
-	bool ended;
-	float fade;    // seconds of fade left once ended
+	bool ended;    // only born-ended grains are kept once ended
+	float hold;    // seconds left on screen once ended
 };
 
 class GrainLayout {
@@ -36,7 +36,11 @@ public:
 	// a thin band and the same row height, and gains rows: finer pitch.
 	static constexpr int kRowsPerSide = 12;
 	static constexpr int kMaxGrains = 64;
-	static constexpr float kFadeSeconds = 0.15f;
+	// A grain seen live vanishes the frame it ends, like its sound. One that
+	// started and finished between two UI frames was never seen live, so it
+	// shows for this long, steady at kBornEndedLevel, then vanishes.
+	static constexpr float kBornEndedSeconds = 0.1f;
+	static constexpr float kBornEndedLevel = 0.6f;
 	static constexpr float kBandFraction = 0.2f;
 	static constexpr float kMaxSemitones = 24.f;
 
