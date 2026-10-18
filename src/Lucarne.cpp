@@ -1,5 +1,6 @@
 #include "Lucarne.hpp"
 #include "BeadsModule.hpp"
+#include "lucarne/ColorScheme.hpp"
 #include "lucarne/GrainLayout.hpp"
 #include "lucarne/ScopeLayout.hpp"
 
@@ -41,6 +42,18 @@ BeadsModule* Lucarne::source() const {
 	return dynamic_cast<BeadsModule*>(rightExpander.module);
 }
 
+int lucarneDefaultScheme = 0;
+
+json_t* Lucarne::dataToJson() {
+	json_t* rootJ = json_object();
+	json_object_set_new(rootJ, "colorScheme", json_string(lucarne::scheme(colorScheme).id));
+	return rootJ;
+}
+
+void Lucarne::dataFromJson(json_t* rootJ) {
+	colorScheme = lucarne::schemeFromPatch(json_string_value(json_object_get(rootJ, "colorScheme")));
+}
+
 enum class Source { None, Particules, Retours };
 
 struct LucarneDisplay : widget::Widget {
@@ -65,12 +78,16 @@ struct LucarneDisplay : widget::Widget {
 	std::array<GrainStartEvent, GrainFeed::kEvents> events{};
 	GrainLiveFrame frame;
 	bool demoPrimed = false;
+	lucarne::ColorScheme scheme = lucarne::scheme(0);   // for the message text
 
 	void drawLayer(const DrawArgs& args, int layer) override {
 		if (layer == 1) {
 			const double now = system::getTime();
 			const float dt = lastTime < 0.0 ? 0.f : float(std::clamp(now - lastTime, 0.0, 0.5));
 			lastTime = now;
+			scheme = lucarne::scheme(module ? module->colorScheme : 0);
+			grainView.setScheme(scheme);
+			scopeView.setScheme(scheme);
 			grainView.setSize(box.size.x, box.size.y);
 			scopeView.setSize(box.size.x, box.size.y);
 
@@ -268,7 +285,7 @@ struct LucarneDisplay : widget::Widget {
 #else
 				nvgFontSize(vg, size);
 #endif
-				nvgFillColor(vg, nvgRGB(0x80, 0x8a, 0x94));
+				nvgFillColor(vg, nvgRGB(scheme.text.r, scheme.text.g, scheme.text.b));
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 				int lines = 1;
 				for (const char* c = message; *c; c++)
@@ -317,6 +334,27 @@ struct LucarneWidget : ModuleWidget {
 		display->box.size = mm2px(Vec(kScreenW, kScreenH));
 		display->module = module;
 		addChild(display);
+	}
+
+	void appendContextMenu(Menu* menu) override {
+		Lucarne* lucarneModule = dynamic_cast<Lucarne*>(module);
+		if (!lucarneModule) return;
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createSubmenuItem("Color scheme", "", [=](Menu* sub) {
+			for (int i = 0; i < lucarne::kNumSchemes; i++)
+				sub->addChild(createCheckMenuItem(lucarne::kSchemes[i].name, "",
+					[=]() { return lucarneModule->colorScheme == i; },
+					[=]() {
+						withMenuUndo(lucarneModule, "change color scheme",
+							[&]() { lucarneModule->colorScheme = i; });
+					}));
+		}));
+#ifndef METAMODULE
+		menu->addChild(new MenuSeparator);
+		menu->addChild(createCheckMenuItem("Make default", "",
+			[=]() { return lucarneModule->colorScheme == lucarneDefaultScheme; },
+			[=]() { lucarneDefaultScheme = lucarneModule->colorScheme; }));
+#endif
 	}
 
 #ifndef METAMODULE

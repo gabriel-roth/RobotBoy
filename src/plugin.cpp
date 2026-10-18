@@ -1,4 +1,6 @@
 #include "plugin.hpp"
+#include "Lucarne.hpp"
+#include "lucarne/ColorScheme.hpp"
 
 #ifdef METAMODULE_BUILTIN
 // Combined MetaModule build (both the .mmplugin build and the simulator
@@ -42,5 +44,18 @@ void init(Plugin* p) {
 	p->addModel(modelVespid);
 	p->addModel(modelRetours);
 	p->addModel(modelLucarne);
+}
+
+// Rack's settings.json carries the Lucarne "Make default" scheme.
+extern "C" json_t* settingsToJson() {
+	json_t* rootJ = json_object();
+	json_object_set_new(rootJ, "lucarneColorScheme",
+		json_string(lucarne::scheme(lucarneDefaultScheme).id));
+	return rootJ;
+}
+
+extern "C" void settingsFromJson(json_t* rootJ) {
+	lucarneDefaultScheme = lucarne::schemeFromPatch(
+		json_string_value(json_object_get(rootJ, "lucarneColorScheme")));
 }
 #endif
