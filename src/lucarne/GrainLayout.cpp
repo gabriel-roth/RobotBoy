@@ -22,12 +22,6 @@ bool overlaps(float a, float la, float b, float lb, float w) {
 	return false;
 }
 
-constexpr Rgb kWriteHead{0xC0, 0xC8, 0xD0};
-constexpr Rgb kWriteHeadFrozen{0x50, 0x58, 0x60};
-constexpr Rgb kPanLeft{0x3F, 0xA9, 0xF5};
-constexpr Rgb kPanCenter{0xE8, 0xE4, 0xDA};
-constexpr Rgb kPanRight{0xFF, 0x8A, 0x3D};
-
 }  // namespace
 
 void GrainLayout::clear() {
@@ -98,12 +92,12 @@ void GrainLayout::chooseRow(float speed, float x0, float span, int& side, int& r
 	row = bestRow;
 }
 
-Rgb GrainLayout::panColor(float pan) {
+Rgb GrainLayout::panColor(float pan, const ColorScheme& s) {
 	// Beads bunches pans around the center (BoundedRandomFloat), so the
 	// square root stretches small offsets into visible color.
 	const float t = std::min(std::max((pan - 0.5f) * 2.f, -1.f), 1.f);
 	const float shaped = std::sqrt(std::fabs(t));
-	return t < 0.f ? mix(kPanCenter, kPanLeft, shaped) : mix(kPanCenter, kPanRight, shaped);
+	return t < 0.f ? mix(s.panC, s.panL, shaped) : mix(s.panC, s.panR, shaped);
 }
 
 void GrainLayout::makeRoom() {
@@ -202,13 +196,13 @@ void GrainLayout::build(const Input& in) {
 	if (in.frame) {
 		const float x = xForIndex(in.frame->write_index, std::max<int32_t>(in.frame->max_delay, 1));
 		list.marks.push_back({x, mid - band * 0.5f, std::max(colW * 0.75f, width * 0.003f), band,
-		                       in.frame->frozen ? kWriteHeadFrozen : kWriteHead});
+		                       in.frame->frozen ? sch->frozen : sch->head});
 	}
 	const float rowH = rowHeight();
 	const float thick = rowH * 0.5f;
 	const float minLen = width / 160.f;   // 2 px at MetaModule's 320-wide fullscreen
 	for (const VisualGrain& g : grains) {
-		const Rgb base = panColor(g.pan);
+		const Rgb base = panColor(g.pan, *sch);
 		const float k = g.ended ? kBornEndedLevel : 0.35f + 0.65f * g.level;
 		const float y = rowY(g.side, g.row);
 		const float len = std::max(std::fabs(g.span), minLen);
@@ -219,7 +213,7 @@ void GrainLayout::build(const Input& in) {
 		addSpan(start, len, y - thick * 0.5f, thick, mix(bg, base, std::min(std::max(k, 0.f), 1.f)));
 		const float cx = g.x0 + g.span * g.cursor;
 		const float cw = std::max(width * 0.008f, thick);
-		addSpan(cx - cw * 0.5f, cw, y - rowH * 0.45f, rowH * 0.9f, lighten(base, 0.5f));
+		addSpan(cx - cw * 0.5f, cw, y - rowH * 0.45f, rowH * 0.9f, mix(base, sch->hi, 0.5f));
 	}
 }
 

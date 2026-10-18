@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <vector>
 
+#include "ColorScheme.hpp"
 #include "DrawList.hpp"
 #include "host/grain_feed.h"
 
@@ -66,9 +67,16 @@ public:
 	static int preferredRow(float speed, int rowsPerSide = kRowsPerSide);
 	int getRowsPerSide() const { return rows; }
 	static int sideFor(float speed);
-	// Grain color for a stereo position: blue at hard left, warm white at
-	// center, orange at hard right.
-	static Rgb panColor(float pan);
+	// Colors come from this scheme; takes effect on the next update().
+	void setScheme(const ColorScheme& s) {
+		sch = &s;
+		list.background = s.bg;
+		list.waveColor = s.wave;
+	}
+	// Grain color for a stereo position: the scheme's left color at hard
+	// left, its center color at center, its right color at hard right
+	// (Lucarne: blue, warm white, orange).
+	static Rgb panColor(float pan, const ColorScheme& s = kSchemes[0]);
 
 private:
 	float bandHeight() const;
@@ -84,6 +92,7 @@ private:
 	uint32_t epoch = 0;
 	bool haveEpoch = false;
 	std::vector<VisualGrain> grains;
+	const ColorScheme* sch = &kSchemes[0];
 	DrawList list;
 };
 

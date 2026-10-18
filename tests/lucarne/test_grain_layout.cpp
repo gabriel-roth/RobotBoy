@@ -222,6 +222,40 @@ int main() {
         check(found, "a hard-right live grain draws orange");
     }
 
+    // Colors come from the scheme: Lucarne's by default, bit-identical to
+    // before; Paper after setScheme() (hi is black, so the cursor darkens).
+    {
+        const Rgb base{0xE8, 0xE4, 0xDA};
+        auto drawGrain = [](GrainLayout& G) {
+            G.setSize(320.f, 180.f);
+            GrainLiveFrame f = Frame();
+            Live(f, 0, 1, 600);
+            GrainStartEvent e{1, 0, 600, 1.f, 100.f, 0.5f};   // centered
+            G.update(In(&f, &e, 1));
+        };
+        GrainLayout G; drawGrain(G);
+        const Rgb want = {uint8_t(base.r + (255 - base.r) * 0.5f + 0.5f), uint8_t(base.g + (255 - base.g) * 0.5f + 0.5f),
+                          uint8_t(base.b + (255 - base.b) * 0.5f + 0.5f)};
+        bool cursor = false, span = false;
+        for (const Rect& m : G.getDrawList().marks) {
+            if (m.color.r == want.r && m.color.g == want.g && m.color.b == want.b) cursor = true;
+            if (m.h < 4.f && m.color.r == mix(G.getDrawList().background, base, 1.f).r) span = true;
+        }
+        check(cursor, "default scheme: cursor is the pan color lightened 50% toward white");
+        check(span, "default scheme: span is the pan color at full level");
+        const ColorScheme& paper = scheme(2);
+        GrainLayout P; P.setScheme(paper); drawGrain(P);
+        check(P.getDrawList().background.r == 0xEC && P.getDrawList().background.g == 0xE7
+              && P.getDrawList().background.b == 0xDC, "Paper: background ECE7DC");
+        check(P.getDrawList().waveColor.r == paper.wave.r, "Paper: wave color from the scheme");
+        const Rgb pb = GrainLayout::panColor(0.5f, paper);
+        const int baseSum = pb.r + pb.g + pb.b;
+        bool darker = false;
+        for (const Rect& m : P.getDrawList().marks)
+            if (m.h > 4.f && m.h < 8.f && m.color.r + m.color.g + m.color.b < baseSum) darker = true;
+        check(darker, "Paper: cursor is darker than the pan color");
+    }
+
     // A born-ended grain holds steady through its hold, no fade.
     {
         GrainLayout G; G.setSize(320.f, 180.f);

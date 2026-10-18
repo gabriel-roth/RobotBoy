@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cstdint>
 
+#include "ColorScheme.hpp"
 #include "DrawList.hpp"
 #include "host/grain_feed.h"
 
@@ -39,7 +40,6 @@ public:
 	// tape head), and flashes with the input of the last kDryWindowSeconds.
 	static constexpr float kNowInset = 0.06f;
 	static constexpr float kDryWindowSeconds = 0.005f;
-	static constexpr Rgb kDryColor{0xE6, 0xEA, 0xF0};   // near white, apart from both tap hues
 	// Markers: a quiet line at kMarkerFloor of its color (scaled by the tap's
 	// crossfade weight, so a tap fading out fades from view), rising to full
 	// as it flashes; the flash bar its color, kBarLighten toward white.
@@ -56,19 +56,21 @@ public:
 	// delay; a real fade-out is only this much late.
 	static constexpr float kHoldFraction = 0.05f;
 	static constexpr float kHoldFloor = 0.05f;
-	// Tap colors: taps of the primary ratio are amber, the other ratio's
-	// cyan (warm against cool, clear of the cursor and the blue-gray
-	// waveform, and apart for red-green colorblindness). Tap slot i belongs to ratio
+	// Tap colors (the scheme's tapA for the primary ratio, tapB for the
+	// other; Lucarne: amber and cyan, warm against cool, clear of the
+	// cursor and the blue-gray waveform, and apart for red-green
+	// colorblindness). The dry playhead is the scheme's dry color (Lucarne:
+	// near white, apart from both tap hues). Tap slot i belongs to ratio
 	// (i / 2) % 2. The primary ratio is the one with the larger crossfade
 	// gain: always ratio 0 unclocked; clocked, the two ratios hold
 	// neighboring divisions and trade places as Density sweeps.
-	static constexpr Rgb kTapPrimary{0xFF, 0xB2, 0x3E};
-	static constexpr Rgb kTapSecondary{0x3F, 0xD6, 0xFF};
 	// The other ratio takes over as primary only once its gain leads by this
 	// much, so a Density sitting at the crossover doesn't flicker the colors.
 	static constexpr float kPrimaryHysteresis = 0.1f;
 	static int ratioOf(int slot) { return (slot / 2) % 2; }
-	static Rgb tapColor(int slot, int primary = 0) { return ratioOf(slot) == primary ? kTapPrimary : kTapSecondary; }
+	static Rgb tapColor(int slot, int primary = 0, const ColorScheme& s = kSchemes[0]) {
+		return ratioOf(slot) == primary ? s.tapA : s.tapB;
+	}
 
 	struct Tap {
 		float delay;   // age of the read point, line samples
@@ -99,6 +101,12 @@ public:
 
 	void setSize(float w, float h);
 	void update(const Input& in);
+	// Colors come from this scheme; takes effect on the next update().
+	void setScheme(const ColorScheme& s) {
+		sch = &s;
+		list.background = s.bg;
+		list.waveColor = s.wave;
+	}
 	void clear();   // forget the zoom (the next update() snaps)
 	const DrawList& getDrawList() const { return list; }
 	float getWindow() const { return window; }   // current window, line samples
@@ -130,6 +138,7 @@ private:
 	float holdNear = 0.f, holdFar = 0.f;
 	int primary = 0;
 	float hold[robotboy_beads::GrainLiveFrame::kTaps] = {};   // seconds each slot still counts
+	const ColorScheme* sch = &kSchemes[0];
 	DrawList list;
 };
 

@@ -28,7 +28,7 @@ int main() {
         const Rgb w = ScopeLayout::tapColor(0), w1 = ScopeLayout::tapColor(1), g = ScopeLayout::tapColor(2);
         check(w.r == 0xFF && w.g == 0xB2 && w.b == 0x3E && sameColor(w, w1), "ratio 0 is amber");
         check(g.r == 0x3F && g.g == 0xD6 && g.b == 0xFF, "ratio 1 is cyan");
-        const Rgb d = ScopeLayout::kDryColor;
+        const Rgb d = kSchemes[0].dry;
         check(d.r == 0xE6 && d.g == 0xEA && d.b == 0xF0, "dry cursor is near white");
     }
     {   // marker brightness: a quiet line at 60% of its color, a flash bar 10% lighter
@@ -40,15 +40,50 @@ int main() {
         const Rgb bg = L.getDrawList().background;
         bool quiet = false;
         for (const Rect& r : L.getDrawList().marks)
-            if (sameColor(r.color, mix(bg, ScopeLayout::kTapPrimary, 0.6f))) quiet = true;
+            if (sameColor(r.color, mix(bg, kSchemes[0].tapA, 0.6f))) quiet = true;
         check(quiet, "a quiet tap line is 60% of its color");
         HI[size_t(4800 / 24)] = 127; LO[size_t(4800 / 24)] = -127;
         L.update(in);
         bool bar = false;
         for (const Rect& r : L.getDrawList().marks)
-            if (r.h < 180.f && sameColor(r.color, lighten(ScopeLayout::kTapPrimary, 0.1f))) bar = true;
+            if (r.h < 180.f && sameColor(r.color, mix(kSchemes[0].tapA, Rgb{255, 255, 255}, 0.1f))) bar = true;
         check(bar, "a flash bar is its color, 10% lighter");
         HI[size_t(4800 / 24)] = 0; LO[size_t(4800 / 24)] = 0;
+    }
+    {   // Paper: the bg and tap color come from the scheme; the flash bar darkens
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        const ColorScheme& paper = scheme(2);
+        ScopeLayout L; L.setScheme(paper); L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
+        HI[size_t(4800 / 24)] = 127; LO[size_t(4800 / 24)] = -127;
+        L.update(in);
+        const Rgb bg = L.getDrawList().background;
+        check(sameColor(bg, paper.bg), "Paper scope: background from the scheme");
+        const Rgb tap = ScopeLayout::tapColor(0, 0, paper);
+        check(sameColor(tap, paper.tapA), "Paper scope: tapColor takes the scheme");
+        bool bar = false;
+        for (const Rect& r : L.getDrawList().marks)
+            if (r.h < 180.f && sameColor(r.color, mix(tap, paper.hi, ScopeLayout::kBarLighten))) bar = true;
+        check(bar, "Paper scope: flash bar is the tap color 10% toward black");
+        check(mix(tap, paper.hi, ScopeLayout::kBarLighten).g < tap.g, "Paper scope: the flash bar is darker than its base");
+        HI[size_t(4800 / 24)] = 0; LO[size_t(4800 / 24)] = 0;
+    }
+    {   // Paper: a slice band mixes the scheme's bg with the tap color
+        for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
+        const ColorScheme& paper = scheme(2);
+        ScopeLayout L; L.setScheme(paper); L.setSize(320.f, 180.f);
+        ScopeLayout::Input in = In(8192);
+        ScopeLayout::Tap t{2400.f, 1.f, 0};
+        t.slice = true; t.sliceOldest = 4800.f; t.sliceLength = 4800.f;
+        in.taps[0] = t;
+        in.taps[1] = {9600.f / 1.15f, 1.f, 1};
+        in.numTaps = 2;
+        tight(in);
+        L.update(in);
+        const auto& u = L.getDrawList().under;
+        check(u.size() == 1 && sameColor(u[0].color, mix(paper.bg, ScopeLayout::tapColor(0, 0, paper), ScopeLayout::kSliceBandMix)),
+              "Paper scope: slice band is mix(bg, tap, kSliceBandMix)");
     }
     {   // a tap fading out of a crossfade dims with its weight
         for (auto& v : LO) v = 0; for (auto& v : HI) v = 0;
@@ -64,11 +99,11 @@ int main() {
                 if (near(r.h, 180.f) && std::fabs(r.x + r.w * 0.5f - L.xForAge(age)) < 0.5f) return r.color;
             return Rgb{0, 0, 0};
         };
-        check(sameColor(lineAt(4800.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.9f)), "crossfade: the main tap's quiet line at its weight");
-        check(sameColor(lineAt(9600.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.1f)), "crossfade: the fading tap's line is faint");
+        check(sameColor(lineAt(4800.f), mix(bg, kSchemes[0].tapA, 0.6f * 0.9f)), "crossfade: the main tap's quiet line at its weight");
+        check(sameColor(lineAt(9600.f), mix(bg, kSchemes[0].tapA, 0.6f * 0.1f)), "crossfade: the fading tap's line is faint");
         HI[size_t(9600 / 24)] = 127; LO[size_t(9600 / 24)] = -127;
         L.update(in);
-        check(sameColor(lineAt(9600.f), mix(bg, ScopeLayout::kTapPrimary, 0.6f * 0.1f + 0.4f * 0.1f)), "crossfade: a faint tap flashes by its output");
+        check(sameColor(lineAt(9600.f), mix(bg, kSchemes[0].tapA, 0.6f * 0.1f + 0.4f * 0.1f)), "crossfade: a faint tap flashes by its output");
         HI[size_t(9600 / 24)] = 0; LO[size_t(9600 / 24)] = 0;
     }
     {   // age -> x
@@ -165,7 +200,7 @@ int main() {
         in.taps[0] = {4800.f, 1.f, 0}; in.numTaps = 1;
         check(near(ScopeLayout::dryOutput(in), 0.f), "silent input -> dry output 0");
         L.update(in);
-        const Rgb d = ScopeLayout::kDryColor;
+        const Rgb d = kSchemes[0].dry;
         bool line = false;
         for (const Rect& r : L.getDrawList().marks)
             if (near(r.h, 180.f) && near(r.x + r.w * 0.5f, L.nowX(), 0.5f)) line = true;
@@ -249,7 +284,7 @@ int main() {
         in.numTaps = 1;
         L.update(in);
         const auto& u = L.getDrawList().under;
-        const Rgb want = mix(L.getDrawList().background, ScopeLayout::kTapSecondary, 0.15f);
+        const Rgb want = mix(L.getDrawList().background, kSchemes[0].tapB, 0.15f);
         check(u.size() == 1 && sameColor(u[0].color, want), "second-ratio slice band is cyan");
     }
     {   // a band reaching past the window's left edge is clipped to [0, nowX()]
@@ -537,8 +572,8 @@ int main() {
         check(ScopeLayout::entriesToRead(4800.f, 0.f, false, 0, 8192) > 0, "read: zero samples per entry is safe");
     }
     {   // primary ratio: the louder group is amber, whichever slots it holds
-        check(sameColor(ScopeLayout::tapColor(2, 1), ScopeLayout::kTapPrimary), "ratio 1 is amber when primary");
-        check(sameColor(ScopeLayout::tapColor(0, 1), ScopeLayout::kTapSecondary), "ratio 0 is cyan when not primary");
+        check(sameColor(ScopeLayout::tapColor(2, 1), kSchemes[0].tapA), "ratio 1 is amber when primary");
+        check(sameColor(ScopeLayout::tapColor(0, 1), kSchemes[0].tapB), "ratio 0 is cyan when not primary");
         auto markerColor = [](const ScopeLayout& L) {   // the first tap's line (after the dry playhead's)
             return L.getDrawList().marks.at(1).color;
         };

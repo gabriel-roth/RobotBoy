@@ -199,9 +199,9 @@ void ScopeLayout::update(const Input& in) {
 		                      mix(list.background, base, std::min(quiet + (1.f - kMarkerFloor) * o, 1.f))});
 		if (!(o > 0.f)) return;
 		const float barH = o * full;
-		list.marks.push_back({x - lineW * 1.5f, mid - barH * 0.5f, lineW * 3.f, barH, lighten(base, kBarLighten)});
+		list.marks.push_back({x - lineW * 1.5f, mid - barH * 0.5f, lineW * 3.f, barH, mix(base, sch->hi, kBarLighten)});
 	};
-	marker(nowX(), kDryColor, dryOutput(in), 1.f);
+	marker(nowX(), sch->dry, dryOutput(in), 1.f);
 	for (int i = 0; i < numTaps; ++i) {
 		const Tap& t = in.taps[i];
 		if (!(t.level > kTapMinLevel)) continue;   // held or silent: no band, no marker
@@ -211,10 +211,10 @@ void ScopeLayout::update(const Input& in) {
 			const float x1 = std::min(xForAge(std::max(t.sliceOldest - t.sliceLength, 0.f)), nowX());
 			if (x1 > x0)
 				list.under.push_back({x0, 0.f, x1 - x0, height,
-				                       mix(list.background, tapColor(t.slot, primary), kSliceBandMix)});
+				                       mix(list.background, tapColor(t.slot, primary, *sch), kSliceBandMix)});
 		}
 		if (t.delay > window || t.delay < 0.f) continue;
-		marker(xForAge(t.delay), tapColor(t.slot, primary), tapOutput(in, t.delay, t.level), t.weight);
+		marker(xForAge(t.delay), tapColor(t.slot, primary, *sch), tapOutput(in, t.delay, t.level), t.weight);
 	}
 }
 
