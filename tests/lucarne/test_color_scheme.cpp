@@ -101,7 +101,8 @@ int main() {
     // the key zone: #9a8fb0 at 40% over the panel's #3d3d3d. Only the four
     // key columns have floors. Pan chips and flash bars follow rules, not
     // columns, so they are deliberately not held to a floor: Paper's chips
-    // keep the display colors (its center chip is about 1.3:1 on the zone).
+    // keep the display colors (its center chip is about 1.3:1 on the zone)
+    // and get an outline in its light bg instead.
     {
         const Rgb zone = mix({0x3D, 0x3D, 0x3D}, {0x9A, 0x8F, 0xB0}, 0.4f);
         for (int i = 0; i < kNumSchemes; ++i) {
@@ -122,6 +123,13 @@ int main() {
                   sameRgb(keyColor(KeyRole::BarA, s), mix(s.tapA, s.hi, 0.1f)) &&
                   sameRgb(keyColor(KeyRole::BarB, s), mix(s.tapB, s.hi, 0.1f)) &&
                   sameRgb(keyColor(KeyRole::BarDry, s), mix(s.dry, s.hi, 0.1f)), name);
+
+            std::snprintf(name, sizeof name, "%s pan chip outline only on paper", s.id);
+            check((s.keyChipOutline > 0.f) == (std::strcmp(s.id, "paper") == 0), name);
+            if (s.keyChipOutline > 0.f) {
+                std::snprintf(name, sizeof name, "%s chip outline contrast >= 3 on the key zone", s.id);
+                check(contrast(s.bg, zone) >= 3.f, name);
+            }
         }
     }
 

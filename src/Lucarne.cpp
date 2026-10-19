@@ -332,6 +332,11 @@ struct LucarneKey : widget::Widget {
 				nvgRect(vg, mm2px(k.x1), mm2px(k.y1), mm2px(k.x2 - k.x1), mm2px(k.y2 - k.y1));
 				nvgFillColor(vg, nvgRGB(c.r, c.g, c.b));
 				nvgFill(vg);
+				if (s.keyChipOutline > 0.f && lucarne::isPanChip(k.role)) {
+					nvgStrokeWidth(vg, mm2px(s.keyChipOutline));
+					nvgStrokeColor(vg, nvgRGB(s.bg.r, s.bg.g, s.bg.b));
+					nvgStroke(vg);
+				}
 			}
 			else {
 				nvgMoveTo(vg, mm2px(k.x1), mm2px(k.y1));

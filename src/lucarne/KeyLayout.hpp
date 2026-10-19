@@ -85,6 +85,11 @@ inline constexpr KeyShape kRetoursKey[] = {
 	{KeyRole::BarDry, 49.496f, 92.844f, 50.184f, 101.006f, 0.f},
 };
 
+inline constexpr bool isPanChip(KeyRole role) {
+	return role == KeyRole::PanL || role == KeyRole::PanLC || role == KeyRole::PanC ||
+	       role == KeyRole::PanCR || role == KeyRole::PanR;
+}
+
 // Pan chips: the three pan colors with a half mix between each pair. Flash
 // bars: the tap or dry color a tenth of the way to hi.
 inline Rgb keyColor(KeyRole role, const ColorScheme& s) {
