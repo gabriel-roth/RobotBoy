@@ -1,81 +1,92 @@
 # Changelog
 
+What's new in Robot Boy, newest first. For how anything works, see the module manuals linked from the [README](README.md).
+
 ## [Unreleased]
 
-- Display improvements for Lucarne with Retours.
-- Lucarne has seven color schemes (Lucarne, Darkroom, Paper, Cyanotype, Thermal, Bakelite, Anaglyph), chosen from its right-click menu and saved with the patch. Particules and Retours get separate schemes, so a Lucarne moved from one to the other keeps a look for each; with nothing attached the menu offers both (Particules color scheme, Retours color scheme). On VCV, Make default for Particules and Make default for Retours set the schemes new Lucarnes start with, and the key under the display follows the scheme; MetaModule has no Make default and no key.
-- Lucarne with Particules: grains disappear as soon as they stop sounding, instead of fading out, so dense clouds are easier to read.
+### Lucarne color schemes
+
+Lucarne now comes in seven color schemes: **Lucarne**, **Darkroom**, **Paper**, **Cyanotype**, **Thermal**, **Bakelite** and **Anaglyph**. Pick one from the right-click menu and it's saved with your patch.
+
+Particules and Retours each get their own scheme, so a Lucarne you move from one to the other keeps a look for each. On VCV, **Make default** sets the look new Lucarnes start with, and the key under the display changes to match.
+
+### Also
+
+- Lucarne with Particules: grains now vanish the moment they stop sounding instead of fading out slowly, so dense clouds are much easier to read.
+- Lucarne with Retours: assorted display improvements.
+
+### Small print
+
+- With nothing attached, Lucarne's menu offers both schemes.
+- MetaModule has no Make default and no key.
 
 ## [2.3.0] — 2026-10-15 (MetaModule)
 
-- Particules and Retours use much less CPU in Cold digital and Scorched cassette, and on VCV in every Quality setting when Rack runs at a sample rate other than 48 kHz.
-- Changing Quality on Particules or Retours, or plugging or unplugging an audio input, no longer causes a CPU spike that could make MetaModule drop audio.
-- Ondes' 2x and 4x anti-aliasing uses less CPU.
-- MetaModule: Particules and Retours list their controls in panel order (firmware 2.4 or later). Before, Retours' Filter and Particules' Seed came after the CV amounts.
-- MetaModule: Lucarne's "Add from the Expanders menu" message now fits on its screen.
-- Retours' Lucarne view now holds still while Time or Interval is modulated, showing the whole buffer, instead of zooming with every change.
-- Lucarne now works on either side of Particules or Retours, not just the right. Between two of them, it shows the one on its left.
-- Bypassing Lucarne now turns it off: its screen goes blank, and Particules or Retours stops sending it data.
-- Lucarne's key for Retours is redrawn: it labels the primary and secondary tap colors and shows how a tap's marker flashes with its level.
-- Lucarne with a clocked Retours: the echoes of the louder division are always white and the other division's green. Before, a division could be white or green depending on which step of Interval it was on.
+This release came out for MetaModule only. Mostly it's about speed: Particules, Retours and Ondes leave your MetaModule a lot more headroom.
+
+### Faster
+
+- Particules and Retours use much less CPU in the Cold digital and Scorched cassette Quality settings. On VCV they're also faster in every Quality setting when Rack isn't running at 48 kHz.
+- Changing Quality, or plugging or unplugging an audio input, no longer causes a CPU spike that could make MetaModule drop audio.
+- Ondes' anti-aliasing uses less CPU.
+
+### Lucarne
+
+- Lucarne works on either side of Particules or Retours now, not just the right. If it's between two of them, it shows the one on its left.
+- With Retours, the view holds steady while you modulate Time or Interval instead of zooming in and out with every change.
+- With a clocked Retours, each division keeps its color: the louder one's echoes are always white and the other's are always green. Before, they could swap colors partway through.
+- The Retours key has been redrawn to explain what the colors and flashes mean.
+- Bypassing Lucarne turns it all the way off.
+
+### MetaModule tidying
+
+- Particules and Retours list their controls in panel order (firmware 2.4 or later), so Filter and Seed are no longer stuck at the bottom of the list.
+- Lucarne's "Add from the Expanders menu" message fits on its screen now.
 
 ## [2.2.1] — 2026-10-18
 
-- VCV Library listing: Loooop and Löp are tagged Recording instead of Looper, and Ondes is tagged Oscillator only, so all modules use valid library tags.
+Corrected the tags in the VCV Library listing, so Loooop and Löp are filed under Recording and Ondes under Oscillator.
 
 ## [2.2.0] — 2026-10-14
 
-This release collects the 2.2.0 betas, without their Classic mode.
+### Beads source code
 
-- Particules, Retours and Ondes now run on the real Mutable Instruments Beads code, which Émilie Gillet released as open source in October 2026, instead of a reconstruction. They should sound and respond like Beads in its granular mode, delay mode and wavetable-oscillator mode. Panels and patches carry over, but patches made with 2.1 or earlier may sound different. For the old engines, install the 2.2.0 beta 4 pre-release from GitHub, which can switch back to them with a Classic mode menu option. Other changes that come with the new engines:
-  - Quality settings now match Beads: Cold digital runs at 32 kHz, and buffers are 4, 8, 10.7 and 16 seconds (double for a mono input). Sunny tape no longer has wow and flutter. Scorched cassette's tape hiss can now be switched off from the context menu.
-  - Auto gain works as on Beads: it boosts quiet sources by up to 32 dB but never turns hot ones down.
-  - Particules: a new Seed button, as on Beads. One press unlocks it, so grains play only while it (or the Seed input) is held high; a 4-second hold locks it again. It replaces the "Seed CV mode" menu (Triggers = locked, Gates = unlocked); saved patches keep their setting.
-  - Particules: the Pitch knob has Beads' notches (unison, 1, 3, 4 and 7 semitones, octaves). Size reaches 4-second grains. Grain scheduling and voice stealing are Beads'. A new **Gate** output sends a gate per grain, replacing the "Grain trigger on R output" menu option.
-  - Retours: the panel is now 15 HP, laid out like Particules, with two new controls from Beads' delay mode: **Filter** (a low-pass/high-pass tone control on the repeats) and **Reverb**, each with a CV input and trimpot. A new **Gate** output sends a gate on every repeat. Existing patches load with Filter off and Reverb at zero.
-  - Retours: tap tempo works as on Beads (the first press switches to tempo mode, then taps set the tempo). The "Time change response" menu is gone. Feedback reaches unity at about 82% (the panel arrow has moved there). New input-gain menu items, as on Particules.
-  - Ondes plays Beads' 12 wavetable banks of 16 waves (previously 24 banks of 8 derived from Plaits), switching banks with a short crossfade. The "Waveform banks" menu is gone.
-- New: **Lucarne**, a display expander for Particules and Retours. Place it to the right of Particules to watch the recording buffer and every grain as it plays: where it reads, how long it is, its pitch, its stereo position, and its playback. Place it to the right of Retours to watch Retours' recent audio scroll past a line for each echo, which flashes as you hear it; with Slice on, it shows the whole buffer with each looping slice shaded. Its panel key changes to match the module it's attached to. On MetaModule, attach it from the module's Expanders menu (firmware 2.4 or later).
-- Ondes: a new **Anti-aliasing** context-menu option (Off, 2x or 4x oversampling) removes the harsh aliasing Beads' oscillator has on bright waveforms at higher notes. Off by default, so Ondes still sounds like Beads.
-- Ondes: Position now starts fully counter-clockwise, on each bank's first waveform, which has a full fundamental. Existing patches keep their Position.
-- Patches saved in Classic mode in the 2.2 betas open with the Beads engines.
-- Particules: Quality can now also be set from the context menu, as on Retours.
-- Particules and Retours: loading a preset that leaves out a context-menu setting (input gain, Quality, tape hiss and, on Particules, Lock pitch and its root) now resets that setting to its default, instead of keeping the module's current value.
-- Particules, Retours and Ondes: clearer tooltips. The small knobs under Time, Size, Shape and Pitch are called attenurandomizers, as in the manuals, and the pitch inputs read "1V/octave pitch".
-- All modules: context-menu changes can be undone and redone.
+In October 2026, Émilie Gillet released the source code for Mutable Instruments Beads. Particules, Retours and Ondes now run on that code, replacing the reconstruction they used before. They should sound and respond the way Beads does in its granular, delay and wavetable-oscillator modes.
 
-## [2.2.0-beta.4] — 2026-10-13 (pre-release)
+Your patches still load, but anything made with 2.1 or earlier may sound a bit different. If you need the old sound, [Robot Boy 2.2.0 Classic](https://github.com/gabriel-roth/RobotBoy/releases/tag/classic-2.2.0) has a **Classic mode** switch that brings back the old engines.
 
-- Lucarne now works with Retours too. Place it to the right of Retours (on MetaModule, attach it from Retours' Expanders menu) to watch Retours' recent audio scroll past a line for each echo, which flashes as you hear it. A line at the right edge flashes with the incoming dry sound. The view zooms to fit the longest echo. With Slice on, the waveform freezes and shows the whole buffer, with each looping slice shaded and a line moving through it as it plays.
-- Lucarne's VCV panel changes its key to match the module it's attached to. With nothing attached, the panel says where to place it.
+Along with the new engines come some new controls:
 
-## [2.2.0-beta.3] — 2026-10-13 (pre-release)
+- **Particules** gets Beads' **Seed** button (press once to play grains only while it's held; hold it for four seconds to go back) and a **Gate** output that fires on every grain. The Pitch knob now has notches at the useful intervals, and grains can be up to four seconds long.
+- **Retours** grows to 15 HP and gets Beads' **Filter** and **Reverb** controls, each with its own CV input, plus a **Gate** output that fires on every repeat. Tap tempo now works the way it does on Beads.
+- **Ondes** now plays Beads' own 12 wavetable banks of 16 waveforms.
+- The **Quality** settings now match Beads, buffer lengths included. Scorched cassette's hiss can be switched off, and Auto gain boosts quiet sources without squashing loud ones.
 
-- New: Lucarne, a display expander for Particules. Place it to the right of Particules (on MetaModule, attach it from Particules' Expanders menu) to watch the buffer and every grain: where it reads, how long it is, its pitch, its stereo position, and its playback. On MetaModule, attaching it needs firmware 2.4 or later.
+### New: Lucarne
 
-## [2.2.0-beta.2] — 2026-10-12 (pre-release)
+**Lucarne** is a new display expander that shows what's going on inside Particules and Retours. Put it next to Particules to see the buffer and every grain as it plays: where it reads from, how long it is, its pitch and where it sits in the stereo field. Put it next to Retours to watch your audio scroll by, with a line for each echo that flashes as you hear it. On MetaModule, add it from the module's Expanders menu (firmware 2.4 or later).
 
-- Classic mode (context menu) for Particules, Retours and Ondes brings back the engines from 2.1 and earlier. Patches made before 2.2 open in classic mode, so they sound as they did. Switching isn't allowed while Freeze or Slice is on, and in Particules and Retours it clears the buffer and mutes the output briefly.
-  - Particules' "Grain trigger on R Out" option is gone: patches that used it should patch the Gate output instead. In classic mode the Seed button fires grains even with nothing patched to Seed.
-  - In classic mode, Retours' new Filter and Reverb knobs work too. Feedback reaches unity at about 90%, not at the panel arrow.
-  - Ondes patches that turned off some waveform bank groups now spread Bank across all 24 banks in classic mode.
-  - Classic mode uses more memory per instance on MetaModule.
+### And also
 
-## [2.2.0-beta.1] — 2026-10-12 (pre-release)
+- **Ondes** has a new **Anti-aliasing** option that removes the harsh aliasing Beads' oscillator makes on bright waveforms at high notes. It's off by default, so out of the box Ondes sounds just like Beads.
+- Undo and redo now work for context-menu changes in every module.
+- Particules has a Quality setting in its context menu, like Retours.
+- The tooltips are clearer, and the small knobs under the main controls are now called attenurandomizers, as in the manuals.
 
-- Particules, Retours and Ondes now run on the real Mutable Instruments Beads code, which Émilie Gillet released as open source in October 2026, instead of a reconstruction. They should sound and respond like Beads in its granular mode, delay mode and wavetable-oscillator mode. Panels and patches carry over, but some behavior changes:
-  - Quality settings now match Beads: Cold digital runs at 32 kHz, and buffers are 4, 8, 10.7 and 16 seconds (double for a mono input). Sunny tape no longer has wow and flutter. Scorched cassette's tape hiss can now be switched off from the context menu.
-  - Auto gain works as on Beads: it boosts quiet sources by up to 32 dB but never turns hot ones down.
-  - Particules: a new Seed button, as on Beads. One press unlocks it, so grains play only while it (or the Seed input) is held high; a 4-second hold locks it again. It replaces the "Seed CV mode" menu (Triggers = locked, Gates = unlocked); saved patches keep their setting.
-  - Particules: the Pitch knob has Beads' notches (unison, 1, 3, 4 and 7 semitones, octaves). Size reaches 4-second grains. Grain scheduling and voice stealing are Beads'. A new **Gate** output sends a gate per grain, replacing the "Grain trigger on R output" menu option.
-  - Retours: the panel is now 15 HP, laid out like Particules, with two new controls from Beads' delay mode: **Filter** (a low-pass/high-pass tone control on the repeats) and **Reverb**, each with a CV input and trimpot. A new **Gate** output sends a gate on every repeat. Existing patches load with Filter off and Reverb at zero.
-  - Retours: tap tempo works as on Beads (the first press switches to tempo mode, then taps set the tempo). The "Time change response" menu is gone. Feedback reaches unity at about 82% (the panel arrow has moved there). New input-gain menu items, as on Particules.
-  - Ondes plays Beads' 12 wavetable banks of 16 waves (previously 24 banks of 8 derived from Plaits), switching banks with a short crossfade. The "Waveform banks" menu is gone.
+### Small print
+
+- Buffers: 4, 8, 10.7 and 16 seconds, doubled for mono input. Cold digital runs at 32 kHz.
+- Auto gain: up to +32 dB, never cuts.
+- Retours: feedback reaches unity at about 82%, where the panel arrow now points.
+- Removed menus: Particules' "Seed CV mode" and "Grain trigger on R output", Retours' "Time change response", Ondes' "Waveform banks". Saved Seed settings carry over.
+- Ondes: Position now starts fully counter-clockwise. Existing patches keep theirs.
+- Presets that leave out a menu setting now reset it to the default.
+- Patches saved in Classic mode open with the new engines.
 
 ## [2.1.0] — 2026-10-03
 
-- Loooop (MetaModule): the parameter list is now grouped by playhead, with Red, Yellow, Blue, and Purple submenus, followed by the global controls. Requires MetaModule firmware 2.4 or later; on firmware 2.3 the list stays flat.
+- On MetaModule, Loooop's long parameter list is now grouped by playhead (Red, Yellow, Blue, Purple), so finding a control no longer means scrolling through the whole list. Requires firmware 2.4 or later.
 
 ## [2.0.0] — 2026-09-01
 
-- First public release.
+Robot Boy's first public release.
