@@ -17,6 +17,7 @@ All local changes are in `robotboy.patch` and are marked `// RobotBoy:` in the s
 5. `stmlib.h` defines `M_PI` when a strict `-std=c++20` C library (MetaModule's newlib) hides it.
 6. Read-only accessors for Lucarne's grain display: the delay line's write pointer and samples, each grain's position, speed, stereo position, envelope level, length and a per-slot start counter, and the active granular processor (`Processor::VisitGranular`). The output is bit-identical.
 7. Tap and play-head accessors for Lucarne's Retours view (read-only).
+8. `Reverb` sleeps: when the send is exactly 0, both filter states are exactly 0 and the last full pass over its memory wrote only zeros, it skips the tank and keeps only the level glides, write pointer and LFOs moving (`FxEngine::Advance`). The output is bit-identical, so it only saves CPU while Reverb is at 0 and the tail has decayed to nothing. Needs flush-to-zero (as VCV Rack sets it) for the tape media to reach sleep; without it a filter state sticks at the smallest denormal and the reverb just keeps running.
 
 ## Build notes
 

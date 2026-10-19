@@ -289,7 +289,24 @@ class FxEngine {
       c->lfo_value_[1] = lfo_[1].value();
     }
   }
-  
+
+  // RobotBoy: moves the write pointer and the LFOs on by n samples exactly
+  // as n calls to Start() would, without touching the memory.
+  inline void Advance(size_t n) {
+    while (n--) {
+      --write_ptr_;
+      if (write_ptr_ < 0) {
+        write_ptr_ += size;
+      }
+      if ((write_ptr_ & 31) == 0) {
+        lfo_[0].Next();
+        lfo_[1].Next();
+      }
+    }
+  }
+
+  static const int32_t kSize = size;  // RobotBoy
+
  private:
   enum {
     MASK = size - 1

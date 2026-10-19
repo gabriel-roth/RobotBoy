@@ -44,6 +44,9 @@ class Reverb {
   void Init(uint16_t* buffer, float sample_rate) {
     engine_.Init(buffer);
     Reset(sample_rate);
+    sleep_enabled_ = true;  // RobotBoy
+    asleep_ = false;  // RobotBoy
+    silent_samples_ = E::kSize;  // RobotBoy: the memory was just cleared.
   }
   
   void Reset(float sample_rate) {
@@ -107,6 +110,31 @@ class Reverb {
         send_amount * input_gain,
         size);
 
+    // RobotBoy: sleep. When the send is exactly 0, both filter states are
+    // exactly 0 and the last full pass over the memory wrote nothing but
+    // zeros, the tank can only output zeros. Skip it, but keep the level
+    // glides, the write pointer and the LFOs moving exactly as the full path
+    // would, so the output stays bit-identical and waking needs no handover.
+    asleep_ = sleep_enabled_ && mix_ == 0.0f && send_ == 0.0f &&
+        lp_1_ == 0.0f && lp_2_ == 0.0f && silent_samples_ >= E::kSize;
+    if (asleep_) {
+      engine_.Advance(size);
+      while (size--) {
+        // Step the glides one rounded add at a time, as the full path does:
+        // without this barrier, -funsafe-math-optimizations lets the compiler
+        // vectorize this short loop and reassociate the adds.
+        asm volatile("" : : "r"(&dry_modulation), "r"(&wet_modulation),
+                     "r"(&send_modulation) : "memory");
+        const float dry_amount = dry_modulation.Next();
+        wet_modulation.Next();
+        send_modulation.Next();
+        in_out->l *= dry_amount;
+        in_out->r *= dry_amount;
+        ++in_out;
+      }
+      return;
+    }
+
     while (size--) {
       const float dry_amount = dry_modulation.Next();
       const float wet_amount = wet_modulation.Next();
@@ -158,6 +186,16 @@ class Reverb {
       
       in_out->r = in_out->r * dry_amount + wet * wet_amount;
       ++in_out;
+      
+      // RobotBoy: count the samples whose memory writes all truncated to 0
+      // (FORMAT_16_BIT stores (int32_t)(x * 32768)).
+      if (c.peak() * 32768.0f < 1.0f) {
+        if (silent_samples_ < E::kSize) {
+          ++silent_samples_;
+        }
+      } else {
+        silent_samples_ = 0;
+      }
     }
   }
   
@@ -175,7 +213,13 @@ class Reverb {
   
   inline void Clear() {
     engine_.Clear();
+    silent_samples_ = E::kSize;  // RobotBoy
   }
+  
+  // RobotBoy: sleep can be turned off (for comparison tests); asleep() says
+  // whether the last Process() skipped the tank.
+  inline void set_sleep_enabled(bool enabled) { sleep_enabled_ = enabled; }
+  inline bool asleep() const { return asleep_; }
   
  private:
   typedef FxEngine<32768, FORMAT_16_BIT> E;
@@ -190,6 +234,10 @@ class Reverb {
   
   float lp_1_;
   float lp_2_;
+  
+  bool sleep_enabled_;  // RobotBoy
+  bool asleep_;  // RobotBoy
+  int32_t silent_samples_;  // RobotBoy
   
   DISALLOW_COPY_AND_ASSIGN(Reverb);
 };
