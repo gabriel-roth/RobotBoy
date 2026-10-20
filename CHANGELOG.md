@@ -6,90 +6,71 @@ What's new in Robot Boy, newest first. For how anything works, see the module ma
 
 ### Lucarne color schemes
 
-Lucarne now comes in seven color schemes: **Lucarne**, **Darkroom**, **Paper**, **Cyanotype**, **Thermal**, **Bakelite** and **Anaglyph**. Pick one from the right-click menu and it's saved with your patch.
+Lucarne now comes in seven color schemes. Pick one from the options menu and it's saved with your patch.
 
-Particules and Retours each get their own scheme, so a Lucarne you move from one to the other keeps a look for each. On VCV, **Make default** sets the look new Lucarnes start with, and the key under the display changes to match.
+Lucarne saves different color schemes for Particules and Retours. On VCV you can set the current scheme as the default. 
 
 ### Also
 
-- Lucarne with Particules: grains now vanish the moment they stop sounding instead of fading out slowly, so dense clouds are much easier to read.
+- Lucarne with Particules: grains now vanish the moment they stop sounding instead of fading out slowly, which is more accurate and easier to read.
 - Lucarne with Retours: assorted display improvements.
-- Lucarne on MetaModule: brighter, punchier colors, to make up for the MetaModule screen flattening them.
-- Particules and Retours use less CPU while Reverb is turned all the way down. The sound doesn't change: the reverb only rests once its tail has completely died away.
-
-### Small print
-
-- With nothing attached, Lucarne's menu offers both schemes.
-- MetaModule has no Make default and no key.
-- The reverb rests only with Reverb at exactly 0, starting a second or so after its tail has gone silent. CV or an offset that keeps Reverb even slightly above 0 keeps it running.
+- Lucarne on MetaModule: colors look brighter and more vivid.
+- Particules and Retours use less CPU when Reverb is at 0. 
 
 ## [2.3.0] — 2026-10-15 (MetaModule)
 
-This release came out for MetaModule only. Mostly it's about speed: Particules, Retours and Ondes leave your MetaModule a lot more headroom.
+This release is for MetaModule only while we wait for the VCV library release. VCV will get these features in 2.4.0.
 
-### Faster
-
-- Particules and Retours use much less CPU in the Cold digital and Scorched cassette Quality settings. On VCV they're also faster in every Quality setting when Rack isn't running at 48 kHz.
+- Particules and Retours use much less CPU in the Cold digital and Scorched cassette Quality settings on MetaModule. On VCV they're also faster in every Quality setting when Rack isn't running at 48 kHz.
 - Changing Quality, or plugging or unplugging an audio input, no longer causes a CPU spike that could make MetaModule drop audio.
-- Ondes' anti-aliasing uses less CPU.
+- Ondes's anti-aliasing uses less CPU.
+- Particules and Retours now list their controls in panel order on MetaModule (firmware 2.4 or later).
 
 ### Lucarne
 
-- Lucarne works on either side of Particules or Retours now, not just the right. If it's between two of them, it shows the one on its left.
-- With Retours, the view holds steady while you modulate Time or Interval instead of zooming in and out with every change.
-- With a clocked Retours, each division keeps its color: the louder one's echoes are always white and the other's are always green. Before, they could swap colors partway through.
-- The Retours key has been redrawn to explain what the colors and flashes mean.
+- Lucarne works on either side of Particules or Retours now.
+- Less zooming in and out with Retours.
+- Fixed an issue where echo markers would switch colors with Retours when clocked.
+- Revised the Retours panel key.
 - Bypassing Lucarne turns it all the way off.
-
-### MetaModule tidying
-
-- Particules and Retours list their controls in panel order (firmware 2.4 or later), so Filter and Seed are no longer stuck at the bottom of the list.
-- Lucarne's "Add from the Expanders menu" message fits on its screen now.
+- The "Add from the Expanders menu" message now fits on the display on MetaModule.
 
 ## [2.2.1] — 2026-10-18
 
-Corrected the tags in the VCV Library listing, so Loooop and Löp are filed under Recording and Ondes under Oscillator.
+Corrected the tags in the VCV Library listing, so Loooop and Löp are filed under `Recording` and Ondes under `Oscillator`.
 
 ## [2.2.0] — 2026-10-14
 
 ### Beads source code
 
-In October 2026, Émilie Gillet released the source code for Mutable Instruments Beads. Particules, Retours and Ondes now run on that code, replacing the reconstruction they used before. They should sound and respond the way Beads does in its granular, delay and wavetable-oscillator modes.
+*Particules, Retours, and Ondes now run the authentic Beads code!*
 
-Your patches still load, but anything made with 2.1 or earlier may sound a bit different. If you need the old sound, [Robot Boy 2.2.0 Classic](https://github.com/gabriel-roth/RobotBoy/releases/tag/classic-2.2.0) has a **Classic mode** switch that brings back the old engines.
+When these modules were designed, that code was closed-source, so the modules reconstructed Beads's functionality using original code. 
 
-Along with the new engines come some new controls:
+In October 2026, Beads creator Émilie Gillet released the [source code](https://github.com/pichenettes/eurorack/tree/master/beads). Our modules should now sound and respond exactly as Beads does.
 
-- **Particules** gets Beads' **Seed** button (press once to play grains only while it's held; hold it for four seconds to go back) and a **Gate** output that fires on every grain. The Pitch knob now has notches at the useful intervals, and grains can be up to four seconds long.
-- **Retours** grows to 15 HP and gets Beads' **Filter** and **Reverb** controls, each with its own CV input, plus a **Gate** output that fires on every repeat. Tap tempo now works the way it does on Beads.
-- **Ondes** now plays Beads' own 12 wavetable banks of 16 waveforms.
-- The **Quality** settings now match Beads, buffer lengths included. Scorched cassette's hiss can be switched off, and Auto gain boosts quiet sources without squashing loud ones.
+Your patches still load, but anything made with 2.1 or earlier will sound and play differently. If you need the old sound, [Robot Boy 2.2.0 Classic](https://github.com/gabriel-roth/RobotBoy/releases/tag/classic-2.2.0) has a **Classic mode** switch that preserves the old engines.
 
-### New: Lucarne
+### New features: 
+- **Particules** gets Beads' **Seed** button: press once to play grains only while it's held; hold it for four seconds to go back.
+- **Particules** and **Retours** each now have a designated **Gate** output — you no longer have to give up an audio channel if you want a trigger for each grain or repeat. 
+- **Retours** gets Beads' **Filter** and **Reverb** controls, each with its own CV input.
 
-**Lucarne** is a new display expander that shows what's going on inside Particules and Retours. Put it next to Particules to see the buffer and every grain as it plays: where it reads from, how long it is, its pitch and where it sits in the stereo field. Put it next to Retours to watch your audio scroll by, with a line for each echo that flashes as you hear it. On MetaModule, add it from the module's Expanders menu (firmware 2.4 or later).
+### New module: Lucarne
 
-### And also
+**Lucarne** is a display expander that shows what's going on inside Particules and Retours. Put it next to Particules to see the buffer and every grain as it plays. Put it next to Retours to watch your audio scroll by, with a flashing marker for each echo. On MetaModule, add it from the module's Expanders menu (firmware 2.4 or later).
 
-- **Ondes** has a new **Anti-aliasing** option that removes the harsh aliasing Beads' oscillator makes on bright waveforms at high notes. It's off by default, so out of the box Ondes sounds just like Beads.
+### Also
+
+- **Ondes** has a new **Anti-aliasing** option. It's off by default, so out of the box Ondes sounds just like Beads.
 - Undo and redo now work for context-menu changes in every module.
 - Particules has a Quality setting in its context menu, like Retours.
 - The tooltips are clearer, and the small knobs under the main controls are now called attenurandomizers, as in the manuals.
 
-### Small print
-
-- Buffers: 4, 8, 10.7 and 16 seconds, doubled for mono input. Cold digital runs at 32 kHz.
-- Auto gain: up to +32 dB, never cuts.
-- Retours: feedback reaches unity at about 82%, where the panel arrow now points.
-- Removed menus: Particules' "Seed CV mode" and "Grain trigger on R output", Retours' "Time change response", Ondes' "Waveform banks". Saved Seed settings carry over.
-- Ondes: Position now starts fully counter-clockwise. Existing patches keep theirs.
-- Presets that leave out a menu setting now reset it to the default.
-- Patches saved in Classic mode open with the new engines.
-
 ## [2.1.0] — 2026-10-03
 
-- On MetaModule, Loooop's long parameter list is now grouped by playhead (Red, Yellow, Blue, Purple), so finding a control no longer means scrolling through the whole list. Requires firmware 2.4 or later.
+- On MetaModule, Loooop's long parameter list is now grouped by playhead (firmware 2.4 or later).
 
 ## [2.0.0] — 2026-09-01
 
-Robot Boy's first public release.
+First public release.
