@@ -17,11 +17,11 @@ using robotboy_beads::GrainStartEvent;
 
 // Display rect (mm). VCV: the SCREEN rect in res/Lucarne.svg
 // (panel-specs/lucarne.yaml), tall, with the key printed below it.
-// MetaModule: 16:9, so it fills the screen fullscreen at 320 x 180; its
-// faceplate (panel-specs/lucarne-mm.yaml) has no key.
+// MetaModule: 4:3, the screen's shape, so it fills the whole 320 x 240
+// screen fullscreen; its faceplate (panel-specs/lucarne-mm.yaml) has no key.
 static constexpr float kScreenX = 3.48f, kScreenY = 14.f, kScreenW = 54.f;
 #ifdef METAMODULE
-static constexpr float kScreenH = 30.375f;
+static constexpr float kScreenH = 40.5f;
 #else
 static constexpr float kScreenH = 60.f;
 #endif

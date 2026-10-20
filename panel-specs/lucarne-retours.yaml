@@ -8,7 +8,7 @@
 #
 # Lucarne is a display-only expander for Particules and Retours: a wordmark, one screen
 # and a key. No params, ports or lights. The MetaModule faceplate comes from
-# lucarne-mm.yaml instead (16:9 screen, no key: unreadable at \~1.9 px/mm).
+# lucarne-mm.yaml instead (4:3 screen, no key: unreadable at \~1.9 px/mm).
 #
 # Screen: full usable width (54 mm, centered: (60.96 - 54) / 2 = 3.48), 60 mm
 # tall. Keep the SCREEN rect in sync with kScreen* in src/Lucarne.cpp.

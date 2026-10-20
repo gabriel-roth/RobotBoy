@@ -1,11 +1,11 @@
 # Lucarne MetaModule faceplate spec (vcv-panel-gen). MetaModule shows the
-# display 16:9 (it opens fullscreen at 320 x 180) and has no room for the
+# display 4:3 (it opens fullscreen at 320 x 240) and has no room for the
 # VCV panel's key, so its faceplate is just the wordmark. Regenerate with:
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/lucarne-mm.yaml --out <scratch>/Lucarne.svg
 #   python3 ~/Dev/metamodule-plugin-sdk/scripts/SvgToPng.py --input <scratch>/Lucarne.svg --output metamodule/assets/ --layer panel
 # (the SVG must be named Lucarne.svg so the PNG lands as Lucarne.png).
 #
-# Screen: 54 x 30.375 mm (16:9) at (3.48, 14). Keep in sync with the
+# Screen: 54 x 40.5 mm (4:3) at (3.48, 14). Keep in sync with the
 # METAMODULE kScreen* values in src/Lucarne.cpp.
 slug: Lucarne
 name: LUCARNE
@@ -20,4 +20,4 @@ title:
   dy: 1.211
 
 elements:
-  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 30.375}}
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 40.5}}
