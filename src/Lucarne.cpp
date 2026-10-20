@@ -1,6 +1,7 @@
 #include "Lucarne.hpp"
 #include "BeadsModule.hpp"
 #include "lucarne/ColorScheme.hpp"
+#include "lucarne/DisplayBoost.hpp"
 #include "lucarne/GrainLayout.hpp"
 #include "lucarne/KeyLayout.hpp"
 #include "lucarne/ScopeLayout.hpp"
@@ -44,6 +45,18 @@ BeadsModule* Lucarne::source() const {
 }
 
 int lucarneDefaultScheme[kNumSlots] = {0, 0};
+
+#ifdef METAMODULE
+// TEMPORARY (MetaModule display-boost spike): strength picked from the menu
+// on the hardware, not saved. Becomes a constant once one is chosen.
+static lucarne::DisplayBoost lucarneBoost{2};
+static NVGcolor toNvg(lucarne::Rgb c) {
+	c = lucarneBoost.apply(c);
+	return nvgRGB(c.r, c.g, c.b);
+}
+#else
+static NVGcolor toNvg(lucarne::Rgb c) { return nvgRGB(c.r, c.g, c.b); }
+#endif
 
 // The patch keys for the two schemes, indexed by slot.
 static const char* const kSchemeKeys[kNumSlots] = {"particulesColorScheme", "retoursColorScheme"};
@@ -259,25 +272,25 @@ struct LucarneDisplay : widget::Widget {
 		nvgScissor(vg, 0.f, 0.f, box.size.x, box.size.y);
 		nvgBeginPath(vg);
 		nvgRect(vg, 0.f, 0.f, box.size.x, box.size.y);
-		nvgFillColor(vg, nvgRGB(l.background.r, l.background.g, l.background.b));
+		nvgFillColor(vg, toNvg(l.background));
 		nvgFill(vg);
 		for (const lucarne::Rect& r : l.under) {
 			nvgBeginPath(vg);
 			nvgRect(vg, r.x, r.y, r.w, r.h);
-			nvgFillColor(vg, nvgRGB(r.color.r, r.color.g, r.color.b));
+			nvgFillColor(vg, toNvg(r.color));
 			nvgFill(vg);
 		}
 		if (!l.wave.empty()) {
 			nvgBeginPath(vg);
 			for (const lucarne::Rect& r : l.wave)
 				nvgRect(vg, r.x, r.y, r.w, r.h);
-			nvgFillColor(vg, nvgRGB(l.waveColor.r, l.waveColor.g, l.waveColor.b));
+			nvgFillColor(vg, toNvg(l.waveColor));
 			nvgFill(vg);
 		}
 		for (const lucarne::Rect& r : l.marks) {
 			nvgBeginPath(vg);
 			nvgRect(vg, r.x, r.y, r.w, r.h);
-			nvgFillColor(vg, nvgRGB(r.color.r, r.color.g, r.color.b));
+			nvgFillColor(vg, toNvg(r.color));
 			nvgFill(vg);
 		}
 		if (message && *message) {
@@ -296,7 +309,7 @@ struct LucarneDisplay : widget::Widget {
 #else
 				nvgFontSize(vg, size);
 #endif
-				nvgFillColor(vg, nvgRGB(scheme.text.r, scheme.text.g, scheme.text.b));
+				nvgFillColor(vg, toNvg(scheme.text));
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 				int lines = 1;
 				for (const char* c = message; *c; c++)
@@ -430,6 +443,17 @@ struct LucarneWidget : ModuleWidget {
 			menu->addChild(schemeMenu(lucarneModule, "Particules color scheme", kSlotParticules));
 			menu->addChild(schemeMenu(lucarneModule, "Retours color scheme", kSlotRetours));
 		}
+#ifdef METAMODULE
+		// TEMPORARY: display-boost spike.
+		menu->addChild(createSubmenuItem("Display boost (test)", "", [](Menu* sub) {
+			static const char* const kNames[lucarne::DisplayBoost::kLevels] = {
+				"Off", "1: mild", "2", "3", "4: strong"};
+			for (int i = 0; i < lucarne::DisplayBoost::kLevels; i++)
+				sub->addChild(createCheckMenuItem(kNames[i], "",
+					[=]() { return lucarneBoost.level() == i; },
+					[=]() { lucarneBoost.setLevel(i); }));
+		}));
+#endif
 	}
 
 #ifndef METAMODULE
