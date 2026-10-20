@@ -8,14 +8,14 @@ What's new in Robot Boy, newest first. For how anything works, see the module ma
 
 Lucarne now comes in seven color schemes. Pick one from the options menu and it's saved with your patch.
 
-Lucarne saves different color schemes for Particules and Retours. On VCV you can set the current scheme as the default. 
+Lucarne saves different color schemes for Particules and Retours. On VCV you can set the current scheme as the default.
 
 ### Also
 
 - Lucarne with Particules: grains now vanish the moment they stop sounding instead of fading out slowly, which is more accurate and easier to read.
 - Lucarne with Retours: assorted display improvements.
 - Lucarne on MetaModule: colors look brighter and more vivid.
-- Particules and Retours use less CPU when Reverb is at 0. 
+- Particules and Retours use less CPU when Reverb is at 0.
 
 ## [2.3.0] — 2026-10-15 (MetaModule)
 
@@ -45,16 +45,16 @@ Corrected the tags in the VCV Library listing, so Loooop and Löp are filed unde
 
 *Particules, Retours, and Ondes now run the authentic Beads code!*
 
-When these modules were designed, that code was closed-source, so the modules reconstructed Beads's functionality using original code. 
+When these modules were designed, that code was closed-source, so the modules reconstructed Beads's functionality using original code.
 
 In October 2026, Beads creator Émilie Gillet released the [source code](https://github.com/pichenettes/eurorack/tree/master/beads). Our modules should now sound and respond exactly as Beads does.
 
 Your patches still load, but anything made with 2.1 or earlier will sound and play differently. If you need the old sound, [Robot Boy 2.2.0 Classic](https://github.com/gabriel-roth/RobotBoy/releases/tag/classic-2.2.0) has a **Classic mode** switch that preserves the old engines.
 
-### New features: 
-- **Particules** gets Beads' **Seed** button: press once to play grains only while it's held; hold it for four seconds to go back.
-- **Particules** and **Retours** each now have a designated **Gate** output — you no longer have to give up an audio channel if you want a trigger for each grain or repeat. 
-- **Retours** gets Beads' **Filter** and **Reverb** controls, each with its own CV input.
+### New features:
+- **Particules** gets Beads's **Seed** button: press once to play grains only while it's held; hold it for four seconds to go back.
+- **Particules** and **Retours** each now have a designated **Gate** output — you no longer have to give up an audio channel if you want a trigger for each grain or repeat.
+- **Retours** gets Beads's **Filter** and **Reverb** controls, each with its own CV input.
 
 ### New module: Lucarne
 
