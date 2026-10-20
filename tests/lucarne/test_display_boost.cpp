@@ -38,18 +38,22 @@ template <typename F> static void forEachDisplayColor(F f) {
             f(s, c);
 }
 
+// Strengths in increasing order, the MetaModule setting among them.
+static const float kStrengths[] = {0.f, 0.15f, 0.3f, 0.45f, DisplayBoost::kMetaModule, 0.6f};
+static const int kNumStrengths = int(sizeof(kStrengths) / sizeof(kStrengths[0]));
+
 int main() {
     {
-        DisplayBoost off(0);
+        DisplayBoost off(0.f);
         bool identity = true;
         for (int r = 0; r < 256; r += 5)
             for (int g = 0; g < 256; g += 5)
                 for (int b = 0; b < 256; b += 5)
                     identity &= same(off.apply({uint8_t(r), uint8_t(g), uint8_t(b)}), {uint8_t(r), uint8_t(g), uint8_t(b)});
-        check(identity, "level 0 leaves every color unchanged");
+        check(identity, "strength 0 leaves every color unchanged");
     }
-    for (int level = 1; level < DisplayBoost::kLevels; ++level) {
-        DisplayBoost b(level);
+    for (int i = 1; i < kNumStrengths; ++i) {
+        DisplayBoost b(kStrengths[i]);
         check(same(b.apply({0, 0, 0}), {0, 0, 0}) && same(b.apply({255, 255, 255}), {255, 255, 255}),
               "black and white stay put");
         bool monotonic = true;
@@ -71,24 +75,17 @@ int main() {
         // brighter: dark backgrounds sink, Paper's paper whitens and its ink
         // darkens, waveforms and marks rise.
         bool ordered = true;
-        for (int level = 1; level < DisplayBoost::kLevels; ++level) {
-            DisplayBoost lo(level - 1), hi(level);
+        for (int i = 1; i < kNumStrengths; ++i) {
+            DisplayBoost lo(kStrengths[i - 1]), hi(kStrengths[i]);
             forEachDisplayColor([&](const ColorScheme& s, Rgb c) {
                 const bool dark = luma(c) < DisplayBoost::kPivot * 255.f;
                 const float a = luma(lo.apply(c)), b = luma(hi.apply(c));
                 const bool ok = dark ? b <= a + 0.5f : b + 0.5f >= a;
-                if (!ok) std::printf("  %s %02X%02X%02X level %d\n", s.id, c.r, c.g, c.b, level);
+                if (!ok) std::printf("  %s %02X%02X%02X strength %g\n", s.id, c.r, c.g, c.b, kStrengths[i]);
                 ordered &= ok;
             });
         }
-        check(ordered, "each level darkens colors below the pivot and brightens the rest");
-    }
-    {
-        DisplayBoost b(2);
-        std::printf("level 2 samples (Lucarne scheme): wave 51667A -> %02X%02X%02X, text 808A94 -> %02X%02X%02X, bg 101418 -> %02X%02X%02X\n",
-                    b.apply(kSchemes[0].wave).r, b.apply(kSchemes[0].wave).g, b.apply(kSchemes[0].wave).b,
-                    b.apply(kSchemes[0].text).r, b.apply(kSchemes[0].text).g, b.apply(kSchemes[0].text).b,
-                    b.apply(kSchemes[0].bg).r, b.apply(kSchemes[0].bg).g, b.apply(kSchemes[0].bg).b);
+        check(ordered, "each step up darkens colors below the pivot and brightens the rest");
     }
     std::printf(g_failures ? "%d FAILED\n" : "all passed\n", g_failures);
     return g_failures ? 1 : 0;

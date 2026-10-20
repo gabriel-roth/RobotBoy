@@ -47,11 +47,10 @@ BeadsModule* Lucarne::source() const {
 int lucarneDefaultScheme[kNumSlots] = {0, 0};
 
 #ifdef METAMODULE
-// TEMPORARY (MetaModule display-boost spike): strength picked from the menu
-// on the hardware, not saved. Becomes a constant once one is chosen.
-static lucarne::DisplayBoost lucarneBoost{2};
+// MetaModule's LCD flattens colors: boost contrast and saturation there.
 static NVGcolor toNvg(lucarne::Rgb c) {
-	c = lucarneBoost.apply(c);
+	static const lucarne::DisplayBoost boost{lucarne::DisplayBoost::kMetaModule};
+	c = boost.apply(c);
 	return nvgRGB(c.r, c.g, c.b);
 }
 #else
@@ -443,17 +442,6 @@ struct LucarneWidget : ModuleWidget {
 			menu->addChild(schemeMenu(lucarneModule, "Particules color scheme", kSlotParticules));
 			menu->addChild(schemeMenu(lucarneModule, "Retours color scheme", kSlotRetours));
 		}
-#ifdef METAMODULE
-		// TEMPORARY: display-boost spike.
-		menu->addChild(createSubmenuItem("Display boost (test)", "", [](Menu* sub) {
-			static const char* const kNames[lucarne::DisplayBoost::kLevels] = {
-				"Off", "1: mild", "2", "3", "4: strong"};
-			for (int i = 0; i < lucarne::DisplayBoost::kLevels; i++)
-				sub->addChild(createCheckMenuItem(kNames[i], "",
-					[=]() { return lucarneBoost.level() == i; },
-					[=]() { lucarneBoost.setLevel(i); }));
-		}));
-#endif
 	}
 
 #ifndef METAMODULE

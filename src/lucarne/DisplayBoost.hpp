@@ -14,18 +14,15 @@ namespace lucarne {
 
 class DisplayBoost {
 public:
-	static constexpr int kLevels = 5;   // 0 = off
+	// MetaModule's setting, picked by eye on the hardware (2026-10-19).
+	static constexpr float kMetaModule = 0.525f;
 	// Luma (0-1) the contrast curve turns on: just above the dark schemes'
 	// backgrounds, so they sink and their waveforms and marks rise.
 	static constexpr float kPivot = 0.1f;
 
-	explicit DisplayBoost(int level = 0) { setLevel(level); }
-
-	int level() const { return level_; }
-
-	void setLevel(int level) {
-		level_ = std::min(std::max(level, 0), kLevels - 1);
-		const float t = 0.15f * float(level_);
+	// strength 0 leaves colors unchanged.
+	explicit DisplayBoost(float strength) : strength_(std::max(strength, 0.f)) {
+		const float t = strength_;
 		// Contrast: slope 1 + t at the pivot, black and white stay put.
 		// Darks below the pivot sink, everything above it rises.
 		const float k = 1.f + t;
@@ -40,7 +37,7 @@ public:
 	}
 
 	Rgb apply(Rgb c) const {
-		if (level_ == 0) return c;
+		if (strength_ == 0.f) return c;
 		float ch[3] = {float(c.r), float(c.g), float(c.b)};
 		// Scale the whole color to the curve's luma, no further than its
 		// brightest channel allows.
@@ -67,7 +64,7 @@ public:
 
 private:
 	static float luma(const float* ch) { return 0.2126f * ch[0] + 0.7152f * ch[1] + 0.0722f * ch[2]; }
-	int level_ = 0;
+	float strength_ = 0.f;
 	float curve_[256] = {};
 	float saturation_ = 1.f;
 };

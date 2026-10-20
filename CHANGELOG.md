@@ -14,6 +14,7 @@ Particules and Retours each get their own scheme, so a Lucarne you move from one
 
 - Lucarne with Particules: grains now vanish the moment they stop sounding instead of fading out slowly, so dense clouds are much easier to read.
 - Lucarne with Retours: assorted display improvements.
+- Lucarne on MetaModule: brighter, punchier colors, to make up for the MetaModule screen flattening them.
 - Particules and Retours use less CPU while Reverb is turned all the way down. The sound doesn't change: the reverb only rests once its tail has completely died away.
 
 ### Small print
