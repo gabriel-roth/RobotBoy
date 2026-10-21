@@ -2,7 +2,9 @@
 
 What's new in Robot Boy, newest first. For how anything works, see the module manuals linked from the [README](README.md).
 
-## [Unreleased]
+## [2.4.0] — 2026-10-21
+
+On VCV, this release also includes everything from 2.3.0.
 
 ### Lucarne color schemes
 
