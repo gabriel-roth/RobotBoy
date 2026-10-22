@@ -56,6 +56,19 @@ inline float BrumeTankRate(BrumeQuality quality) {
 // at 2..4 s, bisected to 1.4221 and rounded to 3 significant figures.
 constexpr float kShimmerSustainGain = 1.42f;
 
+struct BrumeInput {
+  float l, r;
+};
+
+// One patched input feeds both sides; none is silence.
+inline BrumeInput NormalizeInputs(
+    bool l_patched, bool r_patched, float l, float r) {
+  if (l_patched && r_patched) return {l, r};
+  if (l_patched) return {l, l};
+  if (r_patched) return {r, r};
+  return {0.0f, 0.0f};
+}
+
 inline float ClampUnit(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
 // Noon = unity.

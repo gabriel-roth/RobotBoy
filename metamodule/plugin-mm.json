@@ -2,7 +2,7 @@
   "MetaModuleBrandName": "Robot Boy",
   "MetaModuleBrandSlug": "RobotBoy",
   "MetaModulePluginMaintainer": "Gabriel Roth",
-  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, and Lucarne display expander for Particules and Retours.",
+  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, Lucarne display expander for Particules and Retours, and Brume reverb.",
   "MetaModuleIncludedModules": [
     {
       "slug": "Loooop", "name": "Loooop", "displayName": "Loooop",
@@ -39,6 +39,21 @@
                 "Shape CV In", "Feedback CV In", "Reverb CV In", "Dry/wet CV In",
                 "Audio L Out", "Audio R Out", "Repeat gate Out"]
     },
-    { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne" }
+    { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne" },
+    { "slug": "Brume", "name": "Brume", "displayName": "Brume",
+      "order": ["Rise", "Fall", "Sidechain In", "Envelope Out",
+                "Send", "Filter", "Smear", "Wow & flutter", "Shimmer", "Interval",
+                "Send CV In", "Filter CV In", "Smear CV In", "Wow & flutter CV In",
+                "Shimmer CV In", "Interval CV In",
+                "Send CV amount", "Filter CV amount", "Smear CV amount", "Wow & flutter CV amount",
+                "Shimmer CV amount", "Interval CV amount",
+                "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Dry/wet",
+                "Decay CV In", "Damp CV In", "Diffuse CV In", "Mod speed CV In", "Mod depth CV In",
+                "Width CV In", "Dry/wet CV In",
+                "Decay CV amount", "Damp CV amount", "Diffuse CV amount", "Mod speed CV amount",
+                "Mod depth CV amount", "Width CV amount", "Dry/wet CV amount",
+                "Audio L In", "Audio R In", "Mode", "Quality", "Clear", "Clear trigger In",
+                "Audio L Out", "Audio R Out"]
+    }
   ]
 }

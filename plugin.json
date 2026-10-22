@@ -16,6 +16,7 @@
     { "slug": "Ondes", "name": "Ondes", "description": "Wavetable oscillator built on the open-source Beads code.", "tags": ["Oscillator"] },
     { "slug": "Vespid", "name": "Vespid", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] },
     { "slug": "Retours", "name": "Retours", "description": "Clockable, freezable, pitch-shifting delay built on the open-source Beads code.", "tags": ["Delay", "Effect"] },
-    { "slug": "Lucarne", "name": "Lucarne", "description": "Expander for Particules and Retours that shows their buffer, grains and delay taps.", "tags": ["Visual", "Expander"] }
+    { "slug": "Lucarne", "name": "Lucarne", "description": "Expander for Particules and Retours that shows their buffer, grains and delay taps.", "tags": ["Visual", "Expander"] },
+    { "slug": "Brume", "name": "Brume", "description": "Stereo reverb with shimmer and an envelope follower, built on the open-source Beads and Clouds code.", "tags": ["Reverb", "Effect"] }
   ]
 }

@@ -9,12 +9,12 @@
 # and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW
 # column uses 8.5 mm from label to knob and 6 mm between controls. Its plate
 # starts at y = 6.0, just below the top-left corner screw and above the other
-# plates (which start at 15.5), so the follower glyph sits on it, and runs down to the other plates' bottom
-# (107.6). The ENV jack and label sit in an opaque panel-background (#3d3d3d)
-# inset at the plate's foot, a "negative" rect marking the output; the ENV
-# light sits on the plate midway between the SIDE jack and the inset. The
-# bottom row (IN, MODE, QUALITY, CLEAR, OUT) has equal gaps to the panel
-# edges.
+# plates (which start at 15.5), so the follower glyph sits on it, and runs
+# down to the other plates' bottom edge (107.6). The ENV jack and label sit
+# in an opaque panel-background (#3d3d3d) inset at the plate's foot, a
+# "negative" rect marking the output; the ENV light sits on the plate midway
+# between the SIDE jack and the inset. The bottom row (IN, MODE, QUALITY,
+# CLEAR, OUT) has equal gaps to the panel edges.
 #
 # Every x/y here must match the mm2px(Vec(...)) centers in src/Brume.cpp.
 slug: Brume

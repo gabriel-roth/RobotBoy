@@ -109,3 +109,18 @@ TEST_CASE("interval modulation", "[brume_controls]") {
   const float nan = std::numeric_limits<float>::quiet_NaN();
   REQUIRE(ModulatedInterval(7.0f, true, nan, 1.0f, 0.0f) == Approx(7.0f));
 }
+
+TEST_CASE("input normalization", "[brume_controls]") {
+  BrumeInput in = NormalizeInputs(true, false, 0.3f, 0.9f);
+  REQUIRE(in.l == 0.3f);
+  REQUIRE(in.r == 0.3f);
+  in = NormalizeInputs(false, true, 0.3f, 0.9f);
+  REQUIRE(in.l == 0.9f);
+  REQUIRE(in.r == 0.9f);
+  in = NormalizeInputs(true, true, 0.3f, 0.9f);
+  REQUIRE(in.l == 0.3f);
+  REQUIRE(in.r == 0.9f);
+  in = NormalizeInputs(false, false, 0.3f, 0.9f);
+  REQUIRE(in.l == 0.0f);
+  REQUIRE(in.r == 0.0f);
+}
