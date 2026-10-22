@@ -7,6 +7,8 @@
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
 
+* **[Brume](Brume.md):** A stereo reverb with shimmer and an envelope follower, built on the Beads and Clouds reverbs.
+
 * **[Lucarne](Lucarne.md):** A display expander for Particules' and Retours' buffers, grains and delay taps.
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads, and its smaller sibling **[Löp](Loooop.md#löp)**.
@@ -36,6 +38,12 @@ Beads’s hidden delay mode as a standalone delay and beat-slicer, with manual, 
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
 
 A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob picks one of 12 banks, another sweeps through its 16 waveforms. [**[Manual]**](Ondes.md)
+
+## Brume
+
+<img src="screenshots/Brume.png" alt="Brume module" height="300">
+
+A stereo reverb that runs either the Beads or the Clouds tank, with every tank parameter on a knob, plus a shimmer loop, smear, wow, and an envelope follower that moves any knob you haven't patched. [**[Manual]**](Brume.md)
 
 ## Lucarne
 
