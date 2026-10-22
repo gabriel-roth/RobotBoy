@@ -8,10 +8,11 @@
 # SIDE, ENV). Cells are centered per plate. Each cell's label, knob, jack
 # and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW
 # column uses 8.5 mm from label to knob and 6 mm between controls. Its plate
-# starts at y = 6.0, above the other plates (which start at 15.5), so the
-# follower glyph sits on it, and runs down to the other plates' bottom
-# (107.6). The ENV jack and label sit in an opaque panel-background (#3d3d3d)
-# inset at the plate's foot, a "negative" rect marking the output; the ENV
+# starts at y = 4.0, flush with the wordmark's top and above the other
+# plates (which start at 15.5), so the follower glyph sits on it, and runs
+# down to the other plates' bottom (107.6). The top-left corner ScrewBlack
+# (0..5.08 mm) overlaps the plate's top edge by design. The ENV jack and label sit in an opaque panel-background
+# (#3d3d3d) inset at the plate's foot, a "negative" rect marking the output; the ENV
 # light sits on the plate midway between the SIDE jack and the inset. The
 # bottom row (IN, MODE, QUALITY, CLEAR, OUT) has equal gaps to the panel
 # edges.
@@ -33,7 +34,7 @@ zones:
   - {x: 108.320, y: 15.500, w: 37.500, h: 45.050, rx: 2, fill: "#a896bd", opacity: 0.55}
   - {x: 21.820, y: 62.550, w: 84.500, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
   - {x: 108.320, y: 62.550, w: 37.500, h: 45.050, rx: 2, fill: "#9a9a9a", opacity: 0.55}
-  - {x: 1.500, y: 6.000, w: 18.320, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
+  - {x: 1.500, y: 4.000, w: 18.320, h: 103.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
   - {x: 3.000, y: 88.485, w: 15.320, h: 17.615, rx: 1.5, fill: "#3d3d3d", opacity: 1.0}
 
 elements:
