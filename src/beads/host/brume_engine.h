@@ -4,15 +4,22 @@
 // one or the other). The send goes through a resampler into the tank rate
 // for the current Quality, where it is processed in blocks of rate / 4000
 // frames: FILTER, SMEAR, the shimmer return, a DC blocker, Beads' pre-reverb
-// limiter, the active tank (Beads or Clouds, fully wet) and Beads' output
-// limiter. The limited tank output is pitch-shifted, scaled by SHIMMER and
-// returned to the input of the next block. The
-// wet comes back through a second resampler and an output FIFO primed as in
-// EngineHost, then WIDTH and DRY/WET mix it with the dry, undelayed input.
+// limiter, the active tank (Beads or Clouds, fully wet), the Mode's makeup
+// gain, Beads' output limiter and the tank's output gain. The active tank's
+// output is pitch-shifted, scaled by SHIMMER and returned to the input of the
+// next block. The wet comes back through a second resampler and an output
+// FIFO primed as in EngineHost, then WIDTH and DRY/WET mix it with the dry,
+// undelayed input.
+//
+// Mode switches spill over: the old tank gets silence and its output gain
+// falls to 0 over 2 s, its output added to the wet; at 0 it is cleared and
+// stops. The active tank's gain rises to 1 over 20 ms, so switching back to
+// a tank that is still ringing picks it up where it is. Each tank has its own
+// output limiter, which goes with it into the spillover.
 //
 // A Clear or Quality change fades the wet out over 10 ms at the tank rate,
-// then clears every engine buffer; a Quality change also reconfigures the
-// streams and fades back in over 10 ms.
+// then clears every engine buffer, both tanks included; a Quality change
+// also reconfigures the streams and fades back in over 10 ms.
 
 #pragma once
 
@@ -35,6 +42,14 @@
 #include "host/wow_flutter.h"
 
 namespace robotboy_beads {
+
+// Wet makeup gain per Mode, after the tank and before its output limiter, so
+// that both Modes give the same wet RMS for pink noise at the defaults. The
+// Clouds value is the Beads/Clouds wet RMS ratio from the "calibrate the
+// Clouds makeup" test (test_brume_modes.cpp), 30 s of pink noise, Bright,
+// rounded to 3 significant figures.
+constexpr float kBeadsMakeup = 1.0f;
+constexpr float kCloudsMakeup = 0.992f;  // measured 0.99179
 
 // Knob values 0..1 after modulation, except interval (semitones).
 struct BrumeControls {
@@ -60,7 +75,8 @@ class BrumeEngine {
 
   void SetHostRate(float host_rate);
 
-  // Applied at the next block; the new tank starts empty.
+  // Applied at the next block. The old tank spills over; the new one
+  // starts empty unless it is still spilling over.
   void SetMode(BrumeMode mode) { requested_mode_ = mode; }
   // Fade out, clear, reconfigure, fade in.
   void SetQuality(BrumeQuality quality) { requested_quality_ = quality; }
@@ -80,6 +96,9 @@ class BrumeEngine {
   float tank_rate() const { return tank_rate_; }
   // Times the output FIFO ran dry after priming and had to re-prime.
   int underflows() const { return underflows_; }
+  // A tank's output gain: 1 when active, falling while it spills over, 0
+  // when stopped.
+  float tank_gain(BrumeMode mode) const { return tank_gain_[int(mode)]; }
 
  private:
   enum {
@@ -94,7 +113,8 @@ class BrumeEngine {
   void ClearEngine();
   void ClearTank(BrumeMode mode);
   void RunBlock();
-  void ApplyTankControls(const BrumeControls& c);
+  void ApplyTankControls(BrumeMode mode, const BrumeControls& c);
+  void ProcessTank(BrumeMode mode, beads::FloatFrame* frames, size_t size);
   void PushOutputFrame(float l, float r);
 
   std::unique_ptr<uint16_t[]> beads_memory_;
@@ -102,17 +122,22 @@ class BrumeEngine {
   std::unique_ptr<float[]> diffuser_memory_;
   std::unique_ptr<uint16_t[]> pitch_shifter_memory_;
 
-  // Both tanks always exist; only the active one runs.
+  // Both tanks always exist; the active one runs, and the other while it
+  // spills over. Indexed by BrumeMode.
   beads::Reverb beads_tank_;
   clouds::Reverb clouds_tank_;
   float applied_speed_[2];  // last set_lfo_rate multiplier per tank; < 0: stale
+  beads::Limiter post_limiter_[2];
+  float tank_gain_[2] = {1.0f, 0.0f};
+  bool tank_running_[2] = {true, false};
+  float gain_rise_ = 1.0f / 960.0f;    // per tank-rate sample, 20 ms
+  float gain_fall_ = 1.0f / 96000.0f;  // 2 s
 
   clouds::Diffuser diffuser_;
   stmlib::Svf lp_[2];
   stmlib::Svf hp_[2];
   stmlib::DCBlocker dc_blocker_[2];
   beads::Limiter pre_limiter_;
-  beads::Limiter post_limiter_;
 
   // Shimmer: the previous block's tank output, pitch-shifted and scaled.
   clouds::PitchShifter pitch_shifter_;
@@ -152,6 +177,8 @@ class BrumeEngine {
 
   // Tank-rate block being assembled.
   std::array<beads::FloatFrame, kMaxBlockSize> block_;
+  // The spilling-over tank's output for the current block.
+  std::array<beads::FloatFrame, kMaxBlockSize> spill_;
   size_t block_fill_ = 0;
 
   // Host-rate wet FIFO.

@@ -15,6 +15,8 @@ constexpr size_t kPitchShifterSize = 4096;
 
 constexpr float kSmoothingSeconds = 0.002f;
 constexpr float kFadeSeconds = 0.010f;
+constexpr float kGainRiseSeconds = 0.020f;
+constexpr float kSpilloverSeconds = 2.0f;
 constexpr float kDcBlockerHertz = 10.0f;
 // The send is held to +-8 (+-40 V) and made finite before the engine sees
 // it; RunBlock's finite check catches anything that still diverges.
@@ -58,6 +60,7 @@ BrumeEngine::BrumeEngine() {
   controls_ = DefaultBrumeControls();
   applied_speed_[0] = applied_speed_[1] = -1.0f;
   block_.fill(beads::FloatFrame{0.0f, 0.0f});
+  spill_.fill(beads::FloatFrame{0.0f, 0.0f});
   shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
   for (auto& f : output_fifo_) f.fill(0.0f);
 }
@@ -150,6 +153,8 @@ void BrumeEngine::Reconfigure() {
   tank_rate_ = BrumeTankRate(quality_);
   block_size_ = size_t(tank_rate_ / 4000.0f);
   fade_step_ = 1.0f / (kFadeSeconds * tank_rate_);
+  gain_rise_ = 1.0f / (kGainRiseSeconds * tank_rate_);
+  gain_fall_ = 1.0f / (kSpilloverSeconds * tank_rate_);
   ClearEngine();
   ResetStreams();
 }
@@ -178,11 +183,18 @@ void BrumeEngine::ClearTank(BrumeMode mode) {
     clouds_tank_.Clear();
   }
   applied_speed_[int(mode)] = -1.0f;
+  // As Beads' output_limiter_ (processor.cc).
+  post_limiter_[int(mode)].Init(1.0f / (tank_rate_ * 6.0f), 0.9f);
 }
 
 void BrumeEngine::ClearEngine() {
   ClearTank(BrumeMode::kBeads);
   ClearTank(BrumeMode::kClouds);
+  // The spillover stops; the active tank plays at full gain.
+  for (int m = 0; m < 2; ++m) {
+    tank_running_[m] = m == int(mode_);
+    tank_gain_[m] = tank_running_[m] ? 1.0f : 0.0f;
+  }
   diffuser_.Clear();
   pitch_shifter_.Clear();
   shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
@@ -193,18 +205,17 @@ void BrumeEngine::ClearEngine() {
     hp_[i].Reset();
     dc_blocker_[i].Init(pole);
   }
-  // As Beads' pre_reverb_limiter_ and output_limiter_ (processor.cc).
+  // As Beads' pre_reverb_limiter_ (processor.cc).
   pre_limiter_.Init(1.0f / (tank_rate_ * 4.0f), 0.9f);
-  post_limiter_.Init(1.0f / (tank_rate_ * 6.0f), 0.9f);
 }
 
-void BrumeEngine::ApplyTankControls(const BrumeControls& c) {
-  const float time = DecayTime(c.decay, mode_);
+void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
+  const float time = DecayTime(c.decay, mode);
   const float lp = DampLp(c.damp);
   const float diffusion = DiffuseCoefficient(c.diffuse);
   const float speed = SpeedMultiplier(c.speed);
-  float& applied_speed = applied_speed_[int(mode_)];
-  if (mode_ == BrumeMode::kBeads) {
+  float& applied_speed = applied_speed_[int(mode)];
+  if (mode == BrumeMode::kBeads) {
     beads_tank_.set_mix(1.0f);
     beads_tank_.set_time(time);
     beads_tank_.set_lp(lp);
@@ -228,6 +239,27 @@ void BrumeEngine::ApplyTankControls(const BrumeControls& c) {
   }
 }
 
+// Runs one tank, fully wet, in place. The Clouds class takes
+// clouds::FloatFrame, which has the same two floats; the block is copied
+// across rather than reinterpreted.
+void BrumeEngine::ProcessTank(
+    BrumeMode mode, beads::FloatFrame* frames, size_t size) {
+  if (mode == BrumeMode::kBeads) {
+    beads_tank_.Process(frames, size);
+    return;
+  }
+  clouds::FloatFrame clouds_frames[kMaxBlockSize];
+  for (size_t i = 0; i < size; ++i) {
+    clouds_frames[i].l = frames[i].l;
+    clouds_frames[i].r = frames[i].r;
+  }
+  clouds_tank_.Process(clouds_frames, size);
+  for (size_t i = 0; i < size; ++i) {
+    frames[i].l = clouds_frames[i].l;
+    frames[i].r = clouds_frames[i].r;
+  }
+}
+
 void BrumeEngine::PushOutputFrame(float l, float r) {
   const float frame[2] = {l, r};
   output_resampler_.Push(frame);
@@ -248,8 +280,14 @@ void BrumeEngine::RunBlock() {
 
   // Configuration changes happen between blocks.
   if (requested_mode_ != mode_) {
+    // The old tank spills over. The new one, if stopped, is already empty
+    // and starts at full gain; if still spilling over, its gain turns
+    // around from where it is.
     mode_ = requested_mode_;
-    ClearTank(mode_);
+    if (!tank_running_[int(mode_)]) {
+      tank_running_[int(mode_)] = true;
+      tank_gain_[int(mode_)] = 1.0f;
+    }
   }
   if (requested_quality_ != quality_ && fade_state_ != Fade::kQualityOut) {
     fade_state_ = Fade::kQualityOut;
@@ -262,7 +300,13 @@ void BrumeEngine::RunBlock() {
   }
 
   const BrumeControls c = controls_;
-  ApplyTankControls(c);
+  const BrumeMode spill_mode =
+      mode_ == BrumeMode::kBeads ? BrumeMode::kClouds : BrumeMode::kBeads;
+  const bool spilling = tank_running_[int(spill_mode)];
+  ApplyTankControls(mode_, c);
+  if (spilling) {
+    ApplyTankControls(spill_mode, c);
+  }
 
   beads::FloatFrame* frames = block_.data();
 
@@ -306,36 +350,64 @@ void BrumeEngine::RunBlock() {
   }
   pre_limiter_.Process(frames, size);
 
-  // The active tank, fully wet. Both sum L + R at their input.
-  if (mode_ == BrumeMode::kBeads) {
-    beads_tank_.Process(frames, size);
-  } else {
-    for (size_t i = 0; i < size; ++i) {
-      clouds_frames[i].l = frames[i].l;
-      clouds_frames[i].r = frames[i].r;
-    }
-    clouds_tank_.Process(clouds_frames, size);
-    for (size_t i = 0; i < size; ++i) {
-      frames[i].l = clouds_frames[i].l;
-      frames[i].r = clouds_frames[i].r;
-    }
+  // The active tank, fully wet (both sum L + R at their input), its makeup,
+  // its limiter and its output gain, rising to 1. At gain 1 and Beads'
+  // makeup of 1 the multiplications are exact.
+  const float makeup[2] = {kBeadsMakeup, kCloudsMakeup};
+  const int active = int(mode_);
+  ProcessTank(mode_, frames, size);
+  for (size_t i = 0; i < size; ++i) {
+    frames[i].l *= makeup[active];
+    frames[i].r *= makeup[active];
+  }
+  post_limiter_[active].Process(frames, size);
+  float& rise = tank_gain_[active];
+  for (size_t i = 0; i < size; ++i) {
+    rise = std::min(rise + gain_rise_, 1.0f);
+    frames[i].l *= rise;
+    frames[i].r *= rise;
   }
 
-  // (Task 7: per-tank output gain and spillover here.)
-
-  post_limiter_.Process(frames, size);
+  // The spillover: the other tank, with silence in, its gain falling to 0.
+  // It joins the wet but not the shimmer loop.
+  beads::FloatFrame* spill = spill_.data();
+  if (spilling) {
+    const int other = int(spill_mode);
+    for (size_t i = 0; i < size; ++i) {
+      spill[i].l = spill[i].r = 0.0f;
+    }
+    ProcessTank(spill_mode, spill, size);
+    for (size_t i = 0; i < size; ++i) {
+      spill[i].l *= makeup[other];
+      spill[i].r *= makeup[other];
+    }
+    post_limiter_[other].Process(spill, size);
+    float& fall = tank_gain_[other];
+    for (size_t i = 0; i < size; ++i) {
+      fall = std::max(fall - gain_fall_, 0.0f);
+      spill[i].l *= fall;
+      spill[i].r *= fall;
+    }
+    if (fall == 0.0f) {
+      ClearTank(spill_mode);
+      tank_running_[other] = false;
+    }
+  }
 
   bool finite = true;
   for (size_t i = 0; i < size; ++i) {
     finite = finite && std::isfinite(frames[i].l) && std::isfinite(frames[i].r);
+    if (spilling) {
+      finite = finite && std::isfinite(spill[i].l) && std::isfinite(spill[i].r);
+    }
   }
   if (!finite) {
     // Can't happen with finite, clamped input; if it does, start over
     // rather than carry a NaN in a filter state.
     ClearEngine();
   } else {
-    // Shimmer: the limited tank output, shifted by INTERVAL, feeds the next
-    // block. The shifter always runs, so raising SHIMMER from 0 picks up
+    // Shimmer: the active tank's output, shifted by INTERVAL, feeds the
+    // next block. The shifter always runs, so raising SHIMMER from 0 picks up
     // the current tail.
     const float gain = ShimmerGain(c.shimmer);
     pitch_shifter_.set_ratio(stmlib::SemitonesToRatio(c.interval_semitones));
@@ -358,8 +430,14 @@ void BrumeEngine::RunBlock() {
     } else if (fade_state_ != Fade::kRunning) {
       fade_ = std::max(fade_ - fade_step_, 0.0f);
     }
-    const float l = finite ? frames[i].l * fade_ : 0.0f;
-    const float r = finite ? frames[i].r * fade_ : 0.0f;
+    float l = frames[i].l;
+    float r = frames[i].r;
+    if (spilling) {
+      l += spill[i].l;
+      r += spill[i].r;
+    }
+    l = finite ? l * fade_ : 0.0f;
+    r = finite ? r * fade_ : 0.0f;
     PushOutputFrame(l, r);
   }
 
