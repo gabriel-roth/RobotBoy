@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <memory>
 #include <random>
 #include <vector>
 
@@ -175,6 +176,10 @@ struct BeadsRig {
     return f.l;
   }
   void SetRate(float multiplier) { reverb.set_lfo_rate(multiplier, kRate); }
+  float Lfo(int i) const { return reverb.lfo_value(i); }
+  void Silence(int n) {
+    for (int i = 0; i < n; ++i) Process(0.0f);
+  }
 };
 
 struct CloudsRig {
@@ -196,6 +201,10 @@ struct CloudsRig {
     return f.l;
   }
   void SetRate(float multiplier) { reverb.set_lfo_rate(multiplier, kRate); }
+  float Lfo(int i) const { return reverb.lfo_value(i); }
+  void Silence(int n) {
+    for (int i = 0; i < n; ++i) Process(0.0f);
+  }
 };
 
 // Two identical tanks fed a 220 Hz sine, one with its LFO rate doubled after
@@ -242,7 +251,79 @@ void CheckRateChangeKeepsPhase() {
   CHECK(max_step_after <= 4.0f * max_step);
 }
 
+// Both LFOs must stay in [0, 1] (they offset delay reads) however the rate
+// moves: single changes at several phases, then a 10 s random walk.
+template <typename Rig>
+void CheckLfoBounded() {
+  const float lo = -1e-3f, hi = 1.0f + 1e-3f;
+  const int period = static_cast<int>(2.0f * Rig::kRate);  // 2 s: a full cycle
+  for (float factor : {0.5f, 2.0f, 4.0f}) {
+    for (int at : {0, 2000, 8000, 16000, 24000, 31000}) {
+      Rig r;
+      r.SetRate(1.0f);
+      r.Silence(at);
+      r.SetRate(factor);
+      for (int i = 0; i < period; ++i) {
+        r.Process(0.0f);
+        for (int k = 0; k < 2; ++k) {
+          const float v = r.Lfo(k);
+          if (v < lo || v > hi) {
+            FAIL("LFO " << k << " = " << v << " (x" << factor << " at " << at
+                 << ")");
+          }
+        }
+      }
+    }
+  }
+  Rig r;
+  std::mt19937 rng(11);
+  std::normal_distribution<float> step(0.0f, 0.15f);
+  float log_rate = 0.0f;
+  const int blocks = static_cast<int>(10.0f * Rig::kRate / 32.0f);
+  for (int b = 0; b < blocks; ++b) {
+    log_rate = std::min(std::log(4.0f), std::max(std::log(0.25f), log_rate + step(rng)));
+    r.SetRate(std::exp(log_rate));
+    r.Silence(32);
+    for (int k = 0; k < 2; ++k) {
+      const float v = r.Lfo(k);
+      if (v < lo || v > hi) FAIL("random walk: LFO " << k << " = " << v);
+    }
+  }
+}
+
 }  // namespace
+
+TEST_CASE("LFO stays within [0, 1] when the rate moves", "[brume_vendor]") {
+  SECTION("Beads") { CheckLfoBounded<BeadsRig>(); }
+  SECTION("Clouds") { CheckLfoBounded<CloudsRig>(); }
+}
+
+TEST_CASE("Non-default depth and diffusion change the output",
+          "[brume_vendor]") {
+  auto run = [](auto make_rig, auto configure) {
+    auto rig = make_rig();
+    configure(rig->reverb);
+    std::mt19937 rng(5);
+    std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+    std::vector<float> out;
+    for (int i = 0; i < 20000; ++i) out.push_back(rig->Process(noise(rng)));
+    return out;
+  };
+  auto beads = [] { return std::make_unique<BeadsRig>(); };
+  auto clouds_rig = [] { return std::make_unique<CloudsRig>(); };
+  auto none = [](auto&) {};
+  SECTION("Beads") {
+    auto base = run(beads, none);
+    CHECK(run(beads, [](auto& r) { r.set_mod_depth(0.0f); }) != base);
+    CHECK(run(beads, [](auto& r) { r.set_diffusion(0.5f); }) != base);
+    CHECK(run(beads, [](auto& r) { r.set_mod_depth(1.0f); r.set_diffusion(0.625f); }) == base);
+  }
+  SECTION("Clouds") {
+    auto base = run(clouds_rig, [](auto& r) { r.set_diffusion(0.7f); });
+    CHECK(run(clouds_rig, [](auto& r) { r.set_mod_depth(0.0f); }) != base);
+    CHECK(run(clouds_rig, [](auto& r) { r.set_diffusion(0.5f); }) != base);
+  }
+}
 
 TEST_CASE("LFO rate change keeps phase", "[brume_vendor]") {
   SECTION("Beads") { CheckRateChangeKeepsPhase<BeadsRig>(); }

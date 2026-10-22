@@ -75,6 +75,7 @@ class Reverb {
     }
   }
   
+ private:
   template<bool custom>
   void ProcessTank(FloatFrame* in_out, size_t size) {
     // This is the Griesinger topology described in the Dattorro paper
@@ -215,6 +216,7 @@ class Reverb {
     }
   }
   
+ public:
   inline void set_mix(float mix) {
     mix_ = mix;
   }
@@ -236,11 +238,15 @@ class Reverb {
   // set_lfo_rate scales the 0.5 and 0.3 Hz LFOs without restarting their
   // phase; set_mod_depth scales the delay-line modulation excursions.
   inline void set_diffusion(float diffusion) { diffusion_ = diffusion; }
+  // Reset(sample_rate) restarts the LFOs at multiplier 1: re-apply the rate.
   inline void set_lfo_rate(float multiplier, float sample_rate) {
     engine_.SetLFOFrequencyKeepPhase(LFO_1, 0.5f * multiplier / sample_rate);
     engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
   }
   inline void set_mod_depth(float depth) { mod_depth_ = depth; }
+  inline float lfo_value(int index) const {
+    return engine_.lfo_value(index ? LFO_2 : LFO_1);
+  }
 
   // RobotBoy: sleep can be turned off (for comparison tests); asleep() says
   // whether the last Process() skipped the tank.

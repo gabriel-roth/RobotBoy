@@ -271,10 +271,14 @@ class FxEngine {
         frequency * 32.0f);
   }
   
-  // RobotBoy: changes an LFO's rate without restarting its phase.
+  // RobotBoy: changes an LFO's rate without restarting its phase or
+  // changing its amplitude.
   inline void SetLFOFrequencyKeepPhase(LFOIndex index, float frequency) {
-    lfo_[index].InitApproximate(frequency * 32.0f);
+    lfo_[index].SetFrequencyKeepPhase(frequency * 32.0f);
   }
+
+  // RobotBoy: the LFO's current value, in [0, 1].
+  inline float lfo_value(LFOIndex index) const { return lfo_[index].value(); }
 
   inline void Start(Context* c) {
     --write_ptr_;

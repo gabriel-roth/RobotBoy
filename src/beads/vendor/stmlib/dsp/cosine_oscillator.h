@@ -32,6 +32,7 @@
 
 #include "stmlib/stmlib.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace stmlib {
@@ -73,6 +74,30 @@ class CosineOscillator {
     initial_amplitude_ = iir_coefficient_ * 0.25f;
   }
   
+  // RobotBoy: changes the frequency without restarting the oscillator. The
+  // phase is read from the current state and the oscillator is re-seeded at
+  // that phase with the amplitude (0.5) a fresh Start() gives, so the output
+  // stays within [0, 1] however often the frequency moves. Does nothing if
+  // the coefficient does not change.
+  inline void SetFrequencyKeepPhase(float frequency) {
+    const float old_coefficient = iir_coefficient_;
+    InitApproximate(frequency);
+    if (iir_coefficient_ == old_coefficient) {
+      return;
+    }
+    const double c = 0.5 * old_coefficient;
+    const double s = std::sqrt(std::max(0.0, 1.0 - c * c));
+    if (s < 1.0e-9) {
+      Start();
+      return;
+    }
+    const double phase = std::atan2((y1_ - y0_ * c) / s, y0_);
+    const double c_new = std::min(1.0, std::max(-1.0, 0.5 * double(iir_coefficient_)));
+    const double theta = std::acos(c_new);
+    y0_ = float(0.5 * std::cos(phase));
+    y1_ = float(0.5 * std::cos(phase - theta));
+  }
+
   inline void Start() {
     y1_ = initial_amplitude_;
     y0_ = 0.5f;

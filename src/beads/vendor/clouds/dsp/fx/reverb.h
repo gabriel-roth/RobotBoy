@@ -61,6 +61,7 @@ class Reverb {
     }
   }
   
+ private:
   template<bool custom>
   void ProcessTank(FloatFrame* in_out, size_t size) {
     // This is the Griesinger topology described in the Dattorro paper
@@ -154,6 +155,7 @@ class Reverb {
     lp_decay_2_ = lp_2;
   }
   
+ public:
   inline void set_amount(float amount) {
     amount_ = amount;
   }
@@ -185,6 +187,10 @@ class Reverb {
   
   inline void set_mod_depth(float depth) {
     mod_depth_ = depth;
+  }
+  
+  inline float lfo_value(int index) const {
+    return engine_.lfo_value(index ? LFO_2 : LFO_1);
   }
   
   inline void Clear() {

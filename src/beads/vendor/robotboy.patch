@@ -308,22 +308,26 @@ index 8d16bfd..9983a81 100644
      Store(write_ptr_, in);
      if (write_ptr_ < interpolation_tail) {
 diff --git a/beads/dsp/fx/fx_engine.h b/beads/dsp/fx/fx_engine.h
-index d5ca01b..f441538 100644
+index d5ca01b..8a6fbdc 100644
 --- a/beads/dsp/fx/fx_engine.h
 +++ b/beads/dsp/fx/fx_engine.h
-@@ -271,6 +271,11 @@ class FxEngine {
+@@ -271,6 +271,15 @@ class FxEngine {
          frequency * 32.0f);
    }
    
-+  // RobotBoy: changes an LFO's rate without restarting its phase.
++  // RobotBoy: changes an LFO's rate without restarting its phase or
++  // changing its amplitude.
 +  inline void SetLFOFrequencyKeepPhase(LFOIndex index, float frequency) {
-+    lfo_[index].InitApproximate(frequency * 32.0f);
++    lfo_[index].SetFrequencyKeepPhase(frequency * 32.0f);
 +  }
++
++  // RobotBoy: the LFO's current value, in [0, 1].
++  inline float lfo_value(LFOIndex index) const { return lfo_[index].value(); }
 +
    inline void Start(Context* c) {
      --write_ptr_;
      if (write_ptr_ < 0) {
-@@ -289,7 +294,24 @@ class FxEngine {
+@@ -289,7 +298,24 @@ class FxEngine {
        c->lfo_value_[1] = lfo_[1].value();
      }
    }
@@ -350,7 +354,7 @@ index d5ca01b..f441538 100644
    enum {
      MASK = size - 1
 diff --git a/beads/dsp/fx/reverb.h b/beads/dsp/fx/reverb.h
-index f26ea89..7b5e32d 100644
+index f26ea89..726ba61 100644
 --- a/beads/dsp/fx/reverb.h
 +++ b/beads/dsp/fx/reverb.h
 @@ -44,6 +44,11 @@ class Reverb {
@@ -365,7 +369,7 @@ index f26ea89..7b5e32d 100644
    }
    
    void Reset(float sample_rate) {
-@@ -58,7 +63,20 @@ class Reverb {
+@@ -58,7 +63,21 @@ class Reverb {
      send_ = 0.0f;
    }
    
@@ -381,12 +385,13 @@ index f26ea89..7b5e32d 100644
 +    }
 +  }
 +  
++ private:
 +  template<bool custom>
 +  void ProcessTank(FloatFrame* in_out, size_t size) {
      // This is the Griesinger topology described in the Dattorro paper
      // (4 AP diffusers on the input, then a loop of 2x 2AP+1Delay).
      // Modulation is applied in the loop of the first diffuser AP for additional
-@@ -85,7 +103,8 @@ class Reverb {
+@@ -85,7 +104,8 @@ class Reverb {
      E::DelayLine<Memory, 9> del2;
      E::Context c;
  
@@ -396,7 +401,7 @@ index f26ea89..7b5e32d 100644
      const float klp = lp_;
      const float krt = reverb_time_;
  
-@@ -107,6 +126,31 @@ class Reverb {
+@@ -107,6 +127,31 @@ class Reverb {
          send_amount * input_gain,
          size);
  
@@ -428,7 +433,7 @@ index f26ea89..7b5e32d 100644
      while (size--) {
        const float dry_amount = dry_modulation.Next();
        const float wet_amount = wet_modulation.Next();
-@@ -117,7 +161,7 @@ class Reverb {
+@@ -117,7 +162,7 @@ class Reverb {
        engine_.Start(&c);
        
        // Smear AP1 inside the loop.
@@ -437,7 +442,7 @@ index f26ea89..7b5e32d 100644
        c.Write(ap1, 100, 0.0f);
        
        c.Read(in_out->l + in_out->r, send_amount);
-@@ -135,7 +179,7 @@ class Reverb {
+@@ -135,7 +180,7 @@ class Reverb {
        
        // Main reverb loop.
        c.Load(apout);
@@ -446,7 +451,7 @@ index f26ea89..7b5e32d 100644
        c.Lp(lp_1_, klp);
        c.Read(dap1a TAIL, -kap);
        c.WriteAllPass(dap1a, kap);
-@@ -147,7 +191,7 @@ class Reverb {
+@@ -147,7 +192,7 @@ class Reverb {
        in_out->l = in_out->l * dry_amount + wet * wet_amount;
  
        c.Load(apout);
@@ -455,7 +460,7 @@ index f26ea89..7b5e32d 100644
        c.Lp(lp_2_, klp);
        c.Read(dap2a TAIL, kap);
        c.WriteAllPass(dap2a, -kap);
-@@ -158,6 +202,16 @@ class Reverb {
+@@ -158,9 +203,20 @@ class Reverb {
        
        in_out->r = in_out->r * dry_amount + wet * wet_amount;
        ++in_out;
@@ -472,7 +477,11 @@ index f26ea89..7b5e32d 100644
      }
    }
    
-@@ -175,8 +229,24 @@ class Reverb {
++ public:
+   inline void set_mix(float mix) {
+     mix_ = mix;
+   }
+@@ -175,8 +231,28 @@ class Reverb {
    
    inline void Clear() {
      engine_.Clear();
@@ -483,11 +492,15 @@ index f26ea89..7b5e32d 100644
 +  // set_lfo_rate scales the 0.5 and 0.3 Hz LFOs without restarting their
 +  // phase; set_mod_depth scales the delay-line modulation excursions.
 +  inline void set_diffusion(float diffusion) { diffusion_ = diffusion; }
++  // Reset(sample_rate) restarts the LFOs at multiplier 1: re-apply the rate.
 +  inline void set_lfo_rate(float multiplier, float sample_rate) {
 +    engine_.SetLFOFrequencyKeepPhase(LFO_1, 0.5f * multiplier / sample_rate);
 +    engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
 +  }
 +  inline void set_mod_depth(float depth) { mod_depth_ = depth; }
++  inline float lfo_value(int index) const {
++    return engine_.lfo_value(index ? LFO_2 : LFO_1);
++  }
 +
 +  // RobotBoy: sleep can be turned off (for comparison tests); asleep() says
 +  // whether the last Process() skipped the tank.
@@ -497,7 +510,7 @@ index f26ea89..7b5e32d 100644
   private:
    typedef FxEngine<32768, FORMAT_16_BIT> E;
    E engine_;
-@@ -191,6 +261,13 @@ class Reverb {
+@@ -191,6 +267,13 @@ class Reverb {
    float lp_1_;
    float lp_2_;
    
@@ -986,26 +999,30 @@ index f1914cc..f5d1063 100644
      typedef E::Reserve<126,
        E::Reserve<180,
 diff --git a/clouds/dsp/fx/fx_engine.h b/clouds/dsp/fx/fx_engine.h
-index 8773ff7..396b2d0 100644
+index 8773ff7..c61fb37 100644
 --- a/clouds/dsp/fx/fx_engine.h
 +++ b/clouds/dsp/fx/fx_engine.h
-@@ -267,6 +267,11 @@ class FxEngine {
+@@ -267,6 +267,15 @@ class FxEngine {
          frequency * 32.0f);
    }
    
-+  // RobotBoy: changes an LFO's rate without restarting its phase.
++  // RobotBoy: changes an LFO's rate without restarting its phase or
++  // changing its amplitude.
 +  inline void SetLFOFrequencyKeepPhase(LFOIndex index, float frequency) {
-+    lfo_[index].InitApproximate(frequency * 32.0f);
++    lfo_[index].SetFrequencyKeepPhase(frequency * 32.0f);
 +  }
++
++  // RobotBoy: the LFO's current value, in [0, 1].
++  inline float lfo_value(LFOIndex index) const { return lfo_[index].value(); }
 +
    inline void Start(Context* c) {
      --write_ptr_;
      if (write_ptr_ < 0) {
 diff --git a/clouds/dsp/fx/reverb.h b/clouds/dsp/fx/reverb.h
-index 03f481c..60a929d 100644
+index 03f481c..cb2fbc5 100644
 --- a/clouds/dsp/fx/reverb.h
 +++ b/clouds/dsp/fx/reverb.h
-@@ -46,9 +46,23 @@ class Reverb {
+@@ -46,9 +46,24 @@ class Reverb {
      engine_.SetLFOFrequency(LFO_2, 0.3f / 32000.0f);
      lp_ = 0.7f;
      diffusion_ = 0.625f;
@@ -1024,12 +1041,13 @@ index 03f481c..60a929d 100644
 +    }
 +  }
 +  
++ private:
 +  template<bool custom>
 +  void ProcessTank(FloatFrame* in_out, size_t size) {
      // This is the Griesinger topology described in the Dattorro paper
      // (4 AP diffusers on the input, then a loop of 2x 2AP+1Delay).
      // Modulation is applied in the loop of the first diffuser AP for additional
-@@ -80,6 +94,7 @@ class Reverb {
+@@ -80,6 +95,7 @@ class Reverb {
      const float krt = reverb_time_;
      const float amount = amount_;
      const float gain = input_gain_;
@@ -1037,7 +1055,7 @@ index 03f481c..60a929d 100644
  
      float lp_1 = lp_decay_1_;
      float lp_2 = lp_decay_2_;
-@@ -90,7 +105,7 @@ class Reverb {
+@@ -90,7 +106,7 @@ class Reverb {
        engine_.Start(&c);
        
        // Smear AP1 inside the loop.
@@ -1046,7 +1064,7 @@ index 03f481c..60a929d 100644
        c.Write(ap1, 100, 0.0f);
        
        c.Read(in_out->l + in_out->r, gain);
-@@ -108,7 +123,7 @@ class Reverb {
+@@ -108,7 +124,7 @@ class Reverb {
        
        // Main reverb loop.
        c.Load(apout);
@@ -1055,7 +1073,15 @@ index 03f481c..60a929d 100644
        c.Lp(lp_1, klp);
        c.Read(dap1a TAIL, -kap);
        c.WriteAllPass(dap1a, kap);
-@@ -159,6 +174,25 @@ class Reverb {
+@@ -139,6 +155,7 @@ class Reverb {
+     lp_decay_2_ = lp_2;
+   }
+   
++ public:
+   inline void set_amount(float amount) {
+     amount_ = amount;
+   }
+@@ -159,6 +176,29 @@ class Reverb {
      lp_ = lp;
    }
    
@@ -1072,6 +1098,10 @@ index 03f481c..60a929d 100644
 +    mod_depth_ = depth;
 +  }
 +  
++  inline float lfo_value(int index) const {
++    return engine_.lfo_value(index ? LFO_2 : LFO_1);
++  }
++  
 +  inline void Clear() {
 +    engine_.Clear();
 +    lp_decay_1_ = 0.0f;
@@ -1081,7 +1111,7 @@ index 03f481c..60a929d 100644
   private:
    typedef FxEngine<16384, FORMAT_12_BIT> E;
    E engine_;
-@@ -168,6 +202,7 @@ class Reverb {
+@@ -168,6 +208,7 @@ class Reverb {
    float reverb_time_;
    float diffusion_;
    float lp_;
@@ -1089,6 +1119,49 @@ index 03f481c..60a929d 100644
    
    float lp_decay_1_;
    float lp_decay_2_;
+diff --git a/stmlib/dsp/cosine_oscillator.h b/stmlib/dsp/cosine_oscillator.h
+index 27c7818..a484d49 100644
+--- a/stmlib/dsp/cosine_oscillator.h
++++ b/stmlib/dsp/cosine_oscillator.h
+@@ -32,6 +32,7 @@
+ 
+ #include "stmlib/stmlib.h"
+ 
++#include <algorithm>
+ #include <cmath>
+ 
+ namespace stmlib {
+@@ -73,6 +74,30 @@ class CosineOscillator {
+     initial_amplitude_ = iir_coefficient_ * 0.25f;
+   }
+   
++  // RobotBoy: changes the frequency without restarting the oscillator. The
++  // phase is read from the current state and the oscillator is re-seeded at
++  // that phase with the amplitude (0.5) a fresh Start() gives, so the output
++  // stays within [0, 1] however often the frequency moves. Does nothing if
++  // the coefficient does not change.
++  inline void SetFrequencyKeepPhase(float frequency) {
++    const float old_coefficient = iir_coefficient_;
++    InitApproximate(frequency);
++    if (iir_coefficient_ == old_coefficient) {
++      return;
++    }
++    const double c = 0.5 * old_coefficient;
++    const double s = std::sqrt(std::max(0.0, 1.0 - c * c));
++    if (s < 1.0e-9) {
++      Start();
++      return;
++    }
++    const double phase = std::atan2((y1_ - y0_ * c) / s, y0_);
++    const double c_new = std::min(1.0, std::max(-1.0, 0.5 * double(iir_coefficient_)));
++    const double theta = std::acos(c_new);
++    y0_ = float(0.5 * std::cos(phase));
++    y1_ = float(0.5 * std::cos(phase - theta));
++  }
++
+   inline void Start() {
+     y1_ = initial_amplitude_;
+     y0_ = 0.5f;
 diff --git a/stmlib/stmlib.h b/stmlib/stmlib.h
 index a4fc9d5..3ec6d3c 100755
 --- a/stmlib/stmlib.h
