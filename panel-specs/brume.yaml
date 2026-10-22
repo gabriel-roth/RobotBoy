@@ -7,14 +7,15 @@
 # right: WIDTH, DRY/WET) plus a FOLLOW column on the far left (RISE, FALL,
 # SIDE, ENV). Cells are centered per plate. Each cell's label, knob, jack
 # and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW
-# column uses 8.5 mm from label to knob and 6 mm between controls. Its plate
-# starts at y = 6.0, just below the top-left corner screw and above the other
-# plates (which start at 15.5), so the follower glyph sits on it, and runs
-# down to the other plates' bottom edge (107.6). The ENV jack and label sit
-# in an opaque panel-background (#3d3d3d) inset at the plate's foot, a
-# "negative" rect marking the output; the ENV light sits on the plate midway
-# between the SIDE jack and the inset. The bottom row (IN, MODE, QUALITY,
-# CLEAR, OUT) has equal gaps to the panel edges.
+# column uses 8.5 mm from label to knob. Its plate starts at y = 6.0, just
+# below the top-left corner screw and above the other plates (which start at
+# 15.5), so the follower glyph sits on it, and runs down to the other plates'
+# bottom edge (107.6). The ENV jack and label sit in an opaque
+# panel-background (#3d3d3d) inset at the plate's foot, a "negative" rect
+# marking the output. Down the plate, the five gaps between the follower
+# glyph, the ENV light, RISE, FALL, SIDE and the inset are equal (about
+# 5.36 mm). The bottom row (IN, MODE, QUALITY, CLEAR, OUT) has equal gaps to
+# the panel edges.
 #
 # Every x/y here must match the mm2px(Vec(...)) centers in src/Brume.cpp.
 slug: Brume
@@ -89,13 +90,13 @@ elements:
   - {name: DRY_WET_PARAM, x: 136.445, y: 77.688}
   - {name: DRY_WET_INPUT, x: 136.445, y: 91.188}
   - {name: DRY_WET_CV_PARAM, widget: Trimpot, x: 136.445, y: 101.188}
-  - {text: "RISE", x: 10.66, y: 21.137, size: 3.175}
-  - {name: RISE_PARAM, x: 10.66, y: 29.637}
-  - {text: "FALL", x: 10.66, y: 42.688, size: 3.175}
-  - {name: FALL_PARAM, x: 10.66, y: 51.188}
-  - {text: "SIDE", x: 10.66, y: 64.237, size: 3.175}
-  - {name: SIDE_INPUT, x: 10.66, y: 71.953}
-  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 82.226}
+  - {text: "RISE", x: 10.66, y: 29.572, size: 3.175}
+  - {name: RISE_PARAM, x: 10.66, y: 38.072}
+  - {text: "FALL", x: 10.66, y: 50.483, size: 3.175}
+  - {name: FALL_PARAM, x: 10.66, y: 58.983}
+  - {text: "SIDE", x: 10.66, y: 71.394, size: 3.175}
+  - {name: SIDE_INPUT, x: 10.66, y: 79.109}
+  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 20.361}
   - {name: ENV_OUTPUT, x: 10.66, y: 95.000}
   - {text: "ENV", x: 10.66, y: 103.600, size: 3.175}
   - {name: IN_L_INPUT,   x: 10.150, y: 114.3}

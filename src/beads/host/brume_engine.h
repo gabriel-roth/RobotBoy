@@ -28,6 +28,10 @@
 #include <cstdint>
 #include <memory>
 
+// The vendored FxEngines' STATIC_ASSERTs expand to unused local typedefs.
+// (Clang honors the GCC pragma and spelling.)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #include "beads/dsp/frame.h"
 #include "beads/dsp/fx/reverb.h"
 #include "beads/dsp/limiter.h"
@@ -36,6 +40,7 @@
 #include "clouds/dsp/fx/pitch_shifter.h"
 #include "clouds/dsp/fx/reverb.h"
 #include "stmlib/dsp/filter.h"
+#pragma GCC diagnostic pop
 
 #include "host/brume_controls.h"
 #include "host/resampler.h"

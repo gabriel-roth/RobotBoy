@@ -130,14 +130,13 @@ struct Brume : Module {
 		LIGHTS_LEN
 	};
 
-	// The 13 plate controls, in BrumeControls order: knob SEND_PARAM + i,
+	// The 13 plate controls, in panel order: knob SEND_PARAM + i,
 	// trimpot SEND_CV_PARAM + i, jack SEND_INPUT + i.
 	static constexpr int kNumControls = 13;
 	static constexpr int kIntervalIndex = INTERVAL_PARAM - SEND_PARAM;
 	static_assert(DRY_WET_PARAM - SEND_PARAM == kNumControls - 1, "plate knobs");
 	static_assert(DRY_WET_CV_PARAM - SEND_CV_PARAM == kNumControls - 1, "plate trimpots");
 	static_assert(DRY_WET_INPUT - SEND_INPUT == kNumControls - 1, "plate jacks");
-	static_assert(sizeof(rb::BrumeControls) == kNumControls * sizeof(float), "BrumeControls layout");
 
 	rb::BrumeEngine engine;
 	rb::EnvelopeFollower follower;
@@ -330,10 +329,20 @@ struct Brume : Module {
 				values[i] = rb::ModulatedKnob(knob, patched, volts, trim, envelope);
 			}
 		}
-		const rb::BrumeControls controls = {
-			values[0], values[1], values[2], values[3], values[4], values[5], values[6],
-			values[7], values[8], values[9], values[10], values[11], values[12],
-		};
+		rb::BrumeControls controls;
+		controls.send = values[SEND_PARAM - SEND_PARAM];
+		controls.filter = values[FILTER_PARAM - SEND_PARAM];
+		controls.smear = values[SMEAR_PARAM - SEND_PARAM];
+		controls.wow = values[WOW_PARAM - SEND_PARAM];
+		controls.shimmer = values[SHIMMER_PARAM - SEND_PARAM];
+		controls.interval_semitones = values[INTERVAL_PARAM - SEND_PARAM];
+		controls.decay = values[DECAY_PARAM - SEND_PARAM];
+		controls.damp = values[DAMP_PARAM - SEND_PARAM];
+		controls.diffuse = values[DIFFUSE_PARAM - SEND_PARAM];
+		controls.speed = values[SPEED_PARAM - SEND_PARAM];
+		controls.depth = values[DEPTH_PARAM - SEND_PARAM];
+		controls.width = values[WIDTH_PARAM - SEND_PARAM];
+		controls.dry_wet = values[DRY_WET_PARAM - SEND_PARAM];
 		engine.SetControls(controls);
 
 		const rb::BrumeFrame out = engine.Process(in.l, in.r);
@@ -463,10 +472,10 @@ struct BrumeWidget : ModuleWidget {
 		}
 
 		// FOLLOW column.
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 29.637)), module, Brume::RISE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 51.188)), module, Brume::FALL_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.66, 71.953)), module, Brume::SIDE_INPUT));
-		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 82.226)), module, Brume::ENV_LIGHT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 38.072)), module, Brume::RISE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 58.983)), module, Brume::FALL_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.66, 79.109)), module, Brume::SIDE_INPUT));
+		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 20.361)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.66, 95.000)), module, Brume::ENV_OUTPUT));
 
 		// Bottom row.
