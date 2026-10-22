@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.0750 -0.6776 2.1500 1.3552">
+  <!-- DIFFUSE, counter-clockwise: separate echoes, each quieter than the last. -->
+  <line x1="-0.8500" y1="-0.4526" x2="-0.8500" y2="0.4526" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="-0.2833" y1="-0.1674" x2="-0.2833" y2="0.4526" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="0.2834" y1="0.0326" x2="0.2834" y2="0.4526" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="0.8501" y1="0.1726" x2="0.8501" y2="0.4526" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.0750 -0.6776 2.1500 1.3552">
+  <!-- WIDTH, counter-clockwise: two vertical lines 0.5mm apart, a narrow (mono) image. Same
+       footprint, height and 0.15mm stroke as Retours' INTERVAL tap ticks. -->
+  <line x1="-0.2500" y1="-0.4526" x2="-0.2500" y2="0.4526" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+  <line x1="0.2500" y1="-0.4526" x2="0.2500" y2="0.4526" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+</svg>

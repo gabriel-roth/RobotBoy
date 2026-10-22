@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.4 -0.8 2.8 1.6">
+  <!-- Marks the hold zone (last 5% of travel) on DECAY and SHIMMER: an
+       infinity sign, 2.4mm wide, centered on the viewBox origin so `at:`
+       places its middle. -->
+  <path d="M 0 0 C 0.35 -0.6 1.2 -0.6 1.2 0 C 1.2 0.6 0.35 0.6 0 0 C -0.35 -0.6 -1.2 -0.6 -1.2 0 C -1.2 0.6 -0.35 0.6 0 0 Z" fill="none" stroke="#ffffff" stroke-width="0.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
