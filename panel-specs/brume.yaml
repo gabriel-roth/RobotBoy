@@ -7,11 +7,14 @@
 # right: WIDTH, DRY/WET) plus a FOLLOW column on the far left (RISE, FALL,
 # SIDE, ENV). Cells are centered per plate. Each cell's label, knob, jack
 # and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW
-# column uses 8.5 mm from label to knob and 6 mm between controls; its ENV
-# output sits below the plate with its light midway. The FOLLOW plate starts
-# at y = 6.0, above the other plates (which start at 15.5), so the follower
-# glyph sits on it. The bottom row (IN, MODE, QUALITY, CLEAR, OUT) has equal
-# gaps to the panel edges.
+# column uses 8.5 mm from label to knob and 6 mm between controls. Its plate
+# starts at y = 6.0, above the other plates (which start at 15.5), so the
+# follower glyph sits on it, and runs down to the other plates' bottom
+# (107.6). The ENV jack and label sit in an opaque panel-background (#3d3d3d)
+# inset at the plate's foot, a "negative" rect marking the output; the ENV
+# light sits on the plate midway between the SIDE jack and the inset. The
+# bottom row (IN, MODE, QUALITY, CLEAR, OUT) has equal gaps to the panel
+# edges.
 #
 # Every x/y here must match the mm2px(Vec(...)) centers in src/Brume.cpp.
 slug: Brume
@@ -30,7 +33,8 @@ zones:
   - {x: 108.320, y: 15.500, w: 37.500, h: 45.050, rx: 2, fill: "#a896bd", opacity: 0.55}
   - {x: 21.820, y: 62.550, w: 84.500, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
   - {x: 108.320, y: 62.550, w: 37.500, h: 45.050, rx: 2, fill: "#9a9a9a", opacity: 0.55}
-  - {x: 1.500, y: 6.000, w: 18.320, h: 73.355, rx: 2, fill: "#b3a07f", opacity: 0.55}
+  - {x: 1.500, y: 6.000, w: 18.320, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
+  - {x: 3.000, y: 88.485, w: 15.320, h: 17.615, rx: 1.5, fill: "#3d3d3d", opacity: 1.0}
 
 elements:
   - {text: "SEND", x: 32.383, y: 21.137, size: 3.175}
@@ -91,9 +95,9 @@ elements:
   - {name: FALL_PARAM, x: 10.66, y: 51.188}
   - {text: "SIDE", x: 10.66, y: 64.237, size: 3.175}
   - {name: SIDE_INPUT, x: 10.66, y: 71.953}
-  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 84.555}
-  - {name: ENV_OUTPUT, x: 10.66, y: 93.770}
-  - {text: "ENV", x: 10.66, y: 102.370, size: 3.175}
+  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 82.226}
+  - {name: ENV_OUTPUT, x: 10.66, y: 95.000}
+  - {text: "ENV", x: 10.66, y: 103.600, size: 3.175}
   - {name: IN_L_INPUT,   x: 10.150, y: 114.3}
   - {name: IN_R_INPUT,   x: 19.850, y: 114.3}
   - {name: MODE_PARAM, widget: VCVBezel, x: 44.871, y: 114.3}
