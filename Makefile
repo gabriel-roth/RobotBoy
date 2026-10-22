@@ -15,8 +15,8 @@ SOURCES += $(wildcard src/lucarne/*.cpp)
 # Mutable Instruments Beads (vendored, src/beads/vendor/NOTICE.md) and the
 # RobotBoy host adapter around it: Particules, Retours and Ondes run on it.
 # -DTEST selects stmlib's portable code paths; -Dstmlib renames the vendored
-# stmlib namespace so it can't collide with other Mutable ports.
-FLAGS += -Isrc/beads/vendor -Isrc/beads -DTEST -Dstmlib=robotboy_stmlib
+# stmlib and clouds namespaces so they can't collide with other Mutable ports.
+FLAGS += -Isrc/beads/vendor -Isrc/beads -DTEST -Dstmlib=robotboy_stmlib -Dclouds=robotboy_clouds
 SOURCES += src/beads/vendor/beads/dsp/delay_clock.cc \
            src/beads/vendor/beads/dsp/delay_controller.cc \
            src/beads/vendor/beads/dsp/mu_law.cc \

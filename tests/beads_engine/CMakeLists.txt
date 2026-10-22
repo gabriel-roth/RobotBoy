@@ -25,7 +25,7 @@ add_library(robotboy_beads STATIC
 file(GLOB HOST_SRC CONFIGURE_DEPENDS ${BEADS}/host/*.cpp)
 target_sources(robotboy_beads PRIVATE ${HOST_SRC})
 target_include_directories(robotboy_beads PUBLIC ${BEADS}/vendor ${BEADS})
-target_compile_definitions(robotboy_beads PUBLIC TEST stmlib=robotboy_stmlib)
+target_compile_definitions(robotboy_beads PUBLIC TEST stmlib=robotboy_stmlib clouds=robotboy_clouds)
 target_compile_options(robotboy_beads PUBLIC -funsafe-math-optimizations -Wno-vla-cxx-extension -Wno-vla-extension -Wno-unknown-warning-option)
 
 add_library(catch2_amalgamated STATIC ${CMAKE_CURRENT_LIST_DIR}/catch2/catch_amalgamated.cpp)
@@ -34,6 +34,7 @@ target_include_directories(catch2_amalgamated PUBLIC ${CMAKE_CURRENT_LIST_DIR}/c
 file(GLOB TEST_SRC CONFIGURE_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/test_*.cpp)
 add_executable(beads_engine_tests ${TEST_SRC})
 target_include_directories(beads_engine_tests PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/catch2)
 target_link_libraries(beads_engine_tests PRIVATE robotboy_beads catch2_amalgamated)
 

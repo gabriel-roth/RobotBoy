@@ -61,7 +61,7 @@ target_include_directories(RobotBoy PRIVATE
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
 # Vendored Beads: portable stmlib code paths (TEST) and a private stmlib
 # namespace, so it can't collide with the simulator's own Mutable ports.
-target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib)
+target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib clouds=robotboy_clouds)
 # The headless simulator builds us as a built-in like the GUI simulator does,
 # but (unlike the GUI build) does not define SIMULATOR globally. register.cc
 # relies on SIMULATOR to suppress its init()/pluginInstance definitions, which

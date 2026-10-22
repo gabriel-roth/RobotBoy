@@ -47,6 +47,8 @@ class Reverb {
     sleep_enabled_ = true;  // RobotBoy
     asleep_ = false;  // RobotBoy
     silent_samples_ = E::kSize;  // RobotBoy: the memory was just cleared.
+    diffusion_ = 0.625f;  // RobotBoy
+    mod_depth_ = 1.0f;  // RobotBoy
   }
   
   void Reset(float sample_rate) {
@@ -61,7 +63,20 @@ class Reverb {
     send_ = 0.0f;
   }
   
+  // RobotBoy: at the default diffusion and modulation depth the tank runs the
+  // stock code with its constants, so the output stays bit-identical (with
+  // -funsafe-math-optimizations, variables in place of the constants would
+  // change the rounding). Anything else takes the variable-driven instance.
   void Process(FloatFrame* in_out, size_t size) {
+    if (diffusion_ == 0.625f && mod_depth_ == 1.0f) {
+      ProcessTank<false>(in_out, size);
+    } else {
+      ProcessTank<true>(in_out, size);
+    }
+  }
+  
+  template<bool custom>
+  void ProcessTank(FloatFrame* in_out, size_t size) {
     // This is the Griesinger topology described in the Dattorro paper
     // (4 AP diffusers on the input, then a loop of 2x 2AP+1Delay).
     // Modulation is applied in the loop of the first diffuser AP for additional
@@ -88,7 +103,8 @@ class Reverb {
     E::DelayLine<Memory, 9> del2;
     E::Context c;
 
-    const float kap = 0.625f;
+    const float kap = custom ? diffusion_ : 0.625f;  // RobotBoy
+    const float mod_depth = custom ? mod_depth_ : 1.0f;  // RobotBoy
     const float klp = lp_;
     const float krt = reverb_time_;
 
@@ -145,7 +161,7 @@ class Reverb {
       engine_.Start(&c);
       
       // Smear AP1 inside the loop.
-      c.Interpolate(ap1, 10.0f, LFO_1, 80.0f, 1.0f);
+      c.Interpolate(ap1, 10.0f, LFO_1, 80.0f * mod_depth, 1.0f);  // RobotBoy
       c.Write(ap1, 100, 0.0f);
       
       c.Read(in_out->l + in_out->r, send_amount);
@@ -163,7 +179,7 @@ class Reverb {
       
       // Main reverb loop.
       c.Load(apout);
-      c.Interpolate(del2, 6261.0f, LFO_2, 50.0f, krt);
+      c.Interpolate(del2, 6261.0f, LFO_2, 50.0f * mod_depth, krt);  // RobotBoy
       c.Lp(lp_1_, klp);
       c.Read(dap1a TAIL, -kap);
       c.WriteAllPass(dap1a, kap);
@@ -175,7 +191,7 @@ class Reverb {
       in_out->l = in_out->l * dry_amount + wet * wet_amount;
 
       c.Load(apout);
-      c.Interpolate(del1, 4460.0f, LFO_1, 40.0f, krt);
+      c.Interpolate(del1, 4460.0f, LFO_1, 40.0f * mod_depth, krt);  // RobotBoy
       c.Lp(lp_2_, klp);
       c.Read(dap2a TAIL, kap);
       c.WriteAllPass(dap2a, -kap);
@@ -216,6 +232,16 @@ class Reverb {
     silent_samples_ = E::kSize;  // RobotBoy
   }
   
+  // RobotBoy: Brume's controls. Defaults reproduce the stock reverb exactly.
+  // set_lfo_rate scales the 0.5 and 0.3 Hz LFOs without restarting their
+  // phase; set_mod_depth scales the delay-line modulation excursions.
+  inline void set_diffusion(float diffusion) { diffusion_ = diffusion; }
+  inline void set_lfo_rate(float multiplier, float sample_rate) {
+    engine_.SetLFOFrequencyKeepPhase(LFO_1, 0.5f * multiplier / sample_rate);
+    engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
+  }
+  inline void set_mod_depth(float depth) { mod_depth_ = depth; }
+
   // RobotBoy: sleep can be turned off (for comparison tests); asleep() says
   // whether the last Process() skipped the tank.
   inline void set_sleep_enabled(bool enabled) { sleep_enabled_ = enabled; }
@@ -234,6 +260,9 @@ class Reverb {
   
   float lp_1_;
   float lp_2_;
+  
+  float diffusion_;  // RobotBoy
+  float mod_depth_;  // RobotBoy
   
   bool sleep_enabled_;  // RobotBoy
   bool asleep_;  // RobotBoy
