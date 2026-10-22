@@ -49,9 +49,12 @@ inline float BrumeTankRate(BrumeQuality quality) {
   }
 }
 
-// Shimmer gain at which the loop just sustains (g1 in the spec).
-// PLACEHOLDER: 1.0 until the calibration task measures it.
-constexpr float kShimmerSustainGain = 1.0f;
+// Shimmer gain at which the loop just sustains (g1 in the spec). Measured
+// by the "[.calibrate]" case in tests/beads_engine/test_brume_shimmer.cpp:
+// a 0.2 s noise burst into Beads at Bright, DECAY 0.5, INTERVAL +12, other
+// controls at default; the gain at which the tail is as loud at 18..20 s as
+// at 2..4 s, bisected to 1.4221 and rounded to 3 significant figures.
+constexpr float kShimmerSustainGain = 1.42f;
 
 inline float ClampUnit(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 

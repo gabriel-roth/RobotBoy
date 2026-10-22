@@ -11,12 +11,13 @@ namespace {
 constexpr size_t kBeadsReverbSize = 32768;
 constexpr size_t kCloudsReverbSize = 16384;
 constexpr size_t kDiffuserSize = 2048;
+constexpr size_t kPitchShifterSize = 4096;
 
 constexpr float kSmoothingSeconds = 0.002f;
 constexpr float kFadeSeconds = 0.010f;
 constexpr float kDcBlockerHertz = 10.0f;
-// The send is held to +-8 (+-40 V) so that no finite input can overflow
-// the filter states.
+// The send is held to +-8 (+-40 V) and made finite before the engine sees
+// it; RunBlock's finite check catches anything that still diverges.
 constexpr float kMaxSend = 8.0f;
 constexpr float kMaxOutput = 2.0f;
 constexpr float kCloudsInputGain = 0.2f;
@@ -57,6 +58,7 @@ BrumeEngine::BrumeEngine() {
   controls_ = DefaultBrumeControls();
   applied_speed_[0] = applied_speed_[1] = -1.0f;
   block_.fill(beads::FloatFrame{0.0f, 0.0f});
+  shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
   for (auto& f : output_fifo_) f.fill(0.0f);
 }
 
@@ -66,10 +68,13 @@ bool BrumeEngine::Init(float host_rate) {
   beads_memory_.reset(new (std::nothrow) uint16_t[kBeadsReverbSize]);
   clouds_memory_.reset(new (std::nothrow) uint16_t[kCloudsReverbSize]);
   diffuser_memory_.reset(new (std::nothrow) float[kDiffuserSize]);
-  if (!beads_memory_ || !clouds_memory_ || !diffuser_memory_) {
+  pitch_shifter_memory_.reset(new (std::nothrow) uint16_t[kPitchShifterSize]);
+  if (!beads_memory_ || !clouds_memory_ || !diffuser_memory_ ||
+      !pitch_shifter_memory_) {
     beads_memory_.reset();
     clouds_memory_.reset();
     diffuser_memory_.reset();
+    pitch_shifter_memory_.reset();
     return false;
   }
 
@@ -82,6 +87,11 @@ bool BrumeEngine::Init(float host_rate) {
   clouds_tank_.Init(clouds_memory_.get());
   diffuser_.Init(diffuser_memory_.get());
   diffuser_.set_amount(0.0f);
+  // Init already sets the full 2047-sample window, which set_size(1.0)
+  // glides toward.
+  pitch_shifter_.Init(pitch_shifter_memory_.get());
+  pitch_shifter_.set_size(1.0f);
+  pitch_shifter_.set_ratio(1.0f);
   for (int i = 0; i < 2; ++i) {
     lp_[i].Init();
     hp_[i].Init();
@@ -174,6 +184,9 @@ void BrumeEngine::ClearEngine() {
   ClearTank(BrumeMode::kBeads);
   ClearTank(BrumeMode::kClouds);
   diffuser_.Clear();
+  pitch_shifter_.Clear();
+  shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
+  shimmer_live_ = false;
   const float pole = 1.0f - 2.0f * 3.14159265f * kDcBlockerHertz / tank_rate_;
   for (int i = 0; i < 2; ++i) {
     lp_[i].Reset();
@@ -276,7 +289,14 @@ void BrumeEngine::RunBlock() {
   diffuser_.set_amount(c.smear);
   diffuser_.Process(clouds_frames, size);
 
-  // (Task 6: + shimmer return here.)
+  // The shimmer return from the previous block. Skipped at gain 0, so that
+  // SHIMMER at 0 leaves the signal bit-identical.
+  if (shimmer_live_) {
+    for (size_t i = 0; i < size; ++i) {
+      clouds_frames[i].l += shimmer_return_[i].l;
+      clouds_frames[i].r += shimmer_return_[i].r;
+    }
+  }
 
   for (size_t i = 0; i < size; ++i) {
     frames[i].l = clouds_frames[i].l;
@@ -305,8 +325,6 @@ void BrumeEngine::RunBlock() {
 
   post_limiter_.Process(frames, size);
 
-  // (Task 6: the shimmer pitch shifter reads the tank output here.)
-
   bool finite = true;
   for (size_t i = 0; i < size; ++i) {
     finite = finite && std::isfinite(frames[i].l) && std::isfinite(frames[i].r);
@@ -315,6 +333,22 @@ void BrumeEngine::RunBlock() {
     // Can't happen with finite, clamped input; if it does, start over
     // rather than carry a NaN in a filter state.
     ClearEngine();
+  } else {
+    // Shimmer: the limited tank output, shifted by INTERVAL, feeds the next
+    // block. The shifter always runs, so raising SHIMMER from 0 picks up
+    // the current tail.
+    const float gain = ShimmerGain(c.shimmer);
+    pitch_shifter_.set_ratio(stmlib::SemitonesToRatio(c.interval_semitones));
+    for (size_t i = 0; i < size; ++i) {
+      clouds_frames[i].l = frames[i].l;
+      clouds_frames[i].r = frames[i].r;
+    }
+    pitch_shifter_.Process(clouds_frames, size);
+    for (size_t i = 0; i < size; ++i) {
+      shimmer_return_[i].l = clouds_frames[i].l * gain;
+      shimmer_return_[i].r = clouds_frames[i].r * gain;
+    }
+    shimmer_live_ = gain > 0.0f;
   }
 
   for (size_t i = 0; i < size; ++i) {
@@ -369,8 +403,8 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
   if (wow_scope_ == WowScope::kReverbOnly) {
     wow_.Process(&send[0], &send[1], wow_amount_);
   }
-  send[0] = Clamp(send[0], kMaxSend);
-  send[1] = Clamp(send[1], kMaxSend);
+  send[0] = Finite(Clamp(send[0], kMaxSend));
+  send[1] = Finite(Clamp(send[1], kMaxSend));
 
   input_resampler_.Push(send);
   float tank_frame[2];
@@ -393,6 +427,7 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
   if (primed_) {
     if (available == 0) {
       primed_ = false;  // underflow: re-prime rather than stutter
+      ++underflows_;
     } else {
       wet_l = output_fifo_[fifo_read_][0];
       wet_r = output_fifo_[fifo_read_][1];

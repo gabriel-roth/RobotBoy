@@ -175,6 +175,36 @@ TEST_CASE("clear empties within 15 ms", "[brume_engine]") {
   }
 }
 
+// A steady sine through a Clear: without the 10 ms fade-out the wet would
+// drop to zero in one sample.
+TEST_CASE("clear does not click", "[brume_engine]") {
+  for (BrumeMode mode : kModes) {
+    auto e = MakeEngine(48000.0f);
+    e->SetMode(mode);
+    BrumeControls c = DefaultBrumeControls();
+    c.dry_wet = 1.0f;
+    c.decay = 0.9f;
+    const size_t clear = 48000 * 3;
+    const size_t n = 48000 * 4;
+    std::vector<float> l(n), r(n);
+    for (size_t i = 0; i < n; ++i) {
+      if (i == clear) e->RequestClear();
+      e->SetControls(c);
+      const float x = 0.5f * std::sin(2.0f * kPi * 220.0f * float(i) / 48000.0f);
+      const BrumeFrame f = e->Process(x, x);
+      l[i] = f.l;
+      r[i] = f.r;
+    }
+    const float steady = std::max(
+        MaxDelta(l, 48000, clear), MaxDelta(r, 48000, clear));
+    const float across = std::max(
+        MaxDelta(l, clear, clear + 48000), MaxDelta(r, clear, clear + 48000));
+    INFO("mode " << int(mode) << " steady " << steady << " across " << across);
+    REQUIRE(steady > 0.0f);
+    REQUIRE(across <= 1.5f * steady);
+  }
+}
+
 TEST_CASE("host rates and qualities", "[brume_rates]") {
   const float kRates[] = {44100.0f, 48000.0f, 96000.0f};
   for (float rate : kRates) {
@@ -200,6 +230,8 @@ TEST_CASE("host rates and qualities", "[brume_rates]") {
       }
       REQUIRE(count == n);
       REQUIRE(energy > 0.0);
+      // The output FIFO never ran dry after it first primed.
+      REQUIRE(e->underflows() == 0);
 
       // Wet onset latency: the same for two impulses 1 s apart.
       auto e2 = MakeEngine(rate);
