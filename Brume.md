@@ -23,14 +23,14 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 1. **Patch audio** into **In** (bottom left). Patch both jacks for stereo; patch just the left and it feeds both sides.
 2. **Take your output** from **Out** (bottom right). If you only patch the left output, you get a mono sum of both channels.
 3. **Set Dry/Wet** to taste, and **Decay** for the length of the tail.
-4. **Try Shimmer.** Turn it up slowly: the tail starts to climb an octave on every pass. Near the end of its travel it sustains on its own and then runs away.
+4. **Try Shimmer.** Turn it up slowly: the tail starts to climb an octave on every pass. At the infinity mark it sustains on its own, and past it the tail runs away.
 5. **Try the follower.** Turn the trimpot under Decay or Dry/Wet clockwise with nothing patched into its CV jack. The reverb now grows and shrinks with the loudness of your playing.
 
 ---
 
 ## Controls
 
-Every control except Mode, Quality, Rise and Fall has a **CV input** below it and a small trimpot below that (see The trimpots below).
+Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
 ### Input
 
@@ -44,7 +44,7 @@ Every control except Mode, Quality, Rise and Fall has a **CV input** below it an
 
 ### Shimmer
 
-*Shimmer:* How much of the reverb's output is pitch-shifted and fed back into it. It is calibrated so that the tail still decays at about 94% of the knob's travel and holds at 96%. In the last 5% of travel the loop grows past self-oscillation until the limiter catches it: a runaway.
+*Shimmer:* How much of the reverb's output is pitch-shifted and fed back into it. Below 95% of the knob's travel the shimmer tail decays; at 95% (the infinity mark) it sustains; past it, the tail grows until the limiter holds it: a runaway.
 
 *Interval:* The pitch shift in the shimmer loop, from −24 to +24 semitones; the default is +12 (an octave up). The shift is quantized by **Lock pitch** in the context menu, which defaults to Octaves here, so the knob steps between octaves unless you choose another setting.
 
@@ -120,7 +120,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Mode** and **Quality** (VCV Rack only; on MetaModule, use the Mode and Quality switches) — the same choices as the front-panel buttons.
 - **Lock pitch** — quantizes Interval: **Off**, **Octaves** (the default), **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic** or **Minor pentatonic**. As on Particules, quantization applies after the knob, any CV and the envelope are summed.
-- **Root** — the root note for the scale settings. Greyed out unless a scale is chosen.
+- **Root** — the root note for the scale settings (**Chromatic** through **Minor pentatonic**); it has no effect on Off, Octaves or Octaves + 5ths, and is greyed out for them.
 - **Wow & flutter** — **Input** (the default) applies Wow to the whole input, dry signal included, as Beads does; **Reverb only** leaves the dry signal alone. Changing it while Wow is up may glitch briefly.
 - **Follower auto-gain** — on by default; see The follower.
 
@@ -138,7 +138,7 @@ Brume's Mode and Quality are labeled switches on MetaModule. A patch saved on de
 
 - **Ducking reverb:** patch a kick drum into **Side**, turn the **Dry/Wet** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
 - **Swelling reverb:** with nothing in Side, turn the **Decay** trimpot clockwise and set Fall long. Long tails open up on loud passages and tighten when you stop.
-- **Endless shimmer:** set Interval to +12, bring **Shimmer** just short of the hold zone, and play short notes: each one climbs away in octaves.
+- **Endless shimmer:** set Interval to +12, bring **Shimmer** just short of the infinity mark, and play short notes: each one climbs away in octaves.
 - **Frozen pad:** push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear.
 - **Reverb as an instrument:** use Mode to jump between the two tanks while tails overlap, and Quality to change the colour.
 
