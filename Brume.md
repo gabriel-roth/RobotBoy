@@ -89,7 +89,7 @@ The follower column sits at the left edge.
 
 *Rise* and *Fall:* How fast the envelope follows your signal up and down, from 10 ms to 5 s. Fast Rise with slow Fall gives a swell that lingers; the response is quick at first and slower toward the top.
 
-*In / Out switch:* What the follower listens to. **In** (the default) follows the input. **Out** follows the reverb itself, before Dry/Wet mixes in the dry signal. Because the envelope then moves the very reverb it is listening to, Out makes a feedback loop: a tail can open up Decay and keep itself going, or duck its own Send and pump.
+*In / Out switch:* What the follower listens to. **In** (up, the default) follows the input. **Out** (down) follows the reverb itself, before Dry/Wet mixes in the dry signal. Because the envelope then moves the very reverb it is listening to, Out makes a feedback loop: a tail can open up Decay and keep itself going, or duck its own Send and pump.
 
 *Side:* A sidechain input. When something is patched here, the follower listens to it whichever way the switch is set (5 V is full scale), so another signal such as a kick drum can drive the reverb.
 

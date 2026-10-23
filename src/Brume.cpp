@@ -235,7 +235,8 @@ struct Brume : Module {
 		configButton(CLEAR_PARAM, "Clear");
 		configParam<FollowerTimeQuantity>(RISE_PARAM, 0.f, 1.f, 0.25f, "Rise");
 		configParam<FollowerTimeQuantity>(FALL_PARAM, 0.f, 1.f, 0.5f, "Fall");
-		configSwitch(SOURCE_PARAM, 0.f, 1.f, 0.f, "Follower source", {"In", "Out"})->description =
+		// Up (1) is In, the default.
+		configSwitch(SOURCE_PARAM, 0.f, 1.f, 1.f, "Follower source", {"Out", "In"})->description =
 			"Out follows the reverb before Dry/wet. A patched Side overrides both";
 
 		// Percentages where there is no natural unit; SEND and WIDTH read
@@ -339,7 +340,7 @@ struct Brume : Module {
 		// Envelope follower: SIDE if patched (5 V = 1.0), else the input or,
 		// with SOURCE at Out, the previous sample's wet.
 		const bool sidePatched = inputs[SIDE_INPUT].isConnected();
-		const bool followWet = params[SOURCE_PARAM].getValue() > 0.5f;
+		const bool followWet = params[SOURCE_PARAM].getValue() < 0.5f;
 		const int source = sidePatched ? 2 : followWet ? 3 : (lPatched || rPatched) ? 1 : 0;
 		if (source != followerSource) {
 			followerSource = source;
@@ -504,10 +505,11 @@ struct BrumeWidget : ModuleWidget {
 		}
 
 		// FOLLOW column.
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 38.072)), module, Brume::RISE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 58.983)), module, Brume::FALL_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.66, 79.109)), module, Brume::SIDE_INPUT));
-		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 20.361)), module, Brume::ENV_LIGHT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 27.000)), module, Brume::RISE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 46.150)), module, Brume::FALL_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(7.8, 63.045)), module, Brume::SOURCE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.66, 75.010)), module, Brume::SIDE_INPUT));
+		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 11.000)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.66, 95.000)), module, Brume::ENV_OUTPUT));
 
 		// Output column: CLEAR on top; WIDTH and DRY/WET are plate controls.

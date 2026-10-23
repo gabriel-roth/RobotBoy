@@ -4,17 +4,18 @@
 #
 # 29 HP. Two colored plates (top, 5 cells: SEND, FILTER, SMEAR, PREDELAY,
 # WOW; bottom, 6 cells: SIZE, DECAY, DAMP, DIFFUSE, SPEED, DEPTH) between a
-# FOLLOW column on the far left (RISE, FALL, SIDE, ENV) and an Output column
+# FOLLOW column on the far left (RISE, FALL, SOURCE, SIDE, ENV) and an Output column
 # on the far right (CLEAR, WIDTH, DRY/WET). Cells are centered per plate.
 # Each cell's label, knob, jack and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW column uses 8.5 mm from label
 # to knob. Its plate starts at y = 6.0, just
 # below the top-left corner screw and above the other plates (which start at
-# 15.5), so the follower glyph sits on it, and runs down to the other plates'
-# bottom edge (107.6). The ENV jack and label sit in an opaque
-# panel-background (#3d3d3d) inset at the plate's foot, a "negative" rect
-# marking the output. Down the plate, the five gaps between the follower
-# glyph, the ENV light, RISE, FALL, SIDE and the inset are equal (about
-# 5.36 mm). The Output column runs the same height as FOLLOW: CLEAR (button and
+# 15.5), and runs down to the other plates' bottom edge (107.6). The ENV
+# jack and label sit in an opaque panel-background (#3d3d3d) inset at the
+# plate's foot, a "negative" rect marking the output. A thin bar under FALL
+# splits the plate: timing above (ENV light, RISE, FALL; 3.5 mm gaps from the
+# plate top), source below (the IN/OUT switch, then SIDE with its label under
+# the jack, like ENV; 4.87 mm gaps down to the inset), 4.2 mm either side of
+# the bar. The Output column runs the same height as FOLLOW: CLEAR (button and
 # trigger jack) on top, then WIDTH and DRY/WET, with four equal gaps. The
 # bottom row (IN, MODE, QUALITY, OUT) has equal gaps to the panel edges.
 #
@@ -34,6 +35,7 @@ zones:
   - {x: 21.820, y: 15.500, w: 104.820, h: 45.050, rx: 2, fill: "#8fa89c", opacity: 0.55}
   - {x: 21.820, y: 62.550, w: 104.820, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
   - {x: 1.500, y: 6.000, w: 18.320, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
+  - {x: 3.000, y: 55.000, w: 15.320, h: 0.350, rx: 0.175, fill: "#ffffff", opacity: 0.7}
   - {x: 3.000, y: 88.485, w: 15.320, h: 17.615, rx: 1.5, fill: "#3d3d3d", opacity: 1.0}
   - {x: 128.640, y: 6.000, w: 17.180, h: 101.600, rx: 2, fill: "#9a9a9a", opacity: 0.55}
 
@@ -82,13 +84,16 @@ elements:
   - {name: DEPTH_PARAM, x: 117.905, y: 77.688}
   - {name: DEPTH_INPUT, x: 117.905, y: 91.188}
   - {name: DEPTH_CV_PARAM, widget: Trimpot, x: 117.905, y: 101.188}
-  - {text: "RISE", x: 10.66, y: 29.572, size: 3.175}
-  - {name: RISE_PARAM, x: 10.66, y: 38.072}
-  - {text: "FALL", x: 10.66, y: 50.483, size: 3.175}
-  - {name: FALL_PARAM, x: 10.66, y: 58.983}
-  - {text: "SIDE", x: 10.66, y: 71.394, size: 3.175}
-  - {name: SIDE_INPUT, x: 10.66, y: 79.109}
-  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 20.361}
+  - {text: "RISE", x: 10.66, y: 18.500, size: 3.175}
+  - {name: RISE_PARAM, x: 10.66, y: 27.000}
+  - {text: "FALL", x: 10.66, y: 37.650, size: 3.175}
+  - {name: FALL_PARAM, x: 10.66, y: 46.150}
+  - {text: "SIDE", x: 10.66, y: 83.610, size: 3.175}
+  - {name: SIDE_INPUT, x: 10.66, y: 75.010}
+  - {name: SOURCE_PARAM, widget: CKSS, x: 7.8, y: 63.045}
+  - {text: "IN", x: 14.0, y: 61.55, size: 2.5}
+  - {text: "OUT", x: 14.0, y: 66.54, size: 2.5}
+  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.66, y: 11.000}
   - {name: ENV_OUTPUT, x: 10.66, y: 95.000}
   - {text: "ENV", x: 10.66, y: 103.600, size: 3.175}
   - {text: "CLEAR", x: 137.23, y: 12.267, size: 3.175}
@@ -127,7 +132,6 @@ glyphs:
   - {src: glyphs/brume/damp-dark.svg,      at: [70.258, 82.450]}
   - {src: glyphs/brume/diffuse-sparse.svg, at: [78.203, 82.450]}
   - {src: glyphs/brume/diffuse-dense.svg,  at: [87.728, 82.450]}
-  - {src: glyphs/brume/follow-burst.svg, at: [10.660, 10.6]}
   - {src: glyphs/brume/size-small.svg,     at: [25.793, 82.450]}
   - {src: glyphs/brume/size-large.svg,     at: [35.318, 82.450]}
   - {src: glyphs/brume/predelay-short.svg, at: [90.432, 35.399]}
