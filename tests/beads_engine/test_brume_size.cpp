@@ -21,6 +21,7 @@ using robotboy_beads::BrumeQuality;
 using robotboy_beads::DefaultBrumeControls;
 using robotboy_beads::kPredelayDefault;
 using robotboy_beads::kSizeDefault;
+using robotboy_beads::WowScope;
 
 namespace {
 
@@ -59,6 +60,8 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
   std::unique_ptr<BrumeEngine> e(new BrumeEngine);
   e->SetMode(mode);
   e->SetQuality(quality);
+  // Recorded when Input was the default scope.
+  e->SetWowScope(WowScope::kInput);
   REQUIRE(e->Init(48000.0f));
   std::mt19937 rng(4321);
   std::uniform_real_distribution<float> dist(-0.5f, 0.5f);

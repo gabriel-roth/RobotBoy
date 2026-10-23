@@ -8,9 +8,7 @@
 
 ## How it works
 
-Your input goes through a **Send** level, a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
-
-**Wow** adds tape-style pitch wobble.
+Your input goes through a **Send** level, **Wow** (tape-style pitch wobble), a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
 
 The **follower** (the sand-coloured column on the left) listens to your input, the reverb itself, or a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
 
@@ -37,13 +35,13 @@ Size, Damp, Speed and Depth start at noon and Diffuse starts fully clockwise, wh
 
 *Send:* How much signal goes into the reverb, from nothing up to full (the default, the original Beads and Clouds level). The dry signal is not affected.
 
+*Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. The Beads depth is a little past halfway (1x in the tooltip); fully clockwise is three times as deep. By default it wobbles only what goes into the reverb; the **Wow & flutter** context menu item can apply it to the whole input, dry signal included, as Beads does.
+
 *Filter:* A filter on the reverb's input, a bit like the Texture filter in Clouds. Noon is flat. Turn it **counter-clockwise** for a low-pass filter that darkens what goes in, down to a rumble at the end stop; turn it **clockwise** for a high-pass filter that thins it.
 
 *Smear:* Blurs the input on its way into the reverb. Off at fully counter-clockwise. Over the first quarter of its travel it fades in the diffuser of Clouds, which softens transients a little; at the quarter it is exactly Clouds'. Beyond that a much longer, slowly drifting diffuser takes over, until at fully clockwise the attack is gone and the sound swells into the reverb.
 
 *Pre-delay:* How long the input waits before it reaches the tank, from 0 to 500 ms. The knob gives more of its travel to short times. Fully counter-clockwise is off, and leaves the sound exactly as it was without it. Changes glide over about half a second, so turning it bends the pitch of what is passing through for a moment instead of clicking.
-
-*Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. The Beads depth is a little past halfway (1x in the tooltip); fully clockwise is three times as deep. By default it wobbles the whole input, dry signal included; the **Wow & flutter** context menu item can limit it to the reverb.
 
 ### Reverb
 
@@ -122,7 +120,7 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Mode** and **Quality** (VCV Rack only; on MetaModule, use the Mode and Quality switches) — the same choices as the front-panel buttons.
-- **Wow & flutter** — **Input** (the default) applies Wow to the whole input, dry signal included, as Beads does; **Reverb only** leaves the dry signal alone. Changing it while Wow is up may glitch briefly.
+- **Wow & flutter** — **Reverb only** (the default) leaves the dry signal alone; **Input** applies Wow to the whole input, dry signal included, as Beads does. Changing it while Wow is up may glitch briefly.
 - **Follower auto-gain** — on by default; see The follower.
 
 Initialize resets these along with the knobs.

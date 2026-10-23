@@ -2,8 +2,8 @@
 # Regenerate with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/brume.yaml --out res/Brume.svg
 #
-# 29 HP. Two colored plates (top, 5 cells: SEND, FILTER, SMEAR, PREDELAY,
-# WOW; bottom, 6 cells: SIZE, DECAY, DAMP, DIFFUSE, SPEED, DEPTH) between a
+# 29 HP. Two colored plates (top, 5 cells in signal order: SEND, WOW,
+# FILTER, SMEAR, PREDELAY; bottom, 6 cells: SIZE, DECAY, DAMP, DIFFUSE, SPEED, DEPTH) between a
 # FOLLOW column on the far left (RISE, FALL, SOURCE, SIDE, ENV) and an Output column
 # on the far right (CLEAR, WIDTH, DRY/WET). Cells are centered per plate.
 # Each cell's label, knob, jack and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW column uses 8.5 mm from label
@@ -44,22 +44,22 @@ elements:
   - {name: SEND_PARAM, x: 32.302, y: 30.637}
   - {name: SEND_INPUT, x: 32.302, y: 44.138}
   - {name: SEND_CV_PARAM, widget: Trimpot, x: 32.302, y: 54.138}
-  - {text: "FILTER", x: 53.266, y: 21.137, size: 3.175}
-  - {name: FILTER_PARAM, x: 53.266, y: 30.637}
-  - {name: FILTER_INPUT, x: 53.266, y: 44.138}
-  - {name: FILTER_CV_PARAM, widget: Trimpot, x: 53.266, y: 54.138}
-  - {text: "SMEAR", x: 74.23, y: 21.137, size: 3.175}
-  - {name: SMEAR_PARAM, x: 74.23, y: 30.637}
-  - {name: SMEAR_INPUT, x: 74.23, y: 44.138}
-  - {name: SMEAR_CV_PARAM, widget: Trimpot, x: 74.23, y: 54.138}
-  - {text: "PREDELAY", x: 95.194, y: 21.137, size: 3.175}
-  - {name: PREDELAY_PARAM, x: 95.194, y: 30.637}
-  - {name: PREDELAY_INPUT, x: 95.194, y: 44.138}
-  - {name: PREDELAY_CV_PARAM, widget: Trimpot, x: 95.194, y: 54.138}
-  - {text: "WOW", x: 116.158, y: 21.137, size: 3.175}
-  - {name: WOW_PARAM, x: 116.158, y: 30.637}
-  - {name: WOW_INPUT, x: 116.158, y: 44.138}
-  - {name: WOW_CV_PARAM, widget: Trimpot, x: 116.158, y: 54.138}
+  - {text: "WOW", x: 53.266, y: 21.137, size: 3.175}
+  - {name: WOW_PARAM, x: 53.266, y: 30.637}
+  - {name: WOW_INPUT, x: 53.266, y: 44.138}
+  - {name: WOW_CV_PARAM, widget: Trimpot, x: 53.266, y: 54.138}
+  - {text: "FILTER", x: 74.23, y: 21.137, size: 3.175}
+  - {name: FILTER_PARAM, x: 74.23, y: 30.637}
+  - {name: FILTER_INPUT, x: 74.23, y: 44.138}
+  - {name: FILTER_CV_PARAM, widget: Trimpot, x: 74.23, y: 54.138}
+  - {text: "SMEAR", x: 95.194, y: 21.137, size: 3.175}
+  - {name: SMEAR_PARAM, x: 95.194, y: 30.637}
+  - {name: SMEAR_INPUT, x: 95.194, y: 44.138}
+  - {name: SMEAR_CV_PARAM, widget: Trimpot, x: 95.194, y: 54.138}
+  - {text: "PREDELAY", x: 116.158, y: 21.137, size: 3.175}
+  - {name: PREDELAY_PARAM, x: 116.158, y: 30.637}
+  - {name: PREDELAY_INPUT, x: 116.158, y: 44.138}
+  - {name: PREDELAY_CV_PARAM, widget: Trimpot, x: 116.158, y: 54.138}
   - {text: "SIZE", x: 30.555, y: 68.188, size: 3.175}
   - {name: SIZE_PARAM, x: 30.555, y: 77.688}
   - {name: SIZE_INPUT, x: 30.555, y: 91.188}
@@ -119,21 +119,21 @@ elements:
   - {text: OUT, x: 132.320, y: 123.0, size: 3.175}
 
 glyphs:
-  - {src: glyphs/brume/filter-lowpass.svg,  at: [48.504, 35.399]}
-  - {src: glyphs/brume/filter-highpass.svg, at: [58.029, 35.399]}
+  - {src: glyphs/brume/filter-lowpass.svg,  at: [69.468, 35.399]}
+  - {src: glyphs/brume/filter-highpass.svg, at: [78.993, 35.399]}
   - {src: glyphs/brume/decay-hold-infinity.svg, at: [52.341, 83.198]}
   - {src: glyphs/brume/width-narrow.svg, at: [132.468, 44.527]}
   - {src: glyphs/brume/width-wide.svg,   at: [141.393, 44.527]}
-  - {src: glyphs/brume/smear-sharp.svg, at: [69.468, 35.399]}
-  - {src: glyphs/brume/smear-wash.svg,  at: [78.993, 35.399]}
-  - {src: glyphs/brume/wow-steady.svg,  at: [111.396, 35.399]}
-  - {src: glyphs/brume/wow-wobble.svg,  at: [120.921, 35.399]}
+  - {src: glyphs/brume/smear-sharp.svg, at: [90.432, 35.399]}
+  - {src: glyphs/brume/smear-wash.svg,  at: [99.957, 35.399]}
+  - {src: glyphs/brume/wow-steady.svg,  at: [48.504, 35.399]}
+  - {src: glyphs/brume/wow-wobble.svg,  at: [58.029, 35.399]}
   - {src: glyphs/brume/damp-open.svg,      at: [60.733, 82.450]}
   - {src: glyphs/brume/damp-dark.svg,      at: [70.258, 82.450]}
   - {src: glyphs/brume/diffuse-sparse.svg, at: [78.203, 82.450]}
   - {src: glyphs/brume/diffuse-dense.svg,  at: [87.728, 82.450]}
   - {src: glyphs/brume/size-small.svg,     at: [25.793, 82.450]}
   - {src: glyphs/brume/size-large.svg,     at: [35.318, 82.450]}
-  - {src: glyphs/brume/predelay-short.svg, at: [90.432, 35.399]}
-  - {src: glyphs/brume/predelay-long.svg,  at: [99.957, 35.399]}
+  - {src: glyphs/brume/predelay-short.svg, at: [111.396, 35.399]}
+  - {src: glyphs/brume/predelay-long.svg,  at: [120.921, 35.399]}
   - {src: glyphs/brume/mod-lfo-sine.svg, at: [109.170, 77.688]}

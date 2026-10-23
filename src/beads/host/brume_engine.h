@@ -170,7 +170,7 @@ class BrumeEngine {
   BrumeMode requested_mode_ = BrumeMode::kBeads;
   BrumeQuality quality_ = BrumeQuality::kBright;
   BrumeQuality requested_quality_ = BrumeQuality::kBright;
-  WowScope wow_scope_ = WowScope::kInput;
+  WowScope wow_scope_ = WowScope::kReverbOnly;
   bool clear_requested_ = false;
 
   // Latest controls; the engine latches them once per block.

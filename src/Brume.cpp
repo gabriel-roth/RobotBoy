@@ -196,7 +196,7 @@ struct Brume : Module {
 	// MetaModule; these mirror them there.
 	int mode = 0;      // rb::BrumeMode
 	int quality = 0;   // rb::BrumeQuality
-	int wowScope = 0;   // rb::WowScope
+	int wowScope = 1;   // rb::WowScope, Reverb only
 	bool followerAutoGain = true;
 
 	float sampleRate = 48000.f;
@@ -410,7 +410,7 @@ struct Brume : Module {
 		Module::onReset(e);
 		mode = 0;
 		quality = 0;
-		wowScope = 0;
+		wowScope = 1;
 		followerAutoGain = true;
 	}
 
@@ -430,7 +430,7 @@ struct Brume : Module {
 		j = json_object_get(rootJ, "quality");
 		quality = j ? clamp((int)json_integer_value(j), 0, 2) : 0;
 		j = json_object_get(rootJ, "wowScope");
-		wowScope = j ? clamp((int)json_integer_value(j), 0, 1) : 0;
+		wowScope = j ? clamp((int)json_integer_value(j), 0, 1) : 1;
 		j = json_object_get(rootJ, "followerAutoGain");
 		followerAutoGain = j ? json_boolean_value(j) : true;
 
@@ -484,10 +484,10 @@ struct BrumeWidget : ModuleWidget {
 		struct Cell { float x, knobY, jackY, trimY; };
 		static const Cell kCells[Brume::kNumControls] = {
 			{32.302f, 30.637f, 44.138f, 54.138f},  // SEND
-			{53.266f, 30.637f, 44.138f, 54.138f},  // FILTER
-			{74.23f, 30.637f, 44.138f, 54.138f},  // SMEAR
-			{95.194f, 30.637f, 44.138f, 54.138f},  // PREDELAY
-			{116.158f, 30.637f, 44.138f, 54.138f},  // WOW
+			{74.23f, 30.637f, 44.138f, 54.138f},  // FILTER
+			{95.194f, 30.637f, 44.138f, 54.138f},  // SMEAR
+			{116.158f, 30.637f, 44.138f, 54.138f},  // PREDELAY
+			{53.266f, 30.637f, 44.138f, 54.138f},  // WOW, after SEND on the panel
 			{30.555f, 77.688f, 91.188f, 101.188f},  // SIZE
 			{48.025f, 77.688f, 91.188f, 101.188f},  // DECAY
 			{65.495f, 77.688f, 91.188f, 101.188f},  // DAMP
