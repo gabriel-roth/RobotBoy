@@ -1185,49 +1185,21 @@ index 6c35304..7f93b4f 100644
      
      const float phase = static_cast<float>(phase_) / float(full_window_size);
 diff --git a/clouds/dsp/fx/diffuser.h b/clouds/dsp/fx/diffuser.h
-index f1914cc..13dac0a 100644
+index f1914cc..f5d1063 100644
 --- a/clouds/dsp/fx/diffuser.h
 +++ b/clouds/dsp/fx/diffuser.h
-@@ -42,6 +42,12 @@ class Diffuser {
-   
-   void Init(float* buffer) {
+@@ -44,6 +44,11 @@ class Diffuser {
      engine_.Init(buffer);
-+    diffusion_ = 0.625f;  // RobotBoy
-+  }
-+  
+   }
+   
 +  // RobotBoy: empties the memory.
 +  void Clear() {
 +    engine_.Clear();
-   }
-   
-   void Process(FloatFrame* in_out, size_t size) {
-@@ -62,7 +68,7 @@ class Diffuser {
-     E::DelayLine<Memory, 6> apr3;
-     E::DelayLine<Memory, 7> apr4;
-     E::Context c;
--    const float kap = 0.625f;
-+    const float kap = diffusion_;  // RobotBoy: upstream 0.625f
-     while (size--) {
-       engine_.Start(&c);
-       
-@@ -99,11 +105,17 @@ class Diffuser {
-     amount_ = amount;
-   }
-   
-+  // RobotBoy: the allpass coefficient, 0.625 by default.
-+  void set_diffusion(float diffusion) {
-+    diffusion_ = diffusion;
 +  }
 +  
-  private:
-   typedef FxEngine<2048, FORMAT_32_BIT> E;
-   E engine_;
-   
-   float amount_;
-+  float diffusion_;  // RobotBoy
-   DISALLOW_COPY_AND_ASSIGN(Diffuser);
- };
- 
+   void Process(FloatFrame* in_out, size_t size) {
+     typedef E::Reserve<126,
+       E::Reserve<180,
 diff --git a/clouds/dsp/fx/fx_engine.h b/clouds/dsp/fx/fx_engine.h
 index 8773ff7..c61fb37 100644
 --- a/clouds/dsp/fx/fx_engine.h

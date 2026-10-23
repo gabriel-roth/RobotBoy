@@ -17,7 +17,6 @@
 #include "beads/dsp/frame.h"
 #include "beads/dsp/fx/reverb.h"
 #include "clouds/dsp/frame.h"
-#include "clouds/dsp/fx/diffuser.h"
 #include "clouds/dsp/fx/reverb.h"
 #include "clouds_ref/dsp/frame.h"
 #include "clouds_ref/dsp/fx/reverb.h"
@@ -460,28 +459,6 @@ void CheckFullExcursion() {
 TEST_CASE("Depth 4 at 16x stays inside the delay reserves", "[brume_vendor]") {
   SECTION("Beads") { CheckFullExcursion<BeadsRig>(); }
   SECTION("Clouds") { CheckFullExcursion<CloudsRig>(); }
-}
-
-TEST_CASE("Clouds diffuser coefficient", "[brume_vendor]") {
-  auto run = [](bool set, float diffusion) {
-    std::vector<float> memory(2048);
-    clouds::Diffuser d;
-    d.Init(memory.data());
-    d.set_amount(1.0f);
-    if (set) d.set_diffusion(diffusion);
-    std::mt19937 rng(4);
-    std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
-    std::vector<float> out;
-    for (int b = 0; b < 500; ++b) {
-      clouds::FloatFrame f[32];
-      for (auto& x : f) x = {noise(rng), noise(rng)};
-      d.Process(f, 32);
-      for (auto& x : f) out.push_back(x.l);
-    }
-    return out;
-  };
-  CHECK(run(true, 0.625f) == run(false, 0.0f));
-  CHECK(run(true, 0.8f) != run(false, 0.0f));
 }
 
 namespace {
