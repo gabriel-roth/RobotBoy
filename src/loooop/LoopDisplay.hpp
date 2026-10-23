@@ -93,9 +93,12 @@ struct LoopDisplayWidget : Widget {
 	}
 
 	// Free the GPU images when the widget is deleted (module removed) and
-	// when the nanovg context goes away, as FramebufferWidget does.
+	// when the nanovg context goes away, as FramebufferWidget does. At quit
+	// Rack deletes the window before the scene, so browser previews are
+	// destroyed with APP->window already null.
 	~LoopDisplayWidget() {
-		deleteImages(APP->window->vg);
+		if (APP->window)
+			deleteImages(APP->window->vg);
 	}
 
 	void onContextDestroy(const ContextDestroyEvent& e) override {
