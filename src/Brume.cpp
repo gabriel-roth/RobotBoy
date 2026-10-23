@@ -2,14 +2,13 @@
 #include "host/brume_engine.h"
 #include "host/envelope_follower.h"
 #include "host/flush_to_zero.h"
-#include "host/pitch_lock.h"
 
 #include <atomic>
 #include <cstdlib>
 
 // Brume: a stereo reverb on Mutable Instruments' Beads and Clouds tanks
-// (robotboy_beads::BrumeEngine), with send-side filter, smear and wow, a
-// shimmer loop, and an envelope follower that drives every unpatched
+// (robotboy_beads::BrumeEngine), with send-side filter, smear and wow, and an
+// envelope follower that drives every unpatched
 // trimpot. The engine is Rack-free; this module reads the panel, applies the
 // CV and envelope modulation, and runs the follower.
 
@@ -121,8 +120,6 @@ struct Brume : Module {
 		SMEAR_PARAM,
 		PREDELAY_PARAM,
 		WOW_PARAM,
-		SHIMMER_PARAM,
-		INTERVAL_PARAM,
 		SIZE_PARAM,
 		DECAY_PARAM,
 		DAMP_PARAM,
@@ -136,8 +133,6 @@ struct Brume : Module {
 		SMEAR_CV_PARAM,
 		PREDELAY_CV_PARAM,
 		WOW_CV_PARAM,
-		SHIMMER_CV_PARAM,
-		INTERVAL_CV_PARAM,
 		SIZE_CV_PARAM,
 		DECAY_CV_PARAM,
 		DAMP_CV_PARAM,
@@ -158,8 +153,6 @@ struct Brume : Module {
 		SMEAR_INPUT,
 		PREDELAY_INPUT,
 		WOW_INPUT,
-		SHIMMER_INPUT,
-		INTERVAL_INPUT,
 		SIZE_INPUT,
 		DECAY_INPUT,
 		DAMP_INPUT,
@@ -187,27 +180,20 @@ struct Brume : Module {
 		LIGHTS_LEN
 	};
 
-	// The 15 plate controls, in panel order: knob SEND_PARAM + i,
+	// The 13 plate controls, in panel order: knob SEND_PARAM + i,
 	// trimpot SEND_CV_PARAM + i, jack SEND_INPUT + i.
-	static constexpr int kNumControls = 15;
-	static constexpr int kIntervalIndex = INTERVAL_PARAM - SEND_PARAM;
+	static constexpr int kNumControls = 13;
 	static_assert(DRY_WET_PARAM - SEND_PARAM == kNumControls - 1, "plate knobs");
 	static_assert(DRY_WET_CV_PARAM - SEND_CV_PARAM == kNumControls - 1, "plate trimpots");
 	static_assert(DRY_WET_INPUT - SEND_INPUT == kNumControls - 1, "plate jacks");
 
 	rb::BrumeEngine engine;
 	rb::EnvelopeFollower follower;
-	rb::ScalePitchLock pitchLock;
 
 	// Saved settings. Mode and Quality are the switches' params on
 	// MetaModule; these mirror them there.
 	int mode = 0;      // rb::BrumeMode
 	int quality = 0;   // rb::BrumeQuality
-	// Lock pitch: an rb::PitchLockMode; the root applies to the scale modes
-	// only. The menu sets scaleChanged; process() applies it.
-	int pitchScale = rb::kPitchOctaves;
-	int pitchRoot = 0;
-	std::atomic<bool> scaleChanged{true};
 	int wowScope = 0;   // rb::WowScope
 	bool followerAutoGain = true;
 
@@ -257,8 +243,6 @@ struct Brume : Module {
 		configParam<PredelayQuantity>(PREDELAY_PARAM, 0.f, 1.f, rb::kPredelayDefault, "Pre-delay", " ms");
 		// 1x is Beads' wow and flutter at Scorched.
 		configParam<SquareLawQuantity>(WOW_PARAM, 0.f, 1.f, 0.f, "Wow & flutter", "x")->scale = 3.f;
-		configParam(SHIMMER_PARAM, 0.f, 1.f, 0.f, "Shimmer", "%", 0.f, 100.f);
-		configParam(INTERVAL_PARAM, 0.f, 1.f, 0.75f, "Interval", " st", 0.f, 48.f, -24.f)->displayPrecision = 3;
 		configParam<SizeQuantity>(SIZE_PARAM, 0.f, 1.f, rb::kSizeDefault, "Size", "x");
 		configParam<DecayQuantity>(DECAY_PARAM, 0.f, 1.f, 0.5f, "Decay", "%", 0.f, 100.f);
 		// Defaults reproduce the original Beads reverb (rb::k*Default).
@@ -270,7 +254,7 @@ struct Brume : Module {
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet", "%", 0.f, 100.f);
 
 		static const char* const kNames[kNumControls] = {
-			"Send", "Filter", "Smear", "Pre-delay", "Wow & flutter", "Shimmer", "Interval",
+			"Send", "Filter", "Smear", "Pre-delay", "Wow & flutter",
 			"Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Dry/wet",
 		};
 		for (int i = 0; i < kNumControls; i++) {
@@ -279,7 +263,6 @@ struct Brume : Module {
 			trim->description = "Envelope amount while the CV jack is unpatched";
 			configInput(SEND_INPUT + i, string::f("%s CV", kNames[i]));
 		}
-		inputInfos[INTERVAL_INPUT]->description = "1V/octave at full trimpot";
 
 		configInput(IN_L_INPUT, "Audio L");
 		configInput(IN_R_INPUT, "Audio R");
@@ -337,8 +320,6 @@ struct Brume : Module {
 			quality = (quality + 1) % 3;
 #endif
 		applySettingsToEngine();
-		if (scaleChanged.exchange(false))
-			pitchLock.Set(pitchScale, pitchRoot);
 
 		// Clear: the button, or a rising edge at Beads' gate thresholds.
 		const bool clearEdge = clearGate.process(inputs[CLEAR_INPUT].getVoltage(), 0.1f, 1.f);
@@ -381,13 +362,7 @@ struct Brume : Module {
 			const bool patched = inputs[SEND_INPUT + i].isConnected();
 			const float volts = inputs[SEND_INPUT + i].getVoltage();
 			const float trim = params[SEND_CV_PARAM + i].getValue();
-			if (i == kIntervalIndex) {
-				float st = rb::ModulatedInterval(rb::IntervalSemitones(knob), patched, volts, trim, envelope);
-				values[i] = pitchLock.active() ? pitchLock.Quantize(st) : st;
-			}
-			else {
-				values[i] = rb::ModulatedKnob(knob, patched, volts, trim, envelope);
-			}
+			values[i] = rb::ModulatedKnob(knob, patched, volts, trim, envelope);
 		}
 		rb::BrumeControls controls;
 		controls.send = values[SEND_PARAM - SEND_PARAM];
@@ -395,8 +370,6 @@ struct Brume : Module {
 		controls.smear = values[SMEAR_PARAM - SEND_PARAM];
 		controls.predelay = values[PREDELAY_PARAM - SEND_PARAM];
 		controls.wow = values[WOW_PARAM - SEND_PARAM];
-		controls.shimmer = values[SHIMMER_PARAM - SEND_PARAM];
-		controls.interval_semitones = values[INTERVAL_PARAM - SEND_PARAM];
 		controls.size = values[SIZE_PARAM - SEND_PARAM];
 		controls.decay = values[DECAY_PARAM - SEND_PARAM];
 		controls.damp = values[DAMP_PARAM - SEND_PARAM];
@@ -429,9 +402,6 @@ struct Brume : Module {
 		Module::onReset(e);
 		mode = 0;
 		quality = 0;
-		pitchScale = rb::kPitchOctaves;
-		pitchRoot = 0;
-		scaleChanged = true;
 		wowScope = 0;
 		followerAutoGain = true;
 	}
@@ -440,8 +410,6 @@ struct Brume : Module {
 		json_t* rootJ = json_object();
 		json_object_set_new(rootJ, "mode", json_integer(mode));
 		json_object_set_new(rootJ, "quality", json_integer(quality));
-		json_object_set_new(rootJ, "pitchScale", json_integer(pitchScale));
-		json_object_set_new(rootJ, "pitchRoot", json_integer(pitchRoot));
 		json_object_set_new(rootJ, "wowScope", json_integer(wowScope));
 		json_object_set_new(rootJ, "followerAutoGain", json_boolean(followerAutoGain));
 		return rootJ;
@@ -453,11 +421,6 @@ struct Brume : Module {
 		mode = j ? clamp((int)json_integer_value(j), 0, 1) : 0;
 		j = json_object_get(rootJ, "quality");
 		quality = j ? clamp((int)json_integer_value(j), 0, 2) : 0;
-		j = json_object_get(rootJ, "pitchScale");
-		pitchScale = j ? clamp((int)json_integer_value(j), 0, 7) : rb::kPitchOctaves;
-		j = json_object_get(rootJ, "pitchRoot");
-		pitchRoot = j ? clamp((int)json_integer_value(j), 0, 11) : 0;
-		scaleChanged = true;
 		j = json_object_get(rootJ, "wowScope");
 		wowScope = j ? clamp((int)json_integer_value(j), 0, 1) : 0;
 		j = json_object_get(rootJ, "followerAutoGain");
@@ -517,16 +480,14 @@ struct BrumeWidget : ModuleWidget {
 			{74.23f, 30.637f, 44.138f, 54.138f},  // SMEAR
 			{95.194f, 30.637f, 44.138f, 54.138f},  // PREDELAY
 			{116.158f, 30.637f, 44.138f, 54.138f},  // WOW
-			{138.015f, 30.637f, 44.138f, 54.138f},  // SHIMMER
-			{156.765f, 30.637f, 44.138f, 54.138f},  // INTERVAL
 			{30.555f, 77.688f, 91.188f, 101.188f},  // SIZE
 			{48.025f, 77.688f, 91.188f, 101.188f},  // DECAY
 			{65.495f, 77.688f, 91.188f, 101.188f},  // DAMP
 			{82.965f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
 			{100.435f, 77.688f, 91.188f, 101.188f},  // SPEED
 			{117.905f, 77.688f, 91.188f, 101.188f},  // DEPTH
-			{138.015f, 77.688f, 91.188f, 101.188f},  // WIDTH
-			{156.765f, 77.688f, 91.188f, 101.188f},  // DRY/WET
+			{137.23f, 39.765f, 51.765f, 61.265f},  // WIDTH
+			{137.23f, 79.058f, 91.058f, 100.558f},  // DRY/WET
 		};
 		for (int i = 0; i < Brume::kNumControls; i++) {
 			const Cell c = kCells[i];
@@ -542,22 +503,24 @@ struct BrumeWidget : ModuleWidget {
 		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 20.361)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.66, 95.000)), module, Brume::ENV_OUTPUT));
 
+		// Output column: CLEAR on top; WIDTH and DRY/WET are plate controls.
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(132.980, 20.982)), module, Brume::CLEAR_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(141.480, 20.982)), module, Brume::CLEAR_INPUT));
+
 		// Bottom row.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 114.3)), module, Brume::IN_L_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.850, 114.3)), module, Brume::IN_R_INPUT));
 #ifdef METAMODULE
-		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(49.951, 114.3)), module, Brume::MODE_PARAM));
-		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(79.638, 114.3)), module, Brume::QUALITY_PARAM));
+		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(55.862, 114.3)), module, Brume::MODE_PARAM));
+		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(91.458, 114.3)), module, Brume::QUALITY_PARAM));
 #else
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(49.951, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
+			mm2px(Vec(55.862, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(79.638, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
+			mm2px(Vec(91.458, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
 #endif
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(108.774, 114.3)), module, Brume::CLEAR_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(117.274, 114.3)), module, Brume::CLEAR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(147.790, 114.3)), module, Brume::OUT_L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(157.490, 114.3)), module, Brume::OUT_R_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(127.470, 114.3)), module, Brume::OUT_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.170, 114.3)), module, Brume::OUT_R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -576,28 +539,6 @@ struct BrumeWidget : ModuleWidget {
 			[=]() { return module->quality; },
 			[=](int i) { withMenuUndo(module, "change quality", [=]() { module->quality = i; }); }));
 #endif
-
-		menu->addChild(createIndexSubmenuItem("Lock pitch",
-			{"Off", "Octaves", "Octaves + 5ths", "Chromatic", "Major", "Minor", "Major pentatonic", "Minor pentatonic"},
-			[=]() { return module->pitchScale; },
-			[=](int i) {
-				withMenuUndo(module, "change pitch lock", [=]() {
-					module->pitchScale = i;
-					module->scaleChanged = true;
-				});
-			}));
-		// Greyed out unless a scale mode was selected when the menu opened.
-		MenuItem* rootItem = createIndexSubmenuItem("Root",
-			{"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"},
-			[=]() { return module->pitchRoot; },
-			[=](int i) {
-				withMenuUndo(module, "change scale root", [=]() {
-					module->pitchRoot = i;
-					module->scaleChanged = true;
-				});
-			});
-		rootItem->disabled = module->pitchScale < robotboy_beads::kPitchChromatic;
-		menu->addChild(rootItem);
 
 		menu->addChild(createIndexSubmenuItem("Wow & flutter", {"Input", "Reverb only"},
 			[=]() { return module->wowScope; },
