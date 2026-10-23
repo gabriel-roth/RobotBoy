@@ -98,6 +98,8 @@ TEST_CASE("dry/wet 0 passes input exactly", "[brume_engine]") {
   }
 }
 
+// A 50 ms noise burst: the tail must come out of the tank at a real level
+// before it decays away.
 TEST_CASE("impulse tail decays", "[brume_engine]") {
   for (BrumeMode mode : kModes) {
     auto e = MakeEngine(48000.0f);
@@ -106,16 +108,22 @@ TEST_CASE("impulse tail decays", "[brume_engine]") {
     c.dry_wet = 1.0f;
     c.decay = 0.5f;
     const size_t n = 48000 * 30;
+    const size_t burst = 2400;  // 50 ms
+    const std::vector<float> noise = Noise(burst, 8);
+    double input = 0.0;
     std::vector<float> out(n);
     for (size_t i = 0; i < n; ++i) {
       e->SetControls(c);
-      const BrumeFrame f = e->Process(i == 0 ? 0.5f : 0.0f, 0.0f);
+      const float x = i < burst ? noise[i] : 0.0f;
+      input += double(x) * x;
+      const BrumeFrame f = e->Process(x, x);
       out[i] = 0.5f * (f.l + f.r);
     }
     const double first = Energy(out, 0, 48000);
     const double last = Energy(out, n - 48000, n);
-    INFO("mode " << int(mode) << " first " << first << " last " << last);
-    REQUIRE(first > 0.0);
+    INFO("mode " << int(mode) << " input " << input << " first " << first
+         << " last " << last);
+    REQUIRE(first > input * 1e-4);  // -40 dB
     REQUIRE(last < first * 1e-9);
   }
 }
@@ -297,6 +305,9 @@ TEST_CASE("non-finite input and controls are contained", "[brume_nan]") {
   }
 }
 
+// Also checks the moment the wet stops for the reconfigure: it must have
+// faded to (nearly) nothing first, not step to 0 from the last few faded
+// frames.
 TEST_CASE("quality change does not click", "[brume_engine]") {
   for (BrumeMode mode : kModes) {
     auto e = MakeEngine(48000.0f);
@@ -319,8 +330,68 @@ TEST_CASE("quality change does not click", "[brume_engine]") {
         MaxDelta(l, 48000, change), MaxDelta(r, 48000, change));
     const float across = std::max(
         MaxDelta(l, change, change + 48000), MaxDelta(r, change, change + 48000));
-    INFO("mode " << int(mode) << " steady " << steady << " across " << across);
+    float peak = 0.0f;
+    for (size_t i = 48000; i < change; ++i) {
+      peak = std::max(peak, std::max(std::fabs(l[i]), std::fabs(r[i])));
+    }
+    // The largest step from a nonzero output to exact 0 during the change.
+    float stop = 0.0f;
+    for (size_t i = change; i < change + 4800; ++i) {
+      if (l[i] == 0.0f && l[i - 1] != 0.0f) {
+        stop = std::max(stop, std::fabs(l[i - 1]));
+      }
+      if (r[i] == 0.0f && r[i - 1] != 0.0f) {
+        stop = std::max(stop, std::fabs(r[i - 1]));
+      }
+    }
+    INFO("mode " << int(mode) << " steady " << steady << " across " << across
+         << " peak " << peak << " stop " << stop);
     REQUIRE(steady > 0.0f);
     REQUIRE(across <= 1.5f * steady);
+    // One 10 ms fade step at 48 kHz is 1/480 (0.2%) of the level; dropping
+    // the last faded frames from the FIFO stepped about 1.6% of peak.
+    REQUIRE(stop <= 5e-3f * peak);
   }
+}
+
+// DECAY 1.0 (the hold zone), a 0.2 s 110 Hz sine burst, Bright: tail energy
+// in the 20th second against the 2nd.
+static double HoldTailRatioDb(BrumeMode mode) {
+  auto e = MakeEngine(48000.0f);
+  e->SetMode(mode);
+  BrumeControls c = DefaultBrumeControls();
+  c.dry_wet = 1.0f;
+  c.decay = 1.0f;
+  const size_t n = 48000 * 21;
+  std::vector<float> out(n);
+  for (size_t i = 0; i < n; ++i) {
+    e->SetControls(c);
+    const float x = i < 9600
+        ? 0.3f * std::sin(2.0f * kPi * 110.0f * float(i) / 48000.0f)
+        : 0.0f;
+    const BrumeFrame f = e->Process(x, x);
+    out[i] = 0.5f * (f.l + f.r);
+  }
+  return 10.0 * std::log10(
+      Energy(out, 48000 * 20, n) / Energy(out, 48000 * 2, 48000 * 3));
+}
+
+TEST_CASE("Beads hold sustains", "[brume_hold]") {
+  const double db = HoldTailRatioDb(BrumeMode::kBeads);
+  INFO("20 s re 2 s: " << db << " dB");
+  REQUIRE(db > -6.0);
+  REQUIRE(db < 6.0);
+}
+
+// Characterization, not a law: Clouds' tank stores 12-bit samples
+// (clouds/dsp/fx/fx_engine.h), and the truncation plus its interpolated
+// reads lose a little on every pass, so even at hold a tail slowly fades
+// (about -5 dB over 18 s here; quiet or noisy material fades faster, down to
+// nothing for quiet noise). This is upstream behavior, kept for
+// authenticity; the test only pins that a sine tail is still well audible.
+TEST_CASE("Clouds hold fades slowly", "[brume_hold]") {
+  const double db = HoldTailRatioDb(BrumeMode::kClouds);
+  INFO("20 s re 2 s: " << db << " dB");
+  REQUIRE(db > -20.0);
+  REQUIRE(db < 3.0);
 }

@@ -289,12 +289,14 @@ void BrumeEngine::RunBlock() {
       tank_gain_[int(mode_)] = 1.0f;
     }
   }
-  if (requested_quality_ != quality_ && fade_state_ != Fade::kQualityOut) {
+  const bool quality_fading =
+      fade_state_ == Fade::kQualityOut || fade_state_ == Fade::kQualityDrain;
+  if (requested_quality_ != quality_ && !quality_fading) {
     fade_state_ = Fade::kQualityOut;
   }
   if (clear_requested_) {
     clear_requested_ = false;
-    if (fade_state_ != Fade::kQualityOut) {
+    if (!quality_fading) {
       fade_state_ = Fade::kClearOut;  // a Quality change clears anyway
     }
   }
@@ -448,8 +450,11 @@ void BrumeEngine::RunBlock() {
       fade_ = 1.0f;
       fade_state_ = Fade::kRunning;
     } else if (fade_state_ == Fade::kQualityOut) {
-      // The faded-out tail still in the output FIFO is dropped with the
-      // streams; it is silence by now.
+      // The output FIFO still holds the last faded frames. One more block
+      // at fade 0 lets the host read them out before the streams go.
+      fade_state_ = Fade::kQualityDrain;
+    } else if (fade_state_ == Fade::kQualityDrain) {
+      // What is dropped with the streams now is that block: silence.
       Reconfigure();
       fade_state_ = Fade::kIn;
     }

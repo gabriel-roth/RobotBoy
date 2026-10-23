@@ -19,7 +19,8 @@
 //
 // A Clear or Quality change fades the wet out over 10 ms at the tank rate,
 // then clears every engine buffer, both tanks included; a Quality change
-// also reconfigures the streams and fades back in over 10 ms.
+// waits one more block for the output FIFO to drain, then also reconfigures
+// the streams and fades back in over 10 ms.
 
 #pragma once
 
@@ -74,8 +75,8 @@ class BrumeEngine {
   BrumeEngine(const BrumeEngine&) = delete;
   BrumeEngine& operator=(const BrumeEngine&) = delete;
 
-  // Allocates the memory of both tanks, the diffuser and the pitch shifter. Returns false if
-  // that fails; Process then outputs silence.
+  // Allocates the memory of both tanks, the diffuser and the pitch shifter.
+  // Returns false if that fails; Process then outputs silence.
   bool Init(float host_rate);
 
   void SetHostRate(float host_rate);
@@ -111,7 +112,7 @@ class BrumeEngine {
     kOutputFifoSize = 4096,
   };
 
-  enum class Fade { kRunning, kClearOut, kQualityOut, kIn };
+  enum class Fade { kRunning, kClearOut, kQualityOut, kQualityDrain, kIn };
 
   void Reconfigure();
   void ResetStreams();
