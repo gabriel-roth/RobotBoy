@@ -141,6 +141,8 @@ struct Brume : Module {
 		DEPTH_CV_PARAM,
 		WIDTH_CV_PARAM,
 		DRY_WET_CV_PARAM,
+		// Appended, so older patches keep their params.
+		SOURCE_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -204,8 +206,8 @@ struct Brume : Module {
 	std::atomic<bool> started{false};
 	bool fpuConfigured = false;
 
-	// The follower's source: 0 nothing patched, 1 the input, 2 SIDE. A
-	// change restarts its auto-gain learning.
+	// The follower's source: 0 nothing patched, 1 the input, 2 SIDE, 3 the
+	// wet. A change restarts its auto-gain learning.
 	int followerSource = 0;
 	float appliedRise = -1.f;
 	float appliedFall = -1.f;
@@ -233,6 +235,8 @@ struct Brume : Module {
 		configButton(CLEAR_PARAM, "Clear");
 		configParam<FollowerTimeQuantity>(RISE_PARAM, 0.f, 1.f, 0.25f, "Rise");
 		configParam<FollowerTimeQuantity>(FALL_PARAM, 0.f, 1.f, 0.5f, "Fall");
+		configSwitch(SOURCE_PARAM, 0.f, 1.f, 0.f, "Follower source", {"In", "Out"})->description =
+			"Out follows the reverb before Dry/wet. A patched Side overrides both";
 
 		// Percentages where there is no natural unit; SEND and WIDTH read
 		// 100% at noon (unity).
@@ -332,15 +336,18 @@ struct Brume : Module {
 		const rb::BrumeInput in = rb::NormalizeInputs(lPatched, rPatched,
 			inputs[IN_L_INPUT].getVoltage() * 0.2f, inputs[IN_R_INPUT].getVoltage() * 0.2f);
 
-		// Envelope follower: SIDE if patched, else the input (5 V = 1.0).
+		// Envelope follower: SIDE if patched (5 V = 1.0), else the input or,
+		// with SOURCE at Out, the previous sample's wet.
 		const bool sidePatched = inputs[SIDE_INPUT].isConnected();
-		const int source = sidePatched ? 2 : (lPatched || rPatched) ? 1 : 0;
+		const bool followWet = params[SOURCE_PARAM].getValue() > 0.5f;
+		const int source = sidePatched ? 2 : followWet ? 3 : (lPatched || rPatched) ? 1 : 0;
 		if (source != followerSource) {
 			followerSource = source;
 			follower.Restart();
 		}
-		float rectified = sidePatched
-			? std::fabs(inputs[SIDE_INPUT].getVoltage()) * 0.2f
+		const rb::BrumeFrame wet = engine.wet();
+		float rectified = sidePatched ? std::fabs(inputs[SIDE_INPUT].getVoltage()) * 0.2f
+			: followWet ? std::max(std::fabs(wet.l), std::fabs(wet.r))
 			: std::max(std::fabs(in.l), std::fabs(in.r));
 		if (!std::isfinite(rectified))
 			rectified = 0.f;

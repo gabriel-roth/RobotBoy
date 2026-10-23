@@ -12,7 +12,7 @@ Your input goes through a **Send** level, a **Filter**, a **Smear** (a diffuser 
 
 **Wow** adds tape-style pitch wobble.
 
-The **follower** (the sand-coloured column on the left) listens to your input, or to a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
+The **follower** (the sand-coloured column on the left) listens to your input, the reverb itself, or a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
 
 Like Particules and Retours, Brume runs its reverb at one of three **Quality** sample rates and converts to and from your engine's rate, so the sound is the same whatever rate VCV or MetaModule runs at.
 
@@ -89,7 +89,9 @@ The follower column sits at the left edge.
 
 *Rise* and *Fall:* How fast the envelope follows your signal up and down, from 10 ms to 5 s. Fast Rise with slow Fall gives a swell that lingers; the response is quick at first and slower toward the top.
 
-*Side:* A sidechain input. When something is patched here, the follower listens to it instead of the input (5 V is full scale), so another signal such as a kick drum can drive the reverb.
+*In / Out switch:* What the follower listens to. **In** (the default) follows the input. **Out** follows the reverb itself, before Dry/Wet mixes in the dry signal. Because the envelope then moves the very reverb it is listening to, Out makes a feedback loop: a tail can open up Decay and keep itself going, or duck its own Send and pump.
+
+*Side:* A sidechain input. When something is patched here, the follower listens to it whichever way the switch is set (5 V is full scale), so another signal such as a kick drum can drive the reverb.
 
 *Env (output and light):* The envelope itself, 0 to 10 V. Use it to modulate other modules. The light shows it too.
 
@@ -137,6 +139,7 @@ Brume's Mode and Quality are labeled switches on MetaModule. A patch saved on de
 
 - **Ducking reverb:** patch a kick drum into **Side**, turn the **Dry/Wet** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
 - **Swelling reverb:** with nothing in Side, turn the **Decay** trimpot clockwise and set Fall long. Long tails open up on loud passages and tighten when you stop.
+- **Self-swelling tail:** set the follower switch to **Out**, turn the **Decay** trimpot clockwise, and play short notes. Each tail lifts Decay as it grows, so it blooms after the note instead of with it.
 - **Frozen pad:** in Beads mode, push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear. (In Clouds mode the pad slowly fades away instead.)
 - **Reverb as an instrument:** use Mode to jump between the two tanks while tails overlap, and Quality to change the colour.
 

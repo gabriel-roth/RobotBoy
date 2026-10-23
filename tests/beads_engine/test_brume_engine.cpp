@@ -148,6 +148,45 @@ TEST_CASE("width 0 is mono wet", "[brume_engine]") {
   }
 }
 
+// wet() is the tank's return before WIDTH and DRY/WET: what the module's
+// follower reads in its Out mode.
+TEST_CASE("wet tap is pre-width and pre-mix", "[brume_engine]") {
+  for (BrumeMode mode : kModes) {
+    const std::vector<float> l = Noise(48000, 5);
+    const std::vector<float> r = Noise(48000, 6);
+
+    // Fully wet at unity width, the tap is the output.
+    auto e = MakeEngine(48000.0f);
+    e->SetMode(mode);
+    BrumeControls c = DefaultBrumeControls();
+    c.dry_wet = 1.0f;
+    bool nonzero = false;
+    for (size_t i = 0; i < l.size(); ++i) {
+      e->SetControls(c);
+      const BrumeFrame f = e->Process(l[i], r[i]);
+      const BrumeFrame w = e->wet();
+      REQUIRE(w.l == Catch::Approx(f.l).margin(1e-6));
+      REQUIRE(w.r == Catch::Approx(f.r).margin(1e-6));
+      nonzero = nonzero || w.l != 0.0f;
+    }
+    REQUIRE(nonzero);
+
+    // Fully dry and mono, the tap still carries the stereo wet.
+    auto d = MakeEngine(48000.0f);
+    d->SetMode(mode);
+    c.dry_wet = 0.0f;
+    c.width = 0.0f;
+    bool stereo = false;
+    for (size_t i = 0; i < l.size(); ++i) {
+      d->SetControls(c);
+      d->Process(l[i], r[i]);
+      const BrumeFrame w = d->wet();
+      stereo = stereo || w.l != w.r;
+    }
+    REQUIRE(stereo);
+  }
+}
+
 TEST_CASE("clear empties within 15 ms", "[brume_engine]") {
   for (BrumeMode mode : kModes) {
     auto e = MakeEngine(48000.0f);

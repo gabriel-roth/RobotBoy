@@ -483,6 +483,7 @@ void BrumeEngine::RunBlock() {
 BrumeFrame BrumeEngine::Process(float l, float r) {
   BrumeFrame out = {0.0f, 0.0f};
   if (!ok()) {
+    wet_ = out;
     return out;
   }
 
@@ -536,6 +537,8 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
       fifo_read_ = (fifo_read_ + 1) % kOutputFifoSize;
     }
   }
+
+  wet_ = {wet_l, wet_r};
 
   // WIDTH on the wet.
   const float mid = 0.5f * (wet_l + wet_r);

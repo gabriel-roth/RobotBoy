@@ -104,6 +104,8 @@ class BrumeEngine {
   BrumeFrame Process(float l, float r);
 
   bool ok() const { return beads_memory_ != nullptr; }
+  // The last Process()'s wet, before WIDTH and DRY/WET.
+  BrumeFrame wet() const { return wet_; }
   BrumeMode active_mode() const { return mode_; }
   BrumeQuality active_quality() const { return quality_; }
   float tank_rate() const { return tank_rate_; }
@@ -178,6 +180,7 @@ class BrumeEngine {
   float wow_amount_ = 0.0f;  // after WowAmount, 0..3
   float width_ = 0.5f;
   float dry_wet_ = 0.5f;
+  BrumeFrame wet_ = {0.0f, 0.0f};
 
   // SIZE (the tanks' delay scale) and PREDELAY (seconds), gliding. Each
   // snaps to its target once within 1e-6 of it, so that the defaults (1 and
