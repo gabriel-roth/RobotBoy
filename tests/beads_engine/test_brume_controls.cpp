@@ -181,3 +181,17 @@ TEST_CASE("input normalization", "[brume_controls]") {
   REQUIRE(in.l == 0.0f);
   REQUIRE(in.r == 0.0f);
 }
+
+// Noon is exactly 1, so the default leaves the tanks' offsets whole.
+TEST_CASE("size and pre-delay laws", "[brume_controls]") {
+  REQUIRE(SizeScale(0.0f) == Approx(0.5f));
+  REQUIRE(SizeScale(kSizeDefault) == 1.0f);
+  REQUIRE(SizeScale(0.25f) == Approx(0.5f * std::sqrt(2.0f)));
+  REQUIRE(SizeScale(1.0f) == Approx(2.0f));
+  REQUIRE(kSizeDefault == 0.5f);
+  REQUIRE(PredelaySeconds(0.0f) == 0.0f);
+  REQUIRE(PredelaySeconds(kPredelayDefault) == 0.0f);
+  REQUIRE(PredelaySeconds(0.5f) == Approx(0.125f));
+  REQUIRE(PredelaySeconds(1.0f) == Approx(0.5f));
+  REQUIRE(kMaxPredelaySeconds == 0.5f);
+}

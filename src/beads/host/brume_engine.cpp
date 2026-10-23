@@ -12,11 +12,16 @@ constexpr size_t kBeadsReverbSize = 65536;
 constexpr size_t kCloudsReverbSize = 65536;
 constexpr size_t kDiffuserSize = 2048;
 constexpr size_t kPitchShifterSize = 4096;
+// 500 ms at 48 kHz, plus the interpolation's second sample and the sample
+// being written.
+constexpr size_t kPredelaySize = 24002;
 
 constexpr float kSmoothingSeconds = 0.002f;
 constexpr float kFadeSeconds = 0.010f;
 constexpr float kGainRiseSeconds = 0.020f;
 constexpr float kSpilloverSeconds = 2.0f;
+constexpr float kGlideSeconds = 0.5f;
+constexpr float kGlideSnap = 1e-6f;
 constexpr float kDcBlockerHertz = 10.0f;
 // The send is held to +-8 (+-40 V) and made finite before the engine sees
 // it; RunBlock's finite check catches anything that still diverges.
@@ -28,6 +33,12 @@ inline float Finite(float x) { return std::isfinite(x) ? x : 0.0f; }
 
 inline float Clamp(float x, float limit) {
   return std::min(std::max(x, -limit), limit);
+}
+
+// One-pole step toward `target`, landing on it exactly once close.
+inline void Glide(float* value, float target, float coefficient) {
+  *value += coefficient * (target - *value);
+  if (std::fabs(target - *value) < kGlideSnap) *value = target;
 }
 
 // A non-finite value keeps the previous one.
@@ -43,9 +54,11 @@ BrumeControls DefaultBrumeControls() {
   c.send = 0.5f;
   c.filter = 0.5f;
   c.smear = 0.0f;
+  c.predelay = kPredelayDefault;
   c.wow = 0.0f;
   c.shimmer = 0.0f;
   c.interval_semitones = 12.0f;
+  c.size = kSizeDefault;
   c.decay = 0.5f;
   c.damp = kDampDefault;
   c.diffuse = kDiffuseDefault;
@@ -72,12 +85,14 @@ bool BrumeEngine::Init(float host_rate) {
   clouds_memory_.reset(new (std::nothrow) uint16_t[kCloudsReverbSize]);
   diffuser_memory_.reset(new (std::nothrow) float[kDiffuserSize]);
   pitch_shifter_memory_.reset(new (std::nothrow) uint16_t[kPitchShifterSize]);
+  predelay_memory_.reset(new (std::nothrow) float[kPredelaySize]);
   if (!beads_memory_ || !clouds_memory_ || !diffuser_memory_ ||
-      !pitch_shifter_memory_) {
+      !pitch_shifter_memory_ || !predelay_memory_) {
     beads_memory_.reset();
     clouds_memory_.reset();
     diffuser_memory_.reset();
     pitch_shifter_memory_.reset();
+    predelay_memory_.reset();
     return false;
   }
 
@@ -129,10 +144,12 @@ void BrumeEngine::SetControls(const BrumeControls& in) {
   c.send = Sanitize(in.send, c.send, 0.0f, 1.0f);
   c.filter = Sanitize(in.filter, c.filter, 0.0f, 1.0f);
   c.smear = Sanitize(in.smear, c.smear, 0.0f, 1.0f);
+  c.predelay = Sanitize(in.predelay, c.predelay, 0.0f, 1.0f);
   c.wow = Sanitize(in.wow, c.wow, 0.0f, 1.0f);
   c.shimmer = Sanitize(in.shimmer, c.shimmer, 0.0f, 1.0f);
   c.interval_semitones = Sanitize(
       in.interval_semitones, c.interval_semitones, -48.0f, 48.0f);
+  c.size = Sanitize(in.size, c.size, 0.0f, 1.0f);
   c.decay = Sanitize(in.decay, c.decay, 0.0f, 1.0f);
   c.damp = Sanitize(in.damp, c.damp, 0.0f, 1.0f);
   c.diffuse = Sanitize(in.diffuse, c.diffuse, 0.0f, 1.0f);
@@ -147,6 +164,8 @@ void BrumeEngine::SetControls(const BrumeControls& in) {
     wow_amount_ = WowAmount(c.wow);
     width_ = c.width;
     dry_wet_ = c.dry_wet;
+    size_ = SizeScale(c.size);
+    predelay_ = PredelaySeconds(c.predelay);
   }
 }
 
@@ -159,6 +178,9 @@ void BrumeEngine::Reconfigure() {
   fade_step_ = 1.0f / (kFadeSeconds * tank_rate_);
   gain_rise_ = 1.0f / (kGainRiseSeconds * tank_rate_);
   gain_fall_ = 1.0f / (kSpilloverSeconds * tank_rate_);
+  size_coefficient_ = 1.0f - std::exp(
+      -float(block_size_) / (kGlideSeconds * tank_rate_));
+  predelay_coefficient_ = 1.0f - std::exp(-1.0f / (kGlideSeconds * tank_rate_));
   ClearEngine();
   ResetStreams();
 }
@@ -201,6 +223,8 @@ void BrumeEngine::ClearEngine() {
   }
   diffuser_.Clear();
   pitch_shifter_.Clear();
+  std::fill(&predelay_memory_[0], &predelay_memory_[kPredelaySize], 0.0f);
+  predelay_write_ = 0;
   shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
   shimmer_live_ = false;
   const float pole = 1.0f - 2.0f * 3.14159265f * kDcBlockerHertz / tank_rate_;
@@ -226,6 +250,7 @@ void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
     beads_tank_.set_lp(lp);
     beads_tank_.set_diffusion(diffusion);
     beads_tank_.set_mod_depth(depth);
+    beads_tank_.set_size(size_);
     if (speed != applied_speed) {
       beads_tank_.set_lfo_rate(speed, tank_rate_);
       applied_speed = speed;
@@ -237,6 +262,7 @@ void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
     clouds_tank_.set_lp(lp);
     clouds_tank_.set_diffusion(diffusion);
     clouds_tank_.set_mod_depth(depth);
+    clouds_tank_.set_size(size_);
     if (speed != applied_speed) {
       clouds_tank_.set_lfo_rate(speed, tank_rate_);
       applied_speed = speed;
@@ -262,6 +288,29 @@ void BrumeEngine::ProcessTank(
   for (size_t i = 0; i < size; ++i) {
     frames[i].l = clouds_frames[i].l;
     frames[i].r = clouds_frames[i].r;
+  }
+}
+
+// PREDELAY, in place. The line always takes L + R, so that a glide up from
+// 0 starts from the recent input; it is read only away from 0.
+void BrumeEngine::ProcessPredelay(
+    clouds::FloatFrame* frames, size_t size, float seconds) {
+  const float max_delay = float(kPredelaySize - 2);
+  for (size_t i = 0; i < size; ++i) {
+    Glide(&predelay_, seconds, predelay_coefficient_);
+    float* line = predelay_memory_.get();
+    line[predelay_write_] = frames[i].l + frames[i].r;
+    if (predelay_ > 0.0f) {
+      const float delay = std::min(predelay_ * tank_rate_, max_delay);
+      const size_t integral = size_t(delay);
+      const float fractional = delay - float(integral);
+      const size_t a = (predelay_write_ + kPredelaySize - integral) %
+          kPredelaySize;
+      const size_t b = (a + kPredelaySize - 1) % kPredelaySize;
+      const float y = line[a] + (line[b] - line[a]) * fractional;
+      frames[i].l = frames[i].r = 0.5f * y;
+    }
+    predelay_write_ = (predelay_write_ + 1) % kPredelaySize;
   }
 }
 
@@ -307,6 +356,7 @@ void BrumeEngine::RunBlock() {
   }
 
   const BrumeControls c = controls_;
+  Glide(&size_, SizeScale(c.size), size_coefficient_);
   const BrumeMode spill_mode =
       mode_ == BrumeMode::kBeads ? BrumeMode::kClouds : BrumeMode::kBeads;
   const bool spilling = tank_running_[int(spill_mode)];
@@ -341,6 +391,8 @@ void BrumeEngine::RunBlock() {
   diffuser_.set_amount(smear.amount);
   diffuser_.set_diffusion(smear.coefficient);
   diffuser_.Process(clouds_frames, size);
+
+  ProcessPredelay(clouds_frames, size, PredelaySeconds(c.predelay));
 
   // The shimmer return from the previous block. Skipped at gain 0, so that
   // SHIMMER at 0 leaves the signal bit-identical.

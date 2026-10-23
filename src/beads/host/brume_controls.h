@@ -109,6 +109,16 @@ inline float SpeedMultiplier(float v) {
 // 4x (see the RobotBoy notes in the vendored reverbs).
 inline float DepthMultiplier(float v) { return 4.0f * v * v; }
 
+// Delay-length scale, 0.5x through 1x at noon to 2x: 0.5 * 4^v, written as
+// 2^(2v - 1) so that noon is exactly 2^0 = 1 (whole offsets in the tanks).
+constexpr float kSizeDefault = 0.5f;
+inline float SizeScale(float v) { return exp2f(2.0f * v - 1.0f); }
+
+// Pre-delay, 0 .. 500 ms, quadratic for resolution at short times.
+constexpr float kPredelayDefault = 0.0f;
+constexpr float kMaxPredelaySeconds = 0.5f;
+inline float PredelaySeconds(float v) { return kMaxPredelaySeconds * v * v; }
+
 struct SmearSettings {
   float amount, coefficient;
 };
