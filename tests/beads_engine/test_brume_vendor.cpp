@@ -53,7 +53,7 @@ uint64_t Fnv(uint64_t h, float x) {
 // 4 s of seeded noise through beads::Reverb (mix 0.7, time 0.8) in blocks of
 // 24; with `setters` the Brume setters are called at their defaults each block.
 uint64_t HashBeads(const Medium& m, bool setters) {
-  std::vector<uint16_t> memory(32768);
+  std::vector<uint16_t> memory(65536);
   beads::Reverb reverb;
   reverb.Init(memory.data(), 48000.0f);
   reverb.Reset(m.sample_rate);
@@ -125,9 +125,9 @@ TEST_CASE("Beads reverb setters at defaults are bit-identical",
 
 TEST_CASE("Clouds reverb with default rate matches upstream",
           "[brume_vendor]") {
-  // The patched engine is 32768 words (room for Brume's 4x depth); the
-  // stock layout inside it must still match upstream's 16384.
-  std::vector<uint16_t> memory(32768), ref_memory(16384);
+  // The patched engine is 65536 words (room for Brume's 2x size and 4x
+  // depth); the stock layout inside it must still match upstream's 16384.
+  std::vector<uint16_t> memory(65536), ref_memory(16384);
   Zeroed<clouds::Reverb> storage;
   Zeroed<clouds_ref::Reverb> ref_storage;
   clouds::Reverb* reverb = storage.get();
@@ -164,7 +164,7 @@ namespace {
 
 struct BeadsRig {
   static constexpr float kRate = 48000.0f;
-  std::vector<uint16_t> memory = std::vector<uint16_t>(32768);
+  std::vector<uint16_t> memory = std::vector<uint16_t>(65536);
   beads::Reverb reverb;
   BeadsRig() {
     reverb.Init(memory.data(), kRate);
@@ -187,7 +187,7 @@ struct BeadsRig {
 
 struct CloudsRig {
   static constexpr float kRate = 32000.0f;
-  std::vector<uint16_t> memory = std::vector<uint16_t>(32768);
+  std::vector<uint16_t> memory = std::vector<uint16_t>(65536);
   clouds::Reverb reverb;
   CloudsRig() {
     reverb.Init(memory.data());
@@ -334,7 +334,7 @@ TEST_CASE("LFO rate change keeps phase", "[brume_vendor]") {
 }
 
 TEST_CASE("Clouds Clear empties the tank", "[brume_vendor]") {
-  std::vector<uint16_t> memory(32768);
+  std::vector<uint16_t> memory(65536);
   Zeroed<clouds::Reverb> storage;
   clouds::Reverb* reverb = storage.get();
   reverb->Init(memory.data());
@@ -481,4 +481,153 @@ TEST_CASE("Clouds diffuser coefficient", "[brume_vendor]") {
   };
   CHECK(run(true, 0.625f) == run(false, 0.0f));
   CHECK(run(true, 0.8f) != run(false, 0.0f));
+}
+
+namespace {
+
+uint64_t HashOf(const std::vector<float>& x) {
+  uint64_t h = 14695981039346656037ull;
+  for (float v : x) h = Fnv(h, v);
+  return h;
+}
+
+}  // namespace
+
+// Recorded from the custom paths before SIZE existed (e233450): at size 1
+// every scaled offset is whole, so the interpolated reads return exactly what
+// the tail reads did, and moving ap1's smear write (with its tail) changes
+// nothing the signal hears.
+TEST_CASE("Custom path at size 1 is unchanged", "[brume_vendor]") {
+  auto forced = [](float depth, bool set_size) {
+    return [depth, set_size](auto& r) {
+      r.set_force_custom(true);
+      r.set_mod_depth(depth);
+      r.set_lfo_rate(3.0f, 48000.0f);
+      if (set_size) r.set_size(1.0f);
+    };
+  };
+  for (bool set_size : {false, true}) {
+    CHECK(HashOf(RunNoise<BeadsRig>(forced(1.0f, set_size), 3.0f)) ==
+          0x71f66218fb5385f0ull);
+    CHECK(HashOf(RunNoise<CloudsRig>(forced(1.0f, set_size), 3.0f)) ==
+          0x2481d7050fea14fdull);
+    CHECK(HashOf(RunNoise<BeadsRig>(forced(4.0f, set_size), 3.0f)) ==
+          0xf9f348f5614a572eull);
+    CHECK(HashOf(RunNoise<CloudsRig>(forced(4.0f, set_size), 3.0f)) ==
+          0x41945afa8f333f78ull);
+  }
+}
+
+namespace {
+
+// How fast the tail of a 0.1 s noise burst decays, forced custom path at
+// `size` with the decay setting fixed: dB from 0.5..1.5 s to 1.5..2.5 s.
+template <typename Rig>
+double TailDropDb(float size) {
+  Rig r;
+  r.reverb.set_force_custom(true);
+  r.reverb.set_size(size);
+  std::mt19937 rng(8);
+  std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+  const int burst = static_cast<int>(0.1f * Rig::kRate);
+  double e[2] = {0.0, 0.0};
+  for (int i = 0; i < static_cast<int>(2.5f * Rig::kRate); ++i) {
+    const float y = r.Process(i < burst ? noise(rng) : 0.0f);
+    const float t = float(i) / Rig::kRate;
+    if (t >= 0.5f) e[t < 1.5f ? 0 : 1] += double(y) * y;
+  }
+  return 10.0 * std::log10(e[0] / e[1]);
+}
+
+template <typename Rig>
+void CheckSizeScalesDecay() {
+  const double small = TailDropDb<Rig>(0.5f);
+  const double unity = TailDropDb<Rig>(1.0f);
+  const double large = TailDropDb<Rig>(2.0f);
+  INFO("dB per second: 0.5x " << small << ", 1x " << unity << ", 2x "
+       << large);
+  // Each pass round the loop loses the same fraction, so the decay rate in
+  // time goes as 1 / size.
+  CHECK(large < 0.7 * unity);
+  CHECK(small > 1.4 * unity);
+}
+
+}  // namespace
+
+TEST_CASE("Size lengthens and shortens the decay", "[brume_vendor]") {
+  SECTION("Beads") { CheckSizeScalesDecay<BeadsRig>(); }
+  SECTION("Clouds") { CheckSizeScalesDecay<CloudsRig>(); }
+}
+
+namespace {
+
+// The size clamps to 0.5 .. 2, and both ends at depth 4 and 16x stay
+// finite (the reserves are static_asserted for 2x size with 4x depth).
+template <typename Rig>
+void CheckSizeEnds() {
+  auto at = [](float size) {
+    return [size](auto& rv) {
+      rv.set_force_custom(true);
+      rv.set_mod_depth(4.0f);
+      rv.set_lfo_rate(16.0f, Rig::kRate);
+      rv.set_size(size);
+    };
+  };
+  const auto large = RunNoise<Rig>(at(2.0f), 3.0f);
+  const auto small = RunNoise<Rig>(at(0.5f), 3.0f);
+  for (float y : large) REQUIRE(std::isfinite(y));
+  for (float y : small) REQUIRE(std::isfinite(y));
+  CHECK(Rms(large) > 0.05);
+  CHECK(Rms(small) > 0.05);
+  CHECK(RunNoise<Rig>(at(100.0f), 0.5f) == RunNoise<Rig>(at(2.0f), 0.5f));
+  CHECK(RunNoise<Rig>(at(0.0f), 0.5f) == RunNoise<Rig>(at(0.5f), 0.5f));
+}
+
+}  // namespace
+
+TEST_CASE("Size ends at depth 4 stay inside the delay reserves",
+          "[brume_vendor]") {
+  SECTION("Beads") { CheckSizeEnds<BeadsRig>(); }
+  SECTION("Clouds") { CheckSizeEnds<CloudsRig>(); }
+}
+
+namespace {
+
+// A size change glides linearly across the next block: one block of 32
+// frames at a new size of 2 matches 32 one-frame blocks stepping through
+// 1 + k / 32 (exact in binary, as is the glide's running sum).
+template <typename Rig, typename Frame>
+void CheckSizeGlidesAcrossBlock() {
+  Rig a, b;
+  a.reverb.set_force_custom(true);
+  b.reverb.set_force_custom(true);
+  std::mt19937 rng(9);
+  std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+  for (int i = 0; i < 4800; ++i) {
+    const float x = noise(rng);
+    REQUIRE(a.Process(x) == b.Process(x));
+  }
+  Frame block[32];
+  float expected[32];
+  for (int i = 0; i < 32; ++i) {
+    const float x = noise(rng);
+    block[i].l = block[i].r = x;
+    b.reverb.set_size(1.0f + float(i + 1) / 32.0f);
+    expected[i] = b.Process(x);
+  }
+  a.reverb.set_size(2.0f);
+  a.reverb.Process(block, 32);
+  for (int i = 0; i < 32; ++i) {
+    INFO("sample " << i);
+    CHECK(block[i].l == expected[i]);
+  }
+}
+
+}  // namespace
+
+TEST_CASE("Size glides across a block", "[brume_vendor]") {
+  SECTION("Beads") { CheckSizeGlidesAcrossBlock<BeadsRig, FloatFrame>(); }
+  SECTION("Clouds") {
+    CheckSizeGlidesAcrossBlock<CloudsRig, clouds::FloatFrame>();
+  }
 }

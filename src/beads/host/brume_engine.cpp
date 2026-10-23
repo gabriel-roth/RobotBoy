@@ -8,8 +8,8 @@ namespace robotboy_beads {
 
 namespace {
 
-constexpr size_t kBeadsReverbSize = 32768;
-constexpr size_t kCloudsReverbSize = 32768;
+constexpr size_t kBeadsReverbSize = 65536;
+constexpr size_t kCloudsReverbSize = 65536;
 constexpr size_t kDiffuserSize = 2048;
 constexpr size_t kPitchShifterSize = 4096;
 

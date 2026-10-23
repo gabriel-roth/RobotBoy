@@ -81,7 +81,7 @@ TEST_CASE("At 48 kHz Bright, the host equals a direct Processor run") {
   std::vector<float> reference(n, 0.0f);
   {
     std::vector<uint8_t> delay(3 * 262144);
-    std::vector<uint16_t> reverb(32768, 0);
+    std::vector<uint16_t> reverb(65536, 0);
     auto processor = std::make_unique<Processor>();
     uint8_t* banks[3] = {&delay[0], &delay[262144], &delay[2 * 262144]};
     processor->Init(banks, reverb.data());

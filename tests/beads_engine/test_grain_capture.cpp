@@ -107,7 +107,7 @@ TEST_CASE("Retours' Beads output matches the pre-tap-display fingerprint") {
 
 TEST_CASE("Grain accessors: serials count starts, write pointer moves") {
   std::vector<uint8_t> delay(3 * 262144);
-  std::vector<uint16_t> reverb(32768, 0);
+  std::vector<uint16_t> reverb(65536, 0);
   auto proc = std::make_unique<Processor>();
   Processor& p = *proc;
   uint8_t* banks[3] = {&delay[0], &delay[262144], &delay[2 * 262144]};
@@ -341,7 +341,7 @@ struct TapProbe {
 
 TEST_CASE("Tap accessors: delay mode exposes taps and play heads") {
   std::vector<uint8_t> delay(3 * 262144);
-  std::vector<uint16_t> reverb(32768, 0);
+  std::vector<uint16_t> reverb(65536, 0);
   auto proc = std::make_unique<Processor>();
   Processor& p = *proc;
   uint8_t* banks[3] = {&delay[0], &delay[262144], &delay[2 * 262144]};

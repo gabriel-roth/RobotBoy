@@ -9,10 +9,10 @@ namespace robotboy_beads {
 namespace {
 
 // Beads' delay memory: three 256 KB banks (beads.cc), shared by all four
-// quality settings, plus the 32768-word reverb buffer.
+// quality settings, plus the 65536-word reverb buffer.
 constexpr size_t kBankSize = 262144;
 constexpr size_t kNumBanks = 3;
-constexpr size_t kReverbSize = 32768;
+constexpr size_t kReverbSize = 65536;
 
 inline float Finite(float x) { return std::isfinite(x) ? x : 0.0f; }
 

@@ -65,8 +65,8 @@ const Media kMedia[] = {
 // blocks. Fails on the first output sample that differs.
 struct Pair {
   const Media& media;
-  std::vector<uint16_t> memory[2] = {std::vector<uint16_t>(32768),
-                                     std::vector<uint16_t>(32768)};
+  std::vector<uint16_t> memory[2] = {std::vector<uint16_t>(65536),
+                                     std::vector<uint16_t>(65536)};
   Reverb reverb[2];
   std::mt19937 rng{1234};
   size_t block_index = 0;
