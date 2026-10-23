@@ -483,19 +483,19 @@ struct BrumeWidget : ModuleWidget {
 		// Plate controls (panel-specs/brume.yaml): knob, CV jack, trimpot.
 		struct Cell { float x, knobY, jackY, trimY; };
 		static const Cell kCells[Brume::kNumControls] = {
-			{32.302f, 30.637f, 44.138f, 54.138f},  // SEND
-			{74.23f, 30.637f, 44.138f, 54.138f},  // FILTER
-			{95.194f, 30.637f, 44.138f, 54.138f},  // SMEAR
-			{116.158f, 30.637f, 44.138f, 54.138f},  // PREDELAY
-			{53.266f, 30.637f, 44.138f, 54.138f},  // WOW, after SEND on the panel
-			{30.555f, 77.688f, 91.188f, 101.188f},  // SIZE
-			{48.025f, 77.688f, 91.188f, 101.188f},  // DECAY
-			{65.495f, 77.688f, 91.188f, 101.188f},  // DAMP
-			{82.965f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
-			{100.435f, 77.688f, 91.188f, 101.188f},  // SPEED
-			{117.905f, 77.688f, 91.188f, 101.188f},  // DEPTH
-			{137.23f, 39.765f, 51.765f, 61.265f},  // WIDTH
-			{137.23f, 79.058f, 91.058f, 100.558f},  // DRY/WET
+			{31.732f, 30.637f, 44.138f, 54.138f},  // SEND
+			{73.660f, 30.637f, 44.138f, 54.138f},  // FILTER
+			{94.624f, 30.637f, 44.138f, 54.138f},  // SMEAR
+			{115.588f, 30.637f, 44.138f, 54.138f},  // PREDELAY
+			{52.696f, 30.637f, 44.138f, 54.138f},  // WOW, after SEND on the panel
+			{29.985f, 77.688f, 91.188f, 101.188f},  // SIZE
+			{47.455f, 77.688f, 91.188f, 101.188f},  // DECAY
+			{64.925f, 77.688f, 91.188f, 101.188f},  // DAMP
+			{82.395f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
+			{99.865f, 77.688f, 91.188f, 101.188f},  // SPEED
+			{117.335f, 77.688f, 91.188f, 101.188f},  // DEPTH
+			{136.945f, 39.765f, 51.765f, 61.265f},  // WIDTH
+			{136.945f, 79.058f, 91.058f, 100.558f},  // DRY/WET
 		};
 		for (int i = 0; i < Brume::kNumControls; i++) {
 			const Cell c = kCells[i];
@@ -505,16 +505,16 @@ struct BrumeWidget : ModuleWidget {
 		}
 
 		// FOLLOW column.
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 27.000)), module, Brume::RISE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.66, 46.150)), module, Brume::FALL_PARAM));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(7.8, 63.045)), module, Brume::SOURCE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.66, 75.010)), module, Brume::SIDE_INPUT));
-		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.66, 11.000)), module, Brume::ENV_LIGHT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.66, 95.000)), module, Brume::ENV_OUTPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 27.000)), module, Brume::RISE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 46.150)), module, Brume::FALL_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(7.515, 63.045)), module, Brume::SOURCE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.375, 75.010)), module, Brume::SIDE_INPUT));
+		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.375, 11.000)), module, Brume::ENV_LIGHT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.375, 95.000)), module, Brume::ENV_OUTPUT));
 
 		// Output column: CLEAR on top; WIDTH and DRY/WET are plate controls.
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(132.980, 20.982)), module, Brume::CLEAR_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(141.480, 20.982)), module, Brume::CLEAR_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(132.695, 20.982)), module, Brume::CLEAR_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(141.195, 20.982)), module, Brume::CLEAR_INPUT));
 
 		// Bottom row.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 114.3)), module, Brume::IN_L_INPUT));
