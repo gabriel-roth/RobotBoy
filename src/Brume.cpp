@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "host/balance_meter.h"
 #include "host/brume_engine.h"
 #include "host/envelope_follower.h"
 #include "host/flush_to_zero.h"
@@ -179,6 +180,9 @@ struct Brume : Module {
 		QUALITY_G_LIGHT,
 		QUALITY_B_LIGHT,
 		ENV_LIGHT,
+		BALANCE_R_LIGHT,
+		BALANCE_G_LIGHT,
+		BALANCE_B_LIGHT,
 		LIGHTS_LEN
 	};
 
@@ -191,6 +195,7 @@ struct Brume : Module {
 
 	rb::BrumeEngine engine;
 	rb::EnvelopeFollower follower;
+	rb::BalanceMeter balance;
 
 	// Saved settings. Mode and Quality are the switches' params on
 	// MetaModule; these mirror them there.
@@ -280,10 +285,13 @@ struct Brume : Module {
 		configBypass(IN_R_INPUT, OUT_R_OUTPUT);
 		// The Mode and Quality lights sit in their buttons.
 		configLight(ENV_LIGHT, "Envelope");
+		configLight(BALANCE_R_LIGHT, "Dry/wet balance")->description =
+			"Cyan: wet louder. Amber: dry louder. White: even.";
 
 		lightDivider.setDivision(32);
 		sampleRate = APP->engine->getSampleRate();
 		follower.Init(sampleRate);
+		balance.Init(sampleRate);
 		applySettingsToEngine();
 		// The engine allocates both tanks' memory; if that fails it outputs
 		// silence. (WARN is defined by both hosts' logger.hpp.)
@@ -303,6 +311,7 @@ struct Brume : Module {
 		sampleRate = e.sampleRate;
 		engine.SetHostRate(sampleRate);
 		follower.SetSampleRate(sampleRate);
+		balance.Init(sampleRate);
 		fpuConfigured = false;
 	}
 
@@ -389,6 +398,9 @@ struct Brume : Module {
 		engine.SetControls(controls);
 
 		const rb::BrumeFrame out = engine.Process(in.l, in.r);
+		const rb::BrumeFrame dryMix = engine.dry_mix();
+		const rb::BrumeFrame wetMix = engine.wet_mix();
+		balance.Process(dryMix.l, dryMix.r, wetMix.l, wetMix.r);
 		// With Out R unpatched, Out L carries the mono sum.
 		const bool rConnected = outputs[OUT_R_OUTPUT].isConnected();
 		outputs[OUT_L_OUTPUT].setVoltage((rConnected ? out.l : (out.l + out.r) * 0.5f) * 5.f);
@@ -403,6 +415,10 @@ struct Brume : Module {
 				lights[QUALITY_R_LIGHT + c].setBrightness(kQualityColors[q][c]);
 			}
 			lights[ENV_LIGHT].setBrightness(envelope);
+			float rgb[3];
+			balance.Color(rgb);
+			for (int c = 0; c < 3; c++)
+				lights[BALANCE_R_LIGHT + c].setBrightness(rgb[c]);
 		}
 	}
 
@@ -494,8 +510,8 @@ struct BrumeWidget : ModuleWidget {
 			{82.395f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
 			{99.865f, 77.688f, 91.188f, 101.188f},  // SPEED
 			{117.335f, 77.688f, 91.188f, 101.188f},  // DEPTH
-			{136.945f, 39.765f, 51.765f, 61.265f},  // WIDTH
-			{136.945f, 79.058f, 91.058f, 100.558f},  // DRY/WET
+			{136.945f, 24.989f, 36.989f, 46.489f},  // WIDTH
+			{136.945f, 68.503f, 80.503f, 90.003f},  // DRY/WET
 		};
 		for (int i = 0; i < Brume::kNumControls; i++) {
 			const Cell c = kCells[i];
@@ -512,22 +528,24 @@ struct BrumeWidget : ModuleWidget {
 		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.375, 11.000)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.375, 95.000)), module, Brume::ENV_OUTPUT));
 
-		// Output column: CLEAR on top; WIDTH and DRY/WET are plate controls.
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(132.695, 20.982)), module, Brume::CLEAR_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(141.195, 20.982)), module, Brume::CLEAR_INPUT));
+		// Output column: WIDTH and DRY/WET are plate controls; the balance
+		// light sits at the foot.
+		addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(136.945, 102.600)), module, Brume::BALANCE_R_LIGHT));
 
 		// Bottom row.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 114.3)), module, Brume::IN_L_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.850, 114.3)), module, Brume::IN_R_INPUT));
 #ifdef METAMODULE
-		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(55.862, 114.3)), module, Brume::MODE_PARAM));
-		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(91.458, 114.3)), module, Brume::QUALITY_PARAM));
+		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(44.871, 114.3)), module, Brume::MODE_PARAM));
+		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(69.477, 114.3)), module, Brume::QUALITY_PARAM));
 #else
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(55.862, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
+			mm2px(Vec(44.871, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(91.458, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
+			mm2px(Vec(69.477, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
 #endif
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(93.533, 114.3)), module, Brume::CLEAR_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.033, 114.3)), module, Brume::CLEAR_INPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(127.470, 114.3)), module, Brume::OUT_L_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.170, 114.3)), module, Brume::OUT_R_OUTPUT));
 	}

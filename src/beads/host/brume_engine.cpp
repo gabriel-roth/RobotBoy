@@ -489,6 +489,10 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
   BrumeFrame out = {0.0f, 0.0f};
   if (!ok()) {
     wet_ = out;
+    dry_ = out;
+    mix_wet_ = out;
+    dry_gain_ = 0.0f;
+    wet_gain_ = 0.0f;
     return out;
   }
 
@@ -556,6 +560,12 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
   const float wet_gain = WetGain(dry_wet_);
   out.l = Clamp(Finite(dry_l * dry_gain + wet_l * wet_gain), kMaxOutput);
   out.r = Clamp(Finite(dry_r * dry_gain + wet_r * wet_gain), kMaxOutput);
+  // For dry_mix() and wet_mix(). The products are left to the accessors so
+  // that the sum above compiles as before.
+  dry_ = {dry_l, dry_r};
+  mix_wet_ = {wet_l, wet_r};
+  dry_gain_ = dry_gain;
+  wet_gain_ = wet_gain;
   return out;
 }
 

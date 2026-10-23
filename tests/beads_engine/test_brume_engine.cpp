@@ -187,6 +187,32 @@ TEST_CASE("wet tap is pre-width and pre-mix", "[brume_engine]") {
   }
 }
 
+// dry_mix() and wet_mix() are the two parts of the output, for the module's
+// balance light.
+TEST_CASE("mix taps sum to the output", "[brume_engine]") {
+  const std::vector<float> l = Noise(48000, 7);
+  const std::vector<float> r = Noise(48000, 8);
+  for (float dry_wet : {0.0f, 0.5f, 1.0f}) {
+    auto e = MakeEngine(48000.0f);
+    BrumeControls c = DefaultBrumeControls();
+    c.dry_wet = dry_wet;
+    bool dry_seen = false;
+    bool wet_seen = false;
+    for (size_t i = 0; i < l.size(); ++i) {
+      e->SetControls(c);
+      const BrumeFrame f = e->Process(l[i], r[i]);
+      const BrumeFrame d = e->dry_mix();
+      const BrumeFrame w = e->wet_mix();
+      REQUIRE(d.l + w.l == Catch::Approx(f.l).margin(1e-6));
+      REQUIRE(d.r + w.r == Catch::Approx(f.r).margin(1e-6));
+      dry_seen = dry_seen || d.l != 0.0f;
+      wet_seen = wet_seen || w.l != 0.0f;
+    }
+    REQUIRE(dry_seen == (dry_wet < 1.0f));
+    REQUIRE(wet_seen == (dry_wet > 0.0f));
+  }
+}
+
 TEST_CASE("clear empties within 15 ms", "[brume_engine]") {
   for (BrumeMode mode : kModes) {
     auto e = MakeEngine(48000.0f);

@@ -59,13 +59,15 @@ Size, Damp, Speed and Depth start at noon and Diffuse starts fully clockwise, wh
 
 ### Output
 
-The Output column on the right edge holds **Clear**, **Width** and **Dry/Wet**, top to bottom.
+The Output column on the right edge holds **Width** and **Dry/Wet**, with the balance light at its foot. **Clear** sits in the bottom row.
 
-*Clear:* A button and a trigger input that empty the reverb immediately, with a quick fade so there is no click. The input keeps flowing.
+*Clear* (bottom, between Quality and Out): A button and a trigger input that empty the reverb immediately, with a quick fade so there is no click. The input keeps flowing.
 
 *Width:* The stereo width of the reverb. Noon is the reverb's own stereo image; counter-clockwise narrows it to mono, clockwise exaggerates it.
 
 *Dry/Wet:* Balance between your untouched input (dry) and the reverb (wet), using the same laws as Beads.
+
+*Balance light:* Shows which is louder at the output, the dry signal or the reverb, as you hear them after Width and Dry/Wet. White means they're about even; it turns amber as the dry gets louder and cyan as the reverb does. It gets brighter with the overall level and goes dark in silence. Because it measures the actual signals, it moves when the follower or CV changes Send or Dry/Wet, and it turns cyan as a tail rings on after you stop playing.
 
 ### Mode and Quality
 
@@ -110,7 +112,7 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 - **Out (L / R):** stereo output. Leave **Out R** unpatched and both channels sum to **Out L**.
 - **Side:** sidechain input for the follower.
 - **Env:** the follower's envelope, 0 to 10 V.
-- **Clear:** trigger input (top of the Output column); same as the button.
+- **Clear:** trigger input (bottom row, beside its button); same as the button.
 - **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
 
 ---

@@ -107,6 +107,14 @@ class BrumeEngine {
   bool ok() const { return beads_memory_ != nullptr; }
   // The last Process()'s wet, before WIDTH and DRY/WET.
   BrumeFrame wet() const { return wet_; }
+  // The last Process()'s dry and wet as mixed into the output: after WIDTH
+  // and the DRY/WET gains, before the output clamp.
+  BrumeFrame dry_mix() const {
+    return {dry_.l * dry_gain_, dry_.r * dry_gain_};
+  }
+  BrumeFrame wet_mix() const {
+    return {mix_wet_.l * wet_gain_, mix_wet_.r * wet_gain_};
+  }
   BrumeMode active_mode() const { return mode_; }
   BrumeQuality active_quality() const { return quality_; }
   float tank_rate() const { return tank_rate_; }
@@ -184,6 +192,11 @@ class BrumeEngine {
   float width_ = 0.5f;
   float dry_wet_ = 0.5f;
   BrumeFrame wet_ = {0.0f, 0.0f};
+  // The last Process()'s dry, wet after WIDTH, and DRY/WET gains.
+  BrumeFrame dry_ = {0.0f, 0.0f};
+  BrumeFrame mix_wet_ = {0.0f, 0.0f};
+  float dry_gain_ = 0.0f;
+  float wet_gain_ = 0.0f;
 
   // SIZE (the tanks' delay scale) and PREDELAY (seconds), gliding. Each
   // snaps to its target once within 1e-6 of it, so that the defaults (1 and

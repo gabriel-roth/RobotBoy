@@ -5,7 +5,7 @@
 # 29 HP. Two colored plates (top, 5 cells in signal order: SEND, WOW,
 # FILTER, SMEAR, PREDELAY; bottom, 6 cells: SIZE, DECAY, DAMP, DIFFUSE, SPEED, DEPTH) between a
 # FOLLOW column on the far left (RISE, FALL, SOURCE, SIDE, ENV) and an Output column
-# on the far right (CLEAR, WIDTH, DRY/WET). Cells are centered per plate.
+# on the far right (WIDTH, DRY/WET, BALANCE light). Cells are centered per plate.
 # The FOLLOW and Output columns are the same width (17.75), 1.5 mm from the
 # panel edges and 2.0 mm from the plates, so the plates sit centered.
 # Each cell's label, knob, jack and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW column uses 8.5 mm from label
@@ -17,9 +17,12 @@
 # splits the plate: timing above (ENV light, RISE, FALL; 3.5 mm gaps from the
 # plate top), source below (the IN/OUT switch, then SIDE with its label under
 # the jack, like ENV; 4.87 mm gaps down to the inset), 4.2 mm either side of
-# the bar. The Output column runs the same height as FOLLOW: CLEAR (button and
-# trigger jack) on top, then WIDTH and DRY/WET, with four equal gaps. The
-# bottom row (IN, MODE, QUALITY, OUT) has equal gaps to the panel edges.
+# the bar. The Output column runs the same height as FOLLOW: WIDTH and DRY/WET
+# (label 8.5 / knob 12.0 / jack 9.5 / trimpot) with three equal 8.072 gaps,
+# above the dry/wet BALANCE light, 5.0 mm up from the column's foot as the
+# ENV light is 5.0 mm down from FOLLOW's top. The bottom row (IN, MODE,
+# QUALITY, CLEAR button + trigger, OUT): IN and OUT inset equally from the
+# panel edges, the three units between them with equal 17.406 gaps.
 #
 # Every x/y here must match the mm2px(Vec(...)) centers in src/Brume.cpp.
 slug: Brume
@@ -98,34 +101,35 @@ elements:
   - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.375, y: 11.000}
   - {name: ENV_OUTPUT, x: 10.375, y: 95.000}
   - {text: "ENV", x: 10.375, y: 103.600, size: 3.175}
-  - {text: "CLEAR", x: 136.945, y: 12.267, size: 3.175}
-  - {name: CLEAR_PARAM, widget: VCVButton, x: 132.695, y: 20.982}
-  - {name: CLEAR_INPUT, x: 141.195, y: 20.982}
-  - {text: "WIDTH", x: 136.945, y: 31.265, size: 3.175}
-  - {name: WIDTH_PARAM, x: 136.945, y: 39.765}
-  - {name: WIDTH_INPUT, x: 136.945, y: 51.765}
-  - {name: WIDTH_CV_PARAM, widget: Trimpot, x: 136.945, y: 61.265}
-  - {text: "DRY/WET", x: 136.945, y: 70.558, size: 3.175}
-  - {name: DRY_WET_PARAM, x: 136.945, y: 79.058}
-  - {name: DRY_WET_INPUT, x: 136.945, y: 91.058}
-  - {name: DRY_WET_CV_PARAM, widget: Trimpot, x: 136.945, y: 100.558}
+  - {text: "WIDTH", x: 136.945, y: 16.489, size: 3.175}
+  - {name: WIDTH_PARAM, x: 136.945, y: 24.989}
+  - {name: WIDTH_INPUT, x: 136.945, y: 36.989}
+  - {name: WIDTH_CV_PARAM, widget: Trimpot, x: 136.945, y: 46.489}
+  - {text: "DRY/WET", x: 136.945, y: 60.003, size: 3.175}
+  - {name: DRY_WET_PARAM, x: 136.945, y: 68.503}
+  - {name: DRY_WET_INPUT, x: 136.945, y: 80.503}
+  - {name: DRY_WET_CV_PARAM, widget: Trimpot, x: 136.945, y: 90.003}
+  - {name: BALANCE_R_LIGHT, widget: "MediumLight<RedGreenBlueLight>", x: 136.945, y: 102.600}
   - {name: IN_L_INPUT,   x: 10.150, y: 114.3}
   - {name: IN_R_INPUT,   x: 19.850, y: 114.3}
-  - {name: MODE_PARAM, widget: VCVBezel, x: 55.862, y: 114.3}
-  - {name: QUALITY_PARAM, widget: VCVBezel, x: 91.458, y: 114.3}
+  - {name: MODE_PARAM, widget: VCVBezel, x: 44.871, y: 114.3}
+  - {name: QUALITY_PARAM, widget: VCVBezel, x: 69.477, y: 114.3}
+  - {name: CLEAR_PARAM, widget: VCVButton, x: 93.533, y: 114.3}
+  - {name: CLEAR_INPUT, x: 102.033, y: 114.3}
   - {name: OUT_L_OUTPUT, x: 127.470, y: 114.3}
   - {name: OUT_R_OUTPUT, x: 137.170, y: 114.3}
   - {text: IN,  x: 15.000, y: 123.0, size: 3.175}
-  - {text: MODE, x: 55.862, y: 123.0, size: 3.175}
-  - {text: QUALITY, x: 91.458, y: 123.0, size: 3.175}
+  - {text: MODE, x: 44.871, y: 123.0, size: 3.175}
+  - {text: QUALITY, x: 69.477, y: 123.0, size: 3.175}
+  - {text: CLEAR, x: 98.266, y: 123.0, size: 3.175}
   - {text: OUT, x: 132.320, y: 123.0, size: 3.175}
 
 glyphs:
   - {src: glyphs/brume/filter-lowpass.svg,  at: [68.898, 35.399]}
   - {src: glyphs/brume/filter-highpass.svg, at: [78.423, 35.399]}
   - {src: glyphs/brume/decay-hold-infinity.svg, at: [51.771, 83.198]}
-  - {src: glyphs/brume/width-narrow.svg, at: [132.183, 44.527]}
-  - {src: glyphs/brume/width-wide.svg,   at: [141.108, 44.527]}
+  - {src: glyphs/brume/width-narrow.svg, at: [132.183, 29.751]}
+  - {src: glyphs/brume/width-wide.svg,   at: [141.108, 29.751]}
   - {src: glyphs/brume/smear-sharp.svg, at: [89.862, 35.399]}
   - {src: glyphs/brume/smear-wash.svg,  at: [99.387, 35.399]}
   - {src: glyphs/brume/wow-steady.svg,  at: [47.934, 35.399]}
