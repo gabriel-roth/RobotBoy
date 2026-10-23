@@ -1,6 +1,6 @@
 # Brume
 
-**Brume** is a stereo reverb for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), with every parameter of the reverb on its own knob. It runs either of two reverbs, the one from Mutable Instruments Beads or the one from Mutable Instruments Clouds, and adds a shimmer loop, a smear and a filter on the way in, and an envelope follower that lets the reverb respond to your playing without a single cable. Brume runs on the source code of Beads and Clouds.
+**Brume** is a 33 HP stereo reverb for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), with every parameter of the reverb on its own knob. It runs either of two reverbs, the one from Mutable Instruments Beads or the one from Mutable Instruments Clouds, and adds a shimmer loop, a smear and a filter on the way in, and an envelope follower that lets the reverb respond to your playing without a single cable. Brume runs on the source code of Beads and Clouds.
 
 <img src="screenshots/Brume.png" alt="Brume module" height="500">
 
@@ -8,9 +8,9 @@
 
 ## How it works
 
-Your input goes through a **Send** level, a **Filter**, and a **Smear** (a diffuser that blurs transients) into the reverb tank. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
+Your input goes through a **Send** level, a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
 
-**Shimmer** takes the reverb's output, shifts its pitch by **Interval**, and feeds it back into the tank, so each pass of the tail climbs (or falls) another step. **Wow** adds tape-style pitch wobble.
+**Shimmer** takes the reverb's output, shifts its pitch by **Interval**, and feeds it back into the tank (skipping the pre-delay), so each pass of the tail climbs (or falls) another step. **Wow** adds tape-style pitch wobble.
 
 The **follower** (the sand-coloured column on the left) listens to your input, or to a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
 
@@ -30,9 +30,9 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 
 ## Controls
 
-Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
+Each of the 15 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
-Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb's setting: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
+Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb's setting: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
 
 ### Input
 
@@ -41,6 +41,8 @@ Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb
 *Filter:* A filter on the reverb's input, a bit like the Texture filter in Clouds. Noon is flat. Turn it **counter-clockwise** for a low-pass filter that darkens what goes in, down to a rumble at the end stop; turn it **clockwise** for a high-pass filter that thins it.
 
 *Smear:* Blurs the input into the reverb with a short diffuser, softening transients before the tank sees them. Off at fully counter-clockwise. Over the first 70% of its travel it fades in the diffuser of Clouds; beyond that the diffuser itself gets denser.
+
+*Pre-delay:* How long the input waits before it reaches the tank, from 0 to 500 ms. The knob gives more of its travel to short times. Fully counter-clockwise is off, and leaves the sound exactly as it was without it. Changes glide over about half a second, so turning it bends the pitch of what is passing through for a moment instead of clicking. The shimmer loop skips the pre-delay, so its steps keep the same pace at any setting.
 
 *Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. The Beads depth is a little past halfway (1x in the tooltip); fully clockwise is three times as deep. By default it wobbles the whole input, dry signal included; the **Wow & flutter** context menu item can limit it to the reverb.
 
@@ -51,6 +53,8 @@ Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb
 *Interval:* The pitch shift in the shimmer loop, from −24 to +24 semitones; the default is +12 (an octave up). The shift is quantized by **Lock pitch** in the context menu, which defaults to Octaves here, so the knob steps between octaves unless you choose another setting.
 
 ### Reverb
+
+*Size:* The size of the room. Scales every delay inside the tank, from half to twice the original, with the original at noon. A bigger room spaces its echoes further apart and takes longer to decay; a smaller one is tighter and shorter. Changes glide over about half a second, so sweeping Size bends the pitch of the tail for a moment instead of jumping.
 
 *Decay:* The length of the tail. Over the first 95% of the knob's travel it sets the decay time. The last 5% (the infinity mark) is a **hold zone**: the tail stops decaying. In Beads mode it rings almost endlessly. In Clouds mode it still fades slowly, and faster for quiet or noisy material, because Clouds stores its reverb at 12 bits and a little is lost on every pass, as on the original module. Hold keeps whatever is in the tank ringing; with the input still coming in, it builds up (the limiter keeps it bounded).
 
@@ -112,7 +116,7 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 - **Side:** sidechain input for the follower.
 - **Env:** the follower's envelope, 0 to 10 V.
 - **Clear:** trigger input; same as the button.
-- **CV inputs:** one for each of Send, Filter, Smear, Wow, Shimmer, Interval, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
+- **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Shimmer, Interval, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
 
 ---
 
