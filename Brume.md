@@ -50,7 +50,7 @@ Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it
 
 ### Reverb
 
-*Decay:* The length of the tail. Over the first 95% of the knob's travel it sets the decay time. The last 5% (the infinity mark) is a **hold zone**: the tail no longer decays, so it sustains indefinitely. Hold keeps whatever is in the tank ringing; with the input still coming in, it builds up (the limiter keeps it bounded).
+*Decay:* The length of the tail. Over the first 95% of the knob's travel it sets the decay time. The last 5% (the infinity mark) is a **hold zone**: the tail stops decaying. In Beads mode it rings almost endlessly. In Clouds mode it still fades slowly, and faster for quiet or noisy material, because Clouds stores its reverb at 12 bits and a little is lost on every pass, as on the original module. Hold keeps whatever is in the tank ringing; with the input still coming in, it builds up (the limiter keeps it bounded).
 
 *Damp:* How quickly high frequencies die out inside the tank. Counter-clockwise leaves the tail bright; clockwise makes it dark.
 
@@ -139,7 +139,7 @@ Brume's Mode and Quality are labeled switches on MetaModule. A patch saved on de
 - **Ducking reverb:** patch a kick drum into **Side**, turn the **Dry/Wet** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
 - **Swelling reverb:** with nothing in Side, turn the **Decay** trimpot clockwise and set Fall long. Long tails open up on loud passages and tighten when you stop.
 - **Endless shimmer:** set Interval to +12, bring **Shimmer** just short of the infinity mark, and play short notes: each one climbs away in octaves.
-- **Frozen pad:** push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear.
+- **Frozen pad:** in Beads mode, push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear. (In Clouds mode the pad slowly fades away instead.)
 - **Reverb as an instrument:** use Mode to jump between the two tanks while tails overlap, and Quality to change the colour.
 
 ___
