@@ -1,6 +1,6 @@
 # Brume
 
-**Brume** is a 33 HP stereo reverb for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), with every parameter of the reverb on its own knob. It runs either of two reverbs, the one from Mutable Instruments Beads or the one from Mutable Instruments Clouds, and adds a shimmer loop, a smear and a filter on the way in, and an envelope follower that lets the reverb respond to your playing without a single cable. Brume runs on the source code of Beads and Clouds.
+**Brume** is a 29 HP stereo reverb for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), with every parameter of the reverb on its own knob. It runs either of two reverbs, the one from Mutable Instruments Beads or the one from Mutable Instruments Clouds, and adds a smear and a filter on the way in, and an envelope follower that lets the reverb respond to your playing without a single cable. Brume runs on the source code of Beads and Clouds.
 
 <img src="screenshots/Brume.png" alt="Brume module" height="500">
 
@@ -10,7 +10,7 @@
 
 Your input goes through a **Send** level, a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
 
-**Shimmer** takes the reverb's output, shifts its pitch by **Interval**, and feeds it back into the tank (skipping the pre-delay), so each pass of the tail climbs (or falls) another step. **Wow** adds tape-style pitch wobble.
+**Wow** adds tape-style pitch wobble.
 
 The **follower** (the sand-coloured column on the left) listens to your input, or to a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
 
@@ -23,14 +23,13 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 1. **Patch audio** into **In** (bottom left). Patch both jacks for stereo; patch just the left and it feeds both sides.
 2. **Take your output** from **Out** (bottom right). If you only patch the left output, you get a mono sum of both channels.
 3. **Set Dry/Wet** to taste, and **Decay** for the length of the tail.
-4. **Try Shimmer.** Turn it up slowly: the tail starts to climb an octave on every pass. At the infinity mark it sustains on its own, and past it the tail runs away.
-5. **Try the follower.** Turn the trimpot under Decay or Dry/Wet clockwise with nothing patched into its CV jack. The reverb now grows and shrinks with the loudness of your playing.
+4. **Try the follower.** Turn the trimpot under Decay or Dry/Wet clockwise with nothing patched into its CV jack. The reverb now grows and shrinks with the loudness of your playing.
 
 ---
 
 ## Controls
 
-Each of the 15 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
+Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
 Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb's setting: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
 
@@ -42,15 +41,9 @@ Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads 
 
 *Smear:* Blurs the input into the reverb with a short diffuser, softening transients before the tank sees them. Off at fully counter-clockwise. Over the first 70% of its travel it fades in the diffuser of Clouds; beyond that the diffuser itself gets denser.
 
-*Pre-delay:* How long the input waits before it reaches the tank, from 0 to 500 ms. The knob gives more of its travel to short times. Fully counter-clockwise is off, and leaves the sound exactly as it was without it. Changes glide over about half a second, so turning it bends the pitch of what is passing through for a moment instead of clicking. The shimmer loop skips the pre-delay, so its steps keep the same pace at any setting.
+*Pre-delay:* How long the input waits before it reaches the tank, from 0 to 500 ms. The knob gives more of its travel to short times. Fully counter-clockwise is off, and leaves the sound exactly as it was without it. Changes glide over about half a second, so turning it bends the pitch of what is passing through for a moment instead of clicking.
 
 *Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. The Beads depth is a little past halfway (1x in the tooltip); fully clockwise is three times as deep. By default it wobbles the whole input, dry signal included; the **Wow & flutter** context menu item can limit it to the reverb.
-
-### Shimmer
-
-*Shimmer:* How much of the reverb's output is pitch-shifted and fed back into it. Below 95% of the knob's travel the shimmer tail decays; at 95% (the infinity mark) it sustains; past it, the tail grows until the limiter holds it: a runaway.
-
-*Interval:* The pitch shift in the shimmer loop, from −24 to +24 semitones; the default is +12 (an octave up). The shift is quantized by **Lock pitch** in the context menu, which defaults to Octaves here, so the knob steps between octaves unless you choose another setting.
 
 ### Reverb
 
@@ -68,6 +61,10 @@ Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads 
 
 ### Output
 
+The Output column on the right edge holds **Clear**, **Width** and **Dry/Wet**, top to bottom.
+
+*Clear:* A button and a trigger input that empty the reverb immediately, with a quick fade so there is no click. The input keeps flowing.
+
 *Width:* The stereo width of the reverb. Noon is the reverb's own stereo image; counter-clockwise narrows it to mono, clockwise exaggerates it.
 
 *Dry/Wet:* Balance between your untouched input (dry) and the reverb (wet), using the same laws as Beads.
@@ -83,8 +80,6 @@ Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads 
 - ***Scorched*** (magenta LED): 24 kHz. Darker and dirtier.
 
 Changing Quality clears the reverb's tail.
-
-*Clear:* A button and a trigger input that empty the reverb immediately, with a quick fade so there is no click. The input keeps flowing.
 
 ---
 
@@ -104,8 +99,8 @@ By default the follower has **auto-gain**, which learns the level of its source 
 
 Below each CV jack is a trimpot, and it does one of two things:
 
-- **With a CV cable patched:** it is an attenuverter for that CV: at center the CV is ignored, clockwise adds it, counter-clockwise inverts it. A ±5 V signal at full trimpot sweeps the whole knob range. On **Interval**, the CV is 1 V per octave at full clockwise.
-- **With nothing patched:** it sets how much the follower's envelope moves that control. At center nothing moves. Clockwise pushes the control up with the envelope; counter-clockwise pushes it down. On Interval, full travel is 24 semitones.
+- **With a CV cable patched:** it is an attenuverter for that CV: at center the CV is ignored, clockwise adds it, counter-clockwise inverts it. A ±5 V signal at full trimpot sweeps the whole knob range.
+- **With nothing patched:** it sets how much the follower's envelope moves that control. At center nothing moves. Clockwise pushes the control up with the envelope; counter-clockwise pushes it down.
 
 With every trimpot at center (the default), nothing moves. Patching a cable disconnects the envelope from that control.
 
@@ -115,8 +110,8 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 - **Out (L / R):** stereo output. Leave **Out R** unpatched and both channels sum to **Out L**.
 - **Side:** sidechain input for the follower.
 - **Env:** the follower's envelope, 0 to 10 V.
-- **Clear:** trigger input; same as the button.
-- **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Shimmer, Interval, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
+- **Clear:** trigger input (top of the Output column); same as the button.
+- **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
 
 ---
 
@@ -125,8 +120,6 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Mode** and **Quality** (VCV Rack only; on MetaModule, use the Mode and Quality switches) — the same choices as the front-panel buttons.
-- **Lock pitch** — quantizes Interval: **Off**, **Octaves** (the default), **Octaves + 5ths**, **Chromatic**, **Major**, **Minor**, **Major pentatonic** or **Minor pentatonic**. As on Particules, quantization applies after the knob, any CV and the envelope are summed.
-- **Root** — the root note for the scale settings (**Chromatic** through **Minor pentatonic**); it has no effect on Off, Octaves or Octaves + 5ths, and is greyed out for them.
 - **Wow & flutter** — **Input** (the default) applies Wow to the whole input, dry signal included, as Beads does; **Reverb only** leaves the dry signal alone. Changing it while Wow is up may glitch briefly.
 - **Follower auto-gain** — on by default; see The follower.
 
@@ -144,7 +137,6 @@ Brume's Mode and Quality are labeled switches on MetaModule. A patch saved on de
 
 - **Ducking reverb:** patch a kick drum into **Side**, turn the **Dry/Wet** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
 - **Swelling reverb:** with nothing in Side, turn the **Decay** trimpot clockwise and set Fall long. Long tails open up on loud passages and tighten when you stop.
-- **Endless shimmer:** set Interval to +12, bring **Shimmer** just short of the infinity mark, and play short notes: each one climbs away in octaves.
 - **Frozen pad:** in Beads mode, push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear. (In Clouds mode the pad slowly fades away instead.)
 - **Reverb as an instrument:** use Mode to jump between the two tanks while tails overlap, and Quality to change the colour.
 
