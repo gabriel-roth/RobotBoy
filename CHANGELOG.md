@@ -2,6 +2,12 @@
 
 What's new in Robot Boy, newest first. For how anything works, see the module manuals linked from the [README](README.md).
 
+## [2.4.1] — 2026-10-23
+
+VCV only. MetaModule users can stay on 2.4.0.
+
+- Fixed an issue where Rack could crash on quit after the module browser had been opened.
+
 ## [2.4.0] — 2026-10-21
 
 On VCV, this release also includes everything from 2.3.0.
