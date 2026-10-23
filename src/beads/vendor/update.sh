@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Re-vendor the Mutable Instruments Beads DSP, the Clouds fx classes Brume
-# uses (reverb, diffuser, pitch shifter) and the stmlib subset they need
+# uses (reverb, diffuser) and the stmlib subset they need
 # from a pichenettes/eurorack checkout, then apply RobotBoy's local patch.
 #
 #   src/beads/vendor/update.sh /path/to/eurorack
@@ -25,7 +25,7 @@ cp "$src"/beads/dsp/fx/*.h "$here/beads/dsp/fx/"
 cp "$src"/beads/resources.h "$src"/beads/resources.cc "$here/beads/"
 
 cp "$src"/clouds/dsp/frame.h "$here/clouds/dsp/"
-for f in fx_engine.h reverb.h diffuser.h pitch_shifter.h; do
+for f in fx_engine.h reverb.h diffuser.h; do
   cp "$src/clouds/dsp/fx/$f" "$here/clouds/dsp/fx/"
 done
 

@@ -3,12 +3,10 @@
 // The input is split into dry and send at the host rate (wow and flutter on
 // one or the other). The send goes through a resampler into the tank rate
 // for the current Quality, where it is processed in blocks of rate / 4000
-// frames: FILTER, SMEAR, PREDELAY, the shimmer return, a DC blocker, Beads'
+// frames: FILTER, SMEAR, PREDELAY, a DC blocker, Beads'
 // pre-reverb limiter, the active tank (Beads or Clouds, fully wet, its delay
 // lengths scaled by SIZE), the Mode's makeup gain, Beads' output limiter and
-// the tank's output gain. The active tank's output is pitch-shifted, scaled
-// by SHIMMER and returned to the input of the next block, after the
-// pre-delay.
+// the tank's output gain.
 //
 // SIZE and PREDELAY glide to a new setting (one-poles of 0.5 s): SIZE once
 // per block, the tanks interpolating across it, PREDELAY every tank-rate
@@ -47,7 +45,6 @@
 #include "beads/dsp/limiter.h"
 #include "clouds/dsp/frame.h"
 #include "clouds/dsp/fx/diffuser.h"
-#include "clouds/dsp/fx/pitch_shifter.h"
 #include "clouds/dsp/fx/reverb.h"
 #include "stmlib/dsp/filter.h"
 #pragma GCC diagnostic pop
@@ -66,10 +63,10 @@ namespace robotboy_beads {
 constexpr float kBeadsMakeup = 1.0f;
 constexpr float kCloudsMakeup = 0.992f;  // measured 0.99179
 
-// Knob values 0..1 after modulation, except interval (semitones).
+// Knob values 0..1 after modulation.
 struct BrumeControls {
-  float send, filter, smear, predelay, wow, shimmer, interval_semitones,
-        size, decay, damp, diffuse, speed, depth, width, dry_wet;
+  float send, filter, smear, predelay, wow, size,
+        decay, damp, diffuse, speed, depth, width, dry_wet;
 };
 
 // The spec's defaults.
@@ -84,8 +81,8 @@ class BrumeEngine {
   BrumeEngine(const BrumeEngine&) = delete;
   BrumeEngine& operator=(const BrumeEngine&) = delete;
 
-  // Allocates the memory of both tanks, the diffuser, the pitch shifter and
-  // the pre-delay (about 460 KB).
+  // Allocates the memory of both tanks, the diffuser and the
+  // pre-delay (about 460 KB).
   // Returns false if that fails; Process then outputs silence.
   bool Init(float host_rate);
 
@@ -137,7 +134,6 @@ class BrumeEngine {
   std::unique_ptr<uint16_t[]> beads_memory_;
   std::unique_ptr<uint16_t[]> clouds_memory_;
   std::unique_ptr<float[]> diffuser_memory_;
-  std::unique_ptr<uint16_t[]> pitch_shifter_memory_;
   std::unique_ptr<float[]> predelay_memory_;
 
   // Both tanks always exist; the active one runs, and the other while it
@@ -156,11 +152,6 @@ class BrumeEngine {
   stmlib::Svf hp_[2];
   stmlib::DCBlocker dc_blocker_[2];
   beads::Limiter pre_limiter_;
-
-  // Shimmer: the previous block's tank output, pitch-shifted and scaled.
-  clouds::PitchShifter pitch_shifter_;
-  std::array<beads::FloatFrame, kMaxBlockSize> shimmer_return_;
-  bool shimmer_live_ = false;  // shimmer_return_ holds a nonzero gain's output
 
   WowFlutter wow_;
   Resampler<2> input_resampler_;

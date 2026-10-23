@@ -287,7 +287,6 @@ TEST_CASE("non-finite input and controls are contained", "[brume_nan]") {
       bad.decay = nan;
       bad.send = inf;
       bad.dry_wet = nan;
-      bad.interval_semitones = -inf;
       e->SetControls(bad);
       const BrumeFrame f = e->Process(k % 2 ? nan : inf, k % 2 ? -inf : nan);
       REQUIRE(std::isfinite(f.l));

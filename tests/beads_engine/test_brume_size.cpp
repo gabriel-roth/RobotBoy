@@ -35,13 +35,12 @@ uint64_t Fnv(uint64_t h, float x) {
 }
 
 // Every control away from its default, so that the hash covers the
-// modulated reads at 4x depth, the shimmer loop, SMEAR and wow.
+// modulated reads at 4x depth, SMEAR and wow.
 BrumeControls BusyControls() {
   BrumeControls c = DefaultBrumeControls();
   c.filter = 0.3f;
   c.smear = 0.8f;
   c.wow = 0.3f;
-  c.shimmer = 0.6f;
   c.decay = 0.8f;
   c.damp = 0.3f;
   c.diffuse = 0.8f;
@@ -78,7 +77,8 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
 // Recorded at e233450, before SIZE and PREDELAY existed. At their defaults
 // (size 1, pre-delay 0) the output must not change by one bit. Wow's re-roll
 // draws from stmlib's global Random, so the four runs start from its initial
-// state, in the order they were recorded.
+// state, in the order they were recorded. The busy hashes were re-recorded
+// when the shimmer was removed, from the old engine with SHIMMER at 0.
 TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
           "[brume_size]") {
   stmlib::Random::Seed(0x21);
@@ -89,11 +89,11 @@ TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
   busy.size = plain.size = 0.5f;
   busy.predelay = plain.predelay = 0.0f;
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kCold, busy) ==
-        0xe9c7508115ab2525ULL);
+        0x0aac84d771cda7b2ULL);
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kScorched, plain) ==
         0xde3d96ade854ff50ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kCold, busy) ==
-        0xa5e2c6a8b1a7d3aaULL);
+        0x38fc095bc968d546ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kScorched, plain) ==
         0xc908c95b5879ce9aULL);
 }
@@ -281,38 +281,6 @@ TEST_CASE("PREDELAY glides", "[brume_size]") {
   }
 }
 
-// The shimmer return joins after the pre-delay, so the loop period does not
-// include it: with PREDELAY at 400 ms the shimmer's contribution (the
-// difference from the same run without shimmer) starts within 100 ms of the
-// wet itself, not 400 ms later.
-TEST_CASE("the shimmer loop bypasses the pre-delay", "[brume_size]") {
-  for (BrumeMode mode : kModes) {
-    std::vector<float> out[2];
-    for (int k = 0; k < 2; ++k) {
-      auto e = MakeEngine(mode);
-      BrumeControls c = WetControls();
-      c.depth = 0.0f;
-      c.predelay = std::sqrt(0.8f);  // 400 ms
-      c.shimmer = k ? 0.8f : 0.0f;
-      out[k].resize(size_t(1.5f * kRate));
-      for (size_t i = 0; i < out[k].size(); ++i) {
-        e->SetControls(c);
-        const float x = i < 480 ? 0.5f * std::sin(2.0f * kPi * 440.0f * float(i) / kRate) : 0.0f;
-        out[k][i] = e->Process(x, x).l;
-      }
-    }
-    std::vector<float> diff(out[0].size());
-    for (size_t i = 0; i < diff.size(); ++i) diff[i] = out[1][i] - out[0][i];
-    const size_t wet = Onset(out[0], 1e-4f);
-    const size_t shimmer = Onset(diff, 1e-4f);
-    INFO("mode " << int(mode) << ": wet at " << wet << ", shimmer at "
-         << shimmer);
-    CHECK(wet > size_t(0.4f * kRate));
-    CHECK(shimmer >= wet);
-    CHECK(shimmer < wet + size_t(0.1f * kRate));
-  }
-}
-
 // Clear empties the pre-delay line too: nothing comes out after the fade,
 // including what was still on its way through 300 ms of pre-delay.
 TEST_CASE("clear empties the pre-delay", "[brume_size]") {
@@ -394,4 +362,39 @@ TEST_CASE("PREDELAY keeps the stereo signal into the limiter",
     INFO("mode " << int(mode) << ": 1 ms re 0 ms " << db << " dB");
     CHECK(std::fabs(db) < 0.2);
   }
+}
+
+namespace {
+
+// 4 s of fixed noise through the engine at DECAY 0.5, fully wet.
+uint64_t BaselineHash(BrumeMode mode) {
+  std::unique_ptr<BrumeEngine> e(new BrumeEngine);
+  e->SetMode(mode);
+  REQUIRE(e->Init(48000.0f));
+  BrumeControls c = DefaultBrumeControls();
+  c.decay = 0.5f;
+  c.dry_wet = 1.0f;
+  std::mt19937 rng(1234);
+  std::uniform_real_distribution<float> dist(-0.5f, 0.5f);
+  uint64_t h = 0xcbf29ce484222325ULL;
+  for (int i = 0; i < 4 * 48000; ++i) {
+    e->SetControls(c);
+    const float l = dist(rng);
+    const float r = dist(rng);
+    const BrumeFrame f = e->Process(l, r);
+    h = Fnv(h, f.l);
+    h = Fnv(h, f.r);
+  }
+  return h;
+}
+
+}  // namespace
+
+// Recorded at the shimmer's removal, from the engine with SHIMMER at 0 (the
+// path then bypassed bit for bit). Beads: 69bb4e7 plus the tanks' custom
+// paths; Clouds with kCloudsMakeup in the path. These hashes hold for this
+// build's flags only.
+TEST_CASE("default controls give the recorded output", "[brume_size]") {
+  CHECK(BaselineHash(BrumeMode::kBeads) == 0xf9b498a24a4091d5ULL);
+  CHECK(BaselineHash(BrumeMode::kClouds) == 0x1deb749fb9f89584ULL);
 }

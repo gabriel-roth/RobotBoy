@@ -49,13 +49,6 @@ inline float BrumeTankRate(BrumeQuality quality) {
   }
 }
 
-// Shimmer gain at which the loop just sustains (g1 in the spec). Measured
-// by the "[.calibrate]" case in tests/beads_engine/test_brume_shimmer.cpp:
-// a 0.2 s noise burst into Beads at Bright, DECAY 0.5, INTERVAL +12, other
-// controls at default; the gain at which the tail is as loud at 18..20 s as
-// at 2..4 s, bisected to 1.4221 and rounded to 3 significant figures.
-constexpr float kShimmerSustainGain = 1.42f;
-
 struct BrumeInput {
   float l, r;
 };
@@ -140,21 +133,12 @@ inline SmearSettings SmearForKnob(float v) {
 // Wow and flutter amount, 0 .. 3; 1 is Beads' depth at Scorched.
 inline float WowAmount(float v) { return 3.0f * v * v; }
 
-// Rises to g1 at 0.95, then plateaus at 1.15 g1 (self-oscillation).
-inline float ShimmerGain(float v) {
-  if (v >= 0.95f) return 1.15f * kShimmerSustainGain;
-  const float x = v / 0.95f;
-  return kShimmerSustainGain * x * x;
-}
-
 // Noon = original stereo.
 inline float WidthGain(float v) { return 2.0f * v; }
 
 // Beads' dry/wet laws.
 inline float DryGain(float x) { return (1.0f - x) * (1.0f + x); }
 inline float WetGain(float x) { return x * (2.0f - x); }
-
-inline float IntervalSemitones(float v) { return -24.0f + 48.0f * v; }
 
 struct FilterSettings {
   float lp, hp, lpq;
@@ -180,20 +164,6 @@ inline float ModulatedKnob(
     return ClampUnit(knob + volts / 5.0f * trim);
   }
   return ClampUnit(knob + envelope * trim);
-}
-
-// INTERVAL in semitones: 1 V/oct at full trim from CV, 24 st at full trim
-// from the envelope. Non-finite volts return the knob; clamped to +-48.
-inline float ModulatedInterval(
-    float knob_semitones, bool patched, float volts, float trim,
-    float envelope) {
-  float st = knob_semitones;
-  if (patched) {
-    if (std::isfinite(volts)) st += volts * 12.0f * trim;
-  } else {
-    st += envelope * trim * 24.0f;
-  }
-  return st < -48.0f ? -48.0f : (st > 48.0f ? 48.0f : st);
 }
 
 }  // namespace robotboy_beads

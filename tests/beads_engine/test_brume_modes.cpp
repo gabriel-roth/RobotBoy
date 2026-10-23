@@ -254,7 +254,6 @@ TEST_CASE("hold with sustained input stays bounded", "[brume_hold]") {
     auto e = MakeEngine(kModes[m]);
     BrumeControls c = Wet();
     c.decay = 1.0f;
-    c.shimmer = 1.0f;
     PinkNoise left(31, 0.5f);
     PinkNoise right(32, 0.5f);
     std::vector<float> out(At(20.0f));

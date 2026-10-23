@@ -110,20 +110,6 @@ TEST_CASE("wow law", "[brume_controls]") {
   REQUIRE(WowAmount(1.0f) == Approx(3.0f));
 }
 
-TEST_CASE("shimmer law", "[brume_controls]") {
-  REQUIRE(ShimmerGain(0.0f) == 0.0f);
-  REQUIRE(ShimmerGain(0.475f) == Approx(0.25f * kShimmerSustainGain));
-  REQUIRE(ShimmerGain(0.97f) == Approx(1.15f * kShimmerSustainGain));
-  REQUIRE(ShimmerGain(1.0f) == Approx(1.15f * kShimmerSustainGain));
-}
-
-TEST_CASE("interval law", "[brume_controls]") {
-  REQUIRE(IntervalSemitones(0.0f) == Approx(-24.0f));
-  REQUIRE(IntervalSemitones(0.5f) == Approx(0.0f));
-  REQUIRE(IntervalSemitones(0.75f) == Approx(12.0f));
-  REQUIRE(IntervalSemitones(1.0f) == Approx(24.0f));
-}
-
 TEST_CASE("filter law", "[brume_controls]") {
   const FilterSettings mid = FilterForKnob(0.5f);
   REQUIRE(mid.lp == Approx(0.499f));
@@ -154,17 +140,6 @@ TEST_CASE("knob modulation", "[brume_controls]") {
   const float inf = std::numeric_limits<float>::infinity();
   REQUIRE(ModulatedKnob(0.4f, true, nan, 1.0f, 0.0f) == Approx(0.4f));
   REQUIRE(ModulatedKnob(0.4f, true, inf, 1.0f, 0.0f) == Approx(0.4f));
-}
-
-TEST_CASE("interval modulation", "[brume_controls]") {
-  REQUIRE(ModulatedInterval(12.0f, false, 0.0f, 0.0f, 1.0f) == Approx(12.0f));
-  REQUIRE(ModulatedInterval(12.0f, true, 1.0f, 1.0f, 0.0f) == Approx(24.0f));
-  REQUIRE(ModulatedInterval(12.0f, true, 1.0f, 1.0f, 1.0f) == Approx(24.0f));
-  REQUIRE(ModulatedInterval(0.0f, false, 0.0f, 1.0f, 0.5f) == Approx(12.0f));
-  REQUIRE(ModulatedInterval(24.0f, true, 10.0f, 1.0f, 0.0f) == 48.0f);
-  REQUIRE(ModulatedInterval(-24.0f, true, -10.0f, 1.0f, 0.0f) == -48.0f);
-  const float nan = std::numeric_limits<float>::quiet_NaN();
-  REQUIRE(ModulatedInterval(7.0f, true, nan, 1.0f, 0.0f) == Approx(7.0f));
 }
 
 TEST_CASE("input normalization", "[brume_controls]") {
