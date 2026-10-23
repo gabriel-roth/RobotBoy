@@ -51,6 +51,7 @@
 
 #include "host/brume_controls.h"
 #include "host/resampler.h"
+#include "host/wash_diffuser.h"
 #include "host/wow_flutter.h"
 
 namespace robotboy_beads {
@@ -81,8 +82,8 @@ class BrumeEngine {
   BrumeEngine(const BrumeEngine&) = delete;
   BrumeEngine& operator=(const BrumeEngine&) = delete;
 
-  // Allocates the memory of both tanks, the diffuser and the
-  // pre-delay (about 460 KB).
+  // Allocates the memory of both tanks, the diffuser, the wash and the
+  // pre-delay (about 720 KB).
   // Returns false if that fails; Process then outputs silence.
   bool Init(float host_rate);
 
@@ -136,6 +137,7 @@ class BrumeEngine {
   std::unique_ptr<uint16_t[]> beads_memory_;
   std::unique_ptr<uint16_t[]> clouds_memory_;
   std::unique_ptr<float[]> diffuser_memory_;
+  std::unique_ptr<float[]> wash_memory_;
   std::unique_ptr<float[]> predelay_memory_;
 
   // Both tanks always exist; the active one runs, and the other while it
@@ -150,6 +152,7 @@ class BrumeEngine {
   float gain_fall_ = 1.0f / 96000.0f;  // 2 s
 
   clouds::Diffuser diffuser_;
+  WashDiffuser wash_;
   stmlib::Svf lp_[2];
   stmlib::Svf hp_[2];
   stmlib::DCBlocker dc_blocker_[2];

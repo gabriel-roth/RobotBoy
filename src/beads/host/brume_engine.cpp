@@ -80,12 +80,14 @@ bool BrumeEngine::Init(float host_rate) {
   beads_memory_.reset(new (std::nothrow) uint16_t[kBeadsReverbSize]);
   clouds_memory_.reset(new (std::nothrow) uint16_t[kCloudsReverbSize]);
   diffuser_memory_.reset(new (std::nothrow) float[kDiffuserSize]);
+  wash_memory_.reset(new (std::nothrow) float[WashDiffuser::kMemorySize]);
   predelay_memory_.reset(new (std::nothrow) float[2 * kPredelaySize]);
   if (!beads_memory_ || !clouds_memory_ || !diffuser_memory_ ||
-      !predelay_memory_) {
+      !wash_memory_ || !predelay_memory_) {
     beads_memory_.reset();
     clouds_memory_.reset();
     diffuser_memory_.reset();
+    wash_memory_.reset();
     predelay_memory_.reset();
     return false;
   }
@@ -167,6 +169,7 @@ void BrumeEngine::Reconfigure() {
   size_coefficient_ = 1.0f - std::exp(
       -float(block_size_) / (kGlideSeconds * tank_rate_));
   predelay_coefficient_ = 1.0f - std::exp(-1.0f / (kGlideSeconds * tank_rate_));
+  wash_.Init(wash_memory_.get(), tank_rate_);
   ClearEngine();
   ResetStreams();
 }
@@ -208,6 +211,7 @@ void BrumeEngine::ClearEngine() {
     tank_gain_[m] = tank_running_[m] ? 1.0f : 0.0f;
   }
   diffuser_.Clear();
+  wash_.Clear();
   std::fill(&predelay_memory_[0], &predelay_memory_[2 * kPredelaySize], 0.0f);
   predelay_write_ = 0;
   const float pole = 1.0f - 2.0f * 3.14159265f * kDcBlockerHertz / tank_rate_;
@@ -366,7 +370,8 @@ void BrumeEngine::RunBlock() {
         lp_[1].Process<stmlib::FILTER_MODE_LOW_PASS>(frames[i].r));
   }
 
-  // SMEAR. The Clouds classes take clouds::FloatFrame, which has the same
+  // SMEAR: the stock Clouds diffuser, then the wash (brume_controls.h).
+  // The Clouds classes take clouds::FloatFrame, which has the same
   // two floats; the block is copied across rather than reinterpreted.
   clouds::FloatFrame clouds_frames[kMaxBlockSize];
   for (size_t i = 0; i < size; ++i) {
@@ -376,6 +381,7 @@ void BrumeEngine::RunBlock() {
   const SmearSettings smear = SmearForKnob(c.smear);
   diffuser_.set_amount(smear.amount);
   diffuser_.Process(clouds_frames, size);
+  wash_.Process(clouds_frames, size, smear.wash);
 
   ProcessPredelay(clouds_frames, size, PredelaySeconds(c.predelay));
 

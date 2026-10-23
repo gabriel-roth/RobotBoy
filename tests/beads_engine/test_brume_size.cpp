@@ -35,11 +35,13 @@ uint64_t Fnv(uint64_t h, float x) {
 }
 
 // Every control away from its default, so that the hash covers the
-// modulated reads at 4x depth, SMEAR and wow.
+// modulated reads at 4x depth, SMEAR and wow. SMEAR sits at the stock Clouds
+// diffuser, the last point the old engines share (the wash has its own
+// tests).
 BrumeControls BusyControls() {
   BrumeControls c = DefaultBrumeControls();
   c.filter = 0.3f;
-  c.smear = 0.8f;
+  c.smear = 0.25f;
   c.wow = 0.3f;
   c.decay = 0.8f;
   c.damp = 0.3f;
@@ -79,8 +81,10 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
 // draws from stmlib's global Random, so the four runs start from its initial
 // state, in the order they were recorded. The busy hashes were re-recorded
 // when the shimmer was removed, from the old engine with SHIMMER at 0, and
-// again when DIFFUSE became per Mode (Beads busy, both Clouds) and when its
-// top became the original (busy only).
+// again when DIFFUSE became per Mode (Beads busy, both Clouds), when its
+// top became the original (busy only), and when SMEAR got its wash (busy,
+// from 06377b1 with SMEAR at 0.7, its stock point then; bit-identical to
+// SMEAR 0.25 now).
 TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
           "[brume_size]") {
   stmlib::Random::Seed(0x21);
@@ -91,11 +95,11 @@ TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
   busy.size = plain.size = 0.5f;
   busy.predelay = plain.predelay = 0.0f;
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kCold, busy) ==
-        0xb7639a5e3b7ac373ULL);
+        0xae0e7af1883de261ULL);
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kScorched, plain) ==
         0xde3d96ade854ff50ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kCold, busy) ==
-        0x49dae32f689bb42dULL);
+        0x49a8eeab6c6d2e26ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kScorched, plain) ==
         0xf7c1176aa3b77599ULL);
 }

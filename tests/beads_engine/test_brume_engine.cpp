@@ -433,3 +433,29 @@ TEST_CASE("Clouds hold fades slowly", "[brume_hold]") {
   REQUIRE(db > -20.0);
   REQUIRE(db < 3.0);
 }
+
+// SMEAR above 25% fades in the wash, which spreads each click out: the wet
+// changes, and its peaks drop.
+TEST_CASE("smear above 25% reaches the tank", "[brume_engine]") {
+  auto run = [](float smear) {
+    std::unique_ptr<BrumeEngine> e = MakeEngine(48000.0f);
+    BrumeControls c = DefaultBrumeControls();
+    c.smear = smear;
+    c.decay = 0.2f;
+    c.dry_wet = 1.0f;
+    std::vector<float> out;
+    for (int i = 0; i < 2 * 48000; ++i) {
+      e->SetControls(c);
+      const float click = i % 24000 == 0 ? 1.0f : 0.0f;
+      const BrumeFrame f = e->Process(click, click);
+      REQUIRE(std::isfinite(f.l));
+      REQUIRE(std::isfinite(f.r));
+      out.push_back(f.l);
+    }
+    return out;
+  };
+  const std::vector<float> stock = run(0.25f);
+  const std::vector<float> wash = run(1.0f);
+  CHECK(wash != stock);
+  CHECK(MaxDelta(wash, 0, wash.size()) < MaxDelta(stock, 0, stock.size()));
+}
