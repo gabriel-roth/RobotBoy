@@ -2,12 +2,13 @@
 # Regenerate with (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/brume.yaml --out res/Brume.svg
 #
-# 29 HP. Four colored plates (top left: SEND, FILTER, SMEAR, WOW; top right:
-# SHIMMER, INTERVAL; bottom left: DECAY, DAMP, DIFFUSE, SPEED, DEPTH; bottom
-# right: WIDTH, DRY/WET) plus a FOLLOW column on the far left (RISE, FALL,
-# SIDE, ENV). Cells are centered per plate. Each cell's label, knob, jack
-# and trimpot sit at offsets 9.5 / 13.5 / 10 from one another. The FOLLOW
-# column uses 8.5 mm from label to knob. Its plate starts at y = 6.0, just
+# 33 HP. Four colored plates (top left, 5 cells: SEND, FILTER, SMEAR,
+# PREDELAY, WOW; top right: SHIMMER, INTERVAL; bottom left, 6 cells: SIZE,
+# DECAY, DAMP, DIFFUSE, SPEED, DEPTH; bottom right: WIDTH, DRY/WET) plus a
+# FOLLOW column on the far left (RISE, FALL, SIDE, ENV). Cells are centered
+# per plate. Each cell's label, knob, jack and trimpot sit at offsets
+# 9.5 / 13.5 / 10 from one another. The FOLLOW column uses 8.5 mm from label
+# to knob. Its plate starts at y = 6.0, just
 # below the top-left corner screw and above the other plates (which start at
 # 15.5), so the follower glyph sits on it, and runs down to the other plates'
 # bottom edge (107.6). The ENV jack and label sit in an opaque
@@ -20,7 +21,7 @@
 # Every x/y here must match the mm2px(Vec(...)) centers in src/Brume.cpp.
 slug: Brume
 name: BRUME
-hp: 29
+hp: 33
 
 title:
   size: 10
@@ -30,66 +31,74 @@ theme:
   screws: none
 
 zones:
-  - {x: 21.820, y: 15.500, w: 84.500, h: 45.050, rx: 2, fill: "#8fa89c", opacity: 0.55}
-  - {x: 108.320, y: 15.500, w: 37.500, h: 45.050, rx: 2, fill: "#a896bd", opacity: 0.55}
-  - {x: 21.820, y: 62.550, w: 84.500, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
-  - {x: 108.320, y: 62.550, w: 37.500, h: 45.050, rx: 2, fill: "#9a9a9a", opacity: 0.55}
+  - {x: 21.820, y: 15.500, w: 104.820, h: 45.050, rx: 2, fill: "#8fa89c", opacity: 0.55}
+  - {x: 128.640, y: 15.500, w: 37.500, h: 45.050, rx: 2, fill: "#a896bd", opacity: 0.55}
+  - {x: 21.820, y: 62.550, w: 104.820, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
+  - {x: 128.640, y: 62.550, w: 37.500, h: 45.050, rx: 2, fill: "#9a9a9a", opacity: 0.55}
   - {x: 1.500, y: 6.000, w: 18.320, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
   - {x: 3.000, y: 88.485, w: 15.320, h: 17.615, rx: 1.5, fill: "#3d3d3d", opacity: 1.0}
 
 elements:
-  - {text: "SEND", x: 32.383, y: 21.137, size: 3.175}
-  - {name: SEND_PARAM, x: 32.383, y: 30.637}
-  - {name: SEND_INPUT, x: 32.383, y: 44.138}
-  - {name: SEND_CV_PARAM, widget: Trimpot, x: 32.383, y: 54.138}
-  - {text: "FILTER", x: 53.508, y: 21.137, size: 3.175}
-  - {name: FILTER_PARAM, x: 53.508, y: 30.637}
-  - {name: FILTER_INPUT, x: 53.508, y: 44.138}
-  - {name: FILTER_CV_PARAM, widget: Trimpot, x: 53.508, y: 54.138}
-  - {text: "SMEAR", x: 74.632, y: 21.137, size: 3.175}
-  - {name: SMEAR_PARAM, x: 74.632, y: 30.637}
-  - {name: SMEAR_INPUT, x: 74.632, y: 44.138}
-  - {name: SMEAR_CV_PARAM, widget: Trimpot, x: 74.632, y: 54.138}
-  - {text: "WOW", x: 95.757, y: 21.137, size: 3.175}
-  - {name: WOW_PARAM, x: 95.757, y: 30.637}
-  - {name: WOW_INPUT, x: 95.757, y: 44.138}
-  - {name: WOW_CV_PARAM, widget: Trimpot, x: 95.757, y: 54.138}
-  - {text: "SHIMMER", x: 117.695, y: 21.137, size: 3.175}
-  - {name: SHIMMER_PARAM, x: 117.695, y: 30.637}
-  - {name: SHIMMER_INPUT, x: 117.695, y: 44.138}
-  - {name: SHIMMER_CV_PARAM, widget: Trimpot, x: 117.695, y: 54.138}
-  - {text: "INTERVAL", x: 136.445, y: 21.137, size: 3.175}
-  - {name: INTERVAL_PARAM, x: 136.445, y: 30.637}
-  - {name: INTERVAL_INPUT, x: 136.445, y: 44.138}
-  - {name: INTERVAL_CV_PARAM, widget: Trimpot, x: 136.445, y: 54.138}
-  - {text: "DECAY", x: 30.27, y: 68.188, size: 3.175}
-  - {name: DECAY_PARAM, x: 30.27, y: 77.688}
-  - {name: DECAY_INPUT, x: 30.27, y: 91.188}
-  - {name: DECAY_CV_PARAM, widget: Trimpot, x: 30.27, y: 101.188}
-  - {text: "DAMP", x: 47.17, y: 68.188, size: 3.175}
-  - {name: DAMP_PARAM, x: 47.17, y: 77.688}
-  - {name: DAMP_INPUT, x: 47.17, y: 91.188}
-  - {name: DAMP_CV_PARAM, widget: Trimpot, x: 47.17, y: 101.188}
-  - {text: "DIFFUSE", x: 64.07, y: 68.188, size: 3.175}
-  - {name: DIFFUSE_PARAM, x: 64.07, y: 77.688}
-  - {name: DIFFUSE_INPUT, x: 64.07, y: 91.188}
-  - {name: DIFFUSE_CV_PARAM, widget: Trimpot, x: 64.07, y: 101.188}
-  - {text: "SPEED", x: 80.97, y: 68.188, size: 3.175}
-  - {name: SPEED_PARAM, x: 80.97, y: 77.688}
-  - {name: SPEED_INPUT, x: 80.97, y: 91.188}
-  - {name: SPEED_CV_PARAM, widget: Trimpot, x: 80.97, y: 101.188}
-  - {text: "DEPTH", x: 97.87, y: 68.188, size: 3.175}
-  - {name: DEPTH_PARAM, x: 97.87, y: 77.688}
-  - {name: DEPTH_INPUT, x: 97.87, y: 91.188}
-  - {name: DEPTH_CV_PARAM, widget: Trimpot, x: 97.87, y: 101.188}
-  - {text: "WIDTH", x: 117.695, y: 68.188, size: 3.175}
-  - {name: WIDTH_PARAM, x: 117.695, y: 77.688}
-  - {name: WIDTH_INPUT, x: 117.695, y: 91.188}
-  - {name: WIDTH_CV_PARAM, widget: Trimpot, x: 117.695, y: 101.188}
-  - {text: "DRY/WET", x: 136.445, y: 68.188, size: 3.175}
-  - {name: DRY_WET_PARAM, x: 136.445, y: 77.688}
-  - {name: DRY_WET_INPUT, x: 136.445, y: 91.188}
-  - {name: DRY_WET_CV_PARAM, widget: Trimpot, x: 136.445, y: 101.188}
+  - {text: "SEND", x: 32.302, y: 21.137, size: 3.175}
+  - {name: SEND_PARAM, x: 32.302, y: 30.637}
+  - {name: SEND_INPUT, x: 32.302, y: 44.138}
+  - {name: SEND_CV_PARAM, widget: Trimpot, x: 32.302, y: 54.138}
+  - {text: "FILTER", x: 53.266, y: 21.137, size: 3.175}
+  - {name: FILTER_PARAM, x: 53.266, y: 30.637}
+  - {name: FILTER_INPUT, x: 53.266, y: 44.138}
+  - {name: FILTER_CV_PARAM, widget: Trimpot, x: 53.266, y: 54.138}
+  - {text: "SMEAR", x: 74.23, y: 21.137, size: 3.175}
+  - {name: SMEAR_PARAM, x: 74.23, y: 30.637}
+  - {name: SMEAR_INPUT, x: 74.23, y: 44.138}
+  - {name: SMEAR_CV_PARAM, widget: Trimpot, x: 74.23, y: 54.138}
+  - {text: "PREDELAY", x: 95.194, y: 21.137, size: 3.175}
+  - {name: PREDELAY_PARAM, x: 95.194, y: 30.637}
+  - {name: PREDELAY_INPUT, x: 95.194, y: 44.138}
+  - {name: PREDELAY_CV_PARAM, widget: Trimpot, x: 95.194, y: 54.138}
+  - {text: "WOW", x: 116.158, y: 21.137, size: 3.175}
+  - {name: WOW_PARAM, x: 116.158, y: 30.637}
+  - {name: WOW_INPUT, x: 116.158, y: 44.138}
+  - {name: WOW_CV_PARAM, widget: Trimpot, x: 116.158, y: 54.138}
+  - {text: "SHIMMER", x: 138.015, y: 21.137, size: 3.175}
+  - {name: SHIMMER_PARAM, x: 138.015, y: 30.637}
+  - {name: SHIMMER_INPUT, x: 138.015, y: 44.138}
+  - {name: SHIMMER_CV_PARAM, widget: Trimpot, x: 138.015, y: 54.138}
+  - {text: "INTERVAL", x: 156.765, y: 21.137, size: 3.175}
+  - {name: INTERVAL_PARAM, x: 156.765, y: 30.637}
+  - {name: INTERVAL_INPUT, x: 156.765, y: 44.138}
+  - {name: INTERVAL_CV_PARAM, widget: Trimpot, x: 156.765, y: 54.138}
+  - {text: "SIZE", x: 30.555, y: 68.188, size: 3.175}
+  - {name: SIZE_PARAM, x: 30.555, y: 77.688}
+  - {name: SIZE_INPUT, x: 30.555, y: 91.188}
+  - {name: SIZE_CV_PARAM, widget: Trimpot, x: 30.555, y: 101.188}
+  - {text: "DECAY", x: 48.025, y: 68.188, size: 3.175}
+  - {name: DECAY_PARAM, x: 48.025, y: 77.688}
+  - {name: DECAY_INPUT, x: 48.025, y: 91.188}
+  - {name: DECAY_CV_PARAM, widget: Trimpot, x: 48.025, y: 101.188}
+  - {text: "DAMP", x: 65.495, y: 68.188, size: 3.175}
+  - {name: DAMP_PARAM, x: 65.495, y: 77.688}
+  - {name: DAMP_INPUT, x: 65.495, y: 91.188}
+  - {name: DAMP_CV_PARAM, widget: Trimpot, x: 65.495, y: 101.188}
+  - {text: "DIFFUSE", x: 82.965, y: 68.188, size: 3.175}
+  - {name: DIFFUSE_PARAM, x: 82.965, y: 77.688}
+  - {name: DIFFUSE_INPUT, x: 82.965, y: 91.188}
+  - {name: DIFFUSE_CV_PARAM, widget: Trimpot, x: 82.965, y: 101.188}
+  - {text: "SPEED", x: 100.435, y: 68.188, size: 3.175}
+  - {name: SPEED_PARAM, x: 100.435, y: 77.688}
+  - {name: SPEED_INPUT, x: 100.435, y: 91.188}
+  - {name: SPEED_CV_PARAM, widget: Trimpot, x: 100.435, y: 101.188}
+  - {text: "DEPTH", x: 117.905, y: 68.188, size: 3.175}
+  - {name: DEPTH_PARAM, x: 117.905, y: 77.688}
+  - {name: DEPTH_INPUT, x: 117.905, y: 91.188}
+  - {name: DEPTH_CV_PARAM, widget: Trimpot, x: 117.905, y: 101.188}
+  - {text: "WIDTH", x: 138.015, y: 68.188, size: 3.175}
+  - {name: WIDTH_PARAM, x: 138.015, y: 77.688}
+  - {name: WIDTH_INPUT, x: 138.015, y: 91.188}
+  - {name: WIDTH_CV_PARAM, widget: Trimpot, x: 138.015, y: 101.188}
+  - {text: "DRY/WET", x: 156.765, y: 68.188, size: 3.175}
+  - {name: DRY_WET_PARAM, x: 156.765, y: 77.688}
+  - {name: DRY_WET_INPUT, x: 156.765, y: 91.188}
+  - {name: DRY_WET_CV_PARAM, widget: Trimpot, x: 156.765, y: 101.188}
   - {text: "RISE", x: 10.66, y: 29.572, size: 3.175}
   - {name: RISE_PARAM, x: 10.66, y: 38.072}
   - {text: "FALL", x: 10.66, y: 50.483, size: 3.175}
@@ -101,32 +110,36 @@ elements:
   - {text: "ENV", x: 10.66, y: 103.600, size: 3.175}
   - {name: IN_L_INPUT,   x: 10.150, y: 114.3}
   - {name: IN_R_INPUT,   x: 19.850, y: 114.3}
-  - {name: MODE_PARAM, widget: VCVBezel, x: 44.871, y: 114.3}
-  - {name: QUALITY_PARAM, widget: VCVBezel, x: 69.478, y: 114.3}
-  - {name: CLEAR_PARAM, widget: VCVButton, x: 93.534, y: 114.3}
-  - {name: CLEAR_INPUT, x: 102.034, y: 114.3}
-  - {name: OUT_L_OUTPUT, x: 127.470, y: 114.3}
-  - {name: OUT_R_OUTPUT, x: 137.170, y: 114.3}
+  - {name: MODE_PARAM, widget: VCVBezel, x: 49.951, y: 114.3}
+  - {name: QUALITY_PARAM, widget: VCVBezel, x: 79.638, y: 114.3}
+  - {name: CLEAR_PARAM, widget: VCVButton, x: 108.774, y: 114.3}
+  - {name: CLEAR_INPUT, x: 117.274, y: 114.3}
+  - {name: OUT_L_OUTPUT, x: 147.790, y: 114.3}
+  - {name: OUT_R_OUTPUT, x: 157.490, y: 114.3}
   - {text: IN,  x: 15.000, y: 123.0, size: 3.175}
-  - {text: MODE, x: 44.871, y: 123.0, size: 3.175}
-  - {text: QUALITY, x: 69.478, y: 123.0, size: 3.175}
-  - {text: CLEAR, x: 97.784, y: 123.0, size: 3.175}
-  - {text: OUT, x: 132.320, y: 123.0, size: 3.175}
+  - {text: MODE, x: 49.951, y: 123.0, size: 3.175}
+  - {text: QUALITY, x: 79.638, y: 123.0, size: 3.175}
+  - {text: CLEAR, x: 113.024, y: 123.0, size: 3.175}
+  - {text: OUT, x: 152.640, y: 123.0, size: 3.175}
 
 glyphs:
-  - {src: glyphs/brume/filter-lowpass.svg,  at: [48.746, 35.399]}
-  - {src: glyphs/brume/filter-highpass.svg, at: [58.271, 35.399]}
-  - {src: glyphs/brume/decay-hold-infinity.svg, at: [34.586, 83.198]}
-  - {src: glyphs/brume/decay-hold-infinity.svg, at: [122.011, 36.148]}
-  - {src: glyphs/brume/width-narrow.svg, at: [112.933, 82.450]}
-  - {src: glyphs/brume/width-wide.svg,   at: [121.858, 82.450]}
-  - {src: glyphs/brume/smear-sharp.svg, at: [69.870, 35.399]}
-  - {src: glyphs/brume/smear-wash.svg,  at: [79.395, 35.399]}
-  - {src: glyphs/brume/wow-steady.svg,  at: [90.995, 35.399]}
-  - {src: glyphs/brume/wow-wobble.svg,  at: [100.520, 35.399]}
-  - {src: glyphs/brume/damp-open.svg,      at: [42.408, 82.450]}
-  - {src: glyphs/brume/damp-dark.svg,      at: [51.933, 82.450]}
-  - {src: glyphs/brume/diffuse-sparse.svg, at: [59.308, 82.450]}
-  - {src: glyphs/brume/diffuse-dense.svg,  at: [68.833, 82.450]}
+  - {src: glyphs/brume/filter-lowpass.svg,  at: [48.504, 35.399]}
+  - {src: glyphs/brume/filter-highpass.svg, at: [58.029, 35.399]}
+  - {src: glyphs/brume/decay-hold-infinity.svg, at: [52.341, 83.198]}
+  - {src: glyphs/brume/decay-hold-infinity.svg, at: [142.331, 36.148]}
+  - {src: glyphs/brume/width-narrow.svg, at: [133.253, 82.450]}
+  - {src: glyphs/brume/width-wide.svg,   at: [142.178, 82.450]}
+  - {src: glyphs/brume/smear-sharp.svg, at: [69.468, 35.399]}
+  - {src: glyphs/brume/smear-wash.svg,  at: [78.993, 35.399]}
+  - {src: glyphs/brume/wow-steady.svg,  at: [111.396, 35.399]}
+  - {src: glyphs/brume/wow-wobble.svg,  at: [120.921, 35.399]}
+  - {src: glyphs/brume/damp-open.svg,      at: [60.733, 82.450]}
+  - {src: glyphs/brume/damp-dark.svg,      at: [70.258, 82.450]}
+  - {src: glyphs/brume/diffuse-sparse.svg, at: [78.203, 82.450]}
+  - {src: glyphs/brume/diffuse-dense.svg,  at: [87.728, 82.450]}
   - {src: glyphs/brume/follow-burst.svg, at: [10.660, 10.6]}
-  - {src: glyphs/brume/mod-lfo-sine.svg, at: [89.420, 77.688]}
+  - {src: glyphs/brume/size-small.svg,     at: [25.793, 82.450]}
+  - {src: glyphs/brume/size-large.svg,     at: [35.318, 82.450]}
+  - {src: glyphs/brume/predelay-short.svg, at: [90.432, 35.399]}
+  - {src: glyphs/brume/predelay-long.svg,  at: [99.957, 35.399]}
+  - {src: glyphs/brume/mod-lfo-sine.svg, at: [109.170, 77.688]}
