@@ -82,21 +82,28 @@ inline float DecayTime(float v, BrumeMode mode) {
   return lo + (hi - lo) * v / 0.95f;
 }
 
-// Knob positions that reproduce the original Beads reverb. Beads is the
-// default Mode; Clouds' own originals differ slightly (diffusion 0.7), but
-// the defaults are Beads'.
-constexpr float kSpeedDefault = 0.4536958f;    // log(10) / log(160): 1x
-constexpr float kDiffuseDefault = 0.5416667f;  // (0.625 - 0.3) / 0.6
-constexpr float kDampDefault = 0.4705882f;     // (1 - 0.6) / 0.85
-constexpr float kDepthDefault = 0.5f;          // 4 * 0.5^2 = 1x
+// Knob positions that reproduce the original Beads reverb: all at noon. Beads
+// is the default Mode; Clouds' own originals differ slightly (diffusion 0.7),
+// but the defaults are Beads'.
+constexpr float kSpeedDefault = 0.5f;    // 1x
+constexpr float kDiffuseDefault = 0.5f;  // coefficient 0.625
+constexpr float kDampDefault = 0.5f;     // lp 0.6
+constexpr float kDepthDefault = 0.5f;    // 4 * 0.5^2 = 1x
 
-// Tank lowpass coefficient: 1 (no damping) down to 0.15.
-inline float DampLp(float v) { return 1.0f - 0.85f * v; }
+// Tank lowpass coefficient: 1 (no damping) through 0.6 at noon to 0.15.
+inline float DampLp(float v) {
+  return v <= 0.5f ? 1.0f - 0.8f * v : 0.6f - 0.9f * (v - 0.5f);
+}
 
-inline float DiffuseCoefficient(float v) { return 0.3f + 0.6f * v; }
+// Allpass coefficient: 0.3 through 0.625 at noon to 0.9.
+inline float DiffuseCoefficient(float v) {
+  return v <= 0.5f ? 0.3f + 0.65f * v : 0.625f + 0.55f * (v - 0.5f);
+}
 
-// LFO rate multiplier, 0.1x .. 16x.
-inline float SpeedMultiplier(float v) { return 0.1f * powf(160.0f, v); }
+// LFO rate multiplier: 0.1x through 1x at noon to 16x.
+inline float SpeedMultiplier(float v) {
+  return v <= 0.5f ? 0.1f * powf(10.0f, 2.0f * v) : powf(16.0f, 2.0f * v - 1.0f);
+}
 
 // Modulation excursion multiplier, 0 .. 4x. The tanks' delay reserves hold
 // 4x (see the RobotBoy notes in the vendored reverbs).

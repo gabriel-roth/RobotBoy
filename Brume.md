@@ -32,7 +32,7 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 
 Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
-Damp, Diffuse, Speed and Depth start at the original Beads reverb's settings, which aren't always at noon: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
+Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb's setting: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
 
 ### Input
 

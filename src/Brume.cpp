@@ -73,6 +73,18 @@ struct SquareLawQuantity : ParamQuantity {
 	}
 };
 
+// SPEED: the LFO rate multiplier, 0.1x .. 16x with 1x at noon. Typed values
+// are multiples.
+struct SpeedQuantity : ParamQuantity {
+	float getDisplayValue() override { return rb::SpeedMultiplier(getValue()); }
+	void setDisplayValue(float x) override {
+		if (!std::isfinite(x))
+			return;
+		x = clamp(x, 0.1f, 16.f);
+		setValue(x <= 1.f ? std::log10(x / 0.1f) / 2.f : (std::log(x) / std::log(16.f) + 1.f) / 2.f);
+	}
+};
+
 struct Brume : Module {
 	enum ParamId {
 		MODE_PARAM,
@@ -220,8 +232,7 @@ struct Brume : Module {
 		// Defaults reproduce the original Beads reverb (rb::k*Default).
 		configParam(DAMP_PARAM, 0.f, 1.f, rb::kDampDefault, "Damp", "%", 0.f, 100.f);
 		configParam(DIFFUSE_PARAM, 0.f, 1.f, rb::kDiffuseDefault, "Diffuse", "%", 0.f, 100.f);
-		// 4^(2v - 1) = 0.25 * 16^v.
-		configParam(SPEED_PARAM, 0.f, 1.f, rb::kSpeedDefault, "Mod speed", "x", 160.f, 0.1f);
+		configParam<SpeedQuantity>(SPEED_PARAM, 0.f, 1.f, rb::kSpeedDefault, "Mod speed", "x");
 		configParam<SquareLawQuantity>(DEPTH_PARAM, 0.f, 1.f, rb::kDepthDefault, "Mod depth", "x")->scale = 4.f;
 		configParam(WIDTH_PARAM, 0.f, 1.f, 0.5f, "Width", "%", 0.f, 200.f);
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet", "%", 0.f, 100.f);

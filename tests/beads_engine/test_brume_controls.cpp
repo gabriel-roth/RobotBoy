@@ -43,24 +43,47 @@ TEST_CASE("decay law per mode", "[brume_controls]") {
 
 TEST_CASE("tank character laws", "[brume_controls]") {
   REQUIRE(DampLp(0.0f) == Approx(1.0f));
+  REQUIRE(DampLp(0.5f) == Approx(0.6f));
   REQUIRE(DampLp(1.0f) == Approx(0.15f));
-  REQUIRE(DampLp(kDampDefault) == Approx(0.6f));
   REQUIRE(DiffuseCoefficient(0.0f) == Approx(0.3f));
+  REQUIRE(DiffuseCoefficient(0.5f) == Approx(0.625f));
   REQUIRE(DiffuseCoefficient(1.0f) == Approx(0.9f));
-  REQUIRE(DiffuseCoefficient(kDiffuseDefault) == Approx(0.625f));
   REQUIRE(SpeedMultiplier(0.0f) == Approx(0.1f));
-  REQUIRE(SpeedMultiplier(kSpeedDefault) == Approx(1.0f));
+  REQUIRE(SpeedMultiplier(0.25f) == Approx(0.1f * std::sqrt(10.0f)));
+  REQUIRE(SpeedMultiplier(0.5f) == Approx(1.0f));
+  REQUIRE(SpeedMultiplier(0.75f) == Approx(4.0f));
   REQUIRE(SpeedMultiplier(1.0f) == Approx(16.0f));
   REQUIRE(DepthMultiplier(0.0f) == 0.0f);
   REQUIRE(DepthMultiplier(kDepthDefault) == Approx(1.0f));
   REQUIRE(DepthMultiplier(1.0f) == Approx(4.0f));
 }
 
-TEST_CASE("defaults are Beads' original values", "[brume_controls]") {
-  REQUIRE(kSpeedDefault == Approx(std::log(10.0) / std::log(160.0)));
-  REQUIRE(kDiffuseDefault == Approx((0.625 - 0.3) / 0.6));
-  REQUIRE(kDampDefault == Approx((1.0 - 0.6) / 0.85));
+TEST_CASE("tank laws are continuous and monotonic at noon", "[brume_controls]") {
+  const float below = 0.5f - 1e-5f, above = 0.5f + 1e-5f;
+  REQUIRE(DampLp(below) == Approx(DampLp(above)).epsilon(1e-3));
+  REQUIRE(DiffuseCoefficient(below) == Approx(DiffuseCoefficient(above)).epsilon(1e-3));
+  REQUIRE(SpeedMultiplier(below) == Approx(SpeedMultiplier(above)).epsilon(1e-3));
+  float damp = DampLp(0.0f), diffuse = DiffuseCoefficient(0.0f);
+  float speed = SpeedMultiplier(0.0f);
+  for (int i = 1; i <= 100; i++) {
+    const float v = i / 100.0f;
+    REQUIRE(DampLp(v) < damp);
+    REQUIRE(DiffuseCoefficient(v) > diffuse);
+    REQUIRE(SpeedMultiplier(v) > speed);
+    damp = DampLp(v);
+    diffuse = DiffuseCoefficient(v);
+    speed = SpeedMultiplier(v);
+  }
+}
+
+TEST_CASE("defaults are Beads' original values at noon", "[brume_controls]") {
+  REQUIRE(kSpeedDefault == 0.5f);
+  REQUIRE(kDiffuseDefault == 0.5f);
+  REQUIRE(kDampDefault == 0.5f);
   REQUIRE(kDepthDefault == 0.5f);
+  REQUIRE(SpeedMultiplier(kSpeedDefault) == Approx(1.0f));
+  REQUIRE(DiffuseCoefficient(kDiffuseDefault) == Approx(0.625f));
+  REQUIRE(DampLp(kDampDefault) == Approx(0.6f));
 }
 
 TEST_CASE("smear law", "[brume_controls]") {
