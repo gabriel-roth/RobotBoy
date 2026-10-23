@@ -32,15 +32,17 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 
 Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
+Damp, Diffuse, Speed and Depth start at the original Beads reverb's settings, which aren't always at noon: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
+
 ### Input
 
 *Send:* How much signal goes into the reverb. Noon is unity; the dry signal is not affected.
 
 *Filter:* A filter on the reverb's input, a bit like the Texture filter in Clouds. Noon is flat. Turn it **counter-clockwise** for a low-pass filter that darkens what goes in, down to a rumble at the end stop; turn it **clockwise** for a high-pass filter that thins it.
 
-*Smear:* Blurs the input into the reverb with a short diffuser, softening transients before the tank sees them. Off at fully counter-clockwise.
+*Smear:* Blurs the input into the reverb with a short diffuser, softening transients before the tank sees them. Off at fully counter-clockwise. Over the first 70% of its travel it fades in the diffuser of Clouds; beyond that the diffuser itself gets denser.
 
-*Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. By default it wobbles the whole input, dry signal included; the **Wow & flutter** context menu item can limit it to the reverb.
+*Wow:* Tape-style wow and flutter (the pitch wobble from Scorched cassette on Beads). Off at fully counter-clockwise, where it is bypassed entirely. The Beads depth is a little past halfway (1x in the tooltip); fully clockwise is three times as deep. By default it wobbles the whole input, dry signal included; the **Wow & flutter** context menu item can limit it to the reverb.
 
 ### Shimmer
 
@@ -52,13 +54,13 @@ Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it
 
 *Decay:* The length of the tail. Over the first 95% of the knob's travel it sets the decay time. The last 5% (the infinity mark) is a **hold zone**: the tail stops decaying. In Beads mode it rings almost endlessly. In Clouds mode it still fades slowly, and faster for quiet or noisy material, because Clouds stores its reverb at 12 bits and a little is lost on every pass, as on the original module. Hold keeps whatever is in the tank ringing; with the input still coming in, it builds up (the limiter keeps it bounded).
 
-*Damp:* How quickly high frequencies die out inside the tank. Counter-clockwise leaves the tail bright; clockwise makes it dark.
+*Damp:* How quickly high frequencies die out inside the tank. Counter-clockwise leaves the tail bright; clockwise makes it dark, darker than Beads can go.
 
-*Diffuse:* The tank's diffusion. Counter-clockwise gives separate, decaying echoes; clockwise gives one smooth wash.
+*Diffuse:* The tank's diffusion. Counter-clockwise gives separate, decaying echoes; clockwise gives one smooth wash. The default is the Beads setting; Clouds' own is a little higher.
 
-*Speed:* The speed of the slow modulation inside the tank, from a quarter to four times the original rate. Noon is the original.
+*Speed:* The speed of the slow modulation inside the tank, from a tenth of the original rate to 16 times it.
 
-*Depth:* The amount of that modulation. Fully clockwise is the original; counter-clockwise reduces it down to a static tank.
+*Depth:* The amount of that modulation, from none (a static tank) to four times the original. Noon is the original.
 
 ### Output
 
