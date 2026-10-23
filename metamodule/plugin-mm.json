@@ -47,12 +47,12 @@
                 "Send CV amount", "Filter CV amount", "Smear CV amount", "Pre-delay CV amount",
                 "Wow & flutter CV amount",
                 "Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth",
-                "Clear", "Clear trigger In", "Width", "Dry/wet",
+                "Width", "Mix",
                 "Size CV In", "Decay CV In", "Damp CV In", "Diffuse CV In", "Mod speed CV In",
-                "Mod depth CV In", "Width CV In", "Dry/wet CV In",
+                "Mod depth CV In", "Width CV In", "Mix CV In",
                 "Size CV amount", "Decay CV amount", "Damp CV amount", "Diffuse CV amount",
-                "Mod speed CV amount", "Mod depth CV amount", "Width CV amount", "Dry/wet CV amount",
-                "Audio L In", "Audio R In", "Mode", "Quality",
+                "Mod speed CV amount", "Mod depth CV amount", "Width CV amount", "Mix CV amount",
+                "Audio L In", "Audio R In", "Mode", "Quality", "Clear", "Clear trigger In",
                 "Audio L Out", "Audio R Out"]
     }
   ]

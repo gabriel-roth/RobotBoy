@@ -8,7 +8,7 @@
 
 ## How it works
 
-Your input goes through a **Send** level, **Wow** (tape-style pitch wobble), a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Dry/Wet** at the end mixes it with your untouched input. **Width** narrows or widens the reverb's stereo image.
+Your input goes through a **Send** level, **Wow** (tape-style pitch wobble), a **Filter**, a **Smear** (a diffuser that blurs transients) and a **Pre-delay** into the reverb tank, whose **Size** you can scale. The tank is fully wet; **Mix** at the end blends it with your untouched input. **Width** narrows or widens the reverb's stereo image.
 
 The **follower** (the sand-coloured column on the left) listens to your input, the reverb itself, or a sidechain signal, and turns it into an envelope. Any knob whose CV jack is empty is moved by that envelope by the amount of its trimpot, so a reverb that swells, ducks or opens up as you play needs no patching at all.
 
@@ -20,14 +20,14 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 
 1. **Patch audio** into **In** (bottom left). Patch both jacks for stereo; patch just the left and it feeds both sides.
 2. **Take your output** from **Out** (bottom right). If you only patch the left output, you get a mono sum of both channels.
-3. **Set Dry/Wet** to taste, and **Decay** for the length of the tail.
-4. **Try the follower.** Turn the trimpot under Decay or Dry/Wet clockwise with nothing patched into its CV jack. The reverb now grows and shrinks with the loudness of your playing.
+3. **Set Mix** to taste, and **Decay** for the length of the tail.
+4. **Try the follower.** Turn the trimpot under Decay or Mix clockwise with nothing patched into its CV jack. The reverb now grows and shrinks with the loudness of your playing.
 
 ---
 
 ## Controls
 
-Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
+Each of the 13 plate controls (Send through Mix) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
 Size, Damp, Speed and Depth start at noon and Diffuse starts fully clockwise, which is the original reverb's setting in either Mode: double-click one of these knobs to return to the original sound. Size, Damp, Speed and Depth go well beyond the original in both directions; Diffuse only goes down from it.
 
@@ -59,15 +59,15 @@ Size, Damp, Speed and Depth start at noon and Diffuse starts fully clockwise, wh
 
 ### Output
 
-The Output column on the right edge holds **Width** and **Dry/Wet**, with the balance light at its foot. **Clear** sits in the bottom row.
+The Output column on the right edge holds **Width** and **Mix**, with the balance light at its foot. **Clear** sits in the bottom row.
 
 *Clear* (bottom, between Quality and Out): A button and a trigger input that empty the reverb immediately, with a quick fade so there is no click. The input keeps flowing.
 
 *Width:* The stereo width of the reverb. Noon is the reverb's own stereo image; counter-clockwise narrows it to mono, clockwise exaggerates it.
 
-*Dry/Wet:* Balance between your untouched input (dry) and the reverb (wet), using the same laws as Beads.
+*Mix:* Balance between your untouched input (dry) and the reverb (wet), using the same laws as Beads.
 
-*Balance light:* Shows which is louder at the output, the dry signal or the reverb, as you hear them after Width and Dry/Wet. White means they're about even; it turns amber as the dry gets louder and cyan as the reverb does. It gets brighter with the overall level and goes dark in silence. Because it measures the actual signals, it moves when the follower or CV changes Send or Dry/Wet, and it turns cyan as a tail rings on after you stop playing.
+*Balance light:* Shows which is louder at the output, the dry signal or the reverb, as you hear them after Width and Mix. White means they're about even; it turns amber as the dry gets louder and cyan as the reverb does. It gets brighter with the overall level and goes dark in silence. Because it measures the actual signals, it moves when the follower or CV changes Send or Mix, and it turns cyan as a tail rings on after you stop playing.
 
 ### Mode and Quality
 
@@ -89,7 +89,7 @@ The follower column sits at the left edge.
 
 *Rise* and *Fall:* How fast the envelope follows your signal up and down, from 10 ms to 5 s. Fast Rise with slow Fall gives a swell that lingers; the response is quick at first and slower toward the top.
 
-*In / Out switch:* What the follower listens to. **In** (up, the default) follows the input. **Out** (down) follows the reverb itself, before Dry/Wet mixes in the dry signal. Because the envelope then moves the very reverb it is listening to, Out makes a feedback loop: a tail can open up Decay and keep itself going, or duck its own Send and pump.
+*In / Out switch:* What the follower listens to. **In** (up, the default) follows the input. **Out** (down) follows the reverb itself, before Mix blends in the dry signal. Because the envelope then moves the very reverb it is listening to, Out makes a feedback loop: a tail can open up Decay and keep itself going, or duck its own Send and pump.
 
 *Side:* A sidechain input. When something is patched here, the follower listens to it whichever way the switch is set (5 V is full scale), so another signal such as a kick drum can drive the reverb.
 
@@ -113,7 +113,7 @@ With every trimpot at center (the default), nothing moves. Patching a cable disc
 - **Side:** sidechain input for the follower.
 - **Env:** the follower's envelope, 0 to 10 V.
 - **Clear:** trigger input (bottom row, beside its button); same as the button.
-- **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Dry/Wet.
+- **CV inputs:** one for each of Send, Filter, Smear, Pre-delay, Wow, Size, Decay, Damp, Diffuse, Speed, Depth, Width and Mix.
 
 ---
 
@@ -137,7 +137,7 @@ Brume's Mode and Quality are labeled switches on MetaModule. A patch saved on de
 
 ## Patch ideas
 
-- **Ducking reverb:** patch a kick drum into **Side**, turn the **Dry/Wet** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
+- **Ducking reverb:** patch a kick drum into **Side**, turn the **Mix** trimpot counter-clockwise with its CV jack empty, and set Rise fast and Fall slow: the reverb pulls back on each kick and blooms between them.
 - **Swelling reverb:** with nothing in Side, turn the **Decay** trimpot clockwise and set Fall long. Long tails open up on loud passages and tighten when you stop.
 - **Self-swelling tail:** set the follower switch to **Out**, turn the **Decay** trimpot clockwise, and play short notes. Each tail lifts Decay as it grows, so it blooms after the note instead of with it.
 - **Frozen pad:** in Beads mode, push **Decay** into the hold zone and play a chord; it sustains until you pull Decay back or hit Clear. (In Clouds mode the pad slowly fades away instead.)

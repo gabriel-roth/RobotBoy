@@ -242,7 +242,7 @@ struct Brume : Module {
 		configParam<FollowerTimeQuantity>(FALL_PARAM, 0.f, 1.f, 0.5f, "Fall");
 		// Up (1) is In, the default.
 		configSwitch(SOURCE_PARAM, 0.f, 1.f, 1.f, "Follower source", {"Out", "In"})->description =
-			"Out follows the reverb before Dry/wet. A patched Side overrides both";
+			"Out follows the reverb before Mix. A patched Side overrides both";
 
 		// Percentages where there is no natural unit; SEND and WIDTH read
 		// 100% at noon (unity).
@@ -261,11 +261,11 @@ struct Brume : Module {
 		configParam<SpeedQuantity>(SPEED_PARAM, 0.f, 1.f, rb::kSpeedDefault, "Mod speed", "x");
 		configParam<SquareLawQuantity>(DEPTH_PARAM, 0.f, 1.f, rb::kDepthDefault, "Mod depth", "x")->scale = 4.f;
 		configParam(WIDTH_PARAM, 0.f, 1.f, 0.5f, "Width", "%", 0.f, 200.f);
-		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet", "%", 0.f, 100.f);
+		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Mix", "%", 0.f, 100.f);
 
 		static const char* const kNames[kNumControls] = {
 			"Send", "Filter", "Smear", "Pre-delay", "Wow & flutter",
-			"Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Dry/wet",
+			"Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Mix",
 		};
 		for (int i = 0; i < kNumControls; i++) {
 			ParamQuantity* trim = configParam(SEND_CV_PARAM + i, -1.f, 1.f, 0.f,
@@ -510,8 +510,8 @@ struct BrumeWidget : ModuleWidget {
 			{82.395f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
 			{99.865f, 77.688f, 91.188f, 101.188f},  // SPEED
 			{117.335f, 77.688f, 91.188f, 101.188f},  // DEPTH
-			{136.945f, 24.989f, 36.989f, 46.489f},  // WIDTH
-			{136.945f, 68.503f, 80.503f, 90.003f},  // DRY/WET
+			{136.945f, 24.518f, 36.518f, 46.018f},  // WIDTH
+			{136.945f, 67.561f, 79.561f, 89.061f},  // MIX
 		};
 		for (int i = 0; i < Brume::kNumControls; i++) {
 			const Cell c = kCells[i];
@@ -528,9 +528,9 @@ struct BrumeWidget : ModuleWidget {
 		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.375, 11.000)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.375, 95.000)), module, Brume::ENV_OUTPUT));
 
-		// Output column: WIDTH and DRY/WET are plate controls; the balance
-		// light sits at the foot.
-		addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(136.945, 102.600)), module, Brume::BALANCE_R_LIGHT));
+		// Output column: WIDTH and MIX are plate controls; the balance light
+		// sits at the foot, on the bottom plate's trimpot row.
+		addChild(createLightCentered<MediumLight<RedGreenBlueLight>>(mm2px(Vec(136.945, 101.188)), module, Brume::BALANCE_R_LIGHT));
 
 		// Bottom row.
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 114.3)), module, Brume::IN_L_INPUT));
