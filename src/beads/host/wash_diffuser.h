@@ -32,7 +32,7 @@
 // allpass interpolation so the loop loses no treble. It runs after the stock
 // diffuser and is crossfaded in by amount. At amount 0 the frames are left
 // untouched, and the chain runs on silence for 2 s to drain, then sleeps
-// until amount rises again, so it wakes up empty.
+// until amount rises again, so it wakes up nearly empty (about -85 dB).
 
 #ifndef ROBOTBOY_BEADS_WASH_DIFFUSER_H_
 #define ROBOTBOY_BEADS_WASH_DIFFUSER_H_

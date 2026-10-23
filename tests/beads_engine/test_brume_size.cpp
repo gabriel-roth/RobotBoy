@@ -84,8 +84,9 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
 // again when DIFFUSE became per Mode (Beads busy, both Clouds), when its
 // top became the original (busy only), and when SMEAR got its wash and the
 // Clouds diffuser went back to upstream's constant coefficient (busy, with
-// SMEAR at 0.25, its stock point: the constant rounds differently once
-// inlined, a one-bit difference the tanks' feedback spreads).
+// SMEAR at 0.25, its stock point: with a constant the compiler can fuse
+// multiply-adds differently once inlined, a one-bit difference the tanks'
+// feedback spreads; these hashes depend on compiler and flags).
 TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
           "[brume_size]") {
   stmlib::Random::Seed(0x21);
