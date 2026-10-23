@@ -58,6 +58,21 @@ struct DecayQuantity : ParamQuantity {
 	std::string getUnit() override { return getValue() > 0.95f ? "" : "%"; }
 };
 
+// DEPTH and WOW: square laws, shown as a multiple of the original Beads
+// setting. Typed values are multiples too.
+struct SquareLawQuantity : ParamQuantity {
+	float scale = 1.f;
+	float getDisplayValue() override {
+		const float v = getValue();
+		return scale * v * v;
+	}
+	void setDisplayValue(float x) override {
+		if (!std::isfinite(x))
+			return;
+		setValue(std::sqrt(std::max(x, 0.f) / scale));
+	}
+};
+
 struct Brume : Module {
 	enum ParamId {
 		MODE_PARAM,
@@ -197,15 +212,17 @@ struct Brume : Module {
 		configParam(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter", "%", 0.f, 200.f, -100.f)->description =
 			"Lowpass below noon, highpass above";
 		configParam(SMEAR_PARAM, 0.f, 1.f, 0.f, "Smear", "%", 0.f, 100.f);
-		configParam(WOW_PARAM, 0.f, 1.f, 0.f, "Wow & flutter", "%", 0.f, 100.f);
+		// 1x is Beads' wow and flutter at Scorched.
+		configParam<SquareLawQuantity>(WOW_PARAM, 0.f, 1.f, 0.f, "Wow & flutter", "x")->scale = 3.f;
 		configParam(SHIMMER_PARAM, 0.f, 1.f, 0.f, "Shimmer", "%", 0.f, 100.f);
 		configParam(INTERVAL_PARAM, 0.f, 1.f, 0.75f, "Interval", " st", 0.f, 48.f, -24.f)->displayPrecision = 3;
 		configParam<DecayQuantity>(DECAY_PARAM, 0.f, 1.f, 0.5f, "Decay", "%", 0.f, 100.f);
-		configParam(DAMP_PARAM, 0.f, 1.f, 4.f / 7.f, "Damp", "%", 0.f, 100.f);
-		configParam(DIFFUSE_PARAM, 0.f, 1.f, 0.65f, "Diffuse", "%", 0.f, 100.f);
+		// Defaults reproduce the original Beads reverb (rb::k*Default).
+		configParam(DAMP_PARAM, 0.f, 1.f, rb::kDampDefault, "Damp", "%", 0.f, 100.f);
+		configParam(DIFFUSE_PARAM, 0.f, 1.f, rb::kDiffuseDefault, "Diffuse", "%", 0.f, 100.f);
 		// 4^(2v - 1) = 0.25 * 16^v.
-		configParam(SPEED_PARAM, 0.f, 1.f, 0.5f, "Mod speed", "x", 16.f, 0.25f);
-		configParam(DEPTH_PARAM, 0.f, 1.f, 1.f, "Mod depth", "%", 0.f, 100.f);
+		configParam(SPEED_PARAM, 0.f, 1.f, rb::kSpeedDefault, "Mod speed", "x", 160.f, 0.1f);
+		configParam<SquareLawQuantity>(DEPTH_PARAM, 0.f, 1.f, rb::kDepthDefault, "Mod depth", "x")->scale = 4.f;
 		configParam(WIDTH_PARAM, 0.f, 1.f, 0.5f, "Width", "%", 0.f, 200.f);
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet", "%", 0.f, 100.f);
 
