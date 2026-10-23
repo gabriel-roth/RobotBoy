@@ -85,6 +85,30 @@ struct SpeedQuantity : ParamQuantity {
 	}
 };
 
+// SIZE: the delay-length scale, 0.5x .. 2x with 1x at noon. Typed values
+// are multiples.
+struct SizeQuantity : ParamQuantity {
+	float getDisplayValue() override { return rb::SizeScale(getValue()); }
+	void setDisplayValue(float x) override {
+		if (!std::isfinite(x))
+			return;
+		x = clamp(x, 0.5f, 2.f);
+		setValue((std::log2(x) + 1.f) / 2.f);
+	}
+};
+
+// PREDELAY: milliseconds, 0 .. 500 on a square law. Typed values are
+// milliseconds.
+struct PredelayQuantity : ParamQuantity {
+	float getDisplayValue() override { return rb::PredelaySeconds(getValue()) * 1000.f; }
+	void setDisplayValue(float ms) override {
+		if (!std::isfinite(ms))
+			return;
+		ms = clamp(ms, 0.f, rb::kMaxPredelaySeconds * 1000.f);
+		setValue(std::sqrt(ms / (rb::kMaxPredelaySeconds * 1000.f)));
+	}
+};
+
 struct Brume : Module {
 	enum ParamId {
 		MODE_PARAM,
@@ -95,9 +119,11 @@ struct Brume : Module {
 		SEND_PARAM,
 		FILTER_PARAM,
 		SMEAR_PARAM,
+		PREDELAY_PARAM,
 		WOW_PARAM,
 		SHIMMER_PARAM,
 		INTERVAL_PARAM,
+		SIZE_PARAM,
 		DECAY_PARAM,
 		DAMP_PARAM,
 		DIFFUSE_PARAM,
@@ -108,9 +134,11 @@ struct Brume : Module {
 		SEND_CV_PARAM,
 		FILTER_CV_PARAM,
 		SMEAR_CV_PARAM,
+		PREDELAY_CV_PARAM,
 		WOW_CV_PARAM,
 		SHIMMER_CV_PARAM,
 		INTERVAL_CV_PARAM,
+		SIZE_CV_PARAM,
 		DECAY_CV_PARAM,
 		DAMP_CV_PARAM,
 		DIFFUSE_CV_PARAM,
@@ -128,9 +156,11 @@ struct Brume : Module {
 		SEND_INPUT,
 		FILTER_INPUT,
 		SMEAR_INPUT,
+		PREDELAY_INPUT,
 		WOW_INPUT,
 		SHIMMER_INPUT,
 		INTERVAL_INPUT,
+		SIZE_INPUT,
 		DECAY_INPUT,
 		DAMP_INPUT,
 		DIFFUSE_INPUT,
@@ -157,9 +187,9 @@ struct Brume : Module {
 		LIGHTS_LEN
 	};
 
-	// The 13 plate controls, in panel order: knob SEND_PARAM + i,
+	// The 15 plate controls, in panel order: knob SEND_PARAM + i,
 	// trimpot SEND_CV_PARAM + i, jack SEND_INPUT + i.
-	static constexpr int kNumControls = 13;
+	static constexpr int kNumControls = 15;
 	static constexpr int kIntervalIndex = INTERVAL_PARAM - SEND_PARAM;
 	static_assert(DRY_WET_PARAM - SEND_PARAM == kNumControls - 1, "plate knobs");
 	static_assert(DRY_WET_CV_PARAM - SEND_CV_PARAM == kNumControls - 1, "plate trimpots");
@@ -224,10 +254,12 @@ struct Brume : Module {
 		configParam(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter", "%", 0.f, 200.f, -100.f)->description =
 			"Lowpass below noon, highpass above";
 		configParam(SMEAR_PARAM, 0.f, 1.f, 0.f, "Smear", "%", 0.f, 100.f);
+		configParam<PredelayQuantity>(PREDELAY_PARAM, 0.f, 1.f, rb::kPredelayDefault, "Pre-delay", " ms");
 		// 1x is Beads' wow and flutter at Scorched.
 		configParam<SquareLawQuantity>(WOW_PARAM, 0.f, 1.f, 0.f, "Wow & flutter", "x")->scale = 3.f;
 		configParam(SHIMMER_PARAM, 0.f, 1.f, 0.f, "Shimmer", "%", 0.f, 100.f);
 		configParam(INTERVAL_PARAM, 0.f, 1.f, 0.75f, "Interval", " st", 0.f, 48.f, -24.f)->displayPrecision = 3;
+		configParam<SizeQuantity>(SIZE_PARAM, 0.f, 1.f, rb::kSizeDefault, "Size", "x");
 		configParam<DecayQuantity>(DECAY_PARAM, 0.f, 1.f, 0.5f, "Decay", "%", 0.f, 100.f);
 		// Defaults reproduce the original Beads reverb (rb::k*Default).
 		configParam(DAMP_PARAM, 0.f, 1.f, rb::kDampDefault, "Damp", "%", 0.f, 100.f);
@@ -238,8 +270,8 @@ struct Brume : Module {
 		configParam(DRY_WET_PARAM, 0.f, 1.f, 0.5f, "Dry/wet", "%", 0.f, 100.f);
 
 		static const char* const kNames[kNumControls] = {
-			"Send", "Filter", "Smear", "Wow & flutter", "Shimmer", "Interval",
-			"Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Dry/wet",
+			"Send", "Filter", "Smear", "Pre-delay", "Wow & flutter", "Shimmer", "Interval",
+			"Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth", "Width", "Dry/wet",
 		};
 		for (int i = 0; i < kNumControls; i++) {
 			ParamQuantity* trim = configParam(SEND_CV_PARAM + i, -1.f, 1.f, 0.f,
@@ -361,9 +393,11 @@ struct Brume : Module {
 		controls.send = values[SEND_PARAM - SEND_PARAM];
 		controls.filter = values[FILTER_PARAM - SEND_PARAM];
 		controls.smear = values[SMEAR_PARAM - SEND_PARAM];
+		controls.predelay = values[PREDELAY_PARAM - SEND_PARAM];
 		controls.wow = values[WOW_PARAM - SEND_PARAM];
 		controls.shimmer = values[SHIMMER_PARAM - SEND_PARAM];
 		controls.interval_semitones = values[INTERVAL_PARAM - SEND_PARAM];
+		controls.size = values[SIZE_PARAM - SEND_PARAM];
 		controls.decay = values[DECAY_PARAM - SEND_PARAM];
 		controls.damp = values[DAMP_PARAM - SEND_PARAM];
 		controls.diffuse = values[DIFFUSE_PARAM - SEND_PARAM];
@@ -478,19 +512,21 @@ struct BrumeWidget : ModuleWidget {
 		// Plate controls (panel-specs/brume.yaml): knob, CV jack, trimpot.
 		struct Cell { float x, knobY, jackY, trimY; };
 		static const Cell kCells[Brume::kNumControls] = {
-			{32.383f, 30.637f, 44.138f, 54.138f},  // SEND
-			{53.508f, 30.637f, 44.138f, 54.138f},  // FILTER
-			{74.632f, 30.637f, 44.138f, 54.138f},  // SMEAR
-			{95.757f, 30.637f, 44.138f, 54.138f},  // WOW
-			{117.695f, 30.637f, 44.138f, 54.138f},  // SHIMMER
-			{136.445f, 30.637f, 44.138f, 54.138f},  // INTERVAL
-			{30.27f, 77.688f, 91.188f, 101.188f},  // DECAY
-			{47.17f, 77.688f, 91.188f, 101.188f},  // DAMP
-			{64.07f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
-			{80.97f, 77.688f, 91.188f, 101.188f},  // SPEED
-			{97.87f, 77.688f, 91.188f, 101.188f},  // DEPTH
-			{117.695f, 77.688f, 91.188f, 101.188f},  // WIDTH
-			{136.445f, 77.688f, 91.188f, 101.188f},  // DRY/WET
+			{32.302f, 30.637f, 44.138f, 54.138f},  // SEND
+			{53.266f, 30.637f, 44.138f, 54.138f},  // FILTER
+			{74.23f, 30.637f, 44.138f, 54.138f},  // SMEAR
+			{95.194f, 30.637f, 44.138f, 54.138f},  // PREDELAY
+			{116.158f, 30.637f, 44.138f, 54.138f},  // WOW
+			{138.015f, 30.637f, 44.138f, 54.138f},  // SHIMMER
+			{156.765f, 30.637f, 44.138f, 54.138f},  // INTERVAL
+			{30.555f, 77.688f, 91.188f, 101.188f},  // SIZE
+			{48.025f, 77.688f, 91.188f, 101.188f},  // DECAY
+			{65.495f, 77.688f, 91.188f, 101.188f},  // DAMP
+			{82.965f, 77.688f, 91.188f, 101.188f},  // DIFFUSE
+			{100.435f, 77.688f, 91.188f, 101.188f},  // SPEED
+			{117.905f, 77.688f, 91.188f, 101.188f},  // DEPTH
+			{138.015f, 77.688f, 91.188f, 101.188f},  // WIDTH
+			{156.765f, 77.688f, 91.188f, 101.188f},  // DRY/WET
 		};
 		for (int i = 0; i < Brume::kNumControls; i++) {
 			const Cell c = kCells[i];
@@ -510,18 +546,18 @@ struct BrumeWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.150, 114.3)), module, Brume::IN_L_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.850, 114.3)), module, Brume::IN_R_INPUT));
 #ifdef METAMODULE
-		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(44.871, 114.3)), module, Brume::MODE_PARAM));
-		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(69.478, 114.3)), module, Brume::QUALITY_PARAM));
+		addParam(createParamCentered<BrumeModeMmSwitch>(mm2px(Vec(49.951, 114.3)), module, Brume::MODE_PARAM));
+		addParam(createParamCentered<BrumeQualityMmSwitch>(mm2px(Vec(79.638, 114.3)), module, Brume::QUALITY_PARAM));
 #else
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(44.871, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
+			mm2px(Vec(49.951, 114.3)), module, Brume::MODE_PARAM, Brume::MODE_R_LIGHT));
 		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(
-			mm2px(Vec(69.478, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
+			mm2px(Vec(79.638, 114.3)), module, Brume::QUALITY_PARAM, Brume::QUALITY_R_LIGHT));
 #endif
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(93.534, 114.3)), module, Brume::CLEAR_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(102.034, 114.3)), module, Brume::CLEAR_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(127.470, 114.3)), module, Brume::OUT_L_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(137.170, 114.3)), module, Brume::OUT_R_OUTPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(108.774, 114.3)), module, Brume::CLEAR_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(117.274, 114.3)), module, Brume::CLEAR_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(147.790, 114.3)), module, Brume::OUT_L_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(157.490, 114.3)), module, Brume::OUT_R_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
