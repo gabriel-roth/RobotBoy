@@ -39,7 +39,7 @@ Size, Damp, Speed and Depth start at noon and Diffuse starts fully clockwise, wh
 
 *Filter:* A filter on the reverb's input, a bit like the Texture filter in Clouds. Noon is flat. Turn it **counter-clockwise** for a low-pass filter that darkens what goes in, down to a rumble at the end stop; turn it **clockwise** for a high-pass filter that thins it.
 
-*Smear:* Blurs the input into the reverb with a short diffuser, softening transients before the tank sees them. Off at fully counter-clockwise. Over the first 70% of its travel it fades in the diffuser of Clouds; beyond that the diffuser itself gets denser.
+*Smear:* Blurs the input on its way into the reverb. Off at fully counter-clockwise. Over the first quarter of its travel it fades in the diffuser of Clouds, which softens transients a little; at the quarter it is exactly Clouds'. Beyond that a much longer, slowly drifting diffuser takes over, until at fully clockwise the attack is gone and the sound swells into the reverb.
 
 *Pre-delay:* How long the input waits before it reaches the tank, from 0 to 500 ms. The knob gives more of its travel to short times. Fully counter-clockwise is off, and leaves the sound exactly as it was without it. Changes glide over about half a second, so turning it bends the pitch of what is passing through for a moment instead of clicking.
 
