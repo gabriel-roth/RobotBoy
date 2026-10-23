@@ -73,7 +73,7 @@ class EngineHost {
   EngineHost(const EngineHost&) = delete;
   EngineHost& operator=(const EngineHost&) = delete;
 
-  // Allocates the delay and reverb memory (\~900 KB). Returns false if that
+  // Allocates the delay and reverb memory (\~830 KB). Returns false if that
   // fails; the host then outputs silence.
   bool Init(beads::Processor::ModeLock mode_lock, bool reverb_enabled,
             float host_rate);

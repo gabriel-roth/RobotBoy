@@ -16,7 +16,7 @@ namespace {
 
 struct ProcessorRig {
   std::vector<uint8_t> delay_memory = std::vector<uint8_t>(3 * 262144);
-  std::vector<uint16_t> reverb_memory = std::vector<uint16_t>(65536);
+  std::vector<uint16_t> reverb_memory = std::vector<uint16_t>(32768);
   std::unique_ptr<Processor> processor = std::make_unique<Processor>();
 
   ProcessorRig() {

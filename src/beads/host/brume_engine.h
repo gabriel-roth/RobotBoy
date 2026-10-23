@@ -142,7 +142,7 @@ class BrumeEngine {
 
   // Both tanks always exist; the active one runs, and the other while it
   // spills over. Indexed by BrumeMode.
-  beads::Reverb beads_tank_;
+  beads::SizedReverb<65536> beads_tank_;  // room for 2x SIZE
   clouds::Reverb clouds_tank_;
   float applied_speed_[2];  // last set_lfo_rate multiplier per tank; < 0: stale
   beads::Limiter post_limiter_[2];

@@ -43,17 +43,21 @@
 
 namespace beads {
 
-class Reverb {
+// RobotBoy: the memory size, in words, is a template parameter. Particules
+// and Retours use Reverb (upstream's 32768); Brume uses SizedReverb<65536>,
+// whose custom layout has room for 2x size.
+template<int32_t memory_size>
+class SizedReverb {
  public:
-  Reverb() { }
-  ~Reverb() { }
+  SizedReverb() { }
+  ~SizedReverb() { }
   
   void Init(uint16_t* buffer, float sample_rate) {
     engine_.Init(buffer);
     Reset(sample_rate);
     sleep_enabled_ = true;  // RobotBoy
     asleep_ = false;  // RobotBoy
-    silent_samples_ = E::kSize;  // RobotBoy: the memory was just cleared.
+    silent_samples_ = Engine::kSize;  // RobotBoy: the memory was just cleared.
     diffusion_ = 0.625f;  // RobotBoy
     mod_depth_ = 1.0f;  // RobotBoy
     size_ = 1.0f;  // RobotBoy
@@ -133,7 +137,7 @@ class Reverb {
     E::DelayLine<Memory, 7> dap2a;
     E::DelayLine<Memory, 8> dap2b;
     E::DelayLine<Memory, 9> del2;
-    E::Context c;
+    typename Engine::Context c;  // RobotBoy
 
     const float kap = custom ? diffusion_ : 0.625f;  // RobotBoy
     const float mod_depth = custom ? mod_depth_ : 1.0f;  // RobotBoy
@@ -172,7 +176,7 @@ class Reverb {
     // glides, the write pointer and the LFOs moving exactly as the full path
     // would, so the output stays bit-identical and waking needs no handover.
     asleep_ = sleep_enabled_ && mix_ == 0.0f && send_ == 0.0f &&
-        lp_1_ == 0.0f && lp_2_ == 0.0f && silent_samples_ >= E::kSize;
+        lp_1_ == 0.0f && lp_2_ == 0.0f && silent_samples_ >= Engine::kSize;
     if (asleep_) {
       engine_.Advance(size);
       while (size--) {
@@ -259,7 +263,7 @@ class Reverb {
       // RobotBoy: count the samples whose memory writes all truncated to 0
       // (FORMAT_16_BIT stores (int32_t)(x * 32768)).
       if (c.peak() * 32768.0f < 1.0f) {
-        if (silent_samples_ < E::kSize) {
+        if (silent_samples_ < Engine::kSize) {
           ++silent_samples_;
         }
       } else {
@@ -283,7 +287,7 @@ class Reverb {
   
   inline void Clear() {
     engine_.Clear();
-    silent_samples_ = E::kSize;  // RobotBoy
+    silent_samples_ = Engine::kSize;  // RobotBoy
   }
   
   // RobotBoy: Brume's controls. Defaults reproduce the stock reverb exactly.
@@ -300,9 +304,9 @@ class Reverb {
     const float max_depth = static_cast<float>(kMaxModDepth);
     mod_depth_ = depth < 0.0f ? 0.0f : (depth > max_depth ? max_depth : depth);
   }
-  // Scales every delay length, kMinSize .. kMaxSize (clamped). It glides
-  // linearly to a new value over the next Process() block; the custom path
-  // only.
+  // Scales every delay length, kMinSize .. kMaxSize (clamped; 2 or 1). It
+  // glides linearly to a new value over the next Process() block; the custom
+  // path only.
   inline void set_size(float size) {
     const float lo = kMinSize, hi = static_cast<float>(kMaxSize);
     size_ = size > hi ? hi : (size > lo ? size : lo);
@@ -320,26 +324,28 @@ class Reverb {
   inline bool asleep() const { return asleep_; }
   
  private:
-  // RobotBoy: 65536 (upstream 32768), for the custom layout at 2x size.
-  // Every read and write is relative to the write pointer, and the LFOs
-  // step every 32 samples either way, so the stock layout's output is
-  // unchanged in the larger memory.
-  typedef FxEngine<65536, FORMAT_16_BIT> E;
-  E engine_;
+  // RobotBoy: the engine is memory_size words. E keeps upstream's type for
+  // the delay layouts: Reserve and DelayLine don't depend on the engine's
+  // size, and naming them through a non-dependent type leaves the stock code
+  // as it was.
+  typedef FxEngine<32768, FORMAT_16_BIT> E;
+  typedef FxEngine<memory_size, FORMAT_16_BIT> Engine;
+  Engine engine_;
   
   // RobotBoy: the custom layout. Each read reaches its stock offset times
   // the size, plus, for the modulated ones, amplitude * depth * lfo with lfo
   // in [0, 1] (the excursions do not scale with the size), plus one for the
   // interpolation. It must stay short of the line's end (or, for ap1's smear
   // tap, of the smear write, beyond which it would read its own output).
+  // The size goes up to 2 with 65536 words, and only to 1 with 32768.
   enum {
-    kMaxSize = 2,
+    kMaxSize = memory_size >= 65536 ? 2 : 1,
     kMaxModDepth = 4,
     kAp1SmearWrite = 345,  // stock: 100
     kAp1SmearToTail = 49,  // stock: 149 - 100
     kAp1Length = kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 2,
-    kDel1Length = 9090,
-    kDel2Length = 12731
+    kDel1Length = 4460 * kMaxSize + 170,
+    kDel2Length = 6261 * kMaxSize + 209
   };
   static constexpr float kMinSize = 0.5f;
   static_assert(10 * kMaxSize + 80 * kMaxModDepth + 1 < kAp1SmearWrite,
@@ -352,7 +358,7 @@ class Reverb {
   // RobotBoy: a tail read. The stock path reads the line's last word; the
   // custom path reads at `offset` (the stock offset times the size).
   template<bool custom, typename D>
-  static inline void ReadTail(E::Context* c, D& d, float offset, float scale) {
+  static inline void ReadTail(typename Engine::Context* c, D& d, float offset, float scale) {
     if (custom) {
       c->Interpolate(d, offset, scale);
     } else {
@@ -380,8 +386,10 @@ class Reverb {
   bool asleep_;  // RobotBoy
   int32_t silent_samples_;  // RobotBoy
   
-  DISALLOW_COPY_AND_ASSIGN(Reverb);
+  DISALLOW_COPY_AND_ASSIGN(SizedReverb);
 };
+
+typedef SizedReverb<32768> Reverb;  // RobotBoy
 
 }  // namespace beads
 

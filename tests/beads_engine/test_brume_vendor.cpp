@@ -53,7 +53,7 @@ uint64_t Fnv(uint64_t h, float x) {
 // 4 s of seeded noise through beads::Reverb (mix 0.7, time 0.8) in blocks of
 // 24; with `setters` the Brume setters are called at their defaults each block.
 uint64_t HashBeads(const Medium& m, bool setters) {
-  std::vector<uint16_t> memory(65536);
+  std::vector<uint16_t> memory(32768);
   beads::Reverb reverb;
   reverb.Init(memory.data(), 48000.0f);
   reverb.Reset(m.sample_rate);
@@ -164,8 +164,9 @@ namespace {
 
 struct BeadsRig {
   static constexpr float kRate = 48000.0f;
+  // Brume's instance, with room for 2x size.
   std::vector<uint16_t> memory = std::vector<uint16_t>(65536);
-  beads::Reverb reverb;
+  beads::SizedReverb<65536> reverb;
   BeadsRig() {
     reverb.Init(memory.data(), kRate);
     reverb.Reset(kRate);
@@ -630,4 +631,31 @@ TEST_CASE("Size glides across a block", "[brume_vendor]") {
   SECTION("Clouds") {
     CheckSizeGlidesAcrossBlock<CloudsRig, clouds::FloatFrame>();
   }
+}
+
+// Particules' and Retours' instance keeps upstream's 32768 words, where the
+// custom layout only has room for size 1: larger sizes clamp to it.
+TEST_CASE("The 32768-word Beads reverb clamps size to 1", "[brume_vendor]") {
+  auto run = [](float size) {
+    std::vector<uint16_t> memory(32768);
+    beads::Reverb reverb;
+    reverb.Init(memory.data(), 48000.0f);
+    reverb.set_mix(1.0f);
+    reverb.set_time(0.8f);
+    reverb.set_lp(0.6f);
+    reverb.set_force_custom(true);
+    reverb.set_size(size);
+    std::mt19937 rng(12);
+    std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+    std::vector<float> out;
+    for (int b = 0; b < 2000; ++b) {
+      FloatFrame f[24];
+      for (FloatFrame& x : f) x.l = x.r = noise(rng);
+      reverb.Process(f, 24);
+      for (const FloatFrame& x : f) out.push_back(x.l);
+    }
+    return out;
+  };
+  CHECK(run(2.0f) == run(1.0f));
+  CHECK(run(0.5f) != run(1.0f));
 }
