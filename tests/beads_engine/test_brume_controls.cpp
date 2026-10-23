@@ -99,19 +99,20 @@ TEST_CASE("defaults are the originals' values", "[brume_controls]") {
 TEST_CASE("smear law", "[brume_controls]") {
   SmearSettings s = SmearForKnob(0.0f);
   REQUIRE(s.amount == 0.0f);
-  REQUIRE(s.coefficient == Approx(0.625f));
-  s = SmearForKnob(0.35f);
+  REQUIRE(s.wash == 0.0f);
+  s = SmearForKnob(0.125f);
   REQUIRE(s.amount == Approx(0.5f));
-  REQUIRE(s.coefficient == Approx(0.625f));
-  s = SmearForKnob(0.7f);
-  REQUIRE(s.amount == Approx(1.0f));
-  REQUIRE(s.coefficient == Approx(0.625f));
-  s = SmearForKnob(0.85f);
+  REQUIRE(s.wash == 0.0f);
+  // Exactly the stock Clouds diffuser, with no wash.
+  s = SmearForKnob(0.25f);
   REQUIRE(s.amount == 1.0f);
-  REQUIRE(s.coefficient == Approx(0.7125f));
+  REQUIRE(s.wash == 0.0f);
+  s = SmearForKnob(0.625f);
+  REQUIRE(s.amount == 1.0f);
+  REQUIRE(s.wash == Approx(0.5f));
   s = SmearForKnob(1.0f);
   REQUIRE(s.amount == 1.0f);
-  REQUIRE(s.coefficient == Approx(0.8f));
+  REQUIRE(s.wash == Approx(1.0f));
 }
 
 TEST_CASE("wow law", "[brume_controls]") {

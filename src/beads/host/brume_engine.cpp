@@ -375,7 +375,6 @@ void BrumeEngine::RunBlock() {
   }
   const SmearSettings smear = SmearForKnob(c.smear);
   diffuser_.set_amount(smear.amount);
-  diffuser_.set_diffusion(smear.coefficient);
   diffuser_.Process(clouds_frames, size);
 
   ProcessPredelay(clouds_frames, size, PredelaySeconds(c.predelay));

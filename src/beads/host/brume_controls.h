@@ -117,20 +117,21 @@ constexpr float kPredelayDefault = 0.0f;
 constexpr float kMaxPredelaySeconds = 0.5f;
 inline float PredelaySeconds(float v) { return kMaxPredelaySeconds * v * v; }
 
+// amount: the stock Clouds diffuser's mix; wash: WashDiffuser's mix.
 struct SmearSettings {
-  float amount, coefficient;
+  float amount, wash;
 };
 
-// The Clouds diffuser fades in over the first 70% at its own coefficient
-// (0.625), then the coefficient rises to 0.8.
+// The Clouds diffuser fades in over the first quarter and is exactly stock
+// there; the wash then fades in over the rest.
 inline SmearSettings SmearForKnob(float v) {
   SmearSettings s;
-  if (v <= 0.7f) {
-    s.amount = v / 0.7f;
-    s.coefficient = 0.625f;
+  if (v <= 0.25f) {
+    s.amount = v / 0.25f;
+    s.wash = 0.0f;
   } else {
     s.amount = 1.0f;
-    s.coefficient = 0.625f + 0.175f * (v - 0.7f) / 0.3f;
+    s.wash = (v - 0.25f) / 0.75f;
   }
   return s;
 }
