@@ -34,7 +34,12 @@
 #include "stmlib/stmlib.h"
 #include "stmlib/dsp/parameter_interpolator.h"
 
+// RobotBoy: FxEngine's STATIC_ASSERTs expand to unused local typedefs.
+// (Clang honors the GCC pragma and spelling.)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #include "beads/dsp/fx/fx_engine.h"
+#pragma GCC diagnostic pop
 
 namespace beads {
 
