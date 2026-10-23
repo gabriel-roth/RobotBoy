@@ -78,7 +78,8 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
 // (size 1, pre-delay 0) the output must not change by one bit. Wow's re-roll
 // draws from stmlib's global Random, so the four runs start from its initial
 // state, in the order they were recorded. The busy hashes were re-recorded
-// when the shimmer was removed, from the old engine with SHIMMER at 0.
+// when the shimmer was removed, from the old engine with SHIMMER at 0, and
+// again when DIFFUSE became per Mode (Beads busy, both Clouds).
 TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
           "[brume_size]") {
   stmlib::Random::Seed(0x21);
@@ -89,13 +90,13 @@ TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
   busy.size = plain.size = 0.5f;
   busy.predelay = plain.predelay = 0.0f;
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kCold, busy) ==
-        0x0aac84d771cda7b2ULL);
+        0x1a70b699878f24abULL);
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kScorched, plain) ==
         0xde3d96ade854ff50ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kCold, busy) ==
-        0x38fc095bc968d546ULL);
+        0x854ce2bdec68929eULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kScorched, plain) ==
-        0xc908c95b5879ce9aULL);
+        0xf7c1176aa3b77599ULL);
 }
 
 namespace {
@@ -391,9 +392,10 @@ uint64_t BaselineHash(BrumeMode mode) {
 
 // Recorded at the shimmer's removal, from the engine with SHIMMER at 0 (the
 // path then bypassed bit for bit). Beads: 69bb4e7 plus the tanks' custom
-// paths; Clouds with kCloudsMakeup in the path. These hashes hold for this
+// paths; Clouds with kCloudsMakeup in the path, re-recorded when DIFFUSE
+// became per Mode (noon = 0.7, makeup 0.970). These hashes hold for this
 // build's flags only.
 TEST_CASE("default controls give the recorded output", "[brume_size]") {
   CHECK(BaselineHash(BrumeMode::kBeads) == 0xf9b498a24a4091d5ULL);
-  CHECK(BaselineHash(BrumeMode::kClouds) == 0x1deb749fb9f89584ULL);
+  CHECK(BaselineHash(BrumeMode::kClouds) == 0xf0fdcdc4ca4c0b38ULL);
 }

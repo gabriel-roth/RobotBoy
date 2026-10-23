@@ -223,7 +223,7 @@ void BrumeEngine::ClearEngine() {
 void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
   const float time = DecayTime(c.decay, mode);
   const float lp = DampLp(c.damp);
-  const float diffusion = DiffuseCoefficient(c.diffuse);
+  const float diffusion = DiffuseCoefficient(c.diffuse, mode);
   const float speed = SpeedMultiplier(c.speed);
   const float depth = DepthMultiplier(c.depth);
   float& applied_speed = applied_speed_[int(mode)];

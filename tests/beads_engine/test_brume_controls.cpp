@@ -46,9 +46,12 @@ TEST_CASE("tank character laws", "[brume_controls]") {
   REQUIRE(DampLp(0.0f) == Approx(1.0f));
   REQUIRE(DampLp(0.5f) == Approx(0.6f));
   REQUIRE(DampLp(1.0f) == Approx(0.15f));
-  REQUIRE(DiffuseCoefficient(0.0f) == Approx(0.3f));
-  REQUIRE(DiffuseCoefficient(0.5f) == Approx(0.625f));
-  REQUIRE(DiffuseCoefficient(1.0f) == Approx(0.9f));
+  REQUIRE(DiffuseCoefficient(0.0f, BrumeMode::kBeads) == Approx(0.3f));
+  REQUIRE(DiffuseCoefficient(0.5f, BrumeMode::kBeads) == 0.625f);
+  REQUIRE(DiffuseCoefficient(1.0f, BrumeMode::kBeads) == Approx(0.8f));
+  REQUIRE(DiffuseCoefficient(0.0f, BrumeMode::kClouds) == Approx(0.3f));
+  REQUIRE(DiffuseCoefficient(0.5f, BrumeMode::kClouds) == 0.7f);
+  REQUIRE(DiffuseCoefficient(1.0f, BrumeMode::kClouds) == Approx(0.8f));
   REQUIRE(SpeedMultiplier(0.0f) == Approx(0.1f));
   REQUIRE(SpeedMultiplier(0.25f) == Approx(0.1f * std::sqrt(10.0f)));
   REQUIRE(SpeedMultiplier(0.5f) == Approx(1.0f));
@@ -62,28 +65,36 @@ TEST_CASE("tank character laws", "[brume_controls]") {
 TEST_CASE("tank laws are continuous and monotonic at noon", "[brume_controls]") {
   const float below = 0.5f - 1e-5f, above = 0.5f + 1e-5f;
   REQUIRE(DampLp(below) == Approx(DampLp(above)).epsilon(1e-3));
-  REQUIRE(DiffuseCoefficient(below) == Approx(DiffuseCoefficient(above)).epsilon(1e-3));
   REQUIRE(SpeedMultiplier(below) == Approx(SpeedMultiplier(above)).epsilon(1e-3));
-  float damp = DampLp(0.0f), diffuse = DiffuseCoefficient(0.0f);
-  float speed = SpeedMultiplier(0.0f);
+  float damp = DampLp(0.0f), speed = SpeedMultiplier(0.0f);
   for (int i = 1; i <= 100; i++) {
     const float v = i / 100.0f;
     REQUIRE(DampLp(v) < damp);
-    REQUIRE(DiffuseCoefficient(v) > diffuse);
     REQUIRE(SpeedMultiplier(v) > speed);
     damp = DampLp(v);
-    diffuse = DiffuseCoefficient(v);
     speed = SpeedMultiplier(v);
+  }
+  for (BrumeMode mode : {BrumeMode::kBeads, BrumeMode::kClouds}) {
+    REQUIRE(DiffuseCoefficient(below, mode) ==
+            Approx(DiffuseCoefficient(above, mode)).epsilon(1e-3));
+    float diffuse = DiffuseCoefficient(0.0f, mode);
+    for (int i = 1; i <= 100; i++) {
+      const float v = i / 100.0f;
+      REQUIRE(DiffuseCoefficient(v, mode) > diffuse);
+      diffuse = DiffuseCoefficient(v, mode);
+    }
   }
 }
 
-TEST_CASE("defaults are Beads' original values at noon", "[brume_controls]") {
+TEST_CASE("defaults are the originals' values at noon", "[brume_controls]") {
   REQUIRE(kSpeedDefault == 0.5f);
   REQUIRE(kDiffuseDefault == 0.5f);
   REQUIRE(kDampDefault == 0.5f);
   REQUIRE(kDepthDefault == 0.5f);
   REQUIRE(SpeedMultiplier(kSpeedDefault) == Approx(1.0f));
-  REQUIRE(DiffuseCoefficient(kDiffuseDefault) == Approx(0.625f));
+  // Exact: Beads' hard-coded kap and Clouds' set_diffusion(0.7f).
+  REQUIRE(DiffuseCoefficient(kDiffuseDefault, BrumeMode::kBeads) == 0.625f);
+  REQUIRE(DiffuseCoefficient(kDiffuseDefault, BrumeMode::kClouds) == 0.7f);
   REQUIRE(DampLp(kDampDefault) == Approx(0.6f));
 }
 

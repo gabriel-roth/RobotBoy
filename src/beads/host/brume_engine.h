@@ -61,7 +61,7 @@ namespace robotboy_beads {
 // Clouds makeup" test (test_brume_modes.cpp), 30 s of pink noise, Bright,
 // rounded to 3 significant figures.
 constexpr float kBeadsMakeup = 1.0f;
-constexpr float kCloudsMakeup = 0.992f;  // measured 0.99179
+constexpr float kCloudsMakeup = 0.970f;  // measured 0.97020
 
 // Knob values 0..1 after modulation.
 struct BrumeControls {

@@ -31,7 +31,7 @@ Like Particules and Retours, Brume runs its reverb at one of three **Quality** s
 
 Each of the 13 plate controls (Send through Dry/Wet) has a **CV input** below it and a small trimpot below that (see The trimpots below).
 
-Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads reverb's setting: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
+Size, Damp, Diffuse, Speed and Depth start at noon, which is the original reverb's setting in either Mode: double-click one of these knobs to return to the original sound. Their ranges go well beyond the original in both directions.
 
 ### Input
 
@@ -53,7 +53,7 @@ Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads 
 
 *Damp:* How quickly high frequencies die out inside the tank. Counter-clockwise leaves the tail bright; clockwise makes it dark, darker than Beads can go.
 
-*Diffuse:* The tank's diffusion. Counter-clockwise gives separate, decaying echoes; clockwise gives one smooth wash. The default is the Beads setting; Clouds' own is a little higher.
+*Diffuse:* The tank's diffusion. Counter-clockwise gives separate, decaying echoes; clockwise gives one smooth wash. Noon is each Mode's original setting, so the same knob position is slightly denser in Clouds mode.
 
 *Speed:* The speed of the slow modulation inside the tank, from a tenth of the original rate to 16 times it.
 
