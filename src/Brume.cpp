@@ -236,7 +236,7 @@ struct Brume : Module {
 
 		// Percentages where there is no natural unit; SEND and WIDTH read
 		// 100% at noon (unity).
-		configParam(SEND_PARAM, 0.f, 1.f, 0.5f, "Send", "%", 0.f, 200.f);
+		configParam(SEND_PARAM, 0.f, 1.f, robotboy_beads::kSendDefault, "Send", "%", 0.f, 100.f);
 		configParam(FILTER_PARAM, 0.f, 1.f, 0.5f, "Filter", "%", 0.f, 200.f, -100.f)->description =
 			"Lowpass below noon, highpass above";
 		configParam(SMEAR_PARAM, 0.f, 1.f, 0.f, "Smear", "%", 0.f, 100.f);

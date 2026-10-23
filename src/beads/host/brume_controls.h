@@ -64,8 +64,10 @@ inline BrumeInput NormalizeInputs(
 
 inline float ClampUnit(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
-// Noon = unity.
-inline float SendGain(float v) { return 2.0f * v; }
+// Full = unity (the originals' level); turning down reduces what enters the
+// reverb.
+constexpr float kSendDefault = 1.0f;
+inline float SendGain(float v) { return v; }
 
 // 0..0.95 maps linearly over the Mode's range; the last 5% holds at 1.0.
 inline float DecayTime(float v, BrumeMode mode) {

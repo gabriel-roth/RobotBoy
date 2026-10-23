@@ -35,7 +35,7 @@ Size, Damp, Diffuse, Speed and Depth start at noon, which is the original Beads 
 
 ### Input
 
-*Send:* How much signal goes into the reverb. Noon is unity; the dry signal is not affected.
+*Send:* How much signal goes into the reverb, from nothing up to full (the default, the original Beads and Clouds level). The dry signal is not affected.
 
 *Filter:* A filter on the reverb's input, a bit like the Texture filter in Clouds. Noon is flat. Turn it **counter-clockwise** for a low-pass filter that darkens what goes in, down to a rumble at the end stop; turn it **clockwise** for a high-pass filter that thins it.
 

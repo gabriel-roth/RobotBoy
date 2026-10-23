@@ -345,14 +345,13 @@ TEST_CASE("PREDELAY keeps the stereo signal into the limiter",
     for (int k = 0; k < 2; ++k) {
       auto e = MakeEngine(mode);
       BrumeControls c = WetControls();
-      c.send = 1.0f;  // 2x: peaks of 2, well over the limiter's 0.9
       c.predelay = k ? std::sqrt(0.002f) : 0.0f;  // 1 ms
       std::mt19937 rng(31);
       std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
       std::vector<float> out(size_t(3.0f * kRate));
       for (size_t i = 0; i < out.size(); ++i) {
         e->SetControls(c);
-        const BrumeFrame f = e->Process(dist(rng), 0.0f);
+        const BrumeFrame f = e->Process(2.0f * dist(rng), 0.0f);  // peaks of 2, well over the limiter's 0.9
         out[i] = 0.5f * (f.l + f.r);
       }
       rms[k] = std::sqrt(Energy(out, size_t(1.0f * kRate), out.size()) /

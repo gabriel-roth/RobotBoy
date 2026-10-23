@@ -50,7 +50,7 @@ inline float Sanitize(float value, float previous, float lo, float hi) {
 
 BrumeControls DefaultBrumeControls() {
   BrumeControls c;
-  c.send = 0.5f;
+  c.send = kSendDefault;
   c.filter = 0.5f;
   c.smear = 0.0f;
   c.predelay = kPredelayDefault;

@@ -17,8 +17,9 @@ TEST_CASE("tank rates", "[brume_controls]") {
 
 TEST_CASE("send, width and dry/wet laws", "[brume_controls]") {
   REQUIRE(SendGain(0.0f) == 0.0f);
-  REQUIRE(SendGain(0.5f) == Approx(1.0f));
-  REQUIRE(SendGain(1.0f) == Approx(2.0f));
+  REQUIRE(SendGain(0.5f) == Approx(0.5f));
+  REQUIRE(SendGain(1.0f) == Approx(1.0f));
+  REQUIRE(SendGain(kSendDefault) == 1.0f);
   REQUIRE(WidthGain(0.5f) == Approx(1.0f));
   REQUIRE(WidthGain(0.0f) == 0.0f);
   REQUIRE(DryGain(0.0f) == 1.0f);
