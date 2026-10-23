@@ -79,7 +79,8 @@ uint64_t EngineHash(BrumeMode mode, BrumeQuality quality,
 // draws from stmlib's global Random, so the four runs start from its initial
 // state, in the order they were recorded. The busy hashes were re-recorded
 // when the shimmer was removed, from the old engine with SHIMMER at 0, and
-// again when DIFFUSE became per Mode (Beads busy, both Clouds).
+// again when DIFFUSE became per Mode (Beads busy, both Clouds) and when its
+// top became the original (busy only).
 TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
           "[brume_size]") {
   stmlib::Random::Seed(0x21);
@@ -90,11 +91,11 @@ TEST_CASE("size 1 and pre-delay 0 leave the output unchanged",
   busy.size = plain.size = 0.5f;
   busy.predelay = plain.predelay = 0.0f;
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kCold, busy) ==
-        0x1a70b699878f24abULL);
+        0xb7639a5e3b7ac373ULL);
   CHECK(EngineHash(BrumeMode::kBeads, BrumeQuality::kScorched, plain) ==
         0xde3d96ade854ff50ULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kCold, busy) ==
-        0x854ce2bdec68929eULL);
+        0x49dae32f689bb42dULL);
   CHECK(EngineHash(BrumeMode::kClouds, BrumeQuality::kScorched, plain) ==
         0xf7c1176aa3b77599ULL);
 }

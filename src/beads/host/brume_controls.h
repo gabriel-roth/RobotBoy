@@ -77,10 +77,10 @@ inline float DecayTime(float v, BrumeMode mode) {
   return lo + (hi - lo) * v / 0.95f;
 }
 
-// Knob positions that reproduce the original reverb of either Mode: all at
-// noon (DIFFUSE maps per Mode, so noon is 0.625 for Beads and 0.7 for Clouds).
+// Knob positions that reproduce the original reverb of either Mode: noon,
+// except DIFFUSE, whose top is the original (it maps per Mode).
 constexpr float kSpeedDefault = 0.5f;    // 1x
-constexpr float kDiffuseDefault = 0.5f;  // coefficient 0.625 / 0.7
+constexpr float kDiffuseDefault = 1.0f;  // coefficient 0.625 / 0.7
 constexpr float kDampDefault = 0.5f;     // lp 0.6
 constexpr float kDepthDefault = 0.5f;    // 4 * 0.5^2 = 1x
 
@@ -89,14 +89,13 @@ inline float DampLp(float v) {
   return v <= 0.5f ? 1.0f - 0.8f * v : 0.6f - 0.9f * (v - 0.5f);
 }
 
-// Allpass coefficient: 0.3 through the Mode's original at noon (Beads 0.625,
-// Clouds 0.7) to 0.8. Past about 0.75 the allpasses ring rather than diffuse,
-// so the top stays close to the range the originals use. Written so that noon
-// is exactly the original.
+// Allpass coefficient: 0.3 up to the Mode's original at full (Beads 0.625,
+// Clouds 0.7). Above the originals the allpasses ring more than they
+// diffuse, so the knob stops there. Written so that full is exactly the
+// original.
 inline float DiffuseCoefficient(float v, BrumeMode mode) {
-  const float noon = mode == BrumeMode::kBeads ? 0.625f : 0.7f;
-  return v <= 0.5f ? noon - (noon - 0.3f) * (1.0f - 2.0f * v)
-                   : noon + (0.8f - noon) * (2.0f * v - 1.0f);
+  const float top = mode == BrumeMode::kBeads ? 0.625f : 0.7f;
+  return top - (top - 0.3f) * (1.0f - v);
 }
 
 // LFO rate multiplier: 0.1x through 1x at noon to 16x.
