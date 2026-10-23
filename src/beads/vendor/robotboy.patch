@@ -354,7 +354,7 @@ index d5ca01b..8a6fbdc 100644
    enum {
      MASK = size - 1
 diff --git a/beads/dsp/fx/reverb.h b/beads/dsp/fx/reverb.h
-index f26ea89..77f2871 100644
+index f26ea89..bd1a01a 100644
 --- a/beads/dsp/fx/reverb.h
 +++ b/beads/dsp/fx/reverb.h
 @@ -29,21 +29,40 @@
@@ -453,12 +453,35 @@ index f26ea89..77f2871 100644
      E::DelayLine<Memory, 0> ap1;
      E::DelayLine<Memory, 1> ap2;
      E::DelayLine<Memory, 2> ap3;
-@@ -83,9 +137,18 @@ class Reverb {
+@@ -83,9 +137,41 @@ class Reverb {
      E::DelayLine<Memory, 7> dap2a;
      E::DelayLine<Memory, 8> dap2b;
      E::DelayLine<Memory, 9> del2;
 -    E::Context c;
 +    typename Engine::Context c;  // RobotBoy
++    // RobotBoy: the furthest word each custom read reaches (its offset at
++    // kMaxSize, plus the modulation, plus one for the interpolation) lies
++    // inside its line.
++    static_assert(!custom || kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 <
++                  int(decltype(ap1)::length), "ap1 tail");
++    static_assert(!custom || 213 * kMaxSize + 1 < int(decltype(ap2)::length),
++                  "ap2");
++    static_assert(!custom || 318 * kMaxSize + 1 < int(decltype(ap3)::length),
++                  "ap3");
++    static_assert(!custom || 526 * kMaxSize + 1 < int(decltype(ap4)::length),
++                  "ap4");
++    static_assert(!custom || 2181 * kMaxSize + 1 <
++                  int(decltype(dap1a)::length), "dap1a");
++    static_assert(!custom || 2689 * kMaxSize + 1 <
++                  int(decltype(dap1b)::length), "dap1b");
++    static_assert(!custom || 4460 * kMaxSize + 40 * kMaxModDepth + 1 <
++                  int(decltype(del1)::length), "del1");
++    static_assert(!custom || 2524 * kMaxSize + 1 <
++                  int(decltype(dap2a)::length), "dap2a");
++    static_assert(!custom || 2196 * kMaxSize + 1 <
++                  int(decltype(dap2b)::length), "dap2b");
++    static_assert(!custom || 6261 * kMaxSize + 50 * kMaxModDepth + 1 <
++                  int(decltype(del2)::length), "del2");
  
 -    const float kap = 0.625f;
 +    const float kap = custom ? diffusion_ : 0.625f;  // RobotBoy
@@ -474,7 +497,7 @@ index f26ea89..77f2871 100644
      const float klp = lp_;
      const float krt = reverb_time_;
  
-@@ -107,6 +170,31 @@ class Reverb {
+@@ -107,6 +193,31 @@ class Reverb {
          send_amount * input_gain,
          size);
  
@@ -506,7 +529,7 @@ index f26ea89..77f2871 100644
      while (size--) {
        const float dry_amount = dry_modulation.Next();
        const float wet_amount = wet_modulation.Next();
-@@ -115,31 +203,44 @@ class Reverb {
+@@ -115,31 +226,44 @@ class Reverb {
        float wet;
        float apout = 0.0f;
        engine_.Start(&c);
@@ -560,7 +583,7 @@ index f26ea89..77f2871 100644
        c.WriteAllPass(dap1b, -kap);
        c.Write(del1, 1.0f);
        c.Write(wet);
-@@ -147,20 +248,31 @@ class Reverb {
+@@ -147,20 +271,31 @@ class Reverb {
        in_out->l = in_out->l * dry_amount + wet * wet_amount;
  
        c.Load(apout);
@@ -595,7 +618,7 @@ index f26ea89..77f2871 100644
    inline void set_mix(float mix) {
      mix_ = mix;
    }
-@@ -175,11 +287,84 @@ class Reverb {
+@@ -175,11 +310,83 @@ class Reverb {
    
    inline void Clear() {
      engine_.Clear();
@@ -661,27 +684,26 @@ index f26ea89..77f2871 100644
 +    kDel2Length = 6261 * kMaxSize + 209
 +  };
 +  static constexpr float kMinSize = 0.5f;
++  // The smear tap's furthest word stays short of the smear write. (Each
++  // line's own room is checked in ProcessTank.)
 +  static_assert(10 * kMaxSize + 80 * kMaxModDepth + 1 < kAp1SmearWrite,
 +                "ap1 smear");
-+  static_assert(kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 < kAp1Length,
-+                "ap1 tail");
-+  static_assert(4460 * kMaxSize + 40 * kMaxModDepth + 1 < kDel1Length, "del1");
-+  static_assert(6261 * kMaxSize + 50 * kMaxModDepth + 1 < kDel2Length, "del2");
 +  
 +  // RobotBoy: a tail read. The stock path reads the line's last word; the
 +  // custom path reads at `offset` (the stock offset times the size).
 +  template<bool custom, typename D>
-+  static inline void ReadTail(typename Engine::Context* c, D& d, float offset, float scale) {
++  static inline void ReadTail(
++      typename Engine::Context* c, D& d, float offset, float gain) {
 +    if (custom) {
-+      c->Interpolate(d, offset, scale);
++      c->Interpolate(d, offset, gain);
 +    } else {
-+      c->Read(d TAIL, scale);
++      c->Read(d TAIL, gain);
 +    }
 +  }
    
    float mix_;
    float wet_;
-@@ -191,9 +376,21 @@ class Reverb {
+@@ -191,9 +398,21 @@ class Reverb {
    float lp_1_;
    float lp_2_;
    
@@ -1227,7 +1249,7 @@ index 8773ff7..c61fb37 100644
      --write_ptr_;
      if (write_ptr_ < 0) {
 diff --git a/clouds/dsp/fx/reverb.h b/clouds/dsp/fx/reverb.h
-index 03f481c..122239e 100644
+index 03f481c..09ca4ba 100644
 --- a/clouds/dsp/fx/reverb.h
 +++ b/clouds/dsp/fx/reverb.h
 @@ -29,6 +29,8 @@
@@ -1297,7 +1319,36 @@ index 03f481c..122239e 100644
      E::DelayLine<Memory, 0> ap1;
      E::DelayLine<Memory, 1> ap2;
      E::DelayLine<Memory, 2> ap3;
-@@ -80,6 +121,15 @@ class Reverb {
+@@ -74,12 +115,44 @@ class Reverb {
+     E::DelayLine<Memory, 8> dap2b;
+     E::DelayLine<Memory, 9> del2;
+     E::Context c;
++    // RobotBoy: the furthest word each custom read reaches (its offset at
++    // kMaxSize, plus the modulation, plus one for the interpolation) lies
++    // inside its line.
++    static_assert(!custom || kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 <
++                  int(decltype(ap1)::length), "ap1 tail");
++    static_assert(!custom || 161 * kMaxSize + 1 < int(decltype(ap2)::length),
++                  "ap2");
++    static_assert(!custom || 240 * kMaxSize + 1 < int(decltype(ap3)::length),
++                  "ap3");
++    static_assert(!custom || 398 * kMaxSize + 1 < int(decltype(ap4)::length),
++                  "ap4");
++    static_assert(!custom || 1652 * kMaxSize + 1 <
++                  int(decltype(dap1a)::length), "dap1a");
++    static_assert(!custom || 2037 * kMaxSize + 1 <
++                  int(decltype(dap1b)::length), "dap1b");
++    static_assert(!custom || 3410 * kMaxSize + 1 <
++                  int(decltype(del1)::length), "del1");
++    static_assert(!custom || 1912 * kMaxSize + 1 <
++                  int(decltype(dap2a)::length), "dap2a");
++    static_assert(!custom || 1662 * kMaxSize + 1 <
++                  int(decltype(dap2b)::length), "dap2b");
++    static_assert(!custom || 4680 * kMaxSize + 100 * kMaxModDepth + 1 <
++                  int(decltype(del2)::length), "del2");
+ 
+     const float kap = diffusion_;
+     const float klp = lp_;
      const float krt = reverb_time_;
      const float amount = amount_;
      const float gain = input_gain_;
@@ -1313,7 +1364,7 @@ index 03f481c..122239e 100644
  
      float lp_1 = lp_decay_1_;
      float lp_2 = lp_decay_2_;
-@@ -88,31 +138,44 @@ class Reverb {
+@@ -88,31 +161,44 @@ class Reverb {
        float wet;
        float apout = 0.0f;
        engine_.Start(&c);
@@ -1367,7 +1418,7 @@ index 03f481c..122239e 100644
        c.WriteAllPass(dap1b, -kap);
        c.Write(del1, 2.0f);
        c.Write(wet, 0.0f);
-@@ -121,11 +184,11 @@ class Reverb {
+@@ -121,11 +207,11 @@ class Reverb {
  
        c.Load(apout);
        // c.Interpolate(del1, 4450.0f, LFO_1, 50.0f, krt);
@@ -1382,7 +1433,7 @@ index 03f481c..122239e 100644
        c.WriteAllPass(dap2b, kap);
        c.Write(del2, 2.0f);
        c.Write(wet, 0.0f);
-@@ -139,6 +202,7 @@ class Reverb {
+@@ -139,6 +225,7 @@ class Reverb {
      lp_decay_2_ = lp_2;
    }
    
@@ -1390,7 +1441,7 @@ index 03f481c..122239e 100644
    inline void set_amount(float amount) {
      amount_ = amount;
    }
-@@ -159,15 +223,94 @@ class Reverb {
+@@ -159,15 +246,92 @@ class Reverb {
      lp_ = lp;
    }
    
@@ -1456,21 +1507,19 @@ index 03f481c..122239e 100644
 +    kDel2Length = 9770
 +  };
 +  static constexpr float kMinSize = 0.5f;
++  // The smear tap's furthest word stays short of the smear write. (Each
++  // line's own room is checked in ProcessTank.)
 +  static_assert(10 * kMaxSize + 60 * kMaxModDepth + 1 < kAp1SmearWrite,
 +                "ap1 smear");
-+  static_assert(kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 < kAp1Length,
-+                "ap1 tail");
-+  static_assert(4680 * kMaxSize + 100 * kMaxModDepth + 1 < kDel2Length,
-+                "del2");
 +  
 +  // RobotBoy: a tail read. The stock path reads the line's last word; the
 +  // custom path reads at `offset` (the stock offset times the size).
 +  template<bool custom, typename D>
-+  static inline void ReadTail(E::Context* c, D& d, float offset, float scale) {
++  static inline void ReadTail(E::Context* c, D& d, float offset, float gain) {
 +    if (custom) {
-+      c->Interpolate(d, offset, scale);
++      c->Interpolate(d, offset, gain);
 +    } else {
-+      c->Read(d TAIL, scale);
++      c->Read(d TAIL, gain);
 +    }
 +  }
 +  

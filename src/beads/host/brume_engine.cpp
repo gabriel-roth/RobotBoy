@@ -12,8 +12,8 @@ constexpr size_t kBeadsReverbSize = 65536;
 constexpr size_t kCloudsReverbSize = 65536;
 constexpr size_t kDiffuserSize = 2048;
 constexpr size_t kPitchShifterSize = 4096;
-// 500 ms at 48 kHz, plus the interpolation's second sample and the sample
-// being written.
+// Per channel: 500 ms at 48 kHz, plus the interpolation's second sample and
+// the sample being written.
 constexpr size_t kPredelaySize = 24002;
 
 constexpr float kSmoothingSeconds = 0.002f;
@@ -85,7 +85,7 @@ bool BrumeEngine::Init(float host_rate) {
   clouds_memory_.reset(new (std::nothrow) uint16_t[kCloudsReverbSize]);
   diffuser_memory_.reset(new (std::nothrow) float[kDiffuserSize]);
   pitch_shifter_memory_.reset(new (std::nothrow) uint16_t[kPitchShifterSize]);
-  predelay_memory_.reset(new (std::nothrow) float[kPredelaySize]);
+  predelay_memory_.reset(new (std::nothrow) float[2 * kPredelaySize]);
   if (!beads_memory_ || !clouds_memory_ || !diffuser_memory_ ||
       !pitch_shifter_memory_ || !predelay_memory_) {
     beads_memory_.reset();
@@ -223,7 +223,7 @@ void BrumeEngine::ClearEngine() {
   }
   diffuser_.Clear();
   pitch_shifter_.Clear();
-  std::fill(&predelay_memory_[0], &predelay_memory_[kPredelaySize], 0.0f);
+  std::fill(&predelay_memory_[0], &predelay_memory_[2 * kPredelaySize], 0.0f);
   predelay_write_ = 0;
   shimmer_return_.fill(beads::FloatFrame{0.0f, 0.0f});
   shimmer_live_ = false;
@@ -291,15 +291,18 @@ void BrumeEngine::ProcessTank(
   }
 }
 
-// PREDELAY, in place. The line always takes L + R, so that a glide up from
-// 0 starts from the recent input; it is read only away from 0.
+// PREDELAY, in place, one line per channel. The lines are always written,
+// so that a glide up from 0 starts from the recent input; they are read only
+// away from 0.
 void BrumeEngine::ProcessPredelay(
     clouds::FloatFrame* frames, size_t size, float seconds) {
   const float max_delay = float(kPredelaySize - 2);
+  float* line_l = predelay_memory_.get();
+  float* line_r = line_l + kPredelaySize;
   for (size_t i = 0; i < size; ++i) {
     Glide(&predelay_, seconds, predelay_coefficient_);
-    float* line = predelay_memory_.get();
-    line[predelay_write_] = frames[i].l + frames[i].r;
+    line_l[predelay_write_] = frames[i].l;
+    line_r[predelay_write_] = frames[i].r;
     if (predelay_ > 0.0f) {
       const float delay = std::min(predelay_ * tank_rate_, max_delay);
       const size_t integral = size_t(delay);
@@ -307,8 +310,8 @@ void BrumeEngine::ProcessPredelay(
       const size_t a = (predelay_write_ + kPredelaySize - integral) %
           kPredelaySize;
       const size_t b = (a + kPredelaySize - 1) % kPredelaySize;
-      const float y = line[a] + (line[b] - line[a]) * fractional;
-      frames[i].l = frames[i].r = 0.5f * y;
+      frames[i].l = line_l[a] + (line_l[b] - line_l[a]) * fractional;
+      frames[i].r = line_r[a] + (line_r[b] - line_r[a]) * fractional;
     }
     predelay_write_ = (predelay_write_ + 1) % kPredelaySize;
   }

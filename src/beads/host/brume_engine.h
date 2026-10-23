@@ -12,9 +12,9 @@
 //
 // SIZE and PREDELAY glide to a new setting (one-poles of 0.5 s): SIZE once
 // per block, the tanks interpolating across it, PREDELAY every tank-rate
-// sample. The pre-delay line is mono, since both tanks only hear L + R: in
-// use it feeds (L + R) / 2 to both channels; at exactly 0 it is bypassed and
-// the signal passes untouched.
+// sample. The pre-delay is stereo, so the stereo-linked limiter after it
+// sees the delayed signal as it is; at exactly 0 it is bypassed and the
+// signal passes untouched.
 //
 // The wet comes back through a second resampler and an output FIFO primed as
 // in EngineHost, then WIDTH and DRY/WET mix it with the dry, undelayed
@@ -85,7 +85,7 @@ class BrumeEngine {
   BrumeEngine& operator=(const BrumeEngine&) = delete;
 
   // Allocates the memory of both tanks, the diffuser, the pitch shifter and
-  // the pre-delay (about 370 KB).
+  // the pre-delay (about 460 KB).
   // Returns false if that fails; Process then outputs silence.
   bool Init(float host_rate);
 

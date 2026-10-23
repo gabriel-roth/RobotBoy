@@ -138,6 +138,29 @@ class SizedReverb {
     E::DelayLine<Memory, 8> dap2b;
     E::DelayLine<Memory, 9> del2;
     typename Engine::Context c;  // RobotBoy
+    // RobotBoy: the furthest word each custom read reaches (its offset at
+    // kMaxSize, plus the modulation, plus one for the interpolation) lies
+    // inside its line.
+    static_assert(!custom || kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 <
+                  int(decltype(ap1)::length), "ap1 tail");
+    static_assert(!custom || 213 * kMaxSize + 1 < int(decltype(ap2)::length),
+                  "ap2");
+    static_assert(!custom || 318 * kMaxSize + 1 < int(decltype(ap3)::length),
+                  "ap3");
+    static_assert(!custom || 526 * kMaxSize + 1 < int(decltype(ap4)::length),
+                  "ap4");
+    static_assert(!custom || 2181 * kMaxSize + 1 <
+                  int(decltype(dap1a)::length), "dap1a");
+    static_assert(!custom || 2689 * kMaxSize + 1 <
+                  int(decltype(dap1b)::length), "dap1b");
+    static_assert(!custom || 4460 * kMaxSize + 40 * kMaxModDepth + 1 <
+                  int(decltype(del1)::length), "del1");
+    static_assert(!custom || 2524 * kMaxSize + 1 <
+                  int(decltype(dap2a)::length), "dap2a");
+    static_assert(!custom || 2196 * kMaxSize + 1 <
+                  int(decltype(dap2b)::length), "dap2b");
+    static_assert(!custom || 6261 * kMaxSize + 50 * kMaxModDepth + 1 <
+                  int(decltype(del2)::length), "del2");
 
     const float kap = custom ? diffusion_ : 0.625f;  // RobotBoy
     const float mod_depth = custom ? mod_depth_ : 1.0f;  // RobotBoy
@@ -348,21 +371,20 @@ class SizedReverb {
     kDel2Length = 6261 * kMaxSize + 209
   };
   static constexpr float kMinSize = 0.5f;
+  // The smear tap's furthest word stays short of the smear write. (Each
+  // line's own room is checked in ProcessTank.)
   static_assert(10 * kMaxSize + 80 * kMaxModDepth + 1 < kAp1SmearWrite,
                 "ap1 smear");
-  static_assert(kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 < kAp1Length,
-                "ap1 tail");
-  static_assert(4460 * kMaxSize + 40 * kMaxModDepth + 1 < kDel1Length, "del1");
-  static_assert(6261 * kMaxSize + 50 * kMaxModDepth + 1 < kDel2Length, "del2");
   
   // RobotBoy: a tail read. The stock path reads the line's last word; the
   // custom path reads at `offset` (the stock offset times the size).
   template<bool custom, typename D>
-  static inline void ReadTail(typename Engine::Context* c, D& d, float offset, float scale) {
+  static inline void ReadTail(
+      typename Engine::Context* c, D& d, float offset, float gain) {
     if (custom) {
-      c->Interpolate(d, offset, scale);
+      c->Interpolate(d, offset, gain);
     } else {
-      c->Read(d TAIL, scale);
+      c->Read(d TAIL, gain);
     }
   }
   
