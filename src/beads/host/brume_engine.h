@@ -172,7 +172,7 @@ class BrumeEngine {
   // Host-rate one-pole smoothing (about 2 ms).
   float smoothing_ = 0.01f;
   float send_ = 0.5f;
-  float wow_amount_ = 0.0f;
+  float wow_amount_ = 0.0f;  // after WowAmount, 0..3
   float width_ = 0.5f;
   float dry_wet_ = 0.5f;
 

@@ -42,6 +42,7 @@ class Diffuser {
   
   void Init(float* buffer) {
     engine_.Init(buffer);
+    diffusion_ = 0.625f;  // RobotBoy
   }
   
   // RobotBoy: empties the memory.
@@ -67,7 +68,7 @@ class Diffuser {
     E::DelayLine<Memory, 6> apr3;
     E::DelayLine<Memory, 7> apr4;
     E::Context c;
-    const float kap = 0.625f;
+    const float kap = diffusion_;  // RobotBoy: upstream 0.625f
     while (size--) {
       engine_.Start(&c);
       
@@ -104,11 +105,17 @@ class Diffuser {
     amount_ = amount;
   }
   
+  // RobotBoy: the allpass coefficient, 0.625 by default.
+  void set_diffusion(float diffusion) {
+    diffusion_ = diffusion;
+  }
+  
  private:
   typedef FxEngine<2048, FORMAT_32_BIT> E;
   E engine_;
   
   float amount_;
+  float diffusion_;  // RobotBoy
   DISALLOW_COPY_AND_ASSIGN(Diffuser);
 };
 

@@ -82,13 +82,46 @@ inline float DecayTime(float v, BrumeMode mode) {
   return lo + (hi - lo) * v / 0.95f;
 }
 
-// Tank lowpass coefficient: 1 (no damping) down to 0.3.
-inline float DampLp(float v) { return 1.0f - 0.7f * v; }
+// Knob positions that reproduce the original Beads reverb. Beads is the
+// default Mode; Clouds' own originals differ slightly (diffusion 0.7), but
+// the defaults are Beads'.
+constexpr float kSpeedDefault = 0.4536958f;    // log(10) / log(160): 1x
+constexpr float kDiffuseDefault = 0.5416667f;  // (0.625 - 0.3) / 0.6
+constexpr float kDampDefault = 0.4705882f;     // (1 - 0.6) / 0.85
+constexpr float kDepthDefault = 0.5f;          // 4 * 0.5^2 = 1x
 
-inline float DiffuseCoefficient(float v) { return 0.3f + 0.5f * v; }
+// Tank lowpass coefficient: 1 (no damping) down to 0.15.
+inline float DampLp(float v) { return 1.0f - 0.85f * v; }
 
-// LFO rate multiplier, 0.25x .. 4x, noon 1x.
-inline float SpeedMultiplier(float v) { return powf(4.0f, 2.0f * v - 1.0f); }
+inline float DiffuseCoefficient(float v) { return 0.3f + 0.6f * v; }
+
+// LFO rate multiplier, 0.1x .. 16x.
+inline float SpeedMultiplier(float v) { return 0.1f * powf(160.0f, v); }
+
+// Modulation excursion multiplier, 0 .. 4x. The tanks' delay reserves hold
+// 4x (see the RobotBoy notes in the vendored reverbs).
+inline float DepthMultiplier(float v) { return 4.0f * v * v; }
+
+struct SmearSettings {
+  float amount, coefficient;
+};
+
+// The Clouds diffuser fades in over the first 70% at its own coefficient
+// (0.625), then the coefficient rises to 0.8.
+inline SmearSettings SmearForKnob(float v) {
+  SmearSettings s;
+  if (v <= 0.7f) {
+    s.amount = v / 0.7f;
+    s.coefficient = 0.625f;
+  } else {
+    s.amount = 1.0f;
+    s.coefficient = 0.625f + 0.175f * (v - 0.7f) / 0.3f;
+  }
+  return s;
+}
+
+// Wow and flutter amount, 0 .. 3; 1 is Beads' depth at Scorched.
+inline float WowAmount(float v) { return 3.0f * v * v; }
 
 // Rises to g1 at 0.95, then plateaus at 1.15 g1 (self-oscillation).
 inline float ShimmerGain(float v) {

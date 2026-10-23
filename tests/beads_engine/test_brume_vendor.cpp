@@ -17,6 +17,7 @@
 #include "beads/dsp/frame.h"
 #include "beads/dsp/fx/reverb.h"
 #include "clouds/dsp/frame.h"
+#include "clouds/dsp/fx/diffuser.h"
 #include "clouds/dsp/fx/reverb.h"
 #include "clouds_ref/dsp/frame.h"
 #include "clouds_ref/dsp/fx/reverb.h"
@@ -124,7 +125,9 @@ TEST_CASE("Beads reverb setters at defaults are bit-identical",
 
 TEST_CASE("Clouds reverb with default rate matches upstream",
           "[brume_vendor]") {
-  std::vector<uint16_t> memory(16384), ref_memory(16384);
+  // The patched engine is 32768 words (room for Brume's 4x depth); the
+  // stock layout inside it must still match upstream's 16384.
+  std::vector<uint16_t> memory(32768), ref_memory(16384);
   Zeroed<clouds::Reverb> storage;
   Zeroed<clouds_ref::Reverb> ref_storage;
   clouds::Reverb* reverb = storage.get();
@@ -184,7 +187,7 @@ struct BeadsRig {
 
 struct CloudsRig {
   static constexpr float kRate = 32000.0f;
-  std::vector<uint16_t> memory = std::vector<uint16_t>(16384);
+  std::vector<uint16_t> memory = std::vector<uint16_t>(32768);
   clouds::Reverb reverb;
   CloudsRig() {
     reverb.Init(memory.data());
@@ -331,7 +334,7 @@ TEST_CASE("LFO rate change keeps phase", "[brume_vendor]") {
 }
 
 TEST_CASE("Clouds Clear empties the tank", "[brume_vendor]") {
-  std::vector<uint16_t> memory(16384);
+  std::vector<uint16_t> memory(32768);
   Zeroed<clouds::Reverb> storage;
   clouds::Reverb* reverb = storage.get();
   reverb->Init(memory.data());
@@ -353,4 +356,129 @@ TEST_CASE("Clouds Clear empties the tank", "[brume_vendor]") {
       REQUIRE(x.r == 0.0f);
     }
   }
+}
+
+namespace {
+
+// Seeded noise through a rig, left channel out.
+template <typename Rig, typename Configure>
+std::vector<float> RunNoise(Configure configure, float seconds,
+                            uint32_t seed = 21) {
+  auto rig = std::make_unique<Rig>();
+  configure(rig->reverb);
+  std::mt19937 rng(seed);
+  std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+  std::vector<float> out;
+  const int n = static_cast<int>(seconds * Rig::kRate);
+  for (int i = 0; i < n; ++i) out.push_back(rig->Process(noise(rng)));
+  return out;
+}
+
+double Rms(const std::vector<float>& x) {
+  double sum = 0.0;
+  for (float v : x) sum += double(v) * v;
+  return std::sqrt(sum / x.size());
+}
+
+double RmsDiff(const std::vector<float>& a, const std::vector<float>& b) {
+  double sum = 0.0;
+  for (size_t i = 0; i < a.size(); ++i) {
+    const double d = double(a[i]) - b[i];
+    sum += d * d;
+  }
+  return std::sqrt(sum / a.size());
+}
+
+}  // namespace
+
+// Brume always runs the custom path, whose delay layout has room for 4x
+// excursions. At the default depth it must sound like the stock path: the
+// enlarged lines must keep every tap the signal hears where it was. Only
+// rounding may differ (variables in place of constants), which the 12-bit
+// Clouds memory turns into whole LSBs (1/4096): about -59 dB here. A moved
+// tap, such as ap1's tail, differs by as much as the signal itself.
+TEST_CASE("Forced custom path at defaults tracks the stock path",
+          "[brume_vendor]") {
+  auto stock = [](auto&) {};
+  auto forced = [](auto& r) { r.set_force_custom(true); };
+  SECTION("Beads") {
+    auto a = RunNoise<BeadsRig>(stock, 4.0f);
+    auto b = RunNoise<BeadsRig>(forced, 4.0f);
+    REQUIRE(Rms(a) > 0.05);
+    CHECK(RmsDiff(a, b) < 2e-3 * Rms(a));
+  }
+  SECTION("Clouds") {
+    auto a = RunNoise<CloudsRig>(stock, 4.0f);
+    auto b = RunNoise<CloudsRig>(forced, 4.0f);
+    REQUIRE(Rms(a) > 0.05);
+    CHECK(RmsDiff(a, b) < 2e-3 * Rms(a));
+  }
+}
+
+// The modulated reads sit at offset + amplitude * depth * lfo (+1 for the
+// interpolation). The vendored reverbs static_assert that this fits inside
+// each line's reserve for depth 4 and an LFO in [0, 1], and set_mod_depth
+// clamps to 4. Here: the LFOs really stay in [0, 1] at 16x for 10 s of
+// noise at depth 4, the output stays finite, and depths beyond 4 clamp.
+template <typename Rig>
+void CheckFullExcursion() {
+  Rig r;
+  r.reverb.set_force_custom(true);
+  r.reverb.set_mod_depth(4.0f);
+  r.SetRate(16.0f);
+  std::mt19937 rng(17);
+  std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+  const int n = static_cast<int>(10.0f * Rig::kRate);
+  float lo = 1.0f, hi = 0.0f, peak = 0.0f;
+  for (int i = 0; i < n; ++i) {
+    const float y = r.Process(noise(rng));
+    if (!std::isfinite(y)) FAIL("non-finite output at sample " << i);
+    peak = std::max(peak, std::fabs(y));
+    for (int k = 0; k < 2; ++k) {
+      lo = std::min(lo, r.Lfo(k));
+      hi = std::max(hi, r.Lfo(k));
+    }
+  }
+  CHECK(lo >= -1e-3f);
+  CHECK(hi <= 1.0f + 1e-3f);
+  CHECK(lo < 0.01f);  // both ends of the sweep were visited
+  CHECK(hi > 0.99f);
+  CHECK(peak > 0.05f);
+  CHECK(peak < 4.0f);
+
+  auto at = [](float depth) {
+    return [depth](auto& rv) {
+      rv.set_force_custom(true);
+      rv.set_mod_depth(depth);
+    };
+  };
+  CHECK(RunNoise<Rig>(at(100.0f), 0.5f) == RunNoise<Rig>(at(4.0f), 0.5f));
+  CHECK(RunNoise<Rig>(at(4.0f), 0.5f) != RunNoise<Rig>(at(1.0f), 0.5f));
+}
+
+TEST_CASE("Depth 4 at 16x stays inside the delay reserves", "[brume_vendor]") {
+  SECTION("Beads") { CheckFullExcursion<BeadsRig>(); }
+  SECTION("Clouds") { CheckFullExcursion<CloudsRig>(); }
+}
+
+TEST_CASE("Clouds diffuser coefficient", "[brume_vendor]") {
+  auto run = [](bool set, float diffusion) {
+    std::vector<float> memory(2048);
+    clouds::Diffuser d;
+    d.Init(memory.data());
+    d.set_amount(1.0f);
+    if (set) d.set_diffusion(diffusion);
+    std::mt19937 rng(4);
+    std::uniform_real_distribution<float> noise(-0.5f, 0.5f);
+    std::vector<float> out;
+    for (int b = 0; b < 500; ++b) {
+      clouds::FloatFrame f[32];
+      for (auto& x : f) x = {noise(rng), noise(rng)};
+      d.Process(f, 32);
+      for (auto& x : f) out.push_back(x.l);
+    }
+    return out;
+  };
+  CHECK(run(true, 0.625f) == run(false, 0.0f));
+  CHECK(run(true, 0.8f) != run(false, 0.0f));
 }

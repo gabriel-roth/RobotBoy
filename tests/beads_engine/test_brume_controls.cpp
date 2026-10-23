@@ -43,14 +43,48 @@ TEST_CASE("decay law per mode", "[brume_controls]") {
 
 TEST_CASE("tank character laws", "[brume_controls]") {
   REQUIRE(DampLp(0.0f) == Approx(1.0f));
-  REQUIRE(DampLp(1.0f) == Approx(0.3f));
-  REQUIRE(DampLp(4.0f / 7.0f) == Approx(0.6f));
+  REQUIRE(DampLp(1.0f) == Approx(0.15f));
+  REQUIRE(DampLp(kDampDefault) == Approx(0.6f));
   REQUIRE(DiffuseCoefficient(0.0f) == Approx(0.3f));
-  REQUIRE(DiffuseCoefficient(1.0f) == Approx(0.8f));
-  REQUIRE(DiffuseCoefficient(0.65f) == Approx(0.625f));
-  REQUIRE(SpeedMultiplier(0.0f) == Approx(0.25f));
-  REQUIRE(SpeedMultiplier(0.5f) == Approx(1.0f));
-  REQUIRE(SpeedMultiplier(1.0f) == Approx(4.0f));
+  REQUIRE(DiffuseCoefficient(1.0f) == Approx(0.9f));
+  REQUIRE(DiffuseCoefficient(kDiffuseDefault) == Approx(0.625f));
+  REQUIRE(SpeedMultiplier(0.0f) == Approx(0.1f));
+  REQUIRE(SpeedMultiplier(kSpeedDefault) == Approx(1.0f));
+  REQUIRE(SpeedMultiplier(1.0f) == Approx(16.0f));
+  REQUIRE(DepthMultiplier(0.0f) == 0.0f);
+  REQUIRE(DepthMultiplier(kDepthDefault) == Approx(1.0f));
+  REQUIRE(DepthMultiplier(1.0f) == Approx(4.0f));
+}
+
+TEST_CASE("defaults are Beads' original values", "[brume_controls]") {
+  REQUIRE(kSpeedDefault == Approx(std::log(10.0) / std::log(160.0)));
+  REQUIRE(kDiffuseDefault == Approx((0.625 - 0.3) / 0.6));
+  REQUIRE(kDampDefault == Approx((1.0 - 0.6) / 0.85));
+  REQUIRE(kDepthDefault == 0.5f);
+}
+
+TEST_CASE("smear law", "[brume_controls]") {
+  SmearSettings s = SmearForKnob(0.0f);
+  REQUIRE(s.amount == 0.0f);
+  REQUIRE(s.coefficient == Approx(0.625f));
+  s = SmearForKnob(0.35f);
+  REQUIRE(s.amount == Approx(0.5f));
+  REQUIRE(s.coefficient == Approx(0.625f));
+  s = SmearForKnob(0.7f);
+  REQUIRE(s.amount == Approx(1.0f));
+  REQUIRE(s.coefficient == Approx(0.625f));
+  s = SmearForKnob(0.85f);
+  REQUIRE(s.amount == 1.0f);
+  REQUIRE(s.coefficient == Approx(0.7125f));
+  s = SmearForKnob(1.0f);
+  REQUIRE(s.amount == 1.0f);
+  REQUIRE(s.coefficient == Approx(0.8f));
+}
+
+TEST_CASE("wow law", "[brume_controls]") {
+  REQUIRE(WowAmount(0.0f) == 0.0f);
+  REQUIRE(WowAmount(std::sqrt(1.0f / 3.0f)) == Approx(1.0f));
+  REQUIRE(WowAmount(1.0f) == Approx(3.0f));
 }
 
 TEST_CASE("shimmer law", "[brume_controls]") {

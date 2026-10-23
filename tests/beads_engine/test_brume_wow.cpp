@@ -40,19 +40,20 @@ double HighPower(const std::vector<float>& x, size_t start) {
   return total;
 }
 
-// Peak delay in ms of an impulse train passed at amount 1.
-double PeakDelayMs(float rate) {
+// Peak delay in ms of an impulse train passed at `amount`.
+double PeakDelayMs(float rate, float amount = 1.0f) {
   stmlib::Random::Seed(12345);
   WowFlutter w;
   w.Init(rate);
-  const size_t spacing = size_t(rate * 0.01f);
-  const size_t window = size_t(rate * 0.008f);
+  const float scale = std::max(1.0f, amount);
+  const size_t spacing = size_t(rate * 0.01f * scale);
+  const size_t window = size_t(rate * 0.008f * scale);
   const size_t total = size_t(rate * 10.0f);
   std::vector<float> out(total);
   for (size_t i = 0; i < total; ++i) {
     float l = (i % spacing == 0) ? 1.0f : 0.0f;
     float r = l;
-    w.Process(&l, &r, 1.0f);
+    w.Process(&l, &r, amount);
     out[i] = l;
   }
   double peak = 0.0;
@@ -111,6 +112,19 @@ TEST_CASE("delay depth is rate independent", "[brume_wow]") {
   REQUIRE(d48 <= limit_ms);
   REQUIRE(d96 <= limit_ms);
   REQUIRE(std::fabs(d48 - d96) <= 0.05 * d48);
+}
+
+// Amount 3, Brume's maximum: three times the delay, at any host rate up to
+// 768 kHz, where it needs most of the ring.
+TEST_CASE("delay depth at amount 3", "[brume_wow]") {
+  const double d1 = PeakDelayMs(48000.0f, 1.0f);
+  const double limit_ms = 3.0 * (1.0 + 105.0 + 17.0) / 24000.0 * 1000.0;
+  for (float rate : {48000.0f, 96000.0f, 768000.0f}) {
+    INFO("rate " << rate);
+    const double d3 = PeakDelayMs(rate, 3.0f);
+    REQUIRE(d3 <= limit_ms);
+    REQUIRE(std::fabs(d3 - 3.0 * d1) <= 0.05 * 3.0 * d1);
+  }
 }
 
 TEST_CASE("lowpass matches Beads at full amount", "[brume_wow]") {

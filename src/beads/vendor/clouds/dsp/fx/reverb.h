@@ -29,6 +29,8 @@
 #ifndef CLOUDS_DSP_FX_REVERB_H_
 #define CLOUDS_DSP_FX_REVERB_H_
 
+#include <type_traits>  // RobotBoy
+
 #include "stmlib/stmlib.h"
 
 #include "clouds/dsp/fx/fx_engine.h"
@@ -47,14 +49,16 @@ class Reverb {
     lp_ = 0.7f;
     diffusion_ = 0.625f;
     mod_depth_ = 1.0f;  // RobotBoy
+    force_custom_ = false;  // RobotBoy
   }
   
   // RobotBoy: at the default modulation depth the tank runs the stock code
   // with its constants, so the output matches upstream bit for bit (a variable
   // in place of a constant can change the rounding under
-  // -funsafe-math-optimizations).
+  // -funsafe-math-optimizations). Any other depth, or set_force_custom(true),
+  // takes the variable-driven instance, whose delay layout has room for 4x.
   void Process(FloatFrame* in_out, size_t size) {
-    if (mod_depth_ == 1.0f) {
+    if (!force_custom_ && mod_depth_ == 1.0f) {
       ProcessTank<false>(in_out, size);
     } else {
       ProcessTank<true>(in_out, size);
@@ -77,7 +81,23 @@ class Reverb {
       E::Reserve<3411,
       E::Reserve<1913,
       E::Reserve<1663,
-      E::Reserve<4782> > > > > > > > > > Memory;
+      E::Reserve<4782> > > > > > > > > > StockMemory;
+    // RobotBoy: the custom layout makes room for kMaxModDepth. ap1's smear
+    // tap is re-written further along the line, and its tail moves with it,
+    // so the allpass keeps its stock delay; del2 is only read through its
+    // modulated tap and just grows.
+    typedef E::Reserve<kAp1SmearWrite + kAp1SmearToTail + 1,
+      E::Reserve<162,
+      E::Reserve<241,
+      E::Reserve<399,
+      E::Reserve<1653,
+      E::Reserve<2038,
+      E::Reserve<3411,
+      E::Reserve<1913,
+      E::Reserve<1663,
+      E::Reserve<5090> > > > > > > > > > CustomMemory;
+    typedef typename std::conditional<
+        custom, CustomMemory, StockMemory>::type Memory;
     E::DelayLine<Memory, 0> ap1;
     E::DelayLine<Memory, 1> ap2;
     E::DelayLine<Memory, 2> ap3;
@@ -107,7 +127,7 @@ class Reverb {
       
       // Smear AP1 inside the loop.
       c.Interpolate(ap1, 10.0f, LFO_1, 60.0f * mod_depth, 1.0f);  // RobotBoy
-      c.Write(ap1, 100, 0.0f);
+      c.Write(ap1, custom ? kAp1SmearWrite : 100, 0.0f);  // RobotBoy
       
       c.Read(in_out->l + in_out->r, gain);
 
@@ -185,8 +205,16 @@ class Reverb {
     engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
   }
   
+  // Clamped to 0 .. kMaxModDepth, which the custom layout has room for.
   inline void set_mod_depth(float depth) {
-    mod_depth_ = depth;
+    const float max_depth = static_cast<float>(kMaxModDepth);
+    mod_depth_ = depth < 0.0f ? 0.0f : (depth > max_depth ? max_depth : depth);
+  }
+  
+  // Always take the custom path, so that changing the depth never switches
+  // delay layouts under a ringing tail.
+  inline void set_force_custom(bool force) {
+    force_custom_ = force;
   }
   
   inline float lfo_value(int index) const {
@@ -200,8 +228,23 @@ class Reverb {
   }
   
  private:
-  typedef FxEngine<16384, FORMAT_12_BIT> E;
+  // RobotBoy: 32768 (upstream 16384), for the custom layout. The stock
+  // layout's reads and writes are all relative to the write pointer, so it
+  // runs unchanged inside the larger memory.
+  typedef FxEngine<32768, FORMAT_12_BIT> E;
   E engine_;
+  
+  // RobotBoy: the custom layout. Each modulated read reaches offset +
+  // amplitude * depth * lfo, plus one for the interpolation, with lfo in
+  // [0, 1]; it must stay short of the line's end (or, for ap1, of the smear
+  // write, beyond which it would read its own output).
+  enum {
+    kMaxModDepth = 4,
+    kAp1SmearWrite = 255,  // stock: 100
+    kAp1SmearToTail = 12  // stock: 112 - 100
+  };
+  static_assert(10 + 60 * kMaxModDepth + 1 < kAp1SmearWrite, "ap1 smear");
+  static_assert(4680 + 100 * kMaxModDepth + 1 < 5090, "del2");
   
   float amount_;
   float input_gain_;
@@ -209,6 +252,7 @@ class Reverb {
   float diffusion_;
   float lp_;
   float mod_depth_;  // RobotBoy
+  bool force_custom_;  // RobotBoy
   
   float lp_decay_1_;
   float lp_decay_2_;

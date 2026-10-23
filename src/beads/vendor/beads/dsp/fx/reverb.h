@@ -29,6 +29,8 @@
 #ifndef BEADS_DSP_FX_REVERB_H_
 #define BEADS_DSP_FX_REVERB_H_
 
+#include <type_traits>  // RobotBoy
+
 #include "stmlib/stmlib.h"
 #include "stmlib/dsp/parameter_interpolator.h"
 
@@ -49,6 +51,7 @@ class Reverb {
     silent_samples_ = E::kSize;  // RobotBoy: the memory was just cleared.
     diffusion_ = 0.625f;  // RobotBoy
     mod_depth_ = 1.0f;  // RobotBoy
+    force_custom_ = false;  // RobotBoy
   }
   
   void Reset(float sample_rate) {
@@ -66,9 +69,10 @@ class Reverb {
   // RobotBoy: at the default diffusion and modulation depth the tank runs the
   // stock code with its constants, so the output stays bit-identical (with
   // -funsafe-math-optimizations, variables in place of the constants would
-  // change the rounding). Anything else takes the variable-driven instance.
+  // change the rounding). Anything else, or set_force_custom(true), takes the
+  // variable-driven instance, whose delay layout has room for 4x modulation.
   void Process(FloatFrame* in_out, size_t size) {
-    if (diffusion_ == 0.625f && mod_depth_ == 1.0f) {
+    if (!force_custom_ && diffusion_ == 0.625f && mod_depth_ == 1.0f) {
       ProcessTank<false>(in_out, size);
     } else {
       ProcessTank<true>(in_out, size);
@@ -91,7 +95,23 @@ class Reverb {
       E::Reserve<4501,
       E::Reserve<2525,
       E::Reserve<2197,
-      E::Reserve<6312> > > > > > > > > > Memory;
+      E::Reserve<6312> > > > > > > > > > StockMemory;
+    // RobotBoy: the custom layout makes room for kMaxModDepth. ap1's smear
+    // tap is re-written further along the line, and its tail moves with it,
+    // so the allpass keeps its stock delay; del1 and del2 are only read
+    // through their modulated taps and just grow.
+    typedef E::Reserve<kAp1SmearWrite + kAp1SmearToTail + 1,
+      E::Reserve<214,
+      E::Reserve<319,
+      E::Reserve<527,
+      E::Reserve<2182,
+      E::Reserve<2690,
+      E::Reserve<4630,
+      E::Reserve<2525,
+      E::Reserve<2197,
+      E::Reserve<6470> > > > > > > > > > CustomMemory;
+    typedef typename std::conditional<
+        custom, CustomMemory, StockMemory>::type Memory;
     E::DelayLine<Memory, 0> ap1;
     E::DelayLine<Memory, 1> ap2;
     E::DelayLine<Memory, 2> ap3;
@@ -163,7 +183,7 @@ class Reverb {
       
       // Smear AP1 inside the loop.
       c.Interpolate(ap1, 10.0f, LFO_1, 80.0f * mod_depth, 1.0f);  // RobotBoy
-      c.Write(ap1, 100, 0.0f);
+      c.Write(ap1, custom ? kAp1SmearWrite : 100, 0.0f);  // RobotBoy
       
       c.Read(in_out->l + in_out->r, send_amount);
       
@@ -243,7 +263,14 @@ class Reverb {
     engine_.SetLFOFrequencyKeepPhase(LFO_1, 0.5f * multiplier / sample_rate);
     engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
   }
-  inline void set_mod_depth(float depth) { mod_depth_ = depth; }
+  // Clamped to 0 .. kMaxModDepth, which the custom layout has room for.
+  inline void set_mod_depth(float depth) {
+    const float max_depth = static_cast<float>(kMaxModDepth);
+    mod_depth_ = depth < 0.0f ? 0.0f : (depth > max_depth ? max_depth : depth);
+  }
+  // Always take the custom path, so that changing the depth or diffusion
+  // never switches delay layouts under a ringing tail.
+  inline void set_force_custom(bool force) { force_custom_ = force; }
   inline float lfo_value(int index) const {
     return engine_.lfo_value(index ? LFO_2 : LFO_1);
   }
@@ -257,6 +284,19 @@ class Reverb {
   typedef FxEngine<32768, FORMAT_16_BIT> E;
   E engine_;
   
+  // RobotBoy: the custom layout. Each modulated read reaches offset +
+  // amplitude * depth * lfo, plus one for the interpolation, with lfo in
+  // [0, 1]; it must stay short of the line's end (or, for ap1, of the smear
+  // write, beyond which it would read its own output).
+  enum {
+    kMaxModDepth = 4,
+    kAp1SmearWrite = 335,  // stock: 100
+    kAp1SmearToTail = 49  // stock: 149 - 100
+  };
+  static_assert(10 + 80 * kMaxModDepth + 1 < kAp1SmearWrite, "ap1 smear");
+  static_assert(4460 + 40 * kMaxModDepth + 1 < 4630, "del1");
+  static_assert(6261 + 50 * kMaxModDepth + 1 < 6470, "del2");
+  
   float mix_;
   float wet_;
   float dry_;
@@ -269,6 +309,7 @@ class Reverb {
   
   float diffusion_;  // RobotBoy
   float mod_depth_;  // RobotBoy
+  bool force_custom_;  // RobotBoy
   
   bool sleep_enabled_;  // RobotBoy
   bool asleep_;  // RobotBoy

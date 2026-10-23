@@ -9,7 +9,7 @@ namespace robotboy_beads {
 namespace {
 
 constexpr size_t kBeadsReverbSize = 32768;
-constexpr size_t kCloudsReverbSize = 16384;
+constexpr size_t kCloudsReverbSize = 32768;
 constexpr size_t kDiffuserSize = 2048;
 constexpr size_t kPitchShifterSize = 4096;
 
@@ -47,10 +47,10 @@ BrumeControls DefaultBrumeControls() {
   c.shimmer = 0.0f;
   c.interval_semitones = 12.0f;
   c.decay = 0.5f;
-  c.damp = 4.0f / 7.0f;
-  c.diffuse = 0.65f;
-  c.speed = 0.5f;
-  c.depth = 1.0f;
+  c.damp = kDampDefault;
+  c.diffuse = kDiffuseDefault;
+  c.speed = kSpeedDefault;
+  c.depth = kDepthDefault;
   c.width = 0.5f;
   c.dry_wet = 0.5f;
   return c;
@@ -88,6 +88,10 @@ bool BrumeEngine::Init(float host_rate) {
 
   beads_tank_.Init(beads_memory_.get(), tank_rate_);
   clouds_tank_.Init(clouds_memory_.get());
+  // Always the layout with room for 4x depth, so DEPTH never switches
+  // layouts under a tail.
+  beads_tank_.set_force_custom(true);
+  clouds_tank_.set_force_custom(true);
   diffuser_.Init(diffuser_memory_.get());
   diffuser_.set_amount(0.0f);
   // Init already sets the full 2047-sample window, which set_size(1.0)
@@ -140,7 +144,7 @@ void BrumeEngine::SetControls(const BrumeControls& in) {
     // The smoothers start where the panel is, rather than gliding there.
     controls_seen_ = true;
     send_ = c.send;
-    wow_amount_ = c.wow;
+    wow_amount_ = WowAmount(c.wow);
     width_ = c.width;
     dry_wet_ = c.dry_wet;
   }
@@ -214,13 +218,14 @@ void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
   const float lp = DampLp(c.damp);
   const float diffusion = DiffuseCoefficient(c.diffuse);
   const float speed = SpeedMultiplier(c.speed);
+  const float depth = DepthMultiplier(c.depth);
   float& applied_speed = applied_speed_[int(mode)];
   if (mode == BrumeMode::kBeads) {
     beads_tank_.set_mix(1.0f);
     beads_tank_.set_time(time);
     beads_tank_.set_lp(lp);
     beads_tank_.set_diffusion(diffusion);
-    beads_tank_.set_mod_depth(c.depth);
+    beads_tank_.set_mod_depth(depth);
     if (speed != applied_speed) {
       beads_tank_.set_lfo_rate(speed, tank_rate_);
       applied_speed = speed;
@@ -231,7 +236,7 @@ void BrumeEngine::ApplyTankControls(BrumeMode mode, const BrumeControls& c) {
     clouds_tank_.set_time(time);
     clouds_tank_.set_lp(lp);
     clouds_tank_.set_diffusion(diffusion);
-    clouds_tank_.set_mod_depth(c.depth);
+    clouds_tank_.set_mod_depth(depth);
     if (speed != applied_speed) {
       clouds_tank_.set_lfo_rate(speed, tank_rate_);
       applied_speed = speed;
@@ -332,7 +337,9 @@ void BrumeEngine::RunBlock() {
     clouds_frames[i].l = frames[i].l;
     clouds_frames[i].r = frames[i].r;
   }
-  diffuser_.set_amount(c.smear);
+  const SmearSettings smear = SmearForKnob(c.smear);
+  diffuser_.set_amount(smear.amount);
+  diffuser_.set_diffusion(smear.coefficient);
   diffuser_.Process(clouds_frames, size);
 
   // The shimmer return from the previous block. Skipped at gain 0, so that
@@ -468,7 +475,7 @@ BrumeFrame BrumeEngine::Process(float l, float r) {
   }
 
   send_ += smoothing_ * (controls_.send - send_);
-  wow_amount_ += smoothing_ * (controls_.wow - wow_amount_);
+  wow_amount_ += smoothing_ * (WowAmount(controls_.wow) - wow_amount_);
   width_ += smoothing_ * (controls_.width - width_);
   dry_wet_ += smoothing_ * (controls_.dry_wet - dry_wet_);
 

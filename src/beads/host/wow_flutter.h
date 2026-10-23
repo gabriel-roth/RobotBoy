@@ -28,8 +28,9 @@
 // Same LFOs, random FM and re-roll as upstream, updated 4000 times a second;
 // the delay is Beads' (at 24 kHz) converted to host samples, and the output
 // lowpass is recomputed for the host rate. Upstream's 128-sample delay line is
-// replaced by a ring that fits 768 kHz, read with linear interpolation, and
-// the stage crossfades to a bit-exact bypass over 5 ms when amount is 0.
+// replaced by a ring that fits 3x Beads' depth at 768 kHz, read with linear
+// interpolation, and the stage crossfades to a bit-exact bypass over 5 ms
+// when amount is 0.
 
 #ifndef ROBOTBOY_BEADS_WOW_FLUTTER_H_
 #define ROBOTBOY_BEADS_WOW_FLUTTER_H_
@@ -77,7 +78,8 @@ class WowFlutter {
     counter_ = 0;
   }
 
-  // amount in 0..1, smoothed by the caller. Per sample, in place.
+  // amount in 0..3 (1 is Beads' depth), smoothed by the caller. Per sample,
+  // in place.
   void Process(float* l, float* r, float amount) {
     if (counter_ == 0) {
       UpdateModulation();
@@ -89,7 +91,7 @@ class WowFlutter {
     ring_[0][write_] = *l;
     ring_[1][write_] = *r;
 
-    // Total delay in host samples; the ring has room for 768 kHz.
+    // Total delay in host samples; the ring has room for amount 3 at 768 kHz.
     const float delay = gain_ * amount * delay_scale_;
     const float read = static_cast<float>(write_) + kRingSize - delay;
     const size_t i0 = static_cast<size_t>(read);
@@ -123,7 +125,8 @@ class WowFlutter {
   static constexpr float kBeadsRate = 24000.0f;
   static constexpr float kLpHertz = 11443.0f;  // Beads' 0.95 coefficient at 24 kHz.
   static constexpr float kFadeSeconds = 0.005f;
-  static constexpr size_t kRingSize = 8192;  // 768 kHz: 5.13 ms is 3941 frames.
+  // 768 kHz: 3 x 5.13 ms is 11808 frames.
+  static constexpr size_t kRingSize = 16384;
   static constexpr size_t kRingMask = kRingSize - 1;
 
   // One upstream Process() call's LFO work, for a block of block_size_
