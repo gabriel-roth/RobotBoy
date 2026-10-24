@@ -13,11 +13,13 @@
 # below the top-left corner screw and above the other plates (which start at
 # 15.5), and runs down to the other plates' bottom edge (107.6). The ENV
 # jack and label sit in an opaque panel-background (#3d3d3d) inset at the
-# plate's foot, a "negative" rect marking the output. A thin bar under FALL
-# splits the plate: timing above (ENV light, RISE, FALL; 3.5 mm gaps from the
-# plate top), source below (the IN/OUT switch, then SIDE with its label under
-# the jack, like ENV; 4.87 mm gaps down to the inset), 4.2 mm either side of
-# the bar. The Output column runs the same height as FOLLOW: WIDTH and MIX
+# plate's foot, a "negative" rect marking the output. Above it, the ENV light,
+# RISE, FALL, the IN/OUT switch and SIDE (label under the jack, like ENV) sit
+# with equal 4.75 mm gaps from the plate top down to the inset. Arrows folded
+# into the zone outlines show the signal path: FOLLOW points at both CV jack
+# rows (meeting notches cut into the plates' left edges, since the follower
+# is normalled to those jacks), the top plate points down into the bottom
+# one, and the bottom plate points at MIX. The Output column runs the same height as FOLLOW: WIDTH and MIX
 # (label 8.5 / knob 12.0 / jack 9.5 / trimpot) with three equal 7.601 gaps,
 # above the dry/wet BALANCE light, which sits on the bottom plate's trimpot
 # row. The bottom row (IN, MODE,
@@ -37,10 +39,12 @@ theme:
   screws: none
 
 zones:
-  - {x: 21.250, y: 15.500, w: 104.820, h: 45.050, rx: 2, fill: "#8fa89c", opacity: 0.55}
-  - {x: 21.250, y: 62.550, w: 104.820, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55}
-  - {x: 1.500, y: 6.000, w: 17.750, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55}
-  - {x: 3.000, y: 55.000, w: 14.750, h: 0.350, rx: 0.175, fill: "#ffffff", opacity: 0.7}
+  - {x: 21.250, y: 15.500, w: 104.820, h: 45.050, rx: 2, fill: "#8fa89c", opacity: 0.55,
+     arrows: [{side: bottom, at: 73.660}], notches: [{side: left, at: 44.138}]}
+  - {x: 21.250, y: 62.550, w: 104.820, h: 45.050, rx: 2, fill: "#7f93b3", opacity: 0.55,
+     arrows: [{side: right, at: 67.561}], notches: [{side: left, at: 91.188}]}
+  - {x: 1.500, y: 6.000, w: 17.750, h: 101.600, rx: 2, fill: "#b3a07f", opacity: 0.55,
+     arrows: [{side: right, at: 44.138}, {side: right, at: 91.188}]}
   - {x: 3.000, y: 88.485, w: 14.750, h: 17.615, rx: 1.5, fill: "#3d3d3d", opacity: 1.0}
   - {x: 128.070, y: 6.000, w: 17.750, h: 101.600, rx: 2, fill: "#9a9a9a", opacity: 0.55}
 
@@ -89,16 +93,16 @@ elements:
   - {name: DEPTH_PARAM, x: 117.335, y: 77.688}
   - {name: DEPTH_INPUT, x: 117.335, y: 91.188}
   - {name: DEPTH_CV_PARAM, widget: Trimpot, x: 117.335, y: 101.188}
-  - {text: "RISE", x: 10.375, y: 18.500, size: 3.175}
-  - {name: RISE_PARAM, x: 10.375, y: 27.000}
-  - {text: "FALL", x: 10.375, y: 37.650, size: 3.175}
-  - {name: FALL_PARAM, x: 10.375, y: 46.150}
-  - {text: "SIDE", x: 10.375, y: 83.610, size: 3.175}
-  - {name: SIDE_INPUT, x: 10.375, y: 75.010}
-  - {name: SOURCE_PARAM, widget: CKSS, x: 7.515, y: 63.045}
-  - {text: "IN", x: 13.715, y: 61.55, size: 2.5}
-  - {text: "OUT", x: 13.715, y: 66.54, size: 2.5}
-  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.375, y: 11.000}
+  - {text: "RISE", x: 10.375, y: 20.890, size: 3.175}
+  - {name: RISE_PARAM, x: 10.375, y: 29.390}
+  - {text: "FALL", x: 10.375, y: 41.330, size: 3.175}
+  - {name: FALL_PARAM, x: 10.375, y: 49.830}
+  - {text: "SIDE", x: 10.375, y: 83.735, size: 3.175}
+  - {name: SIDE_INPUT, x: 10.375, y: 75.135}
+  - {name: SOURCE_PARAM, widget: CKSS, x: 7.515, y: 62.875}
+  - {text: "IN", x: 13.715, y: 61.380, size: 2.5}
+  - {text: "OUT", x: 13.715, y: 66.370, size: 2.5}
+  - {name: ENV_LIGHT, widget: "MediumLight<WhiteLight>", x: 10.375, y: 12.250}
   - {name: ENV_OUTPUT, x: 10.375, y: 95.000}
   - {text: "ENV", x: 10.375, y: 103.600, size: 3.175}
   - {text: "WIDTH", x: 136.945, y: 16.018, size: 3.175}

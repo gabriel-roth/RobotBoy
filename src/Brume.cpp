@@ -521,11 +521,11 @@ struct BrumeWidget : ModuleWidget {
 		}
 
 		// FOLLOW column.
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 27.000)), module, Brume::RISE_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 46.150)), module, Brume::FALL_PARAM));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(7.515, 63.045)), module, Brume::SOURCE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.375, 75.010)), module, Brume::SIDE_INPUT));
-		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.375, 11.000)), module, Brume::ENV_LIGHT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 29.390)), module, Brume::RISE_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.375, 49.830)), module, Brume::FALL_PARAM));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(7.515, 62.875)), module, Brume::SOURCE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(10.375, 75.135)), module, Brume::SIDE_INPUT));
+		addChild(createLightCentered<MediumLight<WhiteLight>>(mm2px(Vec(10.375, 12.250)), module, Brume::ENV_LIGHT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(10.375, 95.000)), module, Brume::ENV_OUTPUT));
 
 		// Output column: WIDTH and MIX are plate controls; the balance light
