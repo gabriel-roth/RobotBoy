@@ -10,9 +10,11 @@ pure-DSP classes/headers directly.
 cd tests && ./run.sh
 ```
 
-`run.sh` builds and runs every `tests/{mf20,loooop,onbetap,vespid,lucarne}/test_*.cpp`
+`run.sh` builds and runs every `tests/{mf20,loooop,onbetap,vespid,lucarne,shapes}/test_*.cpp`
 against `../src`, then the Python guard tests and the Beads engine suite
 (lane 2 below), and exits non-zero if anything fails.
+
+`tests/shapes/reference.hpp` is generated from the JS playground engine: `node tests/shapes/make_reference.js <playground.html> > tests/shapes/reference.hpp`.
 
 If a test needs a non-header-only `.cpp` from `src/` linked in (e.g. Loooop's
 `LoopEngine.cpp`), drop a sibling `<test>.cpp.extra` file next to it listing
