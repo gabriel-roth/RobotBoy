@@ -1,4 +1,4 @@
-// Combine engine tests: waves and presets against playground vectors, ratio
+// Combine engine tests: waves and presets against reference vectors, ratio
 // continuity, the Input wave, S&H and Bend with Input, Fit range guarantee
 // and the preset table.
 #include "reference.hpp"

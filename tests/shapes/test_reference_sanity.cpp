@@ -1,5 +1,5 @@
 #include <type_traits>
-// Sanity checks on the generated playground reference vectors.
+// Sanity checks on the reference vectors generated from the JS prototype.
 #include "reference.hpp"
 #include <cassert>
 #include <cmath>

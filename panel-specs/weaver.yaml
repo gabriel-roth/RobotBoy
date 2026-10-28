@@ -6,7 +6,7 @@
 #    labels below at + 15.7):
 #    - Globals plate: a display naming the algorithm at its left end (26 x
 #      13.3, inset 2.4); then ALGORITHM (the button that steps through the
-#      algorithms + its CV jack, 9.0 apart, labelled together, the label
+#      algorithms + its CV jack, 9.0 apart, labelled together, the
 #      label clear of the display), ENVELOPE (the WINDOW knob, knob-end
 #      marks above its sides) and PRESET (small next / previous buttons,
 #      stacked, stepping through the factory presets, chevrons beside), spaced by their labels.
@@ -16,8 +16,8 @@
 #    - Output row: one gray plate. OUT circled by a thin ring in the
 #      display's signal orange (the main trace's color), INV, EOC, then A, B, C on 12 mm tabs in their operator colors (opaque,
 #      matched to the operator rows).
-#  - Operator rows (91.24-176.30): one plate per operator in the playground's
-#    operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
+#  - Operator rows (91.24-176.30): one plate per operator in the original JS
+#    prototype's operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
 #    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (heading size) in
 #    the bottom-left corner of each plate.
 #    Five equal 17.01 cells from 91.24: 99.75 / 116.76 / 133.77 / 150.78 / 167.79.
@@ -147,7 +147,7 @@ elements:
   - {name: WINDOW_PARAM, x: 66.30, y: 71.9}
   - {text: ALGORITHM, x: 44.10, y: 80.4, size: 3.175}
   - {text: ENVELOPE, x: 66.30, y: 80.4, size: 3.175}   # the WINDOW control
-  # PRESET steps through the factory presets (the playground's examples), previous / next.
+  # PRESET steps through the factory presets (the original JS prototype's examples), previous / next.
   - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 81.75, y: 70.05}
   - {name: PRESET_PREV_PARAM, widget: TL1105, x: 81.75, y: 77.45}
 

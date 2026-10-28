@@ -71,7 +71,7 @@ private:
 	static constexpr double kHysteresis = 0.05;
 
 	double opAbs(const CombineControls& c, int i, double t) const;
-	// The playground's combineRaw for internal waves, using the current offsets.
+	// combineRaw from the original JS prototype (not in this repo) for internal waves, using the current offsets.
 	double formulaRaw(const CombineControls& c, double t) const;
 	double inputValue(const CombineControls& c, int i);
 	void updateHold(const CombineControls& c, double te, const double* r);

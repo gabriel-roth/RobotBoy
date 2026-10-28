@@ -1,4 +1,4 @@
-// Skylark engine tests: transforms against playground vectors, shape
+// Skylark engine tests: transforms against reference vectors, shape
 // latching, Fit range guarantee and display table consistency.
 #include "reference.hpp"
 #include "shapes/OutputStage.hpp"

@@ -1,31 +1,23 @@
 # Skylark (the Recipes generator): 22 HP, tinted plates in the Brume style, 1.5 mm from the panel
 # edges with 2.0 mm between them.
-#  - Title centered in a 17 mm band (rows start at 17.0).
-#  - Display (4:3, 60 x 45) on the bare panel, top left (1.5-61.5, 17-62).
-#  - Top plate (63.5-120.42, 17-62): VARIATION and SHAPE (picks the recipe),
-#    equal 12.57 gaps between 9.6 knobs (80.87 / 103.04). VARIATION has an
-#    attenuverter under its jack: with nothing patched, the output is
-#    normalled to the VARIATION input and the attenuverter sets the feedback
-#    depth. An arrow from the display (the output) meets a notch in the
-#    plate's left edge at the VARIATION jack (45.6), as Brume marks its
-#    normalled follower; the arrow is display-colored so it reads as part of
-#    the display. Cell offsets as Brume's: label 9.5 above the knob, jack
-#    13.5 below it, trimpot 10 below the jack. Content (label cap to trimpot
-#    bottom, 38.2) with 3.4 margins: label 22.6, knobs 32.1, jacks 45.6,
-#    trimpot 55.6.
-#  - Transform plate (1.5-120.42, 64-98.5): TIMING, LIFT, SYMMETRY, TILT,
-#    DRIFT, label 8.5 above the knob and jack 13.0 below it, with Brume-style
-#    knob-end marks. Equal 11.82 gaps between 9.6 knobs: 18.12 / 39.54 /
-#    60.96 / 82.38 / 103.80. Content 27.7 tall plus 3.4 margins: label 69.6,
-#    knob 78.1, jack 91.1.
-#  - Bottom row at 110.0, labels below at 118.5, one label per unit:
-#    - Timing plate (1.5-70.42): CLOCK (the BPM knob, live only while the
-#      CLOCK jack is unpatched, and the CLOCK jack, 10.5 apart), RESET and
-#      REVERSE (button + jack, 8.5 apart, as Brume's CLEAR). Unit widths
-#      19.32 / 15.57 / 15.57, equal gaps of 4.62. No beat light; the display
-#      shows the tempo.
-#    - Output plate (72.42-120.42, gray as Brume's output column): EOC, INV,
-#      OUT with equal 5.98 gaps (82.41 / 96.42 / 110.43).
+#  - Title centered in a 17 mm band (rows start at 17.0), spread across the display's width.
+#  - Display (4:3, 66 x 49.5) on the bare panel, top left (1.5-67.5, 17-66.5).
+#  - Top plate (69.5-110.26, 17-66.5): VARIATION and SHAPE (picks the recipe) in two columns
+#    (80.51 / 99.25): labels 24.85, knobs 34.35, jacks 47.85. VARIATION has an attenuverter
+#    under its jack (57.85, - / + beside it): with nothing patched, the output is normalled to
+#    the VARIATION input and the attenuverter sets the feedback depth. An arrow from the
+#    display (the output) meets a notch in the plate's left edge at the VARIATION jack, as
+#    Brume marks its normalled follower; the arrow is display-colored so it reads as part of
+#    the display. SHAPE previous / next buttons sit in the attenuverter row, chevrons beside.
+#  - Transform plate (1.5-110.26, 68.5-104): TIMING, LIFT, SYMMETRY, TILT, DRIFT in five
+#    columns (12.38 / 34.13 / 55.88 / 77.63 / 99.38), each a stack of label 72.6, knob 80.6
+#    (end-of-travel glyphs beside it), CV trimpot 89.5 and CV jack 98.0.
+#  - Bottom row (106-123), controls at 112.6, labels below at 120.6:
+#    - Timing plate (1.5-63.5): CLOCK (the BPM knob, live only while the CLOCK jack is
+#      unpatched, and the CLOCK jack, 10.5 apart), RESET and REVERSE (button + jack, 8.5
+#      apart, as Brume's CLEAR). No beat light; the display shows the tempo.
+#    - Output plate (65.5-110.26, gray as Brume's output column): EOC, INV, OUT
+#      (74.68 / 87.88 / 101.08), OUT circled by a ring in the display's signal orange.
 slug: Skylark
 name: SKYLARK
 hp: 22
@@ -49,7 +41,7 @@ zones:
   - {x: 1.5, y: 68.5, w: 108.76, h: 35.5, rx: 2, fill: "#7f9fb3", opacity: 0.55}
   - {x: 1.5, y: 106.0, w: 62.00, h: 17.0, rx: 2, fill: "#9aa883", opacity: 0.55}
   - {x: 65.50, y: 106.0, w: 44.76, h: 17.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
-  # OUT ring, as on skylark.yaml.
+  # OUT ring, as on Weaver.
   - {x: 95.73, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ff8a3d", opacity: 1.0}
   - {x: 96.48, y: 108.00, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
 

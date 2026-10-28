@@ -8,7 +8,7 @@
 
 using namespace shapes;
 
-static void treatMatchesPlayground() {
+static void treatMatchesReference() {
 	const Treat modes[5] = {Treat::Fit, Treat::Clip, Treat::Soft, Treat::Fold, Treat::Wrap};
 	for (int m = 0; m < 5; m++)
 		for (int i = 0; i < 9; i++)
@@ -68,7 +68,7 @@ static void sanitizeReplacesNonFinite() {
 }
 
 int main() {
-	treatMatchesPlayground();
+	treatMatchesReference();
 	toVoltsRanges();
 	invertMirrorsWithinRange();
 	slewOffIsPassthrough();
