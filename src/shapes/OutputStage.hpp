@@ -52,6 +52,7 @@ public:
 		coef = tau > 0.0 ? 1.0 - std::exp(-1.0 / tau) : 1.0;
 	}
 
+	// Callers must pass finite values; a NaN would stick in the filter state.
 	double process(double v) {
 		if (coef >= 1.0) {
 			y = v;

@@ -45,19 +45,24 @@ public:
 			s = {0.0, 0, false, true};
 		}
 
-		if (!in.clockConnected) {
-			if (wasConnected) {
-				locked = false;
-				havePrev = false;
-			}
-			rate = in.bpm / 240.0;
+		if (!in.clockConnected && wasConnected) {
+			locked = false;
+			havePrev = false;
+			measured = false;
+		}
+		// The BPM setting runs the ramp until a clock has given a tempo
+		if (!measured) {
+			// Clamped so pos can never advance by a whole cycle per sample
+			tempo = std::clamp(shapes::sanitize(in.bpm, 120.0), 20.0, 300.0) / 240.0;
+			rate = tempo;
 		}
 		wasConnected = in.clockConnected;
 
 		sampleCount++;
 		bool pulse = clockGate.process(in.clockConnected ? in.clockVoltage : 0.f);
+		bool alignWrap = false;
 		if (pulse && in.clockConnected)
-			onPulse(ppc);
+			alignWrap = onPulse(ppc);
 
 		if (resetEdge)
 			return s;
@@ -71,13 +76,15 @@ public:
 			cycle++;
 			s.wrapped = true;
 		}
+		// A hard align can cross the boundary too; still one wrap per boundary
+		s.wrapped = s.wrapped || alignWrap;
 		s.pos = pos;
 		s.cycle = cycle;
 		return s;
 	}
 
 	double tempoBpm() const {
-		return rate * 240.0;
+		return tempo * 240.0;
 	}
 
 	// Cycles since reset
@@ -108,45 +115,62 @@ private:
 		}
 	};
 
-	void onPulse(int ppc) {
-		if (!havePrev) {
-			// First pulse after connecting or resetting: align hard
-			pos = 0.0;
-			pulseIndex = 0;
-			havePrev = true;
-			lastPulseSample = sampleCount;
-			return;
-		}
+	// Hard align. A forward jump onto the cycle start counts as the wrap;
+	// a backward jump doesn't, so one boundary never reports twice.
+	bool alignTo(double target) {
+		bool w = target == 0.0 && pos > 0.5;
+		if (w)
+			cycle++;
+		pos = target;
+		return w;
+	}
+
+	// Returns true when a hard align wrapped the cycle.
+	bool onPulse(int ppc) {
 		double interval = (double) (sampleCount - lastPulseSample) / sampleRate;
 		lastPulseSample = sampleCount;
+		// A gap much longer than the current pulse spacing means the clock
+		// stopped; don't read a tempo from it
+		bool gap = locked && interval * tempo * ppc > 2.0;
+		if (!havePrev || gap) {
+			pulseIndex = 0;
+			havePrev = true;
+			locked = false;
+			return alignTo(0.0);
+		}
 		double cycleLen = std::clamp(interval * ppc, 0.05, 60.0);
 		pulseIndex = (pulseIndex + 1) % ppc;
 		double expected = (double) pulseIndex / ppc;
 		if (!locked) {
 			// Second pulse: take the tempo and align hard
-			rate = 1.0 / cycleLen;
-			pos = expected;
+			tempo = 1.0 / cycleLen;
+			rate = tempo;
 			locked = true;
-			return;
+			measured = true;
+			return alignTo(expected);
 		}
 		double err = expected - pos;
 		err -= std::round(err);  // wrapped to -0.5..0.5
 		// Error is in cycles; ppc * err is in pulses
 		double nudge = std::clamp(1.0 + kLockGain * err * ppc, 0.5, 1.5);
-		rate = std::clamp(nudge / cycleLen, 1.0 / 60.0, 20.0);
+		tempo = 1.0 / cycleLen;
+		rate = std::clamp(nudge * tempo, 1.0 / 60.0, 20.0);
+		return false;
 	}
 
 	static constexpr double kLockGain = 0.1;
 
 	double sampleRate = 48000.0;
 	double pos = 0.0;
-	double rate = 0.5;  // cycles per second
+	double rate = 0.5;  // cycles per second, including the lock nudge
+	double tempo = 0.5;  // measured cycles per second, for display
 	int64_t cycle = 0;
 	int64_t sampleCount = 0;
 	int64_t lastPulseSample = 0;
 	int pulseIndex = 0;
 	bool havePrev = false;
 	bool locked = false;
+	bool measured = false;  // a clock tempo has been read since connecting
 	bool wasConnected = false;
 	Schmitt clockGate, resetGate, resetBtn;
 };
