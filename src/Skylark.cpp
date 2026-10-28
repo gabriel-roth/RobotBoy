@@ -1,4 +1,5 @@
 #include "plugin.hpp"
+#include "ShapeGenerator.hpp"
 #include "shapes/OutputStage.hpp"
 #include "shapes/Recipes.hpp"
 #include "shapes/SkylarkEngine.hpp"
@@ -14,9 +15,6 @@
 static constexpr int kTracePoints = 256;
 // Samples between display updates.
 static constexpr int kPublishInterval = 512;
-
-static const float kSlewMs[] = {0.f, 2.f, 5.f, 20.f};
-static const int kPulseChoices[] = {1, 2, 4, 8, 16, 24, 32, 48, 96};
 
 // What the display shows, written by the audio thread.
 struct SkylarkFrame {
@@ -72,11 +70,7 @@ struct Skylark : Module {
 	};
 
 	// Context menu settings
-	shapes::Range range = shapes::Range::Bipolar5;
-	shapes::Treat treatMode = shapes::Treat::Fit;
-	float slewMs = 0.f;
-	int pulsesPerCycle = 4;
-	float bpmFine = 0.f;
+	shapeui::Settings settings;
 	bool variationPerCycle = false;
 
 	shapes::Timebase timebase;
@@ -149,11 +143,7 @@ struct Skylark : Module {
 
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
-		range = shapes::Range::Bipolar5;
-		treatMode = shapes::Treat::Fit;
-		slewMs = 0.f;
-		pulsesPerCycle = 4;
-		bpmFine = 0.f;
+		settings.reset();
 		variationPerCycle = false;
 	}
 
@@ -177,18 +167,18 @@ struct Skylark : Module {
 			stepShape(-1);
 		if (nextTrigger.process(params[SHAPE_NEXT_PARAM].getValue() > 0.5f))
 			stepShape(1);
-		if (slewMs != appliedSlewMs) {
-			slew.set(slewMs, sampleRate);
-			appliedSlewMs = slewMs;
+		if (settings.slewMs != appliedSlewMs) {
+			slew.set(settings.slewMs, sampleRate);
+			appliedSlewMs = settings.slewMs;
 		}
 
 		shapes::TimebaseInput tin;
-		tin.bpm = params[BPM_PARAM].getValue() + bpmFine;
+		tin.bpm = params[BPM_PARAM].getValue() + settings.bpmFine;
 		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
 		tin.clockVoltage = cv(CLOCK_INPUT);
 		tin.resetVoltage = cv(RESET_INPUT);
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
-		tin.pulsesPerCycle = pulsesPerCycle;
+		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
 		// Reset starts a cycle too, so a pending shape change lands there
 		bool cycleStart = step.wrapped || step.reset || !started;
@@ -216,12 +206,12 @@ struct Skylark : Module {
 		engine.setControls(c);
 
 		double raw = engine.raw(step.pos, step.cycle, cycleStart);
-		double volts = shapes::toVolts(shapes::treat(raw, treatMode, engine.peak()), range);
+		double volts = shapes::toVolts(shapes::treat(raw, settings.treatMode, engine.peak()), settings.range);
 		volts = slew.process(shapes::sanitize(volts, 0.0));
 		float out = (float) shapes::sanitize(volts, 0.0);
 		lastOut = out;
 		outputs[MAIN_OUTPUT].setVoltage(out);
-		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, range), 0.0));
+		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
 		if (step.wrapped)
 			eoc.fire();
 		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
@@ -236,9 +226,9 @@ struct Skylark : Module {
 	void publish(double variation) {
 		int back = 1 - frontFrame.load(std::memory_order_relaxed);
 		SkylarkFrame& f = frames[back];
-		engine.renderCycle(f.trace, kTracePoints, treatMode, range);
+		engine.renderCycle(f.trace, kTracePoints, settings.treatMode, settings.range);
 		// Volts back to -1..1 for drawing
-		float offset = range == shapes::Range::Bipolar5 ? 0.f : 1.f;
+		float offset = settings.range == shapes::Range::Bipolar5 ? 0.f : 1.f;
 		for (int i = 0; i < kTracePoints; i++)
 			f.trace[i] = f.trace[i] * 0.2f - offset;
 		f.shape = engine.activeShape();
@@ -249,45 +239,21 @@ struct Skylark : Module {
 
 	json_t* dataToJson() override {
 		json_t* rootJ = json_object();
-		json_object_set_new(rootJ, "range", json_integer((int) range));
-		json_object_set_new(rootJ, "treat", json_integer((int) treatMode));
-		json_object_set_new(rootJ, "slewMs", json_real(slewMs));
-		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
-		json_object_set_new(rootJ, "bpmFine", json_real(bpmFine));
+		settings.toJson(rootJ);
 		json_object_set_new(rootJ, "variationPerCycle", json_boolean(variationPerCycle));
 		return rootJ;
 	}
 
 	void dataFromJson(json_t* rootJ) override {
-		// Missing or unknown values fall back to the defaults
-		json_t* j = json_object_get(rootJ, "range");
-		range = j && json_integer_value(j) == 1 ? shapes::Range::Unipolar10 : shapes::Range::Bipolar5;
-		j = json_object_get(rootJ, "treat");
-		int t = j ? (int) json_integer_value(j) : 0;
-		treatMode = t >= 0 && t <= (int) shapes::Treat::Wrap ? (shapes::Treat) t : shapes::Treat::Fit;
-		j = json_object_get(rootJ, "slewMs");
-		float ms = j ? (float) json_number_value(j) : 0.f;
-		slewMs = 0.f;
-		for (float choice : kSlewMs)
-			if (ms == choice)
-				slewMs = choice;
-		j = json_object_get(rootJ, "pulsesPerCycle");
-		int ppc = j ? (int) json_integer_value(j) : 4;
-		pulsesPerCycle = 4;
-		for (int choice : kPulseChoices)
-			if (ppc == choice)
-				pulsesPerCycle = choice;
-		j = json_object_get(rootJ, "bpmFine");
-		float fine = j ? (float) json_number_value(j) : 0.f;
-		bpmFine = std::isfinite(fine) ? clamp(std::round(fine * 100.f) / 100.f, -0.5f, 0.5f) : 0.f;
-		j = json_object_get(rootJ, "variationPerCycle");
+		settings.fromJson(rootJ);
+		json_t* j = json_object_get(rootJ, "variationPerCycle");
 		variationPerCycle = j && json_is_true(j);
 	}
 };
 
 // One cycle of the shaped output (after range and treatment, before slew),
 // with a playhead and a header naming the shape, Variation and tempo.
-struct SkylarkDisplay : LedDisplay {
+struct SkylarkDisplay : shapeui::Screen {
 	Skylark* module = nullptr;
 	// The module browser's picture: Bounce at default settings, built once
 	shapes::SkylarkEngine previewEngine;
@@ -307,42 +273,16 @@ struct SkylarkDisplay : LedDisplay {
 		return preview;
 	}
 
-	void draw(const DrawArgs& args) override {
-		nvgBeginPath(args.vg);
-		nvgRoundedRect(args.vg, 0, 0, box.size.x, box.size.y, mm2px(0.6f));
-		nvgFillColor(args.vg, nvgRGB(0x0c, 0x0e, 0x10));
-		nvgFill(args.vg);
-	}
-
-	void drawLayer(const DrawArgs& args, int layer) override {
-		if (layer == 1)
-			drawContents(args.vg);
-		Widget::drawLayer(args, layer);
-	}
-
-	void drawContents(NVGcontext* vg) {
+	void drawScreen(NVGcontext* vg) override {
 		// Copied so a publish mid-draw can't tear the trace
 		SkylarkFrame f = frame();
 		float pos = module ? module->displayPos.load(std::memory_order_relaxed) : 0.62f;
-		if (!std::isfinite(pos))
-			pos = 0.f;
-		pos = clamp(pos, 0.f, 1.f);
 
 		const float pad = mm2px(2.f);
 		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(9.f);
+		shapeui::drawGrid(vg, gx, gy, gw, gh);
 
-		nvgScissor(vg, 0, 0, box.size.x, box.size.y);
-		for (int i = 0; i <= 4; i++) {
-			float y = gy + gh * i / 4.f;
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, gx, y);
-			nvgLineTo(vg, gx + gw, y);
-			nvgStrokeWidth(vg, mm2px(i == 2 ? 0.25f : 0.12f));
-			nvgStrokeColor(vg, nvgRGB(0x1d, 0x22, 0x27));
-			nvgStroke(vg);
-		}
-
-		std::shared_ptr<window::Font> font = APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (font) {
 			char title[40];
 			const char* name = shapes::recipeName(f.shape);
@@ -356,132 +296,20 @@ struct SkylarkDisplay : LedDisplay {
 			nvgFontFaceId(vg, font->handle);
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
 			nvgFontSize(vg, mm2px(2.6f));
-			nvgFillColor(vg, nvgRGB(0xe6, 0xe8, 0xeb));
+			nvgFillColor(vg, shapeui::inkColor());
 			nvgText(vg, gx, mm2px(4.6f), title, nullptr);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			nvgFontSize(vg, mm2px(2.2f));
-			nvgFillColor(vg, nvgRGB(0x98, 0xa1, 0xab));
+			nvgFillColor(vg, shapeui::mutedColor());
 			nvgText(vg, gx + gw, mm2px(4.6f), right, nullptr);
 		}
 
-		auto yAt = [&](float v) {
-			return gy + gh * 0.5f - clamp(v, -1.f, 1.f) * gh * 0.5f;
-		};
-		// The trace closes the loop: its last point is the next cycle's first
-		nvgBeginPath(vg);
-		for (int i = 0; i <= kTracePoints; i++) {
-			float x = gx + gw * i / kTracePoints;
-			float y = yAt(f.trace[i % kTracePoints]);
-			if (i == 0)
-				nvgMoveTo(vg, x, y);
-			else
-				nvgLineTo(vg, x, y);
-		}
-		nvgLineJoin(vg, NVG_ROUND);
-		nvgStrokeWidth(vg, mm2px(0.45f));
-		nvgStrokeColor(vg, nvgRGB(0xff, 0x8a, 0x3d));
-		nvgStroke(vg);
-
-		float hx = gx + gw * pos;
-		float k = pos * kTracePoints;
-		int i0 = std::min((int) k, kTracePoints - 1);
-		float hv = f.trace[i0] + (f.trace[(i0 + 1) % kTracePoints] - f.trace[i0]) * (k - i0);
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, hx, gy);
-		nvgLineTo(vg, hx, gy + gh);
-		nvgStrokeWidth(vg, mm2px(0.15f));
-		nvgStrokeColor(vg, nvgRGBA(0xe6, 0xe8, 0xeb, 153));
-		nvgStroke(vg);
-		nvgBeginPath(vg);
-		nvgCircle(vg, hx, yAt(hv), mm2px(0.7f));
-		nvgFillColor(vg, nvgRGB(0xff, 0x8a, 0x3d));
-		nvgFill(vg);
-		nvgResetScissor(vg);
-	}
-};
-
-// BPM fine as a menu slider. A drag (or double-click reset) is one undo step.
-// The slider moves an unrounded value so slow drags still creep along; the
-// module gets it rounded to 0.01 BPM.
-struct BpmFineQuantity : Quantity {
-	Skylark* module;
-	float raw;
-	explicit BpmFineQuantity(Skylark* m) : module(m), raw(m->bpmFine) {}
-	void setValue(float v) override {
-		raw = clamp(v, -0.5f, 0.5f);
-		module->bpmFine = std::round(raw * 100.f) / 100.f;
-	}
-	float getValue() override {
-		return raw;
-	}
-	float getMinValue() override {
-		return -0.5f;
-	}
-	float getMaxValue() override {
-		return 0.5f;
-	}
-	float getDefaultValue() override {
-		return 0.f;
-	}
-	int getDisplayPrecision() override {
-		return 2;
-	}
-	std::string getLabel() override {
-		return "BPM fine";
-	}
-	std::string getUnit() override {
-		return " BPM";
-	}
-	std::string getDisplayValueString() override {
-		return string::f("%+.2f", module->bpmFine);
-	}
-};
-
-struct BpmFineSlider : ui::Slider {
-	Skylark* module;
-	json_t* oldModuleJ = nullptr;
-	float oldFine = 0.f;
-
-	explicit BpmFineSlider(Skylark* m) : module(m) {
-		quantity = new BpmFineQuantity(m);
-		box.size.x = 200.f;
-	}
-	~BpmFineSlider() override {
-		if (oldModuleJ)
-			json_decref(oldModuleJ);
-		delete quantity;
-	}
-	void onDragStart(const DragStartEvent& e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT && !oldModuleJ) {
-			oldModuleJ = APP->engine->moduleToJson(module);
-			oldFine = module->bpmFine;
-		}
-		ui::Slider::onDragStart(e);
-	}
-	void onDragEnd(const DragEndEvent& e) override {
-		ui::Slider::onDragEnd(e);
-		if (!oldModuleJ)
-			return;
-		// A click without a drag changes nothing; leave no undo step
-		if (module->bpmFine == oldFine) {
-			json_decref(oldModuleJ);
-			oldModuleJ = nullptr;
-			return;
-		}
-		history::ModuleChange* h = new history::ModuleChange;
-		h->name = "set BPM fine";
-		h->moduleId = module->id;
-		h->oldModuleJ = oldModuleJ;
-		h->newModuleJ = APP->engine->moduleToJson(module);
-		APP->history->push(h);
-		oldModuleJ = nullptr;
-	}
-	void onDoubleClick(const DoubleClickEvent& e) override {
-		static_cast<BpmFineQuantity*>(quantity)->raw = 0.f;
-		if (module->bpmFine == 0.f)
-			return;
-		Skylark* m = module;
-		withMenuUndo(m, "reset BPM fine", [m]() { m->bpmFine = 0.f; });
+		shapeui::TraceStyle style;
+		style.color = shapeui::signalColor();
+		shapeui::drawTrace(vg, f.trace, kTracePoints, gx, gy, gw, gh, style);
+		if (!std::isfinite(pos))
+			pos = 0.f;
+		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.trace, kTracePoints, pos));
 	}
 };
 
@@ -541,38 +369,7 @@ struct SkylarkWidget : ModuleWidget {
 			return;
 
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Output range", {"+-5 V", "0-10 V"},
-			[=]() { return (int) module->range; },
-			[=](int i) {
-				withMenuUndo(module, "set output range", [=]() { module->range = (shapes::Range) i; });
-			}));
-		menu->addChild(createIndexSubmenuItem("When out of range", {"Fit", "Clip", "Soft clip", "Fold", "Wrap"},
-			[=]() { return (int) module->treatMode; },
-			[=](int i) {
-				withMenuUndo(module, "set out-of-range mode", [=]() { module->treatMode = (shapes::Treat) i; });
-			}));
-		menu->addChild(createIndexSubmenuItem("Slew", {"Off", "2 ms", "5 ms", "20 ms"},
-			[=]() {
-				for (int i = 0; i < 4; i++)
-					if (module->slewMs == kSlewMs[i])
-						return i;
-				return 0;
-			},
-			[=](int i) {
-				withMenuUndo(module, "set slew", [=]() { module->slewMs = kSlewMs[i]; });
-			}));
-		menu->addChild(createIndexSubmenuItem("Clock pulses per cycle",
-			{"1", "2", "4", "8", "16", "24", "32", "48", "96"},
-			[=]() {
-				for (int i = 0; i < 9; i++)
-					if (module->pulsesPerCycle == kPulseChoices[i])
-						return i;
-				return 2;
-			},
-			[=](int i) {
-				withMenuUndo(module, "set clock pulses per cycle", [=]() { module->pulsesPerCycle = kPulseChoices[i]; });
-			}));
-		menu->addChild(new BpmFineSlider(module));
+		shapeui::appendSettingsMenu(menu, module, &module->settings);
 		menu->addChild(createIndexSubmenuItem("Variation CV", {"Continuous", "Sample once per cycle"},
 			[=]() { return module->variationPerCycle ? 1 : 0; },
 			[=](int i) {
