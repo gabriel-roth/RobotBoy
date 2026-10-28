@@ -401,14 +401,18 @@ struct SkylarkDisplay : LedDisplay {
 };
 
 // BPM fine as a menu slider. A drag (or double-click reset) is one undo step.
+// The slider moves an unrounded value so slow drags still creep along; the
+// module gets it rounded to 0.01 BPM.
 struct BpmFineQuantity : Quantity {
 	Skylark* module;
-	explicit BpmFineQuantity(Skylark* m) : module(m) {}
+	float raw;
+	explicit BpmFineQuantity(Skylark* m) : module(m), raw(m->bpmFine) {}
 	void setValue(float v) override {
-		module->bpmFine = clamp(std::round(v * 100.f) / 100.f, -0.5f, 0.5f);
+		raw = clamp(v, -0.5f, 0.5f);
+		module->bpmFine = std::round(raw * 100.f) / 100.f;
 	}
 	float getValue() override {
-		return module->bpmFine;
+		return raw;
 	}
 	float getMinValue() override {
 		return -0.5f;
@@ -436,6 +440,7 @@ struct BpmFineQuantity : Quantity {
 struct BpmFineSlider : ui::Slider {
 	Skylark* module;
 	json_t* oldModuleJ = nullptr;
+	float oldFine = 0.f;
 
 	explicit BpmFineSlider(Skylark* m) : module(m) {
 		quantity = new BpmFineQuantity(m);
@@ -447,14 +452,22 @@ struct BpmFineSlider : ui::Slider {
 		delete quantity;
 	}
 	void onDragStart(const DragStartEvent& e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT && !oldModuleJ)
+		if (e.button == GLFW_MOUSE_BUTTON_LEFT && !oldModuleJ) {
 			oldModuleJ = APP->engine->moduleToJson(module);
+			oldFine = module->bpmFine;
+		}
 		ui::Slider::onDragStart(e);
 	}
 	void onDragEnd(const DragEndEvent& e) override {
 		ui::Slider::onDragEnd(e);
 		if (!oldModuleJ)
 			return;
+		// A click without a drag changes nothing; leave no undo step
+		if (module->bpmFine == oldFine) {
+			json_decref(oldModuleJ);
+			oldModuleJ = nullptr;
+			return;
+		}
 		history::ModuleChange* h = new history::ModuleChange;
 		h->name = "set BPM fine";
 		h->moduleId = module->id;
@@ -464,6 +477,9 @@ struct BpmFineSlider : ui::Slider {
 		oldModuleJ = nullptr;
 	}
 	void onDoubleClick(const DoubleClickEvent& e) override {
+		static_cast<BpmFineQuantity*>(quantity)->raw = 0.f;
+		if (module->bpmFine == 0.f)
+			return;
 		Skylark* m = module;
 		withMenuUndo(m, "reset BPM fine", [m]() { m->bpmFine = 0.f; });
 	}
