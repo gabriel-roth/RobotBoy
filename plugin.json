@@ -17,6 +17,7 @@
     { "slug": "Vespid", "name": "Vespid", "description": "EDP Wasp-style CMOS state-variable filter.", "tags": ["Filter"] },
     { "slug": "Retours", "name": "Retours", "description": "Clockable, freezable, pitch-shifting delay built on the open-source Beads code.", "tags": ["Delay", "Effect"] },
     { "slug": "Lucarne", "name": "Lucarne", "description": "Expander for Particules and Retours that shows their buffer, grains and delay taps.", "tags": ["Visual", "Expander"] },
-    { "slug": "Skylark", "name": "Skylark", "description": "Shape modulator: structured recipes swept by Variation and reshaped by Timing, Lift, Symmetry, Tilt and Drift.", "tags": ["LFO", "Envelope generator", "Random"] }
+    { "slug": "Skylark", "name": "Skylark", "description": "Shape modulator: structured recipes swept by Variation and reshaped by Timing, Lift, Symmetry, Tilt and Drift.", "tags": ["LFO", "Envelope generator", "Random"] },
+    { "slug": "Weaver", "name": "Weaver", "description": "Shape modulator: three operators, or outside CV, woven together by one of eleven algorithms.", "tags": ["LFO", "Envelope generator", "Random", "Utility"] }
   ]
 }

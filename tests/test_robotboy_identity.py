@@ -17,7 +17,7 @@ class RobotBoyIdentityTest(unittest.TestCase):
         self.assertEqual(plugin["brand"], "Robot Boy")
         self.assertEqual(
             [module["slug"] for module in plugin["modules"]],
-            ["Loooop", "Lop", "MF20Filter", "Onbetap", "Particules", "Ondes", "Vespid", "Retours", "Lucarne", "Skylark"],
+            ["Loooop", "Lop", "MF20Filter", "Onbetap", "Particules", "Ondes", "Vespid", "Retours", "Lucarne", "Skylark", "Weaver"],
         )
 
         mm = json.loads((ROOT / "metamodule/plugin-mm.json").read_text())
