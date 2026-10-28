@@ -56,6 +56,11 @@ public:
 	double peak() const {
 		return peakValue;
 	}
+	// For displays: the result and one operator's wave at master position t,
+	// using the current phase offsets, without changing any state. The result
+	// comes from the formulas, so it is only meaningful without Input.
+	double resultAt(const CombineControls& c, double t, bool reverse) const;
+	double operatorAt(const CombineControls& c, int i, double t, bool reverse) const;
 	// Call on each cycle wrap, before that sample's process().
 	void cycleWrapped();
 	void reset();

@@ -349,6 +349,23 @@ static void hotInputDoesNotOvershoot() {
 	check(std::fabs(g.process(x, 0.25, false).result - sa2) <= 1e-12, "xfade clamped at A");
 }
 
+static void displayAccessorsMatchProcess() {
+	// After a ratio change the offsets move; the display accessors follow them
+	CombineControls c = kWeaverPresets[6].controls;
+	CombineEngine e;
+	e.setSampleRate(1000.0);
+	for (int i = 0; i < 800; i++) {
+		if (i == 300)
+			c.op[1].ratio = 6;
+		double t = i * 0.0021;
+		bool rev = i >= 500;
+		CombineFrame f = e.process(c, t, rev);
+		check(std::fabs(e.resultAt(c, t, rev) - f.result) <= 1e-12, "resultAt matches process", i);
+		for (int k = 0; k < 3; k++)
+			check(std::fabs(e.operatorAt(c, k, t, rev) - f.raw[k]) <= 1e-12, "operatorAt matches process", i, k);
+	}
+}
+
 static bool isAscii(const char* s) {
 	for (; *s; s++)
 		if ((unsigned char) *s > 126 || (unsigned char) *s < 32)
@@ -401,6 +418,7 @@ int main() {
 	outputsAreFinite();
 	reverseMirrorsTime();
 	hotInputDoesNotOvershoot();
+	displayAccessorsMatchProcess();
 	presetsAreAscii();
 	presetMatchFindsDefault();
 	if (failures) {

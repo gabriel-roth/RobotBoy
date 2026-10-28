@@ -88,6 +88,12 @@ double mix(const CombineControls& c, const double* r, double bentA, double heldA
 	return y;
 }
 
+// Reverse mirrors the position within the cycle; the cycle start stays in
+// its own cycle (p > 0 ? 1 - p : 0)
+double mirror(double t, bool reverse) {
+	return reverse && frac(t) > 0.0 ? std::floor(t) + 1.0 - frac(t) : t;
+}
+
 bool anyInput(const CombineControls& c) {
 	return c.op[0].wave == Input || c.op[1].wave == Input || c.op[2].wave == Input;
 }
@@ -245,9 +251,7 @@ void CombineEngine::updateHold(const CombineControls& c, double te, const double
 
 CombineFrame CombineEngine::process(const CombineControls& c, double t, bool reverse) {
 	t = sanitize(t, 0.0);
-	// Reverse mirrors the position within the cycle; the cycle start stays
-	// in its own cycle (p > 0 ? 1 - p : 0)
-	double te = reverse && frac(t) > 0.0 ? std::floor(t) + 1.0 - frac(t) : t;
+	double te = mirror(t, reverse);
 
 	// A ratio change moves the offset so the phase carries on from where it was
 	for (int i = 0; i < 3; i++) {
@@ -303,6 +307,15 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 		peakValue = std::max(scanPeak, a);
 	}
 	return f;
+}
+
+double CombineEngine::resultAt(const CombineControls& c, double t, bool reverse) const {
+	return sanitize(formulaRaw(c, mirror(sanitize(t, 0.0), reverse)), 0.0);
+}
+
+double CombineEngine::operatorAt(const CombineControls& c, int i, double t, bool reverse) const {
+	i = std::clamp(i, 0, 2);
+	return sanitize(evalOperator(c.op[i], opAbs(c, i, mirror(sanitize(t, 0.0), reverse)), i), 0.0);
 }
 
 void CombineEngine::cycleWrapped() {
