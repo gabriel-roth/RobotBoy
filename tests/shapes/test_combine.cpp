@@ -291,6 +291,62 @@ static void reverseMirrorsTime() {
 	double a = fwd.process(c, 1.3, false).result;
 	double b = rev.process(c, 1.7, true).result;
 	check(std::fabs(a - b) <= 1e-12, "reverse evaluates at 1 - p");
+
+	// At a cycle start reverse stays in that cycle (p = 0 maps to 0, not 1).
+	// Stepped random draws a new value each cycle, so the next cycle differs.
+	const CombineControls& r = kWeaverPresets[4].controls;
+	bool nextDiffers = false;
+	for (int k = 1; k <= 5; k++) {
+		CombineEngine f, b2, n;
+		f.setSampleRate(48000.0);
+		b2.setSampleRate(48000.0);
+		n.setSampleRate(48000.0);
+		double want = f.process(r, (double) k, false).result;
+		check(std::fabs(b2.process(r, (double) k, true).result - want) <= 1e-12, "reverse at a cycle start", k);
+		nextDiffers = nextDiffers || std::fabs(n.process(r, k + 1.0, false).result - want) > 1e-6;
+	}
+	check(nextDiffers, "test preset changes from cycle to cycle");
+}
+
+static void hotInputDoesNotOvershoot() {
+	// B = Input drives Scale's depth; a hot input must not push it past 1
+	CombineControls c = quiet();
+	c.algorithm = Scale;
+	c.op[0].wave = Square;
+	c.op[0].level = 1.0;
+	c.op[1].wave = Input;
+	c.op[1].param = 0.0;
+	c.op[1].level = 1.0;
+	c.op[1].inputGain = 2.0;
+	CombineEngine e;
+	e.setSampleRate(48000.0);
+	c.op[1].inputVolts = 10.0;
+	double sa = evalOperator(c.op[0], 0.1, 0);
+	check(std::fabs(e.process(c, 0.1, false).result - sa) <= 1e-12, "scale depth clamped high");
+	c.op[1].inputVolts = -10.0;
+	check(std::fabs(e.process(c, 0.1, false).result) <= 1e-12, "scale depth clamped low");
+
+	// C = Input drives Xfade; hot input stops at B (or A), never beyond
+	CombineControls x = quiet();
+	x.algorithm = Xfade;
+	x.op[0].wave = Square;
+	x.op[0].level = 1.0;
+	x.op[1].wave = Square;
+	x.op[1].param = 0.0;  // mostly low
+	x.op[1].level = 1.0;
+	x.op[2].wave = Input;
+	x.op[2].param = 0.0;
+	x.op[2].level = 1.0;
+	x.op[2].inputGain = 2.0;
+	CombineEngine g;
+	g.setSampleRate(48000.0);
+	x.op[2].inputVolts = 10.0;
+	double sb = evalOperator(x.op[1], 0.25, 1);
+	check(sb != evalOperator(x.op[0], 0.25, 0), "xfade test needs A != B");
+	check(std::fabs(g.process(x, 0.25, false).result - sb) <= 1e-12, "xfade clamped at B");
+	x.op[2].inputVolts = -10.0;
+	double sa2 = evalOperator(x.op[0], 0.25, 0);
+	check(std::fabs(g.process(x, 0.25, false).result - sa2) <= 1e-12, "xfade clamped at A");
 }
 
 static bool isAscii(const char* s) {
@@ -344,6 +400,7 @@ int main() {
 	fitNeverExceedsRange();
 	outputsAreFinite();
 	reverseMirrorsTime();
+	hotInputDoesNotOvershoot();
 	presetsAreAscii();
 	presetMatchFindsDefault();
 	if (failures) {

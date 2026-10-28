@@ -37,8 +37,10 @@ double foldTri(double x) {
 }
 
 // An operator's wave as 0..1: the envelope already is, the rest are bipolar.
+// A hot input is clamped so Scale and Xfade can't overshoot.
 double uni(double rv, Wave w) {
-	return w == Envelope ? rv : (rv + 1.0) / 2.0;
+	double u = w == Envelope ? rv : (rv + 1.0) / 2.0;
+	return w == Input ? std::clamp(u, 0.0, 1.0) : u;
 }
 
 // Positive depth pulls toward zero at the modulator's low points; negative
@@ -243,8 +245,9 @@ void CombineEngine::updateHold(const CombineControls& c, double te, const double
 
 CombineFrame CombineEngine::process(const CombineControls& c, double t, bool reverse) {
 	t = sanitize(t, 0.0);
-	// Reverse mirrors the position within the cycle
-	double te = reverse ? std::floor(t) + (1.0 - frac(t)) : t;
+	// Reverse mirrors the position within the cycle; the cycle start stays
+	// in its own cycle (p > 0 ? 1 - p : 0)
+	double te = reverse && frac(t) > 0.0 ? std::floor(t) + 1.0 - frac(t) : t;
 
 	// A ratio change moves the offset so the phase carries on from where it was
 	for (int i = 0; i < 3; i++) {
