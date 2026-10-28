@@ -36,7 +36,10 @@ public:
 		Step s{pos, cycle, false, false};
 		int ppc = std::max(in.pulsesPerCycle, 1);
 
-		bool resetEdge = resetGate.process(in.resetVoltage) | resetBtn.process(in.resetButton ? 10.f : 0.f);
+		// Both triggers must see every sample, so no short-circuit
+		bool jackEdge = resetGate.process(in.resetVoltage);
+		bool buttonEdge = resetBtn.process(in.resetButton ? 10.f : 0.f);
+		bool resetEdge = jackEdge || buttonEdge;
 		if (resetEdge) {
 			pos = 0.0;
 			cycle = 0;

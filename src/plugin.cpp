@@ -31,7 +31,8 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelLucarne);
 }
 #else
-// VCV Rack build: standard single init() registering all nine modules.
+// VCV Rack build: standard single init() registering all ten modules
+// (Skylark is VCV-only until its MetaModule port).
 Plugin* pluginInstance;
 void init(Plugin* p) {
 	pluginInstance = p;
@@ -44,6 +45,7 @@ void init(Plugin* p) {
 	p->addModel(modelVespid);
 	p->addModel(modelRetours);
 	p->addModel(modelLucarne);
+	p->addModel(modelSkylark);
 }
 
 // Rack's settings.json carries the Lucarne "Make default" schemes.

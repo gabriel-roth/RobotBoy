@@ -15,6 +15,7 @@ extern Model* modelOndes;
 extern Model* modelVespid;
 extern Model* modelRetours;
 extern Model* modelLucarne;
+extern Model* modelSkylark;
 
 // Wraps a context-menu change in a whole-module undo step: the snapshot is the
 // module's full JSON (params and data), so one helper covers every menu
