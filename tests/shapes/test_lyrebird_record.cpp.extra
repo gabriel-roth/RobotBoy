@@ -1,0 +1,3 @@
+../src/shapes/LyrebirdEngine.cpp
+../src/shapes/TakeSmoother.cpp
+../src/shapes/TakeFile.cpp

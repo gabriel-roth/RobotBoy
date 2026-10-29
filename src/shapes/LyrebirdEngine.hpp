@@ -1,6 +1,7 @@
 #pragma once
 #include <atomic>
 #include <memory>
+#include <vector>
 
 #include "OutputStage.hpp"
 #include "Take.hpp"
@@ -99,7 +100,21 @@ private:
 	void service();
 	void restart();
 	double outputFor(const LyrebirdControls& c, const Take& t, double ph);
+	double rawFor(const LyrebirdControls& c, const Take& t, double ph);
 	double finish(const LyrebirdControls& c, double v) const;
+
+	// Recording
+	void startRec(const LyrebirdControls& c, double x);
+	void recordSample(const LyrebirdControls& c, const Timebase::Step& tb, double x, LyrebirdStep& out);
+	void endRec(bool full);
+	void abandonRec();
+	int syncIndex(double x) const;
+	// Punch-in
+	void startPunch(double raw);
+	void punchSample(const LyrebirdControls& c, Take& t, double ph);
+	void punchWrite(Take& t, int k, double v);
+	void endPunch();
+	void finishWrites();
 
 	double sampleRate_ = 48000.0;
 	std::unique_ptr<Take> pool_[4];
@@ -123,6 +138,34 @@ private:
 	double lastRatio_ = 1.0;
 	double lastBars_ = 0.0;
 	Status status_ = Status::Idle;
+
+	// Buttons and the live source
+	bool prevRec_ = false, prevPunch_ = false;
+	bool recByPunch_ = false;  // PUNCH with no take records, and owns the stop
+	double armValue_ = 0.0;
+	Slew monitor_;
+	double lastRaw_ = 0.0;  // last playback value before SCALE/OFFSET
+	double prevX_ = 0.0;
+	double tempoBpm_ = 120.0;  // read from the transport's speed, for the take's tempo
+
+	// One 1 ms input block being averaged, centred on take sample blockIdx_
+	double blockSum_ = 0.0;
+	int blockCount_ = 0;
+	int blockIdx_ = -1;
+
+	// REC
+	int recStart_ = 0;  // Sync: index the take started at
+	double recElapsed_ = 0.0;  // Sync: bars of transport so far
+	double recSegX_ = 0.0;  // Sync: transport position where counting last restarted
+	double recSegBase_ = 0.0;
+	int64_t recSamples_ = 0;  // Free: audio samples recorded
+	std::vector<uint8_t> written_;  // Sync: indices written, so stop can fill the rest
+
+	// PUNCH: weights of the live source in what is written (per take sample)
+	// and in what OUT plays (per audio sample); the tail fades both back out
+	double punchGain_ = 0.0;
+	double punchOut_ = 0.0;
+	bool punchTail_ = false;
 };
 
 }  // namespace shapes

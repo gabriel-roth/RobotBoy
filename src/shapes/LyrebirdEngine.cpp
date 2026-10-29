@@ -5,6 +5,10 @@
 namespace shapes {
 
 static constexpr int kRebuildBudget = 512;
+// Movement start: 0.5% of the knob's 10 V span, the same for CV
+static constexpr double kMoveThreshold = 0.05;
+// Punch crossfades: 10 ms, in take samples for the data and audio time for OUT
+static constexpr double kFadeMs = 10.0;
 
 LyrebirdEngine::LyrebirdEngine() {
 	for (auto& p : pool_)
@@ -13,6 +17,7 @@ LyrebirdEngine::LyrebirdEngine() {
 	spare_ = pool_[1].get();
 	undo_ = pool_[2].get();
 	snap_ = pool_[3].get();
+	written_.assign(kMaxTakeSamples, 0);
 }
 
 void LyrebirdEngine::setSampleRate(double sr) {
@@ -67,6 +72,12 @@ void LyrebirdEngine::restart() {
 // Runs at the start of every sample, so the UI's requests take effect promptly
 void LyrebirdEngine::service() {
 	if (loadReq_.load()) {
+		// A recording or punch in progress is dropped: the take from before
+		// it becomes current again, so it is what the load keeps for undo
+		if (status_ == Status::Recording || status_ == Status::Punching)
+			abandonRec();
+		else
+			finishWrites();
 		// The loaded take becomes current; the old one is kept for undo and
 		// the undo slot's buffer is free for the UI to fill next
 		Take* old = cur_.load();
@@ -77,6 +88,8 @@ void LyrebirdEngine::service() {
 		loadReq_.store(false);
 	}
 	if (undoReq_.load()) {
+		// Undo keeps what was recorded so far, so a second undo brings it back
+		finishWrites();
 		Take* old = cur_.load();
 		cur_.store(undo_);
 		undo_ = old;
@@ -92,6 +105,247 @@ void LyrebirdEngine::service() {
 	}
 }
 
+// Ends whatever is being written as if its button had been released
+void LyrebirdEngine::finishWrites() {
+	if (status_ == Status::Recording)
+		endRec(false);
+	else if (status_ == Status::Punching || punchTail_)
+		endPunch();
+	status_ = Status::Idle;
+}
+
+// Drops a recording or punch: REC and PUNCH both left the take from before
+// them in the undo slot, so swapping it back discards the partial one
+void LyrebirdEngine::abandonRec() {
+	Take* partial = cur_.load();
+	cur_.store(undo_);
+	undo_ = partial;
+	status_ = Status::Idle;
+	punchTail_ = false;
+	punchGain_ = punchOut_ = 0.0;
+	blockIdx_ = -1;
+	recByPunch_ = false;
+	restart();
+}
+
+int LyrebirdEngine::syncIndex(double x) const {
+	const Take& t = *cur_.load();
+	double p = x / t.bars;
+	p -= std::floor(p);
+	int k = (int) std::floor(p * t.length + 0.5);
+	return k >= t.length ? k - t.length : std::max(k, 0);
+}
+
+void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
+	if (status_ == Status::Punching || punchTail_)
+		endPunch();
+	// The new take is written into the old undo buffer; the current take becomes the undo
+	Take* old = cur_.load();
+	Take* t = undo_;
+	t->clear();
+	t->modified = true;
+	// Rounded so a steady 120 BPM is stored as 120, not 119.9999999
+	t->bpm = std::round(std::clamp(tempoBpm_, 1.0, 1000.0) * 1000.0) / 1000.0;
+	if (c.sync) {
+		t->mode = TakeMode::Sync;
+		t->bars = kLengthBars[std::clamp(c.lengthIndex, 0, 6)];
+		t->seconds = t->bars * 240.0 / t->bpm;
+		// Capped: a very long take is stored at a lower rate instead
+		t->length = std::clamp((int) std::lround(t->seconds * kTakeRate), 1, kMaxTakeSamples);
+		std::fill(written_.begin(), written_.begin() + t->length, 0);
+		recElapsed_ = 0.0;
+		recSegX_ = x;
+		recSegBase_ = 0.0;
+	}
+	else {
+		t->mode = TakeMode::Free;
+		recSamples_ = 0;
+	}
+	undo_ = old;
+	cur_.store(t);
+	status_ = Status::Recording;
+	blockIdx_ = -1;
+	blockSum_ = 0.0;
+	blockCount_ = 0;
+	monitor_.reset(lastRaw_);
+}
+
+void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Step& tb, double x, LyrebirdStep& out) {
+	Take& t = *cur_.load();
+	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
+	if (t.mode == TakeMode::Sync) {
+		// Counted as transport travelled, so TRIG mid-take doesn't stretch or cut it
+		if (tb.reset) {
+			recSegBase_ = recElapsed_;
+			recSegX_ = x;
+		}
+		else
+			recElapsed_ = recSegBase_ + std::max(x - recSegX_, 0.0);
+		if (recElapsed_ >= t.bars - 1e-9) {
+			endRec(true);
+			return;
+		}
+		int k = syncIndex(x);
+		if (blockIdx_ < 0)
+			recStart_ = k;
+		else if (k != blockIdx_) {
+			t.samples[blockIdx_] = (float) (blockSum_ / blockCount_);
+			written_[blockIdx_] = 1;
+		}
+		if (k != blockIdx_) {
+			blockIdx_ = k;
+			blockSum_ = 0.0;
+			blockCount_ = 0;
+		}
+		out.playhead = (double) k / t.length;
+	}
+	else {
+		// Each 1 ms block is centred on its sample, so take time i ms plays at i ms
+		int k = (int) std::floor(recSamples_ * kTakeRate / sampleRate_ + 0.5);
+		if (k >= kMaxTakeSamples) {
+			out.hitLimit = true;
+			endRec(true);
+			return;
+		}
+		if (k != blockIdx_) {
+			if (blockIdx_ >= 0) {
+				// Below 1 kHz a sample spans several blocks: hold across them
+				float v = (float) (blockSum_ / blockCount_);
+				for (int i = blockIdx_; i < k; i++)
+					t.samples[i] = v;
+				t.length = k;
+			}
+			blockIdx_ = k;
+			blockSum_ = 0.0;
+			blockCount_ = 0;
+		}
+		recSamples_++;
+		out.playhead = 1.0;
+	}
+	blockSum_ += src;
+	blockCount_++;
+}
+
+// full: Sync reached LENGTH, or Free reached the limit
+void LyrebirdEngine::endRec(bool full) {
+	Take& t = *cur_.load();
+	bool pending = blockIdx_ >= 0 && blockCount_ > 0;
+	float v = pending ? (float) (blockSum_ / blockCount_) : 0.f;
+	if (t.mode == TakeMode::Sync) {
+		int n = t.length;
+		// A full take's last block lands back on its first, which already has data
+		if (pending && !(full && written_[blockIdx_])) {
+			t.samples[blockIdx_] = v;
+			written_[blockIdx_] = 1;
+		}
+		// Hold the last written value over anything not reached: the rest of an
+		// early stop, or what a TRIG skipped
+		int first = -1;
+		for (int j = 0; j < n && first < 0; j++)
+			if (written_[(recStart_ + j) % n])
+				first = (recStart_ + j) % n;
+		float last = first >= 0 ? t.samples[first] : 0.f;
+		for (int j = 0; j < n; j++) {
+			int i = (recStart_ + j) % n;
+			if (written_[i])
+				last = t.samples[i];
+			else
+				t.samples[i] = last;
+		}
+	}
+	else {
+		int len = full ? kMaxTakeSamples
+		               : std::clamp((int) std::lround(recSamples_ * kTakeRate / sampleRate_), 1, kMaxTakeSamples);
+		int lastWritten = std::min(t.length, len) - 1;
+		if (pending && blockIdx_ < len) {
+			t.samples[blockIdx_] = v;
+			lastWritten = blockIdx_;
+		}
+		if (lastWritten < 0) {
+			t.samples[0] = v;
+			lastWritten = 0;
+		}
+		for (int i = lastWritten + 1; i < len; i++)
+			t.samples[i] = t.samples[lastWritten];
+		t.length = len;
+		t.seconds = (double) len / kTakeRate;
+		t.bars = effectiveBars(t);
+	}
+	t.version++;
+	status_ = Status::Idle;
+	blockIdx_ = -1;
+	recByPunch_ = false;
+	restart();
+}
+
+void LyrebirdEngine::startPunch(double raw) {
+	if (punchTail_) {
+		// Still fading out of the last punch: carry on from where it is
+		punchTail_ = false;
+		status_ = Status::Punching;
+		return;
+	}
+	// One copy per punch, so undo can bring back the take from before it
+	Take* t = cur_.load();
+	undo_->copyFrom(*t);
+	t->modified = true;
+	status_ = Status::Punching;
+	punchGain_ = punchOut_ = 0.0;
+	blockIdx_ = -1;
+	blockSum_ = 0.0;
+	blockCount_ = 0;
+	monitor_.reset(raw);
+}
+
+void LyrebirdEngine::punchWrite(Take& t, int k, double v) {
+	double step = 1.0 / (kFadeMs * kTakeRate / 1000.0);
+	punchGain_ = std::clamp(punchGain_ + (punchTail_ ? -step : step), 0.0, 1.0);
+	double old = t.samples[k];
+	t.samples[k] = (float) std::clamp(old + (v - old) * punchGain_, -10.0, 10.0);
+}
+
+// Writes at the playhead, filling every take sample it crossed since the last one
+void LyrebirdEngine::punchSample(const LyrebirdControls& c, Take& t, double ph) {
+	int n = t.length;
+	double span = c.loop ? (double) n : (double) (n - 1);
+	int k = (int) std::floor(std::clamp(ph, 0.0, 1.0) * span + 0.5);
+	k = c.loop ? k % n : std::min(k, n - 1);
+	if (blockIdx_ < 0)
+		blockIdx_ = k;
+	else if (k != blockIdx_) {
+		double avg = blockSum_ / blockCount_;
+		int d = k - blockIdx_;
+		if (c.loop) {
+			if (d > n / 2)
+				d -= n;
+			else if (d < -n / 2)
+				d += n;
+		}
+		int dir = d > 0 ? 1 : -1;
+		int i = blockIdx_;
+		for (int steps = std::abs(d); steps > 0; steps--) {
+			punchWrite(t, i, avg);
+			i = c.loop ? (i + dir + n) % n : std::clamp(i + dir, 0, n - 1);
+		}
+		blockIdx_ = k;
+		blockSum_ = 0.0;
+		blockCount_ = 0;
+	}
+	blockSum_ += std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
+	blockCount_++;
+}
+
+void LyrebirdEngine::endPunch() {
+	Take* t = cur_.load();
+	// The smoother rebuilds from the new data from here on
+	t->version++;
+	if (status_ == Status::Punching)
+		status_ = Status::Idle;
+	punchTail_ = false;
+	punchGain_ = punchOut_ = 0.0;
+	blockIdx_ = -1;
+}
+
 double LyrebirdEngine::finish(const LyrebirdControls& c, double v) const {
 	double scale = sanitize(c.scale, 1.0);
 	double offset = sanitize(c.offset, 0.0);
@@ -100,19 +354,84 @@ double LyrebirdEngine::finish(const LyrebirdControls& c, double v) const {
 
 // Smoothed take value at playhead ph (0..1)
 double LyrebirdEngine::outputFor(const LyrebirdControls& c, const Take& t, double ph) {
+	return finish(c, rawFor(c, t, ph));
+}
+
+// As outputFor, before SCALE and OFFSET
+double LyrebirdEngine::rawFor(const LyrebirdControls& c, const Take& t, double ph) {
 	double span = c.loop ? (double) t.length : (double) (t.length - 1);
 	double idx = std::clamp(sanitize(ph, 0.0), 0.0, 1.0) * span;
 	double hw = smoothHalfWidth(t, c.smoothMs);
-	return finish(c, smoother_.at(t, idx, hw, c.loop));
+	return sanitize(smoother_.at(t, idx, hw, c.loop), 0.0);
 }
 
 LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::Step& tb) {
 	service();
 	LyrebirdStep out;
+	double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
+	double dx = x - prevX_;
+	if (!tb.reset && dx > 0.0 && dx < 0.01)
+		tempoBpm_ = dx * sampleRate_ * 240.0;
+	prevX_ = x;
+	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
+	monitor_.set(std::clamp(sanitize(c.smoothMs, 0.0), 0.0, 1e4), sampleRate_);
+
+	// Toggle reacts to presses (rising edges), Hold to the level
+	bool recEdge = c.rec && !prevRec_;
+	bool punchEdge = c.punch && !prevPunch_;
+	prevRec_ = c.rec;
+	prevPunch_ = c.punch;
+	bool hold = c.buttons == RecordButtons::Hold;
+	bool ownLevel = recByPunch_ ? c.punch : c.rec;
+	bool ownEdge = recByPunch_ ? punchEdge : recEdge;
+	bool ownStop = hold ? !ownLevel : ownEdge;
+	Status statusIn = status_;
+
+	switch (status_) {
+		case Status::Idle:
+			if (recEdge || (punchEdge && cur_.load()->empty())) {
+				recByPunch_ = !recEdge;
+				if (c.startOn == StartOn::Movement) {
+					status_ = Status::Armed;
+					armValue_ = src;
+				}
+				else
+					startRec(c, x);
+			}
+			break;
+		case Status::Armed:
+			if (ownStop) {
+				status_ = Status::Idle;
+				recByPunch_ = false;
+			}
+			else if (std::fabs(src - armValue_) > kMoveThreshold)
+				startRec(c, x);
+			break;
+		case Status::Recording:
+			if (ownStop)
+				endRec(false);
+			break;
+		default:
+			break;
+	}
+	// A press used by REC above mustn't also start a punch below
+	if (status_ != statusIn || recByPunch_)
+		punchEdge = false;
+
+	if (status_ == Status::Recording) {
+		// OUT monitors the live source while the take is written
+		recordSample(c, tb, x, out);
+		lastRaw_ = monitor_.process(src);
+		out.volts = finish(c, lastRaw_);
+		out.status = status_;
+		return out;
+	}
+
 	const Take& t = *cur_.load();
 
 	if (t.empty()) {
-		out.volts = finish(c, sanitize(c.source, 0.0));
+		lastRaw_ = src;
+		out.volts = finish(c, src);
 		out.status = status_;
 		return out;
 	}
@@ -139,30 +458,29 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	double ph = 0.0;
 	bool resting = false;
 	if (c.sync) {
-		double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
 		double bars = effectiveBars(t);
-		x = x * ratio / bars;
+		double xt = x * ratio / bars;  // through the take
 		if (c.loop) {
-			double wraps = std::floor(x + 1e-9);
-			// A new take, TRIG, a mode change or a SPEED change moves x without
+			double wraps = std::floor(xt + 1e-9);
+			// A new take, TRIG, a mode change or a SPEED change moves xt without
 			// a wrap, so re-anchor instead of reporting one
 			bool jumped = resync_ || !prevSyncLoop_ || ratio != lastRatio_ || bars != lastBars_;
 			if (!jumped && wraps > lastWraps_)
 				out.eoc = true;
 			lastWraps_ = wraps;
 			resync_ = false;
-			ph = frac(x + 1e-9);
+			ph = frac(xt + 1e-9);
 			if (ph > 1.0 - 1e-6)
 				ph = 0.0;
 		}
 		else if (active_) {
-			if (x >= 1.0 - 1e-9) {
+			if (xt >= 1.0 - 1e-9) {
 				out.eoc = true;
 				active_ = false;
 				resting = true;
 			}
 			else
-				ph = x;
+				ph = xt;
 		}
 		else
 			resting = true;
@@ -196,14 +514,13 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	lastRatio_ = ratio;
 	lastBars_ = c.sync ? effectiveBars(t) : 0.0;
 
+	double v;
 	if (resting) {
 		// Rest at the end of the pass in the direction of play
 		switch (c.idle) {
 			case IdleOutput::Zero:
-				out.volts = finish(c, 0.0);
-				out.playhead = c.reverse ? 0.0 : 1.0;
-				out.status = status_;
-				return out;
+				ph = 1.0;
+				break;
 			case IdleOutput::First:
 				ph = 0.0;
 				break;
@@ -213,16 +530,63 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		}
 		if (c.reverse)
 			ph = 1.0 - ph;
-		out.playhead = ph;
-		out.volts = outputFor(c, t, ph);
-		out.status = status_;
-		return out;
+		v = c.idle == IdleOutput::Zero ? 0.0 : rawFor(c, t, ph);
+	}
+	else {
+		if (c.reverse)
+			ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
+		v = rawFor(c, t, ph);
+	}
+	out.playhead = ph;
+
+	// Punch-in: in ONCE only during a pass, and it ends with the pass
+	bool playing = !resting;
+	bool punchStop = hold ? !c.punch : punchEdge;
+	switch (status_) {
+		case Status::Idle:
+			if (punchEdge && playing) {
+				if (c.startOn == StartOn::Movement && !punchTail_) {
+					status_ = Status::PunchArmed;
+					armValue_ = src;
+				}
+				else
+					startPunch(v);
+			}
+			break;
+		case Status::PunchArmed:
+			if (punchStop || !playing)
+				status_ = Status::Idle;
+			else if (std::fabs(src - armValue_) > kMoveThreshold)
+				startPunch(v);
+			break;
+		case Status::Punching:
+			if (!playing)
+				endPunch();
+			else if (punchStop) {
+				status_ = Status::Idle;
+				punchTail_ = true;
+			}
+			break;
+		default:
+			break;
+	}
+	if (status_ == Status::Punching || punchTail_) {
+		if (!playing)
+			endPunch();
+		else {
+			punchSample(c, *cur_.load(), ph);
+			double step = 1.0 / (kFadeMs * 0.001 * sampleRate_);
+			punchOut_ = std::clamp(punchOut_ + (punchTail_ ? -step : step), 0.0, 1.0);
+			// The live source, faded in over the take and back out
+			double m = monitor_.process(src);
+			v += (m - v) * punchOut_;
+			if (punchTail_ && punchGain_ <= 0.0 && punchOut_ <= 0.0)
+				endPunch();
+		}
 	}
 
-	if (c.reverse)
-		ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
-	out.playhead = ph;
-	out.volts = outputFor(c, t, ph);
+	lastRaw_ = v;
+	out.volts = finish(c, v);
 	out.status = status_;
 	return out;
 }
