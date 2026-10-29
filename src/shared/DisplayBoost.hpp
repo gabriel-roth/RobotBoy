@@ -26,11 +26,13 @@ public:
 		// Contrast: slope 1 + t at the pivot, black and white stay put.
 		// Darks below the pivot sink, everything above it rises.
 		const float k = 1.f + t;
+		// The pow bases are clamped at 0: MetaModule's fast math can round
+		// white's base a hair below 0, and pow then gives NaN (white drew black)
 		for (int i = 0; i < 256; ++i) {
 			const float v = float(i) / 255.f;
 			const float out = v < kPivot
 				? kPivot * std::pow(v / kPivot, k)
-				: kPivot + (1.f - kPivot) * (1.f - std::pow(1.f - (v - kPivot) / (1.f - kPivot), k));
+				: kPivot + (1.f - kPivot) * (1.f - std::pow(std::max(1.f - (v - kPivot) / (1.f - kPivot), 0.f), k));
 			curve_[i] = out * 255.f;
 		}
 		saturation_ = 1.f + 1.25f * t;
