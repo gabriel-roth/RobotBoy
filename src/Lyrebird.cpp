@@ -499,7 +499,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// up each time so a card put in later is found. "" when there's none.
 	static std::string defaultFolder() {
 #ifdef METAMODULE
-		return shapes::pickFolder({"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"}, isFolder);
+		return shapes::pickFolder(shapes::kMetaModuleFolders, isFolder);
 #else
 		return asset::user("RobotBoy/Lyrebird");
 #endif

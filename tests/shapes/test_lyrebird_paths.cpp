@@ -1,6 +1,7 @@
 // Lyrebird's folder rules: volume paths, which saved folder a platform keeps,
 // and MetaModule's default folder.
 #include "shapes/LyrebirdPaths.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cstdio>
 #include <string>
@@ -49,6 +50,21 @@ static void pickedFolders() {
 	// The first that exists wins
 	assert(pickFolder(c, [](const std::string&) { return true; }) == "sdc:/RobotBoy/Lyrebird");
 	assert(pickFolder({}, [](const std::string&) { return true; }) == "");
+
+	// MetaModule's search order: named folders on the card, then on USB,
+	// then the card root, then the USB root
+	const std::vector<std::string>& m = kMetaModuleFolders;
+	assert(pickFolder(m, only("sdc:/Lyrebird")) == "sdc:/Lyrebird");
+	assert(pickFolder(m, only("usb:/RobotBoy")) == "usb:/RobotBoy");
+	auto any = [](std::vector<std::string> ds) {
+		return [ds](const std::string& p) { return std::find(ds.begin(), ds.end(), p) != ds.end(); };
+	};
+	assert(pickFolder(m, any({"sdc:/RobotBoy", "sdc:/Lyrebird"})) == "sdc:/Lyrebird");
+	assert(pickFolder(m, any({"usb:/Lyrebird", "sdc:/RobotBoy"})) == "sdc:/RobotBoy");
+	assert(pickFolder(m, any({"sdc:/", "usb:/RobotBoy/Lyrebird"})) == "usb:/RobotBoy/Lyrebird");
+	assert(pickFolder(m, any({"usb:/", "sdc:/"})) == "sdc:/");
+	assert(pickFolder(m, only("usb:/")) == "usb:/");
+	assert(m.size() == 8 && m.front() == "sdc:/RobotBoy/Lyrebird" && m.back() == "usb:/");
 }
 
 static void sharedPaths() {

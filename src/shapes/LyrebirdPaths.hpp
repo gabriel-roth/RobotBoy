@@ -33,6 +33,14 @@ inline std::string usableFolder(const std::string& saved, bool onMetaModule) {
 	return !saved.empty() && !isVolumePath(saved) ? saved : "";
 }
 
+// Where MetaModule looks for takes, in order: a Lyrebird or RobotBoy folder
+// on the card, then on a USB drive, then either root
+inline const std::vector<std::string> kMetaModuleFolders = {
+	"sdc:/RobotBoy/Lyrebird", "sdc:/Lyrebird", "sdc:/RobotBoy",
+	"usb:/RobotBoy/Lyrebird", "usb:/Lyrebird", "usb:/RobotBoy",
+	"sdc:/", "usb:/",
+};
+
 // The first candidate that is a directory, or "" when none is
 inline std::string pickFolder(const std::vector<std::string>& candidates,
                               const std::function<bool(const std::string&)>& isDirectory) {
