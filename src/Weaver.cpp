@@ -885,10 +885,10 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(42.13, 71.9)), module, Weaver::ALGORITHM_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.13, 71.9)), module, Weaver::ALGORITHM_INPUT));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(71.61, 71.9)), module, Weaver::WINDOW_PARAM));
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 87.8)), module, Weaver::PRESET_NEXT_PARAM);
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 88.8)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 87.8)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 88.8)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 
@@ -902,9 +902,9 @@ struct WeaverWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(11.215, 112.1)), module, Weaver::MAIN_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(24.955, 112.1)), module, Weaver::INV_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.695, 112.1)), module, Weaver::EOC_OUTPUT));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 101.0)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 101.0)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 101.0)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 103.0)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 103.0)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 103.0)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.59, 112.1)), module, Weaver::A_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(69.81, 112.1)), module, Weaver::B_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 112.1)), module, Weaver::C_OUTPUT));

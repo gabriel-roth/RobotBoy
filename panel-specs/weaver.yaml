@@ -11,13 +11,13 @@
 #      algorithms + its CV jack, 9.0 apart, labelled together) and ENVELOPE
 #      (the WINDOW knob, knob-end marks above its sides), gaps after the
 #      display equalized by label width. The plate reaches down on the right
-#      (50.37-89.24, to 92.85, about half the clock row) for PRESET: a label
+#      (50.37-89.24, to 94.85, over half the clock row) for PRESET: a label
 #      and previous / next buttons side by side, chevrons beside.
 #    - Clock plate (1.50-48.37): CLOCK (BPM knob + CLOCK jack, 10.5 apart)
 #      and RESET (button + jack, 8.5 apart), 4.0 gaps.
 #    - Output plate: OUT, INV, EOC spread over the clock plate's width, OUT
 #      circled by a thin ring in the display's signal orange (the main
-#      trace's color). On the right the plate reaches up (from 94.85) for A,
+#      trace's color). On the right the plate reaches up (from 96.85) for A,
 #      B, C: 10 mm tabs in their operator colors, each a lit latching button
 #      that shows or hides the operator's trace on the display, over the
 #      operator's output.
@@ -55,16 +55,16 @@ zones:
   - {x: 91.24, y: 90.16, w: 85.06, h: 3.0, rx: 0, fill: "#713957", opacity: 1.0}
   # Globals plate, reaching down on the right for PRESET (#b98f6a at 55%).
   - {x: 1.50, y: 64.7, w: 87.74, h: 18.1, rx: 2, fill: "#816a56", opacity: 1.0}
-  - {x: 50.37, y: 64.7, w: 38.87, h: 28.15, rx: 2, fill: "#816a56", opacity: 1.0}
+  - {x: 50.37, y: 64.7, w: 38.87, h: 30.15, rx: 2, fill: "#816a56", opacity: 1.0}
   - {x: 1.50, y: 84.8, w: 46.87, h: 18.1, rx: 2, fill: "#9aa883", opacity: 0.55}
   # Output plate, reaching up on the right for A, B, C (#9a9a9a at 55%).
   - {x: 1.50, y: 104.9, w: 87.74, h: 18.1, rx: 2, fill: "#707070", opacity: 1.0}
-  - {x: 50.37, y: 94.85, w: 38.87, h: 28.15, rx: 2, fill: "#707070", opacity: 1.0}
+  - {x: 50.37, y: 96.85, w: 38.87, h: 26.15, rx: 2, fill: "#707070", opacity: 1.0}
   - {x: 5.865, y: 106.75, w: 10.70, h: 10.70, rx: 5.35, fill: "#ff8a3d", opacity: 1.0}
   - {x: 6.615, y: 107.50, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
-  - {x: 52.59, y: 96.35, w: 10.00, h: 25.35, rx: 1.5, fill: "#785b24", opacity: 1.0}
-  - {x: 64.81, y: 96.35, w: 10.00, h: 25.35, rx: 1.5, fill: "#235f5d", opacity: 1.0}
-  - {x: 77.03, y: 96.35, w: 10.00, h: 25.35, rx: 1.5, fill: "#713957", opacity: 1.0}
+  - {x: 52.59, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#785b24", opacity: 1.0}
+  - {x: 64.81, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#235f5d", opacity: 1.0}
+  - {x: 77.03, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#713957", opacity: 1.0}
   - {x: 91.24, y: 17.0, w: 17.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
   - {x: 91.24, y: 20.75, w: 17.02, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
   - {x: 108.26, y: 17.0, w: 34.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
@@ -156,9 +156,9 @@ elements:
   - {text: ALGORITHM, x: 46.63, y: 80.4, size: 3.175}
   - {text: ENVELOPE, x: 71.61, y: 80.4, size: 3.175}   # the WINDOW control
   # PRESET steps through the factory presets (the original JS prototype's examples), previous / next.
-  - {text: PRESET, x: 60.70, y: 88.9, size: 3.175}
-  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 74.00, y: 87.8}
-  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 80.60, y: 87.8}
+  - {text: PRESET, x: 60.70, y: 89.9, size: 3.175}
+  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 74.00, y: 88.8}
+  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 80.60, y: 88.8}
 
   # --- Output plate: the main outputs, then each operator's trace button over its output.
   - {name: MAIN_OUTPUT, x: 11.215, y: 112.1}
@@ -167,9 +167,9 @@ elements:
   - {text: INV, x: 24.955, y: 120.6, size: 3.175}
   - {name: EOC_OUTPUT, x: 38.695, y: 112.1}
   - {text: EOC, x: 38.695, y: 120.6, size: 3.175}
-  - {name: A_TRACE_PARAM, widget: VCVButton, x: 57.59, y: 101.0}
-  - {name: B_TRACE_PARAM, widget: VCVButton, x: 69.81, y: 101.0}
-  - {name: C_TRACE_PARAM, widget: VCVButton, x: 82.03, y: 101.0}
+  - {name: A_TRACE_PARAM, widget: VCVButton, x: 57.59, y: 103.0}
+  - {name: B_TRACE_PARAM, widget: VCVButton, x: 69.81, y: 103.0}
+  - {name: C_TRACE_PARAM, widget: VCVButton, x: 82.03, y: 103.0}
   - {name: A_OUTPUT, x: 57.59, y: 112.1}
   - {text: A, x: 57.59, y: 120.6, size: 3.175}
   - {name: B_OUTPUT, x: 69.81, y: 112.1}
@@ -205,8 +205,8 @@ glyphs:
   - {src: glyphs/weaver/window-off.svg,  at: [65.11, 67.30]}
   - {src: glyphs/weaver/window-full.svg, at: [78.11, 67.30]}
   # PRESET's directions, beside its buttons.
-  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 87.8]}
-  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 87.8]}
+  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 88.8]}
+  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 88.8]}
   # Arrows from each Wave display's PARAM name to the PARAM knob, level with both.
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 31.59]}
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 64.42]}
