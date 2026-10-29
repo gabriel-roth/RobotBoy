@@ -550,6 +550,90 @@ static void traceWhileWriting() {
 	assert(std::fabs(raw[96] - 5.f) < 1e-5);
 }
 
+// Recording a Sync take into a buffer that held an older take: the trace shows
+// only what has been written so far
+static void syncRecordTraceSkipsUnwritten() {
+	Rig r;
+	r.load(9.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.load(8.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	// REC writes into the undo buffer, which now holds the 9 V take
+	r.c.source = 1;
+	r.step();
+	r.pressRec();
+	r.runTo(0.5);
+	assert(r.eng.take().samples[1500] == 9.f);
+	float raw[256], out[256];
+	r.eng.renderTrace(r.c, raw, out, 256);
+	int written = 0;
+	for (int i = 0; i < 256; i++) {
+		if (std::isfinite(raw[i])) {
+			assert(std::fabs(raw[i] - 1.f) < 1e-5 && std::isfinite(out[i]));
+			written++;
+		}
+		else
+			assert(!std::isfinite(out[i]) && i > 120);
+	}
+	assert(written >= 125 && written <= 130);
+	// Once it's finished, every point is real again
+	r.runTo(1.1);
+	assert(r.eng.take().samples[1500] == 1.f);
+	r.eng.renderTrace(r.c, raw, out, 256);
+	for (int i = 0; i < 256; i++)
+		assert(std::isfinite(raw[i]) && std::isfinite(out[i]));
+}
+
+// Only takes REC and PUNCH finish themselves are counted, not writes a load or undo ends
+static void countsFinishedTakes() {
+	Rig r;
+	r.recordFree(1, 200);
+	assert(r.eng.recsFinished() == 1);
+	r.c.lengthIndex = 0;  // 1/4 bar: stops by itself
+	r.step();
+	r.pressRec();
+	r.runTo(r.bars() + 0.3);
+	assert(r.eng.take().mode == TakeMode::Sync && r.eng.recsFinished() == 2);
+	// Undo or load mid-take: no count
+	r.c.sync = false;
+	r.step();
+	r.pressRec();
+	r.run(4800);
+	r.eng.requestUndo();
+	r.step();
+	r.pressRec();
+	r.run(4800);
+	r.load(3.f, 500, TakeMode::Free, 1.0, 0.5);
+	assert(r.eng.recsFinished() == 2);
+	// A punch counts when its tail has faded out
+	r.c.source = 5;
+	r.step();
+	r.pressPunch();
+	r.run(2400);
+	r.pressPunch();
+	assert(r.eng.punchesFinished() == 0);
+	r.run(2400);
+	assert(r.eng.punchesFinished() == 1);
+	r.pressPunch();
+	r.run(2400);
+	r.load(2.f, 500, TakeMode::Free, 1.0, 0.5);
+	assert(r.eng.punchesFinished() == 1 && r.eng.recsFinished() == 2);
+}
+
+// Two undo requests before the audio thread runs are two swaps, not one
+static void undoRequestsAreCounted() {
+	Rig r;
+	r.recordFree(1, 200);
+	r.recordFree(2, 300);
+	r.eng.requestUndo();
+	r.eng.requestUndo();
+	r.step();
+	assert(r.eng.take().samples[10] == 2.f);
+	r.eng.requestUndo();
+	r.eng.requestUndo();
+	r.eng.requestUndo();
+	r.step();
+	assert(r.eng.take().samples[10] == 1.f);
+}
+
 int main() {
 	syncTakeStartsMidBarAndWraps();
 	syncTakeStopsItself();
@@ -572,6 +656,9 @@ int main() {
 	loadDuringPunchReverts();
 	snapshotDuringFreeRec();
 	traceWhileWriting();
+	syncRecordTraceSkipsUnwritten();
+	countsFinishedTakes();
+	undoRequestsAreCounted();
 	printf("lyrebird record tests passed\n");
 	return 0;
 }

@@ -68,8 +68,19 @@ public:
 	bool loadPending() const {
 		return loadReq_.load();
 	}
+	// Counted, so two requests made before the audio thread gets to them
+	// swap twice rather than once
 	void requestUndo() {
-		undoReq_.store(true);
+		undoReq_.fetch_add(1);
+	}
+
+	// Takes finished by REC and PUNCH themselves; a write ended by a load or
+	// undo request doesn't count
+	uint32_t recsFinished() const {
+		return recsDone_.load();
+	}
+	uint32_t punchesFinished() const {
+		return punchesDone_.load();
 	}
 
 	// A copy of the current take the UI can save without racing the audio thread
@@ -88,7 +99,8 @@ public:
 	}
 
 	double speedRatio(const LyrebirdControls& c) const;
-	// Audio thread only. Points evenly spaced across the take: raw as stored, out as OUT would play it
+	// Audio thread only. Points evenly spaced across the take: raw as stored, out as OUT would play it.
+	// While a Sync take is being recorded, points not yet written are NaN in both.
 	void renderTrace(const LyrebirdControls& c, float* raw, float* out, int n);
 
 	static double syncRatio(double speedOct);
@@ -127,7 +139,10 @@ private:
 	Take* spare_;
 	Take* undo_;
 	Take* snap_;
-	std::atomic<bool> loadReq_{false}, undoReq_{false}, snapReq_{false}, snapReady_{false};
+	std::atomic<bool> loadReq_{false}, snapReq_{false}, snapReady_{false};
+	std::atomic<int> undoReq_{0};
+	std::atomic<uint32_t> recsDone_{0}, punchesDone_{0};
+	bool servicing_ = false;  // writes ended here are the UI's doing, not finished takes
 
 	TakeSmoother smoother_;
 	const Take* smoothedTake_ = nullptr;

@@ -1,6 +1,7 @@
 #include "LyrebirdEngine.hpp"
 
 #include <cmath>
+#include <limits>
 
 namespace shapes {
 
@@ -71,6 +72,7 @@ void LyrebirdEngine::restart() {
 
 // Runs at the start of every sample, so the UI's requests take effect promptly
 void LyrebirdEngine::service() {
+	servicing_ = true;
 	if (loadReq_.load()) {
 		// A recording or punch in progress is dropped: the take from before
 		// it becomes current again, so it is what the load keeps for undo
@@ -87,14 +89,13 @@ void LyrebirdEngine::service() {
 		restart();
 		loadReq_.store(false);
 	}
-	if (undoReq_.load()) {
+	for (int n = undoReq_.exchange(0); n > 0; n--) {
 		// Undo keeps what was recorded so far, so a second undo brings it back
 		finishWrites();
 		Take* old = cur_.load();
 		cur_.store(undo_);
 		undo_ = old;
 		restart();
-		undoReq_.store(false);
 	}
 	if (snapReq_.load()) {
 		// Deliberate: one full copy per save request, so the UI can write the
@@ -103,6 +104,7 @@ void LyrebirdEngine::service() {
 		snapReq_.store(false);
 		snapReady_.store(true);
 	}
+	servicing_ = false;
 }
 
 // Ends whatever is being written as if its button had been released
@@ -278,6 +280,8 @@ void LyrebirdEngine::endRec(bool full) {
 	blockIdx_ = -1;
 	recByPunch_ = false;
 	restart();
+	if (!servicing_)
+		recsDone_.fetch_add(1);
 }
 
 void LyrebirdEngine::startPunch(double raw) {
@@ -346,6 +350,8 @@ void LyrebirdEngine::endPunch() {
 	punchTail_ = false;
 	punchGain_ = 0.0;
 	blockIdx_ = -1;
+	if (!servicing_)
+		punchesDone_.fetch_add(1);
 }
 
 double LyrebirdEngine::finish(const LyrebirdControls& c, double v) const {
@@ -619,13 +625,28 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 	double hw = smoothHalfWidth(t, c.smoothMs);
 	// The sums lag a take being written, so draw that from the raw data
 	bool live = writing();
+	// A Sync take being recorded is full length from the start, but only what
+	// has been written means anything: the rest of its buffer is old data
+	bool partial = status_ == Status::Recording && t.mode == TakeMode::Sync;
+	bool pending = blockIdx_ >= 0 && blockCount_ > 0;
+	auto has = [&](int k) {
+		return !partial || written_[k] || (pending && k == blockIdx_);
+	};
+	auto value = [&](int k) {
+		return (!partial || written_[k]) ? (double) t.samples[k] : blockSum_ / blockCount_;
+	};
+	const float none = std::numeric_limits<float>::quiet_NaN();
 	for (int i = 0; i < n; i++) {
 		double p = n > 1 ? (double) i / (n - 1) : 0.0;
 		double idx = p * (t.length - 1);
 		int k = std::min((int) idx, t.length - 1);
+		if (!has(k)) {
+			raw[i] = out[i] = none;
+			continue;
+		}
 		double f = idx - k;
-		double a = t.samples[k];
-		double b = k + 1 < t.length ? t.samples[k + 1] : a;
+		double a = value(k);
+		double b = k + 1 < t.length && has(k + 1) ? value(k + 1) : a;
 		raw[i] = (float) (a + (b - a) * f);
 		out[i] = (float) finish(c, live ? raw[i] : smoother_.at(t, idx, hw, c.loop));
 	}

@@ -67,7 +67,7 @@ struct LyrebirdFrame {
 	bool modified = false;
 };
 
-struct Lyrebird : Module {
+struct Lyrebird : Module, MenuUndoFilter {
 	enum ParamId {
 		GESTURE_PARAM,
 		REC_PARAM,
@@ -140,12 +140,16 @@ struct Lyrebird : Module {
 	std::atomic<int> frontFrame{0};
 	std::atomic<float> displayPos{0.f};
 
-	// Audio thread to UI: finished takes (for the undo history) and the limit
-	std::atomic<uint32_t> recsDone{0}, punchesDone{0};
+	// Audio thread to UI: a Free take reached the limit
 	std::atomic<bool> limitHit{false};
-	// Set by the UI before it asks the engine for a swap, so the writes the
-	// swap ends aren't reported as new takes
-	std::atomic<bool> swapIssued{false};
+
+	// UI thread. Names the current pair of takes (current and undo slot), so a
+	// history step only swaps them when they are still the pair it left.
+	uint32_t takeGen = 0;
+	uint32_t genCounter = 0;
+	uint32_t newGen() {
+		return ++genCounter;
+	}
 
 	// Footer message, UI thread only
 	std::string message;
@@ -285,10 +289,14 @@ struct Lyrebird : Module {
 		return knobRange == KnobRange::Unipolar10 ? v * 10.0 : (v - 0.5) * 10.0;
 	}
 
-	// UI thread: swaps the take with the one before it
-	void undoTake() {
-		swapIssued.store(true);
-		engine.requestUndo();
+	// Menu undo snapshots leave the take out: undoing a settings change
+	// restores the settings, never an older take
+	void filterMenuUndoJson(json_t* moduleJ) override {
+		json_t* dataJ = json_object_get(moduleJ, "data");
+		if (!dataJ)
+			return;
+		json_object_del(dataJ, "take");
+		json_object_set_new(dataJ, "keepTake", json_true());
 	}
 
 	void process(const ProcessArgs& args) override {
@@ -324,7 +332,6 @@ struct Lyrebird : Module {
 		c.startOn = startOn;
 		c.idle = idleOutput;
 
-		bool swapping = swapIssued.exchange(false);
 		shapes::LyrebirdStep step = engine.process(c, tb);
 
 		outputs[MAIN_OUTPUT].setVoltage((float) shapes::sanitize(step.volts, 0.0));
@@ -332,14 +339,7 @@ struct Lyrebird : Module {
 			eoc.fire();
 		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
 
-		// Finished takes, for the undo history; a swap the UI asked for isn't one
 		using shapes::Status;
-		if (!swapping) {
-			if (lastStatus == Status::Recording && step.status != Status::Recording)
-				recsDone.fetch_add(1);
-			if (lastStatus == Status::Punching && step.status != Status::Punching)
-				punchesDone.fetch_add(1);
-		}
 		if (step.hitLimit)
 			limitHit.store(true);
 		bool writing = step.status == Status::Recording || step.status == Status::Punching;
@@ -463,6 +463,10 @@ struct Lyrebird : Module {
 		sourceIsCv = j && json_is_true(j);
 		j = json_object_get(rootJ, "folder");
 		folder = j && json_is_string(j) ? json_string_value(j) : "";
+		// A menu undo step: settings only
+		j = json_object_get(rootJ, "keepTake");
+		if (j && json_is_true(j))
+			return;
 
 		if (deferredTakeJ) {
 			json_decref(deferredTakeJ);
@@ -547,8 +551,9 @@ struct Lyrebird : Module {
 		shapes::Take& t = engine.spare();
 		// A bad or missing take loads as an empty one
 		parseTake(takeJ, t);
-		swapIssued.store(true);
 		engine.requestLoad();
+		// A new pair of takes: history steps from before it no longer apply
+		takeGen = newGen();
 	}
 
 	// UI thread: a patch take that had to wait for the engine
@@ -563,26 +568,52 @@ struct Lyrebird : Module {
 	}
 };
 
-// Swaps the take with the one before it; doing it again swaps back.
+// Swaps the take with the one in the undo slot; doing it again swaps back. It
+// only acts when the takes are the pair it expects: the engine keeps one
+// level of undo, so steps further back in the history can't be replayed.
 struct TakeSwapAction : history::ModuleAction {
-	void swap() {
+	uint32_t after = 0;  // the pair once the action is done
+	uint32_t undone = 0;  // the pair once it's undone
+	void swapFrom(uint32_t from, uint32_t to) {
 		Lyrebird* m = dynamic_cast<Lyrebird*>(APP->engine->getModule(moduleId));
-		if (m)
-			m->undoTake();
+		if (!m || m->takeGen != from)
+			return;
+		m->engine.requestUndo();
+		m->takeGen = to;
 	}
 	void undo() override {
-		swap();
+		swapFrom(after, undone);
 	}
 	void redo() override {
-		swap();
+		swapFrom(undone, after);
 	}
 };
 
-static void pushTakeSwap(Lyrebird* module, const char* name) {
+// Call once the pair has changed; undone names the pair an undo swaps back to
+static void pushTakeSwap(Lyrebird* module, const char* name, uint32_t undone) {
 	TakeSwapAction* h = new TakeSwapAction;
 	h->name = name;
 	h->moduleId = module->id;
+	h->undone = undone;
+	h->after = module->takeGen = module->newGen();
 	APP->history->push(h);
+}
+
+// Draws the finite runs of values[i0..i1] (of n spanning the box); NaN marks
+// what isn't recorded yet.
+static void drawRuns(NVGcontext* vg, const float* values, int n, int i0, int i1, float x, float y, float w, float h,
+                     const shapeui::TraceStyle& style) {
+	int i = i0;
+	while (i <= i1) {
+		while (i <= i1 && !std::isfinite(values[i]))
+			i++;
+		int a = i;
+		while (i <= i1 && std::isfinite(values[i]))
+			i++;
+		int b = i - 1;
+		if (b > a)
+			shapeui::drawTrace(vg, values + a, b - a + 1, x + w * a / (n - 1), y, w * (b - a) / (n - 1), h, style);
+	}
 }
 
 // The whole take, raw (dim) and as played (white), with bar lines in Sync,
@@ -707,22 +738,18 @@ struct LyrebirdDisplay : shapeui::Screen {
 			dim.color = nvgTransRGBAf(shapeui::mutedColor(), 0.45f);
 			dim.widthMm = 0.2f;
 			dim.closed = false;
-			shapeui::drawTrace(vg, raw, kTracePoints, gx, gy, gw, gh, dim);
+			drawRuns(vg, raw, kTracePoints, 0, kTracePoints - 1, gx, gy, gw, gh, dim);
 			shapeui::TraceStyle main;
 			main.color = shapeui::signalColor();
 			main.closed = false;
-			shapeui::drawTrace(vg, out, kTracePoints, gx, gy, gw, gh, main);
+			drawRuns(vg, out, kTracePoints, 0, kTracePoints - 1, gx, gy, gw, gh, main);
 
 			shapeui::TraceStyle red = main;
 			red.color = recColor();
 			for (int k = 0; k < nPieces; k++) {
 				int i0 = clamp((int) std::floor(pieces[k][0] * (kTracePoints - 1)), 0, kTracePoints - 1);
 				int i1 = clamp((int) std::ceil(pieces[k][1] * (kTracePoints - 1)), 0, kTracePoints - 1);
-				if (i1 - i0 < 1)
-					continue;
-				float x0 = gx + gw * i0 / (kTracePoints - 1);
-				float w = gw * (i1 - i0) / (kTracePoints - 1);
-				shapeui::drawTrace(vg, raw + i0, i1 - i0 + 1, x0, gy, w, gh, red);
+				drawRuns(vg, raw, kTracePoints, i0, i1, gx, gy, gw, gh, red);
 			}
 		}
 		else {
@@ -734,6 +761,8 @@ struct LyrebirdDisplay : shapeui::Screen {
 		}
 
 		float value = shapeui::traceAt(span ? raw : out, kTracePoints, pos, false);
+		if (!std::isfinite(value))
+			value = 0.f;
 		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, value);
 		if (span) {
 			// The dot turns red while writing
@@ -853,8 +882,8 @@ struct LyrebirdWidget : ModuleWidget {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lyrebird.svg")));
 		if (module) {
-			seenRecs = module->recsDone.load();
-			seenPunches = module->punchesDone.load();
+			seenRecs = module->engine.recsFinished();
+			seenPunches = module->engine.punchesFinished();
 		}
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
@@ -912,17 +941,13 @@ struct LyrebirdWidget : ModuleWidget {
 		if (!module)
 			return;
 		module->applyDeferredTake();
-		// Each finished take is an undo step, so Ctrl+Z brings back the one before
-		uint32_t recs = module->recsDone.load();
-		if (recs != seenRecs) {
-			seenRecs = recs;
-			pushTakeSwap(module, "record take");
-		}
-		uint32_t punches = module->punchesDone.load();
-		if (punches != seenPunches) {
-			seenPunches = punches;
-			pushTakeSwap(module, "punch in");
-		}
+		// Each finished take is an undo step, so Ctrl+Z brings back the one
+		// before. Undoing it leaves a pair that never existed before, so it gets
+		// a new name too.
+		for (uint32_t n = module->engine.punchesFinished(); seenPunches != n; seenPunches++)
+			pushTakeSwap(module, "punch in", module->newGen());
+		for (uint32_t n = module->engine.recsFinished(); seenRecs != n; seenRecs++)
+			pushTakeSwap(module, "record take", module->newGen());
 		if (module->limitHit.exchange(false))
 			module->showMessage("LIMIT 3 MIN");
 	}
@@ -957,8 +982,10 @@ struct LyrebirdWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createMenuItem("Undo last take", "", [=]() {
-			module->undoTake();
-			pushTakeSwap(module, "undo last take");
+			// Undoing this swaps straight back to the pair before it
+			uint32_t before = module->takeGen;
+			module->engine.requestUndo();
+			pushTakeSwap(module, "undo last take", before);
 		}));
 	}
 };
