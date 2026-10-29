@@ -29,6 +29,11 @@ title:
   # valign: center centers the cap height in the bare 10mm title band, which
   # lands 0.2mm above the shipped panel's title; dy restores that offset.
   dy: 0.2
+  # Letter-spaced like Skylark's and Weaver's titles (3.5 mm at size 9, a
+  # little wider than theirs); x recenters the ink, which tracking would
+  # otherwise push left by half a step.
+  tracking: 3.5
+  x: 98.17
 
 # Four head tints, mirroring loooop::kHeadColors: H1 red, H2 yellow, H3 blue,
 # H4 purple. Yellow carries its own alpha (0x33 = 0.2) because at the shared
