@@ -6,7 +6,7 @@
 #
 # 21 HP, two columns, plates in the Skylark/Weaver style, 1.5 mm from the panel edges, 2.0 mm
 # between them. Both columns split at the same gap (100.86-102.86).
-#  - Title flush left with the display, Weaver's tracking (2.682), centered in the 17 mm band.
+#  - Title flush left with the display, Skylark's tracking (3.682), centered in the 17 mm band.
 #  - Left column (1.5-64.38), two columns inside (19.775 / 46.107, from RECORD's and PUNCH's
 #    units, gap-equalized 10.22), each item centered on its column, labels above:
 #    - Display (4:3, 62.88 x 47.16, 17-64.16).
@@ -38,9 +38,9 @@ hp: 21
 
 title:
   size: 9.5
-  tracking: 2.682
-  # Ink's left edge at 1.5 (title_fit.py LYREBIRD 9.5 2.682 1.5).
-  x: 34.995
+  tracking: 3.682
+  # Ink's left edge at 1.5 (title_fit.py LYREBIRD 9.5 3.682 1.5).
+  x: 38.995
   dy: 2.75
 
 zones:
