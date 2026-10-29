@@ -207,7 +207,12 @@ struct Skylark : Module {
 		engine.setControls(c);
 
 		double raw = engine.raw(step.pos, step.cycle, cycleStart);
-		double volts = shapes::toVolts(shapes::treat(raw, settings.treatMode, engine.peak()), settings.range);
+		double y = shapes::treat(raw, settings.treatMode, engine.peak());
+		// The peak is rescanned every 64 samples while the transforms apply
+		// every sample, so Fit can briefly overshoot: keep it in range
+		if (settings.treatMode == shapes::Treat::Fit)
+			y = std::clamp(y, -1.0, 1.0);
+		double volts = shapes::toVolts(y, settings.range);
 		volts = slew.process(shapes::sanitize(volts, 0.0));
 		float out = (float) shapes::sanitize(volts, 0.0);
 		lastOut = out;
