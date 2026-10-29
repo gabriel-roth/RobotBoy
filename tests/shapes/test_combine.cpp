@@ -426,9 +426,7 @@ static void loopWavesRepeatEachCycle() {
 				check(std::fabs(evalOperator(op, x + 3.0, 0) - v) < 1e-9, "loop repeats", w, k);
 				check(evalOperator(op, x, 2) == v, "loop ignores the operator letter", w, k);
 			}
-			// Stepped with one step is flat; everything else moves
-			if (!(w == SteppedLoop && param == 0.0))
-				check(hi - lo > 0.05, "loop moves", w, (int) (param * 10));
+			check(hi - lo > 0.05, "loop moves", w, (int) (param * 10));
 			OperatorControls other = op;
 			other.loopSeed = 999;
 			bool differs = false;
@@ -437,15 +435,18 @@ static void loopWavesRepeatEachCycle() {
 			check(differs, "seed picks the pattern", w, (int) (param * 10));
 		}
 	}
-	// Stepped: 1 + round(7 * param) steps per cycle
+	// Stepped: 4 + round(12 * param) steps per cycle
 	OperatorControls st{};
 	st.wave = SteppedLoop;
-	st.param = 3.0 / 7.0;
 	st.loopSeed = 7;
-	int changes = 0;
-	for (int k = 1; k < 400; k++)
-		changes += evalOperator(st, k / 400.0, 0) != evalOperator(st, (k - 1) / 400.0, 0);
-	check(changes == 3, "four steps", changes);
+	for (double param : {0.0, 0.5, 1.0}) {
+		st.param = param;
+		int changes = 0;
+		for (int k = 1; k < 960; k++)
+			changes += evalOperator(st, k / 960.0, 0) != evalOperator(st, (k - 1) / 960.0, 0);
+		int steps = 4 + (int) std::round(param * 12.0);
+		check(changes == steps - 1, "step count", steps, changes);
+	}
 	// Smooth: continuous through the loop point
 	OperatorControls sm{};
 	sm.wave = SmoothLoop;

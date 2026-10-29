@@ -14,6 +14,12 @@ constexpr double kTau = 2.0 * M_PI;
 
 const double kRatioValues[kNumRatios] = {0.125, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32};
 const char* const kRatioLabels[kNumRatios] = {"1/8", "1/4", "1/2", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x12", "x16", "x24", "x32"};
+// Steps (segments, for Smooth) per cycle of the loop waves. Fewer sound like
+// a square or a sine rather than a random pattern; smoothing hides more, so
+// Smooth needs more segments.
+constexpr int kMinSteppedLoopSteps = 4;
+constexpr int kMinSmoothLoopSteps = 6;
+constexpr int kMaxLoopSteps = 16;
 const char* const kParamNames[kNumWaves] = {"SKEW", "SYMMETRY", "CURVE", "CURVE", "WIDTH", "ATTACK", "STEPS", "DENSITY", "STEPS", "DENSITY", "SLEW"};
 const char* const kAlgorithmNames[kNumAlgorithms] = {"MIX", "SCALE", "SCALE 2", "RING", "BEND", "MAX", "MIN", "XFADE", "FOLD", "S&H", "GATE"};
 const char* const kAlgorithmFormulas[kNumAlgorithms] = {
@@ -155,14 +161,15 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 			double s = f * f * (3.0 - 2.0 * f);
 			return lerp(hash3(seed, i, 31), hash3(seed, i + 1.0, 31), s) * 2.0 - 1.0;
 		}
-		// As the two above, but within one operator cycle, so the pattern repeats
+		// As the two above, but within one operator cycle, so the pattern
+		// repeats, and with more steps
 		case SteppedLoop: {
-			double n = 1.0 + std::round(sh * 7.0);
+			double n = kMinSteppedLoopSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxLoopSteps - kMinSteppedLoopSteps));
 			return hash3Bits(op.loopSeed, toInt32(std::floor(p * n)), 77) / 4294967296.0 * 2.0 - 1.0;
 		}
 		case SmoothLoop: {
-			// A whole number of segments, at least two, so the loop joins up
-			int n = 2 + (int) std::round(std::clamp(sh, 0.0, 1.0) * 6.0);
+			// A whole number of segments, so the loop joins up
+			int n = kMinSmoothLoopSteps + (int) std::round(std::clamp(sh, 0.0, 1.0) * (kMaxLoopSteps - kMinSmoothLoopSteps));
 			double u = std::isfinite(p) ? p * n : 0.0;
 			int i = std::clamp((int) u, 0, n - 1);
 			double f = u - i;
