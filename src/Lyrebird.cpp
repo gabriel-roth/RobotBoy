@@ -382,8 +382,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		if (step.hitLimit)
 			limitHit.store(true);
 		bool writing = step.status == Status::Recording || step.status == Status::Punching;
-		bool wasWriting = lastStatus == Status::Recording || lastStatus == Status::Punching;
-		if (writing && !wasWriting) {
+		// REC can take over straight from a punch, which is a new write too
+		if (writing && step.status != lastStatus) {
 			spanFrom = (float) step.playhead;
 			writesStarted.fetch_add(1);
 		}
@@ -761,7 +761,14 @@ static void loadFile(Lyrebird* m, const std::string& path) {
 		m->showMessage("BUSY");
 		return;
 	}
-	shapes::LoadResult r = shapes::readTakeWav(path, m->engine.spare());
+	shapes::LoadResult r;
+	try {
+		r = shapes::readTakeWav(path, m->engine.spare());
+	}
+	catch (std::exception&) {
+		// Out of memory, say: the spare take isn't in use, so nothing is lost
+		r.error = shapes::LoadError::CantOpen;
+	}
 	switch (r.error) {
 		case shapes::LoadError::CantOpen: m->showMessage("CANT OPEN"); return;
 		case shapes::LoadError::NotWav: m->showMessage("NOT A WAV"); return;

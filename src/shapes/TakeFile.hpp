@@ -25,7 +25,8 @@ LoadResult readTakeWav(const std::string& path, Take& out);
 
 // int16 over +-10 V, for embedding in patch files
 std::vector<uint8_t> packSamples16(const Take& take);
-// Sets only samples and length; metadata is the caller's
+// Sets samples and length and gives the take a new version; the rest of the
+// metadata is the caller's
 bool unpackSamples16(const uint8_t* data, size_t n, Take& out);
 
 std::string takeMetaJson(const Take& take);

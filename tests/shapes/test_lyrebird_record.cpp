@@ -6,6 +6,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <vector>
 
 using namespace shapes;
 
@@ -634,6 +635,131 @@ static void undoRequestsAreCounted() {
 	assert(r.eng.take().samples[10] == 1.f);
 }
 
+// A load cancelling an armed PUNCH-as-REC hands PUNCH back to punching
+static void loadClearsPunchOwnedRecord() {
+	for (int viaUndo = 0; viaUndo < 2; viaUndo++) {
+		Rig r;
+		if (viaUndo)
+			r.recordFree(1, 200);
+		r.c.startOn = StartOn::Movement;
+		if (viaUndo) {
+			// Back to no take, then PUNCH arms a recording
+			r.eng.requestUndo();
+			r.step();
+			assert(r.eng.take().empty());
+		}
+		assert(r.pressPunch().status == Status::Armed);
+		if (viaUndo) {
+			r.eng.requestUndo();
+			r.step();
+		}
+		else
+			r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		assert(r.step().status == Status::Idle);
+		r.c.startOn = StartOn::Press;
+		r.run(100);
+		assert(r.pressPunch().status == Status::Punching);
+	}
+}
+
+// Changed take samples, counting from a take of all -1
+static int changedSamples(const Take& t) {
+	int n = 0;
+	for (int i = 0; i < t.length; i++)
+		if (std::fabs(t.samples[i] + 1.f) > 1e-3f)
+			n++;
+	return n;
+}
+
+// REVERSE, TRIG and a Sync SPEED change move the playhead in one jump: the
+// punch writes where the playhead goes, not the samples it skipped
+static void punchJumpsDontFill() {
+	for (int kind = 0; kind < 4; kind++) {
+		Rig r;
+		r.load(-1.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		r.runTo(0.25);
+		r.c.source = 5;
+		r.pressPunch();
+		r.run(48 * 20);
+		if (kind == 0)
+			r.c.reverse = true;
+		else if (kind == 1)
+			r.in.resetButton = true;
+		else if (kind == 2)
+			r.c.speedOct = 1;
+		r.run(48 * 20);
+		r.pressPunch();
+		r.run(48 * 30);
+		// About 20 + 20 (x2: 40) take samples, plus a 10 ms tail
+		int n = changedSamples(r.eng.take());
+		if (kind == 3)
+			assert(n >= 45 && n <= 60);
+		else
+			assert(n >= 45 && n <= 90);
+	}
+}
+
+// REC takes over from a punch, or from a punch waiting for movement
+static void recDuringPunch() {
+	for (int armed = 0; armed < 2; armed++) {
+		for (int moveStart = 0; moveStart < 2; moveStart++) {
+			Rig r;
+			r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+			r.c.source = 1;
+			r.runTo(0.25);
+			r.c.startOn = armed ? StartOn::Movement : StartOn::Press;
+			assert(r.pressPunch().status == (armed ? Status::PunchArmed : Status::Punching));
+			r.run(480);
+			r.c.startOn = moveStart ? StartOn::Movement : StartOn::Press;
+			LyrebirdStep s = r.pressRec();
+			assert(s.status == (moveStart ? Status::Armed : Status::Recording));
+			if (moveStart) {
+				r.c.source = 3;
+				assert(r.step().status == Status::Recording);
+			}
+			// REC owns the stop
+			r.runTo(0.5);
+			assert(r.pressRec().status == Status::Idle);
+			assert(r.eng.take().mode == TakeMode::Sync && r.eng.take().length == 2000);
+		}
+	}
+}
+
+// A ONCE pass ending mid-punch keeps the block it was averaging
+static void punchEndKeepsLastBlock() {
+	Rig r;
+	r.c.loop = false;
+	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.in.resetButton = true;
+	r.step();
+	r.c.source = 5;
+	r.runTo(0.5);
+	assert(r.pressPunch().status == Status::Punching);
+	r.runTo(1.1);
+	const Take& t = r.eng.take();
+	assert(std::fabs(t.samples[1998] - 5.f) < 1e-6);
+	assert(std::fabs(t.samples[1999] - 5.f) < 1e-6);
+}
+
+// No two takes the engine holds share a version, so a save can tell them apart
+static void versionsUniqueAcrossBuffers() {
+	Rig r;
+	std::vector<uint32_t> seen;
+	for (int i = 0; i < 6; i++) {
+		r.recordFree(i + 1, 100);
+		seen.push_back(r.eng.take().version);
+		r.eng.requestUndo();
+		r.step();
+		seen.push_back(r.eng.take().version);
+		r.eng.requestUndo();
+		r.step();
+	}
+	// Each recorded take is new; the undo side is the take before it
+	for (size_t i = 0; i < seen.size(); i += 2)
+		for (size_t j = 0; j < i; j += 2)
+			assert(seen[i] != seen[j]);
+}
+
 int main() {
 	syncTakeStartsMidBarAndWraps();
 	syncTakeStopsItself();
@@ -659,6 +785,11 @@ int main() {
 	syncRecordTraceSkipsUnwritten();
 	countsFinishedTakes();
 	undoRequestsAreCounted();
+	loadClearsPunchOwnedRecord();
+	punchJumpsDontFill();
+	recDuringPunch();
+	punchEndKeepsLastBlock();
+	versionsUniqueAcrossBuffers();
 	printf("lyrebird record tests passed\n");
 	return 0;
 }

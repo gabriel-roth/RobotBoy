@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <clocale>
 #include <cstring>
 
 namespace shapes {
@@ -52,6 +53,10 @@ bool endsWithWav(const std::string& s) {
 std::string fmtDouble(double v) {
 	char buf[40];
 	snprintf(buf, sizeof buf, "%.15g", v);
+	// The C locale may use a comma (GTK sets it on Linux); JSON always uses a point
+	for (char* p = buf; *p; p++)
+		if (*p == ',')
+			*p = '.';
 	// Keep it looking like a JSON float
 	if (!strpbrk(buf, ".eE"))
 		strncat(buf, ".0", sizeof buf - strlen(buf) - 1);
@@ -79,9 +84,22 @@ bool findNumber(const std::string& json, const char* key, double& out) {
 	size_t p = findValue(json, key);
 	if (p == std::string::npos)
 		return false;
+	// strtod follows the C locale's decimal point, so swap the JSON point for it
+	const lconv* lc = localeconv();
+	std::string point = lc && lc->decimal_point && *lc->decimal_point ? lc->decimal_point : ".";
+	std::string num;
+	for (size_t i = p; i < json.size() && num.size() < 64; i++) {
+		char ch = json[i];
+		if (ch == '.')
+			num += point;
+		else if (std::isdigit((unsigned char) ch) || ch == '-' || ch == '+' || ch == 'e' || ch == 'E')
+			num += ch;
+		else
+			break;
+	}
 	char* end = nullptr;
-	double v = strtod(json.c_str() + p, &end);
-	if (end == json.c_str() + p || !std::isfinite(v))
+	double v = strtod(num.c_str(), &end);
+	if (num.empty() || end == num.c_str() || !std::isfinite(v))
 		return false;
 	out = v;
 	return true;
@@ -98,17 +116,72 @@ bool findString(const std::string& json, const char* key, std::string& out) {
 	return true;
 }
 
-bool readFile(const std::string& path, std::vector<uint8_t>& out) {
-	FILE* f = fopen(path.c_str(), "rb");
-	if (!f)
-		return false;
-	uint8_t buf[8192];
-	size_t n;
-	while ((n = fread(buf, 1, sizeof buf, f)) > 0)
-		out.insert(out.end(), buf, buf + n);
-	fclose(f);
-	return true;
+// 64-bit offsets, so a file over 2 GB can't wrap long on Windows
+bool seekTo(FILE* f, uint64_t pos) {
+#ifdef _WIN32
+	return _fseeki64(f, (long long) pos, SEEK_SET) == 0;
+#else
+	return fseek(f, (long) pos, SEEK_SET) == 0;
+#endif
 }
+
+uint64_t fileSize(FILE* f) {
+#ifdef _WIN32
+	if (_fseeki64(f, 0, SEEK_END) != 0)
+		return 0;
+	long long n = _ftelli64(f);
+#else
+	if (fseek(f, 0, SEEK_END) != 0)
+		return 0;
+	long n = ftell(f);
+#endif
+	return n > 0 ? (uint64_t) n : 0;
+}
+
+bool readAt(FILE* f, uint64_t pos, uint8_t* buf, size_t n) {
+	return seekTo(f, pos) && fread(buf, 1, n, f) == n;
+}
+
+struct FileCloser {
+	FILE* f;
+	~FileCloser() {
+		if (f)
+			fclose(f);
+	}
+};
+
+// Reads frames in order through a small buffer, so only the frames a take
+// needs are ever read, however long the file
+struct FrameReader {
+	FILE* f;
+	uint64_t start;  // file offset of frame 0
+	size_t frameBytes;
+	size_t frames;
+	std::vector<uint8_t> buf;
+	size_t first = 0, count = 0;  // frames held in buf
+
+	FrameReader(FILE* f, uint64_t start, size_t frameBytes, size_t frames)
+	    : f(f), start(start), frameBytes(frameBytes), frames(frames) {
+		buf.resize(frameBytes * std::max<size_t>(1, 65536 / frameBytes));
+	}
+
+	// Frame i's bytes, or null past what the file holds
+	const uint8_t* frame(size_t i) {
+		if (i >= frames)
+			return nullptr;
+		if (i < first || i >= first + count) {
+			size_t want = std::min(buf.size() / frameBytes, frames - i);
+			count = 0;
+			first = i;
+			if (!seekTo(f, start + (uint64_t) i * frameBytes))
+				return nullptr;
+			count = fread(buf.data(), 1, want * frameBytes, f) / frameBytes;
+			if (count == 0)
+				return nullptr;
+		}
+		return buf.data() + (i - first) * frameBytes;
+	}
+};
 
 std::string fileStem(const std::string& path) {
 	size_t slash = path.find_last_of("/\\");
@@ -146,6 +219,9 @@ std::string takeMetaJson(const Take& t) {
 	return s;
 }
 
+// Longer than any take: the longest Sync take is 16 bars at 1 BPM
+static constexpr double kMaxMetaSeconds = 16 * 240.0;
+
 bool parseTakeMeta(const std::string& json, Take& out) {
 	double version = 0, bpm = 0;
 	std::string mode;
@@ -153,14 +229,19 @@ bool parseTakeMeta(const std::string& json, Take& out) {
 		return false;
 	if (!findString(json, "mode", mode) || !findNumber(json, "bpm", bpm) || bpm <= 0.0)
 		return false;
+	// Held to what the module can record, as patch takes are
+	bpm = std::min(std::max(bpm, 1.0), 1000.0);
 	if (mode == "sync") {
 		double bars = 0;
 		if (!findNumber(json, "bars", bars) || bars <= 0.0)
 			return false;
 		out.mode = TakeMode::Sync;
-		out.bars = bars;
+		out.bars = 1.0;
+		for (double b : kLengthBars)
+			if (std::fabs(bars - b) < 1e-9)
+				out.bars = b;
 		out.bpm = bpm;
-		out.seconds = bars * 240.0 / bpm;
+		out.seconds = out.bars * 240.0 / bpm;
 		return true;
 	}
 	if (mode == "free") {
@@ -168,7 +249,7 @@ bool parseTakeMeta(const std::string& json, Take& out) {
 		if (!findNumber(json, "seconds", seconds) || seconds <= 0.0)
 			return false;
 		out.mode = TakeMode::Free;
-		out.seconds = seconds;
+		out.seconds = std::min(std::max(seconds, 1e-3), kMaxMetaSeconds);
 		out.bpm = bpm;
 		return true;
 	}
@@ -223,47 +304,62 @@ bool writeTakeWav(const std::string& path, const Take& take) {
 
 LoadResult readTakeWav(const std::string& path, Take& out) {
 	LoadResult res;
-	std::vector<uint8_t> file;
-	if (!readFile(path, file)) {
+	FileCloser fc{fopen(path.c_str(), "rb")};
+	FILE* f = fc.f;
+	if (!f) {
 		res.error = LoadError::CantOpen;
 		return res;
 	}
-	const size_t size = file.size();
-	const uint8_t* d = file.data();
-	if (size < 12 || memcmp(d, "RIFF", 4) != 0 || memcmp(d + 8, "WAVE", 4) != 0) {
+	// Only headers and the frames a take needs are read: folder stepping can
+	// land on a file of any size
+	const uint64_t size = fileSize(f);
+	uint8_t head[12];
+	if (size < 12 || !readAt(f, 0, head, 12) || memcmp(head, "RIFF", 4) != 0 || memcmp(head + 8, "WAVE", 4) != 0) {
 		res.error = LoadError::NotWav;
 		return res;
 	}
 
 	bool haveFmt = false;
 	uint32_t format = 0, channels = 0, rate = 0, bits = 0;
-	const uint8_t* data = nullptr;
-	size_t dataBytes = 0;
+	bool haveData = false;
+	uint64_t dataPos = 0, dataBytes = 0;
 	std::string meta;
 
-	// Chunk walk; every access is bounds checked against the file size
-	size_t pos = 12;
+	// Chunk walk; every read is bounds checked against the file size
+	uint64_t pos = 12;
 	while (pos + 8 <= size) {
-		const uint8_t* tag = d + pos;
-		size_t len = get32(d + pos + 4);
-		size_t body = pos + 8;
-		size_t avail = size - body;
-		size_t use = std::min(len, avail);
-		if (memcmp(tag, "fmt ", 4) == 0 && use >= 16) {
-			format = get16(d + body);
-			channels = get16(d + body + 2);
-			rate = get32(d + body + 4);
-			bits = get16(d + body + 14);
+		uint8_t ch[8];
+		if (!readAt(f, pos, ch, 8))
+			break;
+		uint64_t len = get32(ch + 4);
+		uint64_t body = pos + 8;
+		uint64_t avail = size - body;
+		uint64_t use = std::min(len, avail);
+		if (memcmp(ch, "fmt ", 4) == 0 && use >= 16) {
+			uint8_t fb[26] = {};
+			size_t n = (size_t) std::min<uint64_t>(use, sizeof fb);
+			if (!readAt(f, body, fb, n))
+				break;
+			format = get16(fb);
+			channels = get16(fb + 2);
+			rate = get32(fb + 4);
+			bits = get16(fb + 14);
 			// Extensible: the real format is the first two bytes of the sub-format
 			if (format == 0xFFFE && use >= 26)
-				format = get16(d + body + 24);
+				format = get16(fb + 24);
 			haveFmt = true;
 		}
-		else if (memcmp(tag, "lyrb", 4) == 0) {
-			meta.assign((const char*) d + body, use);
+		else if (memcmp(ch, "lyrb", 4) == 0) {
+			// Ours is a few dozen bytes; anything much bigger isn't
+			if (use <= 4096) {
+				meta.resize((size_t) use);
+				if (use && !readAt(f, body, (uint8_t*) &meta[0], (size_t) use))
+					meta.clear();
+			}
 		}
-		else if (memcmp(tag, "data", 4) == 0 && !data) {
-			data = d + body;
+		else if (memcmp(ch, "data", 4) == 0 && !haveData) {
+			haveData = true;
+			dataPos = body;
 			dataBytes = use;
 		}
 		if (len > avail)
@@ -275,8 +371,8 @@ LoadResult readTakeWav(const std::string& path, Take& out) {
 		res.error = LoadError::Unsupported;
 		return res;
 	}
-	if (!haveFmt || !data || dataBytes == 0) {
-		res.error = haveFmt || !data ? LoadError::Empty : LoadError::Unsupported;
+	if (!haveFmt || !haveData || dataBytes == 0) {
+		res.error = haveFmt || !haveData ? LoadError::Empty : LoadError::Unsupported;
 		return res;
 	}
 	bool okBits = format == 1 ? (bits == 8 || bits == 16 || bits == 24 || bits == 32)
@@ -288,28 +384,31 @@ LoadResult readTakeWav(const std::string& path, Take& out) {
 
 	const size_t bytesPer = bits / 8;
 	const size_t frameBytes = bytesPer * channels;
-	const size_t frames = dataBytes / frameBytes;
+	const size_t frames = (size_t) (dataBytes / frameBytes);
 	if (frames == 0) {
 		res.error = LoadError::Empty;
 		return res;
 	}
+	FrameReader reader(f, dataPos, frameBytes, frames);
 
-	// First channel, in volts
+	// First channel, in volts; frames are asked for in order
 	auto frameVolts = [&](size_t i) -> double {
-		const uint8_t* p = data + i * frameBytes;
+		const uint8_t* p = reader.frame(i);
+		if (!p)
+			return 0.0;
 		double v;
 		if (format == 3) {
 			if (bits == 32) {
 				uint32_t u = get32(p);
-				float f;
-				memcpy(&f, &u, 4);
-				v = f;
+				float x;
+				memcpy(&x, &u, 4);
+				v = x;
 			}
 			else {
 				uint64_t u = (uint64_t) get32(p) | ((uint64_t) get32(p + 4) << 32);
-				double f;
-				memcpy(&f, &u, 8);
-				v = f;
+				double x;
+				memcpy(&x, &u, 8);
+				v = x;
 			}
 		}
 		else if (bits == 8) {
@@ -408,7 +507,7 @@ bool unpackSamples16(const uint8_t* data, size_t n, Take& out) {
 	for (size_t i = 0; i < count; i++)
 		out.samples[i] = sanitize((int16_t) get16(data + 2 * i) / 32767.0 * 10.0);
 	out.length = (int) count;
-	out.version++;
+	out.version = newTakeVersion();
 	return true;
 }
 

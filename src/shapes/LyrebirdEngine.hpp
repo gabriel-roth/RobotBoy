@@ -125,7 +125,8 @@ private:
 	int syncIndex(double x) const;
 	// Punch-in
 	void startPunch(double raw);
-	void punchSample(const LyrebirdControls& c, Take& t, double ph);
+	void punchSample(const LyrebirdControls& c, Take& t, double ph, int maxStep);
+	int maxPunchStep(const LyrebirdControls& c, const Take& t, double ratio) const;
 	void punchWrite(Take& t, int k, double v);
 	bool writing() const {
 		return status_ == Status::Recording || status_ == Status::Punching || punchTail_;

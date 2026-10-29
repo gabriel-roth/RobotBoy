@@ -1,6 +1,8 @@
 // Take storage tests: WAV round trip, foreign WAV import, packing, file names.
 #include "shapes/TakeFile.hpp"
 #include <cassert>
+#include <chrono>
+#include <clocale>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -447,6 +449,113 @@ static void namesAndStepping() {
 	assert(nextTakeName({"other.wav"}) == "LYREBIRD-001.wav");
 }
 
+// A data chunk far past the take limit loads truncated, reading only what the
+// take needs: a 4 GB (sparse) file loads in a few ms rather than being read whole
+static void hugeWavReadsOnlyWhatItNeeds() {
+	const uint64_t claimed = 0xfffffffcull;
+	for (int ours = 0; ours < 2; ours++) {
+		std::vector<uint8_t> b = buildWav(3, 1, ours ? 1000 : 48000, 32, {}, false);
+		if (ours) {
+			std::string meta = "{\"version\":1,\"mode\":\"free\",\"seconds\":1000.0,\"bpm\":120.0}";
+			putTag(b, "lyrb");
+			put32(b, (uint32_t) meta.size());
+			b.insert(b.end(), meta.begin(), meta.end());
+			if (meta.size() & 1)
+				b.push_back(0);
+		}
+		putTag(b, "data");
+		put32(b, (uint32_t) claimed);
+		size_t dataAt = b.size();
+		for (int i = 0; i < 1000; i++) {
+			float v = 0.25f;
+			uint8_t buf[4];
+			memcpy(buf, &v, 4);
+			b.insert(b.end(), buf, buf + 4);
+		}
+		std::string p = tmpPath("lyr_huge.wav");
+		writeBytes(p, b);
+		// Extend to the claimed size without writing it
+		FILE* f = fopen(p.c_str(), "r+b");
+		assert(f);
+		assert(fseek(f, (long) (dataAt + claimed - 1), SEEK_SET) == 0);
+		fputc(0, f);
+		fclose(f);
+
+		Take r;
+		auto t0 = std::chrono::steady_clock::now();
+		LoadResult res = readTakeWav(p, r);
+		double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+		remove(p.c_str());
+		assert(res.error == LoadError::None && res.truncated);
+		assert(r.length == kMaxTakeSamples);
+		assert(std::fabs(r.samples[0] - 2.5f) < 1e-5f);
+		assert(r.samples[kMaxTakeSamples - 1] == 0.f);
+		assert(secs < 0.5);
+	}
+}
+
+// Crafted metadata stays in the ranges the module can record and display
+static void metaIsBounded() {
+	Take r;
+	assert(parseTakeMeta("{\"version\":1,\"mode\":\"sync\",\"bars\":1e300,\"bpm\":1e9}", r));
+	assert(r.bars == 1.0 && r.bpm == 1000.0);
+	assert(std::isfinite(r.seconds) && r.seconds > 0.0);
+	assert(parseTakeMeta("{\"version\":1,\"mode\":\"sync\",\"bars\":3,\"bpm\":0.001}", r));
+	assert(r.bars == 1.0 && r.bpm == 1.0 && r.seconds == 240.0);
+	assert(parseTakeMeta("{\"version\":1,\"mode\":\"sync\",\"bars\":0.25,\"bpm\":120}", r));
+	assert(r.bars == 0.25);
+	assert(parseTakeMeta("{\"version\":1,\"mode\":\"free\",\"seconds\":1e300,\"bpm\":120}", r));
+	assert(std::isfinite(r.seconds) && r.seconds <= 16 * 240.0);
+	assert(parseTakeMeta("{\"version\":1,\"mode\":\"free\",\"seconds\":1e-300,\"bpm\":120}", r));
+	assert(r.seconds >= 1e-3);
+	assert(!parseTakeMeta("{\"version\":1,\"mode\":\"free\",\"seconds\":-1,\"bpm\":120}", r));
+	assert(!parseTakeMeta("{\"version\":1,\"mode\":\"sync\",\"bars\":1,\"bpm\":0}", r));
+}
+
+// A comma decimal locale (GTK sets one on Linux) changes neither the JSON nor its parsing
+static void metaIgnoresLocale() {
+	const char* names[] = {"de_DE.UTF-8", "de_DE.utf8", "de_DE", "fr_FR.UTF-8", "fr_FR"};
+	bool set = false;
+	for (const char* n : names)
+		if (setlocale(LC_NUMERIC, n)) {
+			set = true;
+			break;
+		}
+	if (!set) {
+		printf("metaIgnoresLocale: no comma locale installed, skipped\n");
+		return;
+	}
+	Take t;
+	t.mode = TakeMode::Sync;
+	t.bars = 0.25;
+	t.bpm = 133.5;
+	std::string j = takeMetaJson(t);
+	Take r;
+	bool ok = parseTakeMeta(j, r);
+	bool parsed = parseTakeMeta("{\"version\":1,\"mode\":\"free\",\"seconds\":12.5,\"bpm\":97.25}", r);
+	double secs = r.seconds, bpm = r.bpm;
+	setlocale(LC_NUMERIC, "C");
+	assert(j.find(',', j.find("bpm")) == std::string::npos);
+	assert(j.find("133.5") != std::string::npos && j.find("0.25") != std::string::npos);
+	assert(ok && parsed);
+	assert(secs == 12.5 && bpm == 97.25);
+}
+
+// Every take, in any buffer, gets a version of its own
+static void versionsAreUnique() {
+	Take a, b;
+	assert(a.version != b.version);
+	a.clear();
+	b.clear();
+	assert(a.version != b.version);
+	uint32_t before = b.version;
+	uint8_t two[2] = {0, 0};
+	assert(unpackSamples16(two, 2, b));
+	assert(b.version != before && b.version != a.version);
+	b.copyFrom(a);
+	assert(b.version == a.version);
+}
+
 int main() {
 	wavRoundTrip();
 	freeMetaRoundTrip();
@@ -459,6 +568,10 @@ int main() {
 	metaRoundTrip();
 	takeBasics();
 	namesAndStepping();
+	hugeWavReadsOnlyWhatItNeeds();
+	metaIsBounded();
+	metaIgnoresLocale();
+	versionsAreUnique();
 	printf("take file tests passed\n");
 	return 0;
 }

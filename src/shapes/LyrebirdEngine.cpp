@@ -114,6 +114,8 @@ void LyrebirdEngine::finishWrites() {
 	else if (status_ == Status::Punching || punchTail_)
 		endPunch();
 	status_ = Status::Idle;
+	// An armed PUNCH with no take would otherwise keep owning the next stop
+	recByPunch_ = false;
 }
 
 // Drops a recording or punch: REC and PUNCH both left the take from before
@@ -275,7 +277,7 @@ void LyrebirdEngine::endRec(bool full) {
 		t.seconds = (double) len / kTakeRate;
 		t.bars = effectiveBars(t);
 	}
-	t.version++;
+	t.version = newTakeVersion();
 	status_ = Status::Idle;
 	blockIdx_ = -1;
 	recByPunch_ = false;
@@ -310,8 +312,11 @@ void LyrebirdEngine::punchWrite(Take& t, int k, double v) {
 	t.samples[k] = (float) std::clamp(old + (v - old) * punchGain_, -10.0, 10.0);
 }
 
-// Writes at the playhead, filling every take sample it crossed since the last one
-void LyrebirdEngine::punchSample(const LyrebirdControls& c, Take& t, double ph) {
+// Writes at the playhead, filling every take sample it crossed since the last
+// one. maxStep is the most take samples real playback can move in one sample:
+// a bigger move (REVERSE, TRIG, a Sync SPEED change) is a jump, and the
+// samples it skipped weren't crossed.
+void LyrebirdEngine::punchSample(const LyrebirdControls& c, Take& t, double ph, int maxStep) {
 	int n = t.length;
 	double span = c.loop ? (double) n : (double) (n - 1);
 	int k = (int) std::floor(std::clamp(ph, 0.0, 1.0) * span + 0.5);
@@ -329,7 +334,7 @@ void LyrebirdEngine::punchSample(const LyrebirdControls& c, Take& t, double ph) 
 		}
 		int dir = d > 0 ? 1 : -1;
 		int i = blockIdx_;
-		for (int steps = std::abs(d); steps > 0; steps--) {
+		for (int steps = std::abs(d) > maxStep ? 1 : std::abs(d); steps > 0; steps--) {
 			punchWrite(t, i, avg);
 			i = c.loop ? (i + dir + n) % n : std::clamp(i + dir, 0, n - 1);
 		}
@@ -343,8 +348,11 @@ void LyrebirdEngine::punchSample(const LyrebirdControls& c, Take& t, double ph) 
 
 void LyrebirdEngine::endPunch() {
 	Take* t = cur_.load();
+	// The block being averaged was crossed too
+	if (blockIdx_ >= 0 && blockCount_ > 0 && blockIdx_ < t->length)
+		punchWrite(*t, blockIdx_, blockSum_ / blockCount_);
 	// The smoother rebuilds from the new data from here on
-	t->version++;
+	t->version = newTakeVersion();
 	if (status_ == Status::Punching)
 		status_ = Status::Idle;
 	punchTail_ = false;
@@ -352,6 +360,18 @@ void LyrebirdEngine::endPunch() {
 	blockIdx_ = -1;
 	if (!servicing_)
 		punchesDone_.fetch_add(1);
+}
+
+int LyrebirdEngine::maxPunchStep(const LyrebirdControls& c, const Take& t, double ratio) const {
+	// Takes per audio sample at the current tempo and SPEED
+	double perSample;
+	if (c.sync)
+		perSample = ratio * std::clamp(sanitize(c.bpm, 120.0), 1.0, 1000.0) / 240.0 / effectiveBars(t) / sampleRate_;
+	else
+		perSample = ratio / (std::max(t.seconds, 1e-3) * sampleRate_);
+	// Headroom for a clock pulling the transport into line
+	double step = std::ceil(1.5 * perSample * t.length) + 1.0;
+	return (int) std::min(step, (double) t.length);
 }
 
 double LyrebirdEngine::finish(const LyrebirdControls& c, double v) const {
@@ -414,6 +434,21 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		case Status::Recording:
 			if (ownStop)
 				endRec(false);
+			break;
+		case Status::PunchArmed:
+		case Status::Punching:
+			// REC takes over from a punch: the punch ends as it would on release
+			if (recEdge) {
+				recByPunch_ = false;
+				if (c.startOn == StartOn::Movement) {
+					if (status_ == Status::Punching)
+						punchTail_ = true;
+					status_ = Status::Armed;
+					armValue_ = src;
+				}
+				else
+					startRec(c, x);
+			}
 			break;
 		default:
 			break;
@@ -590,7 +625,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			if (punchTail_ && punchGain_ <= 0.0)
 				endPunch();
 			else
-				punchSample(c, *cur_.load(), ph);
+				punchSample(c, *cur_.load(), ph, maxPunchStep(c, t, ratio));
 		}
 	}
 	else if (monitorMix_ > 0.0 && (smoother_.ready() || smoothHalfWidth(t, c.smoothMs) <= 0.5)) {
