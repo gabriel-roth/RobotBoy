@@ -545,6 +545,11 @@ static void upperCase(char* out, size_t size, const char* in) {
 struct WeaverMainDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
+	WeaverMainDisplay() {
+		// The plates' corner radius
+		radiusMm = 2.f;
+	}
+
 	void drawScreen(NVGcontext* vg) override {
 		// Copied so a publish mid-draw can't tear the traces
 		WeaverFrame f = frameOf(module);
