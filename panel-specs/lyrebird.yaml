@@ -17,9 +17,11 @@
 #      - RECORD and PUNCH, each a lit button with its gate jack beside (8.5 apart, one label
 #        above the pair); labels 87.45, controls 94.15.
 #    - SOURCE plate, opaque magenta #b8466a with dark dots (texture.svg: #7e2445, r 0.26 on a
-#      1.6 grid, cleared round the labels), 102.86-123: GESTURE (regular knob, the knob you
-#      record) and CV IN, the two sources; labels 108.43, controls 114.93 (3.27 margins). The
-#      display's punch-in trace is the brighter #ff5f95 (mock-lyrebird.py).
+#      1.6 grid, cleared round the label; local/panel-mockups/lyrebird_texture.py), 102.86-123:
+#      GESTURE (regular knob, the knob you record) and CV IN, the two sources, at 110.04; one
+#      INPUT label (4.0, larger than the rest) between them at the bottom, baseline 120.44. Knob,
+#      label ink and the gaps around them evenly spaced (2.38). The display's punch-in trace is
+#      the brighter #ff5f95 (mock-lyrebird.py).
 #  - Right column (66.38-105.18): as narrow as two 13.4 label-width columns (77.08 / 94.48)
 #    with 4.0 gaps.
 #    - PLAYBACK plate (17-100.86), labels above, blocks and margins evenly spaced (4.23):
@@ -75,10 +77,9 @@ elements:
   - {name: PUNCH_INPUT, x: 50.149, y: 94.15}
 
   # --- SOURCE plate.
-  - {text: GESTURE, x: 19.775, y: 108.43}
-  - {text: CV IN, x: 46.107, y: 108.43}
-  - {name: GESTURE_PARAM, x: 19.775, y: 114.93}
-  - {name: CV_INPUT, x: 46.107, y: 114.93}
+  - {name: GESTURE_PARAM, x: 19.775, y: 110.038}
+  - {name: CV_INPUT, x: 46.107, y: 110.038}
+  - {text: INPUT, x: 32.941, y: 120.437, size: 4.0}
 
   # --- PLAYBACK plate.
   - {text: FILE, x: 85.78, y: 23.525}
@@ -126,7 +127,7 @@ connectors:
   - [REVERSE_PARAM, REVERSE_INPUT]
 
 glyphs:
-  # SOURCE plate texture (generated: dark dots, cleared round the labels).
+  # SOURCE plate texture (generated: dark dots, cleared round the label).
   - {src: glyphs/lyrebird/texture.svg, at: [32.94, 112.93]}
   - {src: glyphs/weaver/step-back.svg,    at: [72.58, 28.275]}
   - {src: glyphs/weaver/step-forward.svg, at: [98.98, 28.275]}
