@@ -5,7 +5,7 @@
 #  - Display (4:3, 62 x 46.5) on the bare panel, top left (1.5-63.5, 17-63.5).
 #  - Top plate (65.5-100.1, 17-63.5): VARIATION and SHAPE (picks the recipe) in two columns
 #    (75.225 / 90.375), centered in the plate: labels 24.5, knobs 33.5, jacks 46.0.
-#    VARIATION has an attenuverter under its jack (55.5, - / + beside it): with nothing
+#    VARIATION has an attenuverter under its jack (55.5): with nothing
 #    patched, the output is normalled to the VARIATION input and the attenuverter sets the
 #    feedback depth. An arrow from the display (the output) meets a notch in the plate's left
 #    edge at the VARIATION jack, as Brume marks its normalled follower; the arrow is
@@ -61,8 +61,6 @@ elements:
   - row: {grid: top, at: jacks}
     place: [{name: VARIATION_INPUT}, {name: SHAPE_INPUT}]
   - {name: VARIATION_CV_PARAM, widget: Trimpot, x: 75.225, y: 55.5}
-  - {text: "−", x: 70.325, y: 56.5, size: 3.175}
-  - {text: "+", x: 80.125, y: 56.5, size: 3.175}
   # SHAPE previous / next in the trimpot row, previous left, next right.
   - {name: SHAPE_PREV_PARAM, widget: TL1105, x: 87.075, y: 55.5}
   - {name: SHAPE_NEXT_PARAM, widget: TL1105, x: 93.675, y: 55.5}
