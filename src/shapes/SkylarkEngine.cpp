@@ -27,44 +27,72 @@ bool SkylarkEngine::transformChanged() const {
 	       || controls.reverse != built.reverse;
 }
 
-void SkylarkEngine::updatePeak() {
+void SkylarkEngine::startPeakScan() {
+	scan = Scan::Coarse;
+	scanIndex = 0;
+	scanMax = 0.0;
+	scanStartPeak = peakValue;
+}
+
+void SkylarkEngine::stepPeakScan(int budget) {
 	// A 256-point scan can step over a narrow peak, so the three highest
 	// local maxima are refined; Fit then keeps the full cycle in range.
-	constexpr int kScan = 256;
-	double a[kScan];
-	double m = 0.0;
-	for (int i = 0; i < kScan; i++) {
-		a[i] = std::fabs(shapeAt((double) i / kScan, built));
-		m = std::max(m, a[i]);
-	}
-	double done[3] = {-1.0, -1.0, -1.0};
-	for (int r = 0; r < 3; r++) {
-		int best = -1;
-		for (int i = 0; i < kScan; i++) {
-			bool taken = false;
-			for (int j = 0; j < r; j++)
-				taken = taken || (std::fabs(i - done[j]) <= 2.0);
-			if (taken)
-				continue;
-			bool localMax = (i == 0 || a[i] >= a[i - 1]) && (i == kScan - 1 || a[i] >= a[i + 1]);
-			if (localMax && (best < 0 || a[i] > a[best]))
-				best = i;
+	for (; budget > 0 && scan != Scan::Idle; budget--) {
+		switch (scan) {
+			case Scan::Coarse: {
+				scanPoints[scanIndex] = std::fabs(shapeAt((double) scanIndex / kScan, built));
+				scanMax = std::max(scanMax, scanPoints[scanIndex]);
+				if (++scanIndex == kScan) {
+					scan = Scan::Select;
+					scanRound = 0;
+				}
+				break;
+			}
+			case Scan::Select: {
+				int best = -1;
+				if (scanRound < kRefineRounds) {
+					for (int i = 0; i < kScan; i++) {
+						bool taken = false;
+						for (int j = 0; j < scanRound; j++)
+							taken = taken || (std::fabs(i - scanDone[j]) <= 2.0);
+						if (taken)
+							continue;
+						const double* a = scanPoints;
+						bool localMax = (i == 0 || a[i] >= a[i - 1]) && (i == kScan - 1 || a[i] >= a[i + 1]);
+						if (localMax && (best < 0 || a[i] > a[best]))
+							best = i;
+					}
+				}
+				if (best < 0) {
+					scan = Scan::Idle;
+					break;
+				}
+				scanDone[scanRound] = best;
+				scanLo = std::max(0.0, (best - 1.0) / kScan);
+				scanHi = std::min(1.0 - 1e-9, (best + 1.0) / kScan);
+				scanIteration = 0;
+				scan = Scan::Refine;
+				break;
+			}
+			case Scan::Refine: {
+				double m1 = scanLo + (scanHi - scanLo) / 3.0, m2 = scanHi - (scanHi - scanLo) / 3.0;
+				double y1 = std::fabs(shapeAt(m1, built)), y2 = std::fabs(shapeAt(m2, built));
+				scanMax = std::max(scanMax, std::max(y1, y2));
+				if (y1 < y2)
+					scanLo = m1;
+				else
+					scanHi = m2;
+				if (++scanIteration == kRefineIterations) {
+					scanRound++;
+					scan = Scan::Select;
+				}
+				break;
+			}
+			case Scan::Idle: break;
 		}
-		if (best < 0)
-			break;
-		done[r] = best;
-		double lo = std::max(0.0, (best - 1.0) / kScan), hi = std::min(1.0 - 1e-9, (best + 1.0) / kScan);
-		for (int it = 0; it < 14; it++) {
-			double m1 = lo + (hi - lo) / 3.0, m2 = hi - (hi - lo) / 3.0;
-			double y1 = std::fabs(shapeAt(m1, built)), y2 = std::fabs(shapeAt(m2, built));
-			m = std::max(m, std::max(y1, y2));
-			if (y1 < y2)
-				lo = m1;
-			else
-				hi = m2;
-		}
 	}
-	peakValue = m;
+	// Mid-scan, the last peak too, so Fit doesn't jump while the scan catches up
+	peakValue = scan == Scan::Idle ? scanMax : std::max(scanStartPeak, scanMax);
 }
 
 void SkylarkEngine::rebuild(int64_t cycle) {
@@ -73,7 +101,7 @@ void SkylarkEngine::rebuild(int64_t cycle) {
 	builtCycle = cycle;
 	built = controls;
 	built.shape = currentShape;
-	updatePeak();
+	startPeakScan();
 }
 
 double SkylarkEngine::raw(double cyclePos, int64_t cycle) {
@@ -84,7 +112,7 @@ double SkylarkEngine::raw(double cyclePos, int64_t cycle) {
 	if (!haveInstance || shapeChanged || newCycle) {
 		rebuild(cycle);
 		sinceCheck = 0;
-	} else if (++sinceCheck >= kCheckInterval) {
+	} else if (scan == Scan::Idle && ++sinceCheck >= kCheckInterval) {
 		sinceCheck = 0;
 		bool inputs = std::fabs(controls.variation - built.variation) > kEpsilon || controls.drift != built.drift;
 		if (inputs)
@@ -95,9 +123,11 @@ double SkylarkEngine::raw(double cyclePos, int64_t cycle) {
 			built.symmetry = controls.symmetry;
 			built.tilt = controls.tilt;
 			built.reverse = controls.reverse;
-			updatePeak();
+			startPeakScan();
 		}
 	}
+	if (scan != Scan::Idle)
+		stepPeakScan(scanSpread > 0 ? scanSpread : 1 << 30);
 	// The current transforms, not the ones last scanned, so a knob or a
 	// Reverse gate is heard on the next sample
 	return shapeAt(cyclePos, controls);
@@ -117,6 +147,7 @@ void SkylarkEngine::reset() {
 	haveInstance = false;
 	sinceCheck = 0;
 	peakValue = 1.0;
+	scan = Scan::Idle;
 }
 
 }  // namespace shapes

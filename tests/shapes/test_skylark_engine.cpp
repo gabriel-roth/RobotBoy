@@ -147,7 +147,43 @@ static void reverseTakesEffectImmediately() {
 	check(e.raw(0.4, 0) == fresh.raw(0.4, 0), "tilt on the next call");
 }
 
+// A spread peak scan ends on the same peak as one done at once, after a
+// rebuild and after a transform change; mid-scan, Fit stays no lower than
+// the last peak.
+static void spreadScanMatches() {
+	static SkylarkEngine whole, spread;
+	for (int r = 0; r < kNumRecipes; r++) {
+		SkylarkControls c = defaults();
+		c.shape = r;
+		whole.reset();
+		spread.reset();
+		whole.setScanSpread(0);
+		spread.setScanSpread(1);
+		int i = 0;
+		auto run = [&](int calls) {
+			for (int k = 0; k < calls; k++, i++) {
+				double p = (i % 997) / 997.0;
+				whole.setControls(c);
+				spread.setControls(c);
+				check(whole.raw(p, 0) == spread.raw(p, 0), "same output", r, i);
+			}
+		};
+		run(400);
+		check(whole.peak() == spread.peak(), "spread peak after a rebuild", r);
+		double before = spread.peak();
+		c.lift = 0.8;
+		c.tilt = -0.5;
+		// The change is picked up at the next check, then scanned
+		for (int k = 0; k < 64; k++)
+			run(1);
+		check(spread.peak() >= before, "mid-scan peak holds", r);
+		run(400);
+		check(whole.peak() == spread.peak(), "spread peak after a transform change", r);
+	}
+}
+
 int main() {
+	spreadScanMatches();
 	transformsMatch();
 	shapeChangesImmediately();
 	fitNeverExceedsRange();

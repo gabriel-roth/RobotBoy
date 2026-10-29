@@ -13,15 +13,36 @@
 // family of forms, reshaped by Timing, Lift, Symmetry, Tilt and Drift.
 
 static constexpr int kTracePoints = 256;
-// Samples between display updates.
 
-// What the display shows, written by the audio thread.
+// What the display shows, drawn up on the UI thread from a snapshot.
 struct SkylarkFrame {
 	float trace[kTracePoints] = {};  // -1..1 within the output range
 	int shape = 0;
 	float variation = 0.5f;
 	float bpm = 120.f;
 };
+
+// What the audio thread hands the display: the engine is copied each
+// publish, so the trace (256 shape evaluations) is worked out on the UI
+// thread, not in process().
+struct SkylarkSnapshot {
+	shapes::SkylarkEngine engine;
+	shapes::Treat treatMode = shapes::Treat::Fit;
+	shapes::Range range = shapes::Range::Bipolar5;
+	float variation = 0.5f;
+	float bpm = 120.f;
+};
+
+static void buildFrame(SkylarkFrame& f, const SkylarkSnapshot& s) {
+	s.engine.renderCycle(f.trace, kTracePoints, s.treatMode, s.range);
+	// Volts back to -1..1 for drawing
+	float offset = s.range == shapes::Range::Bipolar5 ? 0.f : 1.f;
+	for (int i = 0; i < kTracePoints; i++)
+		f.trace[i] = f.trace[i] * 0.2f - offset;
+	f.shape = s.engine.activeShape();
+	f.variation = s.variation;
+	f.bpm = s.bpm;
+}
 
 struct Skylark : Module {
 	enum ParamId {
@@ -86,9 +107,14 @@ struct Skylark : Module {
 	bool started = false;
 	int sincePublish = shapeui::kPublishInterval;
 
-	SkylarkFrame frames[2];
-	std::atomic<int> frontFrame{0};
+	SkylarkSnapshot snapshots[2];
+	std::atomic<int> frontSnapshot{0};
+	std::atomic<uint32_t> publishCount{0};
 	std::atomic<float> displayPos{0.f};
+	// UI thread only: the snapshot being drawn and the frame made from it
+	SkylarkSnapshot uiSnapshot;
+	SkylarkFrame uiFrame;
+	uint32_t uiCount = ~0u;
 
 	Skylark() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
@@ -124,6 +150,10 @@ struct Skylark : Module {
 		configOutput(MAIN_OUTPUT, "Main");
 		configOutput(INV_OUTPUT, "Inverted");
 		configOutput(EOC_OUTPUT, "End of cycle");
+#ifdef METAMODULE
+		// One step a sample: the peak scan at once was a burst in one sample
+		engine.setScanSpread(1);
+#endif
 		setRate(APP->engine->getSampleRate());
 	}
 
@@ -227,17 +257,15 @@ struct Skylark : Module {
 	}
 
 	void publish(double variation) {
-		int back = 1 - frontFrame.load(std::memory_order_relaxed);
-		SkylarkFrame& f = frames[back];
-		engine.renderCycle(f.trace, kTracePoints, settings.treatMode, settings.range);
-		// Volts back to -1..1 for drawing
-		float offset = settings.range == shapes::Range::Bipolar5 ? 0.f : 1.f;
-		for (int i = 0; i < kTracePoints; i++)
-			f.trace[i] = f.trace[i] * 0.2f - offset;
-		f.shape = engine.activeShape();
-		f.variation = (float) variation;
-		f.bpm = (float) timebase.tempoBpm();
-		frontFrame.store(back, std::memory_order_release);
+		int back = 1 - frontSnapshot.load(std::memory_order_relaxed);
+		SkylarkSnapshot& s = snapshots[back];
+		s.engine = engine;
+		s.treatMode = settings.treatMode;
+		s.range = settings.range;
+		s.variation = (float) variation;
+		s.bpm = (float) timebase.tempoBpm();
+		frontSnapshot.store(back, std::memory_order_release);
+		publishCount.fetch_add(1, std::memory_order_release);
 	}
 
 	json_t* dataToJson() override {
@@ -271,9 +299,17 @@ struct SkylarkDisplay : shapeui::Screen {
 		radiusMm = 2.f;
 	}
 
+	// The module's latest frame, drawn up once per publish. UI thread only.
 	const SkylarkFrame& frame() {
-		if (module)
-			return module->frames[module->frontFrame.load(std::memory_order_acquire)];
+		if (module) {
+			uint32_t count = module->publishCount.load(std::memory_order_acquire);
+			if (count != module->uiCount) {
+				module->uiSnapshot = module->snapshots[module->frontSnapshot.load(std::memory_order_acquire)];
+				buildFrame(module->uiFrame, module->uiSnapshot);
+				module->uiCount = count;
+			}
+			return module->uiFrame;
+		}
 		if (!havePreview) {
 			previewEngine.raw(0.0, 0);
 			previewEngine.renderCycle(preview.trace, kTracePoints, shapes::Treat::Fit, shapes::Range::Bipolar5);
@@ -285,8 +321,7 @@ struct SkylarkDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
-		// Copied so a publish mid-draw can't tear the trace
-		SkylarkFrame f = frame();
+		const SkylarkFrame& f = frame();
 		float pos = module ? module->displayPos.load(std::memory_order_relaxed) : 0.62f;
 
 		const float pad = mm2px(2.f);

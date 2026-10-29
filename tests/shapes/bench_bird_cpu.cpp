@@ -43,18 +43,27 @@ static void run(const char* name, const std::function<void(int)>& body) {
 	report(name, std::chrono::duration<double, std::nano>(t1 - t0).count() / kN);
 }
 
-static void skylark(const char* name, bool sweep) {
+// Skylark's audio thread: the engine, plus a snapshot copy each publish (the
+// trace is drawn up on the UI thread). spread is the engine's scan spread
+// (MetaModule: 1). Also prints the slowest sample, as bursts overload a
+// MetaModule audio block even when the average is low (timing each sample
+// adds about 15 ns to the average). Desktop checks every 64 samples, MetaModule 256.
+static void skylark(const char* name, bool sweep, int spread) {
+	double worst = 0.0;
 	run(name, [&](int n) {
 		SkylarkEngine e;
+		e.setScanSpread(spread);
 		Timebase tb;
 		tb.setSampleRate(kSr);
 		TimebaseInput in;
 		SkylarkControls c;
 		c.shape = 0;  // Bounce
-		float trace[kTracePoints];
+		static SkylarkEngine snapshot;
 		double acc = 0;
 		int since = 0;
+		worst = 0.0;
 		for (int i = 0; i < n; i++) {
+			auto t0 = std::chrono::steady_clock::now();
 			if (sweep)
 				c.variation = 0.5 + 0.5 * std::sin(2.0 * M_PI * i / kSr);
 			Timebase::Step s = tb.process(in);
@@ -63,12 +72,14 @@ static void skylark(const char* name, bool sweep) {
 			acc += toVolts(treat(raw, Treat::Fit, e.peak()), Range::Bipolar5);
 			if (++since >= kPublishInterval) {
 				since = 0;
-				e.renderCycle(trace, kTracePoints, Treat::Fit, Range::Bipolar5);
-				acc += trace[7];
+				snapshot = e;
+				acc += snapshot.peak();
 			}
+			worst = std::max(worst, std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count());
 		}
 		sink = acc;
 	});
+	printf("%-44s %8.1f us slowest sample\n", "", worst);
 }
 
 // Weaver's audio thread: the engine, plus a snapshot copy each publish (the
@@ -187,8 +198,9 @@ static void particules() {
 #endif
 
 int main() {
-	skylark("Skylark Bounce, static", false);
-	skylark("Skylark Bounce, Variation 1 Hz sine", true);
+	skylark("Skylark Bounce, static", false, 0);
+	skylark("Skylark Bounce, Variation 1 Hz sine", true, 0);
+	skylark("Skylark Bounce, Variation swept, spread 1 (MM)", true, 1);
 	weaver("Weaver preset 1 (Envelope + triangle x16)", kWeaverPresets[0].controls, 0);
 	weaver("Weaver preset 1, scan spread 1 (MM)", kWeaverPresets[0].controls, 1);
 	weaver("Weaver preset 1, PARAM swept", kWeaverPresets[0].controls, 0, true);

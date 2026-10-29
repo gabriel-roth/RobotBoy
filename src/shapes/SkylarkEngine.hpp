@@ -39,10 +39,17 @@ public:
 	// at its start and the last at its end (an open trace).
 	void renderCycle(float* out, int n, Treat treatMode, Range range) const;
 	void reset();
+	// Steps of the peak scan done per call to raw(). 0, the default, does
+	// each scan in the call that needs it; a spread scan takes about
+	// 300 / stepsPerCall calls, during which Fit also uses the last peak.
+	void setScanSpread(int stepsPerCall) {
+		scanSpread = stepsPerCall > 0 ? stepsPerCall : 0;
+	}
 
 private:
-	// The expensive work (rebuild, peak rescan) runs at most this often; the
-	// transforms themselves apply every sample.
+	// The expensive work (rebuild, peak rescan) runs at most this often, and
+	// not while a spread scan is running; the transforms themselves apply
+	// every sample.
 #ifdef METAMODULE
 	// Modulated Variation made this check dominate the cost (about 10x static
 	// on the desktop bench), so the MetaModule build runs it less often.
@@ -55,7 +62,10 @@ private:
 	// The instance at p with the transforms in v applied.
 	double shapeAt(double p, const SkylarkControls& v) const;
 	void rebuild(int64_t cycle);
-	void updatePeak();
+	// Starts a peak scan of the instance with the built transforms
+	void startPeakScan();
+	// Does up to budget steps of it (one or two shape evaluations each)
+	void stepPeakScan(int budget);
 	bool transformChanged() const;
 
 	SkylarkControls controls;
@@ -66,6 +76,22 @@ private:
 	int64_t builtCycle = 0;
 	int sinceCheck = 0;
 	double peakValue = 1.0;
+
+	// The peak scan: 256 points, then the three highest local maxima refined
+	static constexpr int kScan = 256;
+	static constexpr int kRefineRounds = 3;
+	static constexpr int kRefineIterations = 14;
+	enum class Scan { Idle, Coarse, Select, Refine };
+	int scanSpread = 0;
+	Scan scan = Scan::Idle;
+	double scanPoints[kScan] = {};
+	int scanIndex = 0;
+	int scanRound = 0;
+	int scanIteration = 0;
+	double scanMax = 0.0;
+	double scanStartPeak = 1.0;
+	double scanDone[kRefineRounds] = {};
+	double scanLo = 0.0, scanHi = 0.0;
 };
 
 }  // namespace shapes
