@@ -11,6 +11,7 @@
 #include <osdialog.h>
 #ifdef METAMODULE
 #include "filesystem/async_filebrowser.hh"
+#include "filesystem/dirent.h"
 #include "threads/async_thread.hh"
 #endif
 
@@ -37,6 +38,20 @@ static constexpr bool kOnMetaModule = true;
 #else
 static constexpr bool kOnMetaModule = false;
 #endif
+
+// Whether a folder exists. MetaModule's stat() calls everything a file (and
+// fails on volume roots), so system::isDirectory is always false there:
+// open it as a folder instead.
+static bool isFolder(const std::string& path) {
+#ifdef METAMODULE
+	DIR* d = opendir(path.c_str());
+	if (d)
+		closedir(d);
+	return d != nullptr;
+#else
+	return system::isDirectory(path);
+#endif
+}
 
 // The screen's brighter version of the SOURCE plate's magenta
 static NVGcolor recColor() {
@@ -196,8 +211,13 @@ struct Lyrebird : Module, MenuUndoFilter {
 #ifdef METAMODULE
 	// File service only: the finished takes it has seen
 	uint32_t seenRecs = 0, seenPunches = 0;
-	// Menu to file service: open the browser to Open (1) or Save as (2)
+	// Menu to file service: open the Save as browser (2). Open... opens its
+	// browser from the menu, since that browser touches the GUI at once.
 	std::atomic<int> dialogRequest{0};
+	// File service to menu: the default folder it last found, so the menu
+	// can start the Open browser there without touching the card itself
+	shapes::SharedPath<255> lastDefault;
+	bool defaultLooked = false;
 	// File browser (GUI) to file service: the path chosen, in a single slot.
 	// 0 empty, 1 being written, 2 ready.
 	std::atomic<int> dialogState{0};
@@ -479,16 +499,35 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// up each time so a card put in later is found. "" when there's none.
 	static std::string defaultFolder() {
 #ifdef METAMODULE
-		return shapes::pickFolder({"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"},
-		                          [](const std::string& p) { return system::isDirectory(p); });
+		return shapes::pickFolder({"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"}, isFolder);
 #else
 		return asset::user("RobotBoy/Lyrebird");
 #endif
 	}
+#ifdef METAMODULE
+	// File service only: the saved folder if it's still there (the card may
+	// have been swapped), else the default; "" when there's neither
+	std::string fileFolder() {
+		std::string f = folder.get();
+		if (!f.empty() && isFolder(f))
+			return f;
+		std::string d = defaultFolder();
+		lastDefault.set(d);
+		defaultLooked = true;
+		return d;
+	}
+	// GUI context, no file access: where the Open browser starts ("" lets
+	// the browser pick)
+	std::string browseFolder() const {
+		std::string f = folder.get();
+		return f.empty() ? lastDefault.get() : f;
+	}
+#else
 	std::string currentFolder() const {
 		std::string f = folder.get();
 		return f.empty() ? defaultFolder() : f;
 	}
+#endif
 
 	void serviceFiles();
 #ifdef METAMODULE
@@ -575,7 +614,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		j = json_object_get(rootJ, "reversed");
 		reversed = j && json_is_true(j);
 		j = json_object_get(rootJ, "folder");
-		// The other platform's folder means nothing here: the default instead
+		// The other platform's folder means nothing here: the default instead.
+		// If the file thread reads it mid-set, it gets "" (the default folder) for that pass.
 		folder.set(shapes::usableFolder(j && json_is_string(j) ? json_string_value(j) : "", kOnMetaModule));
 		// A menu undo step: settings only
 		j = json_object_get(rootJ, "keepTake");
@@ -808,7 +848,11 @@ static void saveTo(Lyrebird* m, std::string path) {
 static void saveAs(Lyrebird* m) {
 	if (m->saving)
 		return;
+#ifdef METAMODULE
+	std::string dir = m->fileFolder();
+#else
 	std::string dir = m->currentFolder();
+#endif
 	std::string name = shapes::nextTakeName(fileNames(dir));
 #ifdef METAMODULE
 	fileDialog(m, OSDIALOG_SAVE, dir, name.c_str());
@@ -823,11 +867,12 @@ static void saveAs(Lyrebird* m) {
 static void quickSave(Lyrebird* m) {
 	if (m->saving)
 		return;
-	std::string dir = m->currentFolder();
 #ifdef METAMODULE
 	// Nothing to save to (no card, say), and no making a folder here
-	bool usable = !dir.empty() && system::isDirectory(dir);
+	std::string dir = m->fileFolder();
+	bool usable = !dir.empty();
 #else
+	std::string dir = m->currentFolder();
 	bool usable = ensureDirectory(dir);
 #endif
 	if (usable)
@@ -852,7 +897,7 @@ static void finishSave(Lyrebird* m) {
 	}
 	std::string stem = system::getStem(path);
 	if (!m->savePath.empty())
-		m->folder.set(system::getDirectory(path));
+		m->folder.set(shapes::usableFolder(system::getDirectory(path), kOnMetaModule));
 	// Named only if it's still the take that was saved
 	shapes::Take& t = m->currentTake();
 	if (m->takeGen == m->saveGen && t.version == version) {
@@ -889,24 +934,27 @@ static void loadFile(Lyrebird* m, const std::string& path) {
 #else
 	pushTakeSwap(m, "load take", m->newGen());
 #endif
-	m->folder.set(system::getDirectory(path));
+	m->folder.set(shapes::usableFolder(system::getDirectory(path), kOnMetaModule));
 	m->showMessage(r.truncated ? "TRUNCATED TO 3 MIN" : "LOADED " + system::getStem(path));
 }
 
+#ifndef METAMODULE
 static void openFile(Lyrebird* m) {
-#ifdef METAMODULE
-	fileDialog(m, OSDIALOG_OPEN, m->currentFolder(), nullptr);
-#else
 	std::string path = fileDialog(OSDIALOG_OPEN, m->currentFolder(), nullptr);
 	if (!path.empty())
 		loadFile(m, path);
-#endif
 }
+#endif
 
 // Previous / next .wav in the current folder, by name, wrapping
 static void stepFile(Lyrebird* m, int delta) {
+#ifdef METAMODULE
+	std::string dir = m->fileFolder();
+	if (dir.empty()) {
+#else
 	std::string dir = m->currentFolder();
-	if (dir.empty() || !system::isDirectory(dir)) {
+	if (dir.empty() || !isFolder(dir)) {
+#endif
 #ifdef METAMODULE
 		// A trigger mustn't pop up a browser, maybe with the module off screen
 		m->showMessage("NO FOLDER");
@@ -974,11 +1022,13 @@ void Lyrebird::serviceFiles() {
 		else
 			loadFile(this, path);
 	}
-	int dialog = dialogRequest.exchange(0);
-	if (dialog == 1)
-		openFile(this);
-	else if (dialog == 2)
+	if (dialogRequest.exchange(0) == 2)
 		saveAs(this);
+	// Once, so the Open browser has somewhere to start
+	if (!defaultLooked) {
+		lastDefault.set(defaultFolder());
+		defaultLooked = true;
+	}
 #endif
 	if (saveRequest.exchange(0) > 0)
 		quickSave(this);
@@ -1398,8 +1448,12 @@ struct LyrebirdWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 #ifdef METAMODULE
-		// The file thread opens the browser and does the file work
-		menu->addChild(createMenuItem("Open...", "", [=]() { module->dialogRequest.store(1); }));
+		// The browser touches the GUI as it opens, so Open... opens it here;
+		// the path chosen goes to the file thread, which does the file work.
+		// Save as needs the folder listed first, so the file thread opens it.
+		menu->addChild(createMenuItem("Open...", "", [=]() {
+			fileDialog(module, OSDIALOG_OPEN, module->browseFolder(), nullptr);
+		}));
 		menu->addChild(createMenuItem("Save as...", "", [=]() { module->dialogRequest.store(2); }));
 		menu->addChild(createMenuItem("Undo last take", "", [=]() {
 			module->engine.requestUndo();
