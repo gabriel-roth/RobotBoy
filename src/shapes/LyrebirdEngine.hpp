@@ -1,5 +1,6 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <vector>
 
@@ -17,6 +18,7 @@ enum class Status { Idle, Armed, Recording, PunchArmed, Punching };
 
 struct LyrebirdControls {
 	double source = 0;  // volts, the selected source
+	double bpm = 120;  // the transport's tempo, stored with a new take
 	bool sourceIsKnob = true;
 	bool sync = true;
 	bool loop = true;
@@ -113,6 +115,9 @@ private:
 	void startPunch(double raw);
 	void punchSample(const LyrebirdControls& c, Take& t, double ph);
 	void punchWrite(Take& t, int k, double v);
+	bool writing() const {
+		return status_ == Status::Recording || status_ == Status::Punching || punchTail_;
+	}
 	void endPunch();
 	void finishWrites();
 
@@ -145,8 +150,6 @@ private:
 	double armValue_ = 0.0;
 	Slew monitor_;
 	double lastRaw_ = 0.0;  // last playback value before SCALE/OFFSET
-	double prevX_ = 0.0;
-	double tempoBpm_ = 120.0;  // read from the transport's speed, for the take's tempo
 
 	// One 1 ms input block being averaged, centred on take sample blockIdx_
 	double blockSum_ = 0.0;
@@ -161,11 +164,12 @@ private:
 	int64_t recSamples_ = 0;  // Free: audio samples recorded
 	std::vector<uint8_t> written_;  // Sync: indices written, so stop can fill the rest
 
-	// PUNCH: weights of the live source in what is written (per take sample)
-	// and in what OUT plays (per audio sample); the tail fades both back out
+	// PUNCH: weight of the live source in what is written; the tail fades it back out
 	double punchGain_ = 0.0;
-	double punchOut_ = 0.0;
 	bool punchTail_ = false;
+	// Weight of the live monitor in OUT: up while recording or punching, and
+	// back down only once the new data can be played as it will stay
+	double monitorMix_ = 0.0;
 };
 
 }  // namespace shapes

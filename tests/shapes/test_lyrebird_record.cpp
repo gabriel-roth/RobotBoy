@@ -21,6 +21,7 @@ struct Rig {
 		eng.setSampleRate(sr);
 		tb.setSampleRate(sr);
 		in.bpm = 120.0;
+		c.bpm = 120.0;
 	}
 	// Transport position in bars after the sample about to run
 	LyrebirdStep step() {
@@ -138,7 +139,7 @@ static void syncTakeFullUnderTempoChange() {
 		r.pressRec();
 		r.runTo(0.7);
 		if (variant == 0)
-			r.in.bpm = 180.0;
+			r.in.bpm = r.c.bpm = 180.0;
 		else
 			r.in.resetButton = true;
 		LyrebirdStep s{};
@@ -299,7 +300,8 @@ static void punchFastReverseWritesContiguously() {
 				edges++;
 		}
 		assert(edges == 2);
-		assert(written > 780 && written < 830);
+		// 0.4 of the take, plus the tail: at x4 the 10 ms fade spans about 40 samples
+		assert(written > 790 && written < 860);
 		for (int i = 2000; i < 2100; i++)
 			assert(t.samples[i] == 0.f);
 	}
@@ -404,6 +406,150 @@ static void versionAndModified() {
 	assert(!r.eng.take().modified);
 }
 
+// Largest change in OUT from one sample to the next over [from, to) bars
+static double maxStep(Rig& r, double to, LyrebirdStep prev) {
+	double m = 0;
+	while (r.bars() < to) {
+		LyrebirdStep s = r.step();
+		m = std::max(m, std::fabs(s.volts - prev.volts));
+		prev = s;
+	}
+	return m;
+}
+
+static void punchEdgesAreSmooth() {
+	// 5 V into 0 V, and a LOOP punch that runs past a whole loop
+	for (double smooth : {0.0, 200.0, 1000.0}) {
+		for (double end : {0.5, 1.5}) {
+			Rig r;
+			r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+			r.c.smoothMs = smooth;
+			r.c.source = 5;
+			LyrebirdStep prev = r.runTo(0.25);
+			r.c.punch = true;
+			double m = maxStep(r, 0.26, prev);
+			r.c.punch = false;
+			prev = r.runTo(end);
+			r.c.punch = true;
+			// On through the tail, the rebuild and the fade back to the take
+			m = std::max(m, maxStep(r, end + 0.25, prev));
+			r.c.punch = false;
+			// Playback of the new take continues smoothly from there
+			LyrebirdStep last = r.step();
+			m = std::max(m, maxStep(r, end + 1.0, last));
+			assert(m <= 0.05);
+			// A punch over a whole loop leaves a take of nothing but the new value
+			if (end > 1.0)
+				assert(std::fabs(r.step().volts - 5.0) < 1e-3);
+		}
+	}
+}
+
+static void punchHoldMode() {
+	Rig r;
+	r.c.buttons = RecordButtons::Hold;
+	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.c.source = 5;
+	r.runTo(0.25);
+	r.c.punch = true;
+	LyrebirdStep s = r.runTo(0.5);
+	assert(s.status == Status::Punching);
+	r.c.punch = false;
+	assert(r.step().status == Status::Idle);
+	r.runTo(0.75);
+	const Take& t = r.eng.take();
+	assert(t.samples[400] == 0.f && t.samples[1200] == 0.f);
+	assert(std::fabs(t.samples[750] - 5.f) < 1e-6);
+}
+
+static void punchMovementStart() {
+	Rig r;
+	r.c.startOn = StartOn::Movement;
+	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.c.source = 0;
+	r.runTo(0.25);
+	assert(r.pressPunch().status == Status::PunchArmed);
+	assert(r.runTo(0.3).status == Status::PunchArmed);
+	r.c.source = 5;
+	assert(r.step().status == Status::Punching);
+	r.runTo(0.5);
+	assert(r.pressPunch().status == Status::Idle);
+	r.runTo(0.75);
+	const Take& t = r.eng.take();
+	assert(t.samples[560] == 0.f);
+	assert(std::fabs(t.samples[800] - 5.f) < 1e-6);
+}
+
+static void undoDuringRecording() {
+	Rig r;
+	r.recordFree(1, 200);
+	r.c.sync = false;
+	r.c.source = 2;
+	r.step();
+	r.pressRec();
+	r.run(4800);
+	r.eng.requestUndo();
+	assert(r.step().status == Status::Idle);
+	assert(r.eng.take().samples[10] == 1.f);
+	r.eng.requestUndo();
+	r.step();
+	// The interrupted take was kept, as far as it got
+	assert(r.eng.take().samples[10] == 2.f);
+	assert(std::abs(r.eng.take().length - 100) <= 1);
+}
+
+static void loadDuringPunchReverts() {
+	Rig r;
+	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.c.source = 5;
+	r.runTo(0.25);
+	r.pressPunch();
+	r.runTo(0.4);
+	r.fillSpare(3.f, 500, TakeMode::Free, 1.0, 0.5);
+	r.eng.requestLoad();
+	assert(r.step().status == Status::Idle);
+	assert(r.eng.take().samples[10] == 3.f);
+	r.eng.requestUndo();
+	r.step();
+	// Undo gives the take from before the punch, untouched
+	const Take& t = r.eng.take();
+	assert(t.length == 2000);
+	for (int i = 0; i < 2000; i++)
+		assert(t.samples[i] == 0.f);
+}
+
+static void snapshotDuringFreeRec() {
+	Rig r;
+	r.c.sync = false;
+	r.c.source = 1;
+	r.pressRec();
+	r.run(24000);
+	r.eng.requestSnapshot();
+	assert(r.step().status == Status::Recording);
+	const Take& s = r.eng.snapshot();
+	assert(r.eng.snapshotReady());
+	assert(std::abs(s.length - 500) <= 1);
+	assert(std::fabs(s.seconds - s.length / 1000.0) < 1e-9);
+}
+
+static void traceWhileWriting() {
+	Rig r;
+	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	r.c.smoothMs = 200;
+	r.c.scale = 0.5;
+	r.c.offset = 1;
+	r.c.source = 5;
+	r.runTo(0.25);
+	r.pressPunch();
+	r.runTo(0.5);
+	float raw[256], out[256];
+	r.eng.renderTrace(r.c, raw, out, 256);
+	for (int i = 0; i < 256; i++)
+		assert(std::fabs(out[i] - (raw[i] * 0.5f + 1.f)) < 1e-5);
+	// The written span already shows
+	assert(std::fabs(raw[96] - 5.f) < 1e-5);
+}
+
 int main() {
 	syncTakeStartsMidBarAndWraps();
 	syncTakeStopsItself();
@@ -419,6 +565,13 @@ int main() {
 	loadDuringRecordingAbandonsTake();
 	snapshotIsStable();
 	versionAndModified();
+	punchEdgesAreSmooth();
+	punchHoldMode();
+	punchMovementStart();
+	undoDuringRecording();
+	loadDuringPunchReverts();
+	snapshotDuringFreeRec();
+	traceWhileWriting();
 	printf("lyrebird record tests passed\n");
 	return 0;
 }

@@ -7,7 +7,7 @@ namespace shapes {
 static constexpr int kRebuildBudget = 512;
 // Movement start: 0.5% of the knob's 10 V span, the same for CV
 static constexpr double kMoveThreshold = 0.05;
-// Punch crossfades: 10 ms, in take samples for the data and audio time for OUT
+// Crossfades at punch edges, in what is written and in OUT
 static constexpr double kFadeMs = 10.0;
 
 LyrebirdEngine::LyrebirdEngine() {
@@ -122,7 +122,7 @@ void LyrebirdEngine::abandonRec() {
 	undo_ = partial;
 	status_ = Status::Idle;
 	punchTail_ = false;
-	punchGain_ = punchOut_ = 0.0;
+	punchGain_ = 0.0;
 	blockIdx_ = -1;
 	recByPunch_ = false;
 	restart();
@@ -144,8 +144,7 @@ void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 	Take* t = undo_;
 	t->clear();
 	t->modified = true;
-	// Rounded so a steady 120 BPM is stored as 120, not 119.9999999
-	t->bpm = std::round(std::clamp(tempoBpm_, 1.0, 1000.0) * 1000.0) / 1000.0;
+	t->bpm = std::clamp(sanitize(c.bpm, 120.0), 1.0, 1000.0);
 	if (c.sync) {
 		t->mode = TakeMode::Sync;
 		t->bars = kLengthBars[std::clamp(c.lengthIndex, 0, 6)];
@@ -167,7 +166,9 @@ void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 	blockIdx_ = -1;
 	blockSum_ = 0.0;
 	blockCount_ = 0;
+	// OUT carries on from where it was, then follows the source
 	monitor_.reset(lastRaw_);
+	monitorMix_ = 1.0;
 }
 
 void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Step& tb, double x, LyrebirdStep& out) {
@@ -214,6 +215,7 @@ void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Ste
 				for (int i = blockIdx_; i < k; i++)
 					t.samples[i] = v;
 				t.length = k;
+				t.seconds = (double) k / kTakeRate;
 			}
 			blockIdx_ = k;
 			blockSum_ = 0.0;
@@ -290,16 +292,16 @@ void LyrebirdEngine::startPunch(double raw) {
 	undo_->copyFrom(*t);
 	t->modified = true;
 	status_ = Status::Punching;
-	punchGain_ = punchOut_ = 0.0;
+	punchGain_ = 0.0;
 	blockIdx_ = -1;
 	blockSum_ = 0.0;
 	blockCount_ = 0;
-	monitor_.reset(raw);
+	// Already on the monitor (just after a REC or punch): it stays continuous as it is
+	if (monitorMix_ <= 0.0)
+		monitor_.reset(raw);
 }
 
 void LyrebirdEngine::punchWrite(Take& t, int k, double v) {
-	double step = 1.0 / (kFadeMs * kTakeRate / 1000.0);
-	punchGain_ = std::clamp(punchGain_ + (punchTail_ ? -step : step), 0.0, 1.0);
 	double old = t.samples[k];
 	t.samples[k] = (float) std::clamp(old + (v - old) * punchGain_, -10.0, 10.0);
 }
@@ -342,7 +344,7 @@ void LyrebirdEngine::endPunch() {
 	if (status_ == Status::Punching)
 		status_ = Status::Idle;
 	punchTail_ = false;
-	punchGain_ = punchOut_ = 0.0;
+	punchGain_ = 0.0;
 	blockIdx_ = -1;
 }
 
@@ -369,10 +371,6 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	service();
 	LyrebirdStep out;
 	double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
-	double dx = x - prevX_;
-	if (!tb.reset && dx > 0.0 && dx < 0.01)
-		tempoBpm_ = dx * sampleRate_ * 240.0;
-	prevX_ = x;
 	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
 	monitor_.set(std::clamp(sanitize(c.smoothMs, 0.0), 0.0, 1e4), sampleRate_);
 
@@ -443,8 +441,13 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		smoothedVersion_ = t.version;
 		smoothedLength_ = t.length;
 	}
+	// While punching the sums keep describing the take from before the punch
+	// (its copy is in the undo slot), so the crossfade into the punch reads
+	// data that isn't being overwritten under it
+	bool wasWriting = writing();
+	const Take& before = wasWriting ? *undo_ : t;
 	if (!smoother_.ready())
-		smoother_.rebuildStep(t, kRebuildBudget);
+		smoother_.rebuildStep(before, kRebuildBudget);
 
 	double ratio = speedRatio(c);
 	if (tb.reset) {
@@ -530,12 +533,12 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		}
 		if (c.reverse)
 			ph = 1.0 - ph;
-		v = c.idle == IdleOutput::Zero ? 0.0 : rawFor(c, t, ph);
+		v = c.idle == IdleOutput::Zero ? 0.0 : rawFor(c, before, ph);
 	}
 	else {
 		if (c.reverse)
 			ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
-		v = rawFor(c, t, ph);
+		v = rawFor(c, before, ph);
 	}
 	out.playhead = ph;
 
@@ -570,19 +573,28 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		default:
 			break;
 	}
+	double fade = 1.0 / (kFadeMs * 0.001 * sampleRate_);
 	if (status_ == Status::Punching || punchTail_) {
 		if (!playing)
 			endPunch();
 		else {
-			punchSample(c, *cur_.load(), ph);
-			double step = 1.0 / (kFadeMs * 0.001 * sampleRate_);
-			punchOut_ = std::clamp(punchOut_ + (punchTail_ ? -step : step), 0.0, 1.0);
-			// The live source, faded in over the take and back out
-			double m = monitor_.process(src);
-			v += (m - v) * punchOut_;
-			if (punchTail_ && punchGain_ <= 0.0 && punchOut_ <= 0.0)
+			// Both fades run in real time, so a fast playhead fades over more take samples
+			punchGain_ = std::clamp(punchGain_ + (punchTail_ ? -fade : fade), 0.0, 1.0);
+			monitorMix_ = std::min(monitorMix_ + fade, 1.0);
+			if (punchTail_ && punchGain_ <= 0.0)
 				endPunch();
+			else
+				punchSample(c, *cur_.load(), ph);
 		}
+	}
+	else if (monitorMix_ > 0.0 && (smoother_.ready() || smoothHalfWidth(t, c.smoothMs) <= 0.5)) {
+		// OUT stays on the monitor through the tail, and until the sums
+		// describe the new data, so it fades to what will keep playing
+		monitorMix_ = std::max(monitorMix_ - fade, 0.0);
+	}
+	if (monitorMix_ > 0.0) {
+		double m = monitor_.process(src);
+		v += (m - v) * monitorMix_;
 	}
 
 	lastRaw_ = v;
@@ -605,6 +617,8 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 		return;
 	}
 	double hw = smoothHalfWidth(t, c.smoothMs);
+	// The sums lag a take being written, so draw that from the raw data
+	bool live = writing();
 	for (int i = 0; i < n; i++) {
 		double p = n > 1 ? (double) i / (n - 1) : 0.0;
 		double idx = p * (t.length - 1);
@@ -613,7 +627,7 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 		double a = t.samples[k];
 		double b = k + 1 < t.length ? t.samples[k + 1] : a;
 		raw[i] = (float) (a + (b - a) * f);
-		out[i] = (float) finish(c, smoother_.at(t, idx, hw, c.loop));
+		out[i] = (float) finish(c, live ? raw[i] : smoother_.at(t, idx, hw, c.loop));
 	}
 }
 
