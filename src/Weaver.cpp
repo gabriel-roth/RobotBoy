@@ -44,6 +44,7 @@ struct WeaverFrame {
 	int waves[3] = {};
 	int ratios[3] = {};
 	bool shown[3] = {};  // LEVEL != 0
+	bool traceOn[3] = {true, true, true};  // the TRACE buttons
 	int algorithm = 0;  // the one running
 	int preset = 0;  // -1 when the settings match none
 	float bpm = 120.f;
@@ -55,14 +56,14 @@ static const shapes::CombineControls& defaults() {
 
 // Fills the frame from the formulas: right for every operator that isn't Input.
 static void renderFormulas(WeaverFrame& f, const shapes::CombineEngine& e, const shapes::CombineControls& c,
-                           double cycle, bool reverse, shapes::Treat mode) {
+                           double cycle, shapes::Treat mode) {
 	double peak = e.peak();
 	for (int k = 0; k < kTracePoints; k++) {
 		// Open traces: the last point ends this cycle rather than starting the next
 		double t = cycle + std::min((double) k / (kTracePoints - 1), 1.0 - 1e-9);
-		f.result[k] = (float) shapes::sanitize(shapes::treat(e.resultAt(c, t, reverse), mode, peak), 0.0);
+		f.result[k] = (float) shapes::sanitize(shapes::treat(e.resultAt(c, t, false), mode, peak), 0.0);
 		for (int i = 0; i < 3; i++)
-			f.scaled[i][k] = (float) (e.operatorAt(c, i, t, reverse) * c.op[i].level);
+			f.scaled[i][k] = (float) (e.operatorAt(c, i, t, false) * c.op[i].level);
 	}
 	for (int i = 0; i < 3; i++) {
 		for (int k = 0; k < kWavePoints; k++) {
@@ -115,7 +116,9 @@ struct Weaver : Module {
 		PRESET_NEXT_PARAM,
 		BPM_PARAM,
 		RESET_PARAM,
-		REVERSE_PARAM,
+		A_TRACE_PARAM,
+		B_TRACE_PARAM,
+		C_TRACE_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -134,7 +137,6 @@ struct Weaver : Module {
 		ALGORITHM_INPUT,
 		CLOCK_INPUT,
 		RESET_INPUT,
-		REVERSE_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -150,6 +152,7 @@ struct Weaver : Module {
 		ENUMS(A_WAVE_LIGHT, 3),
 		ENUMS(B_WAVE_LIGHT, 3),
 		ENUMS(C_WAVE_LIGHT, 3),
+		ENUMS(TRACE_LIGHT, 3),
 		LIGHTS_LEN
 	};
 	static_assert(B_RATIO_PARAM == A_RATIO_PARAM + kOpParams && C_RATIO_PARAM == B_RATIO_PARAM + kOpParams, "");
@@ -166,7 +169,6 @@ struct Weaver : Module {
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
 	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger;
-	dsp::SchmittTrigger reverseGate;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
 	int sincePublish = kPublishInterval;
@@ -332,11 +334,9 @@ struct Weaver : Module {
 
 		shapes::CombineControls c = controls();
 		c.algorithm = (shapes::Algorithm) targetAlgorithm();
-		reverseGate.process(cv(REVERSE_INPUT), 0.1f, 1.f);
-		bool reverse = params[REVERSE_PARAM].getValue() > 0.5f || reverseGate.isHigh();
 
 		double t = (double) step.cycle + step.pos;
-		shapes::CombineFrame f = engine.process(c, t, reverse);
+		shapes::CombineFrame f = engine.process(c, t, false);
 
 		double x = shapes::sanitize(shapes::treat(f.result, settings.treatMode, engine.peak()), 0.0);
 		float out = output(0, x);
@@ -368,18 +368,22 @@ struct Weaver : Module {
 			for (int k = 0; k < 3; k++)
 				lights[A_WAVE_LIGHT + 3 * i + k].setBrightness(rgb[k]);
 		}
+		for (int i = 0; i < 3; i++)
+			lights[TRACE_LIGHT + i].setBrightness(params[A_TRACE_PARAM + i].getValue());
 
 		displayPos.store((float) step.pos, std::memory_order_relaxed);
 		if (++sincePublish >= kPublishInterval) {
 			sincePublish = 0;
-			publish(c, (double) step.cycle, reverse);
+			publish(c, (double) step.cycle);
 		}
 	}
 
-	void publish(const shapes::CombineControls& c, double cycle, bool reverse) {
+	void publish(const shapes::CombineControls& c, double cycle) {
 		int back = 1 - frontFrame.load(std::memory_order_relaxed);
 		WeaverFrame& f = frames[back];
-		renderFormulas(f, engine, c, cycle, reverse, settings.treatMode);
+		renderFormulas(f, engine, c, cycle, settings.treatMode);
+		for (int i = 0; i < 3; i++)
+			f.traceOn[i] = params[A_TRACE_PARAM + i].getValue() > 0.5f;
 		bool anyInput = false;
 		for (int i = 0; i < 3; i++) {
 			if (c.op[i].wave != shapes::Input)
@@ -480,11 +484,14 @@ Weaver::Weaver() {
 	configButton(PRESET_NEXT_PARAM, "Next preset");
 	shapeui::configBpm(this, BPM_PARAM);
 	configButton(RESET_PARAM, "Reset");
-	configButton(REVERSE_PARAM, "Reverse");
+	for (int i = 0; i < 3; i++) {
+		std::string op(1, (char) ('A' + i));
+		configSwitch(A_TRACE_PARAM + i, 0.f, 1.f, 1.f, op + " trace on the display", {"Hidden", "Shown"});
+		configLight(TRACE_LIGHT + i, op + " trace");
+	}
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
 	configInput(CLOCK_INPUT, "Clock");
 	configInput(RESET_INPUT, "Reset");
-	configInput(REVERSE_INPUT, "Reverse gate");
 	configOutput(MAIN_OUTPUT, "Main");
 	configOutput(INV_OUTPUT, "Inverted");
 	configOutput(EOC_OUTPUT, "End of cycle");
@@ -502,7 +509,7 @@ static const WeaverFrame& frameOf(Weaver* module) {
 	if (!built) {
 		shapes::CombineEngine e;
 		e.process(defaults(), 0.0, false);
-		renderFormulas(preview, e, defaults(), 0.0, false, shapes::Treat::Fit);
+		renderFormulas(preview, e, defaults(), 0.0, shapes::Treat::Fit);
 		preview.preset = 0;
 		built = true;
 	}
@@ -541,7 +548,8 @@ struct WeaverMainDisplay : shapeui::Screen {
 			nvgFontSize(vg, mm2px(2.4f));
 			for (int i = 0; i < 3; i++) {
 				char letter[2] = {(char) ('A' + i), 0};
-				nvgFillColor(vg, shapeui::operatorColor(i));
+				// Dimmed while its trace is hidden
+				nvgFillColor(vg, f.traceOn[i] ? shapeui::operatorColor(i) : shapeui::dividerColor());
 				nvgText(vg, gx + mm2px(3.4f) * i, baseline, letter, nullptr);
 			}
 			if (f.preset >= 0 && f.preset < shapes::kNumWeaverPresets) {
@@ -568,7 +576,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 		dashed.gapMm = 0.6f;
 		dashed.closed = false;
 		for (int i = 0; i < 3; i++) {
-			if (!f.shown[i])
+			if (!f.shown[i] || !f.traceOn[i])
 				continue;
 			dashed.color = shapeui::operatorColor(i);
 			shapeui::drawTrace(vg, f.scaled[i], kTracePoints, gx, gy, gw, gh, dashed);
@@ -760,6 +768,14 @@ struct AlgorithmButton : ChoiceMenuButton<VCVButton> {
 	}
 };
 
+// A trace button's light, in its operator's colour.
+template <int OP>
+struct OperatorLight : GrayModuleLightWidget {
+	OperatorLight() {
+		addBaseColor(shapeui::operatorColor(OP));
+	}
+};
+
 struct WeaverWidget : ModuleWidget {
 	template <typename T>
 	T* addScreen(Weaver* module, float x, float y, float w, float h) {
@@ -837,31 +853,32 @@ struct WeaverWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
 		// Algorithm, envelope and presets
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(39.6, 71.9)), module, Weaver::ALGORITHM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.6, 71.9)), module, Weaver::ALGORITHM_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(66.3, 71.9)), module, Weaver::WINDOW_PARAM));
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(81.75, 70.05)), module, Weaver::PRESET_NEXT_PARAM);
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(42.13, 71.9)), module, Weaver::ALGORITHM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.13, 71.9)), module, Weaver::ALGORITHM_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(71.61, 71.9)), module, Weaver::WINDOW_PARAM));
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 87.8)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(81.75, 77.45)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 87.8)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 
 		// Clock row
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(15.62, 92.0)), module, Weaver::BPM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.12, 92.0)), module, Weaver::CLOCK_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(42.51, 92.0)), module, Weaver::RESET_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.01, 92.0)), module, Weaver::RESET_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(67.4, 92.0)), module, Weaver::REVERSE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(75.9, 92.0)), module, Weaver::REVERSE_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.3, 92.0)), module, Weaver::BPM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.8, 92.0)), module, Weaver::CLOCK_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(31.865, 92.0)), module, Weaver::RESET_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(40.365, 92.0)), module, Weaver::RESET_INPUT));
 
-		// Outputs
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(8.17, 112.1)), module, Weaver::MAIN_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(21.5, 112.1)), module, Weaver::INV_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(34.83, 112.1)), module, Weaver::EOC_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.87, 112.1)), module, Weaver::A_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(65.12, 112.1)), module, Weaver::B_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(80.37, 112.1)), module, Weaver::C_OUTPUT));
+		// Outputs, and each operator's trace button over its output
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(11.215, 112.1)), module, Weaver::MAIN_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(24.955, 112.1)), module, Weaver::INV_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.695, 112.1)), module, Weaver::EOC_OUTPUT));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 101.0)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 101.0)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 101.0)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.59, 112.1)), module, Weaver::A_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(69.81, 112.1)), module, Weaver::B_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 112.1)), module, Weaver::C_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
