@@ -1,13 +1,14 @@
 // Take storage tests: WAV round trip, foreign WAV import, packing, file names.
 #include "shapes/TakeFile.hpp"
 #include <cassert>
-#include <chrono>
 #include <clocale>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <string>
 #include <vector>
+#include <sys/resource.h>
+#include <sys/stat.h>
 
 using namespace shapes;
 
@@ -451,6 +452,20 @@ static void namesAndStepping() {
 
 // A data chunk far past the take limit loads truncated, reading only what the
 // take needs: a 4 GB (sparse) file loads in a few ms rather than being read whole
+// Peak resident memory so far, in bytes
+static uint64_t peakRss() {
+	struct rusage u;
+	getrusage(RUSAGE_SELF, &u);
+#ifdef __APPLE__
+	return (uint64_t) u.ru_maxrss;
+#else
+	return (uint64_t) u.ru_maxrss * 1024;
+#endif
+}
+
+// A 4 GB data chunk (sparse on disk) loads truncated without reading it all
+// into memory. Skipped where the filesystem can't make sparse files, rather
+// than writing 4 GB.
 static void hugeWavReadsOnlyWhatItNeeds() {
 	const uint64_t claimed = 0xfffffffcull;
 	for (int ours = 0; ours < 2; ours++) {
@@ -477,20 +492,28 @@ static void hugeWavReadsOnlyWhatItNeeds() {
 		// Extend to the claimed size without writing it
 		FILE* f = fopen(p.c_str(), "r+b");
 		assert(f);
-		assert(fseek(f, (long) (dataAt + claimed - 1), SEEK_SET) == 0);
-		fputc(0, f);
-		fclose(f);
+		bool extended = fseek(f, (long) (dataAt + claimed - 1), SEEK_SET) == 0 && fputc(0, f) == 0;
+		extended = fclose(f) == 0 && extended;
+		struct stat st;
+		bool sparse = extended && stat(p.c_str(), &st) == 0 && (uint64_t) st.st_size == dataAt + claimed
+			&& (uint64_t) st.st_blocks * 512 < 64ull * 1024 * 1024;
+		if (!sparse) {
+			remove(p.c_str());
+			printf("hugeWavReadsOnlyWhatItNeeds: no sparse files here, skipped\n");
+			return;
+		}
 
 		Take r;
-		auto t0 = std::chrono::steady_clock::now();
+		uint64_t before = peakRss();
 		LoadResult res = readTakeWav(p, r);
-		double secs = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+		uint64_t grew = peakRss() - before;
 		remove(p.c_str());
 		assert(res.error == LoadError::None && res.truncated);
 		assert(r.length == kMaxTakeSamples);
 		assert(std::fabs(r.samples[0] - 2.5f) < 1e-5f);
 		assert(r.samples[kMaxTakeSamples - 1] == 0.f);
-		assert(secs < 0.5);
+		// Reading the whole chunk would need 4 GB; the take itself is under 1 MB
+		assert(grew < 64ull * 1024 * 1024);
 	}
 }
 

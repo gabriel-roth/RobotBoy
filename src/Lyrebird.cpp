@@ -167,6 +167,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// Audio thread to UI: a Free take reached the limit; REC or PUNCH started writing
 	std::atomic<bool> limitHit{false};
 	std::atomic<uint32_t> writesStarted{0};
+	// Recording or punching now, for the UI thread
+	std::atomic<bool> writingNow{false};
 	// Audio thread to UI: file button presses, since files are the UI's to touch
 	std::atomic<int> fileStepRequest{0}, saveRequest{0};
 
@@ -382,6 +384,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		if (step.hitLimit)
 			limitHit.store(true);
 		bool writing = step.status == Status::Recording || step.status == Status::Punching;
+		// Before the start count, so the UI never sees a start without it
+		writingNow.store(writing);
 		// REC can take over straight from a punch, which is a new write too
 		if (writing && step.status != lastStatus) {
 			spanFrom = (float) step.playhead;
@@ -1172,16 +1176,6 @@ struct LyrebirdWidget : ModuleWidget {
 		if (!module)
 			return;
 		module->applyDeferredTake();
-		// A write in progress is a new pair already: the last finished take's
-		// step mustn't swap under it
-		uint32_t starts = module->writesStarted.load();
-		if (starts != seenStarts) {
-			seenStarts = starts;
-			module->takeGen = module->newGen();
-			// A save finishing just before may have marked this take unmodified
-			// as the write began
-			module->currentTake().modified = true;
-		}
 		// Each finished take is an undo step, so Ctrl+Z brings back the one
 		// before. Undoing it leaves a pair that never existed before, so it gets
 		// a new name too.
@@ -1189,6 +1183,21 @@ struct LyrebirdWidget : ModuleWidget {
 			pushTakeSwap(module, "punch in", module->newGen());
 		for (uint32_t n = module->engine.recsFinished(); seenRecs != n; seenRecs++)
 			pushTakeSwap(module, "record take", module->newGen());
+		// A write in progress is a new pair already: the last finished take's
+		// step mustn't swap under it. Checked after the finished takes, since
+		// REC taking over a punch finishes one and starts the other at once;
+		// a write that started and finished since the last frame is covered
+		// by its own step above.
+		uint32_t starts = module->writesStarted.load();
+		if (starts != seenStarts) {
+			seenStarts = starts;
+			if (module->writingNow.load()) {
+				module->takeGen = module->newGen();
+				// A save finishing just before may have marked this take
+				// unmodified as the write began
+				module->currentTake().modified = true;
+			}
+		}
 		if (module->limitHit.exchange(false))
 			module->showMessage("LIMIT 3 MIN");
 
