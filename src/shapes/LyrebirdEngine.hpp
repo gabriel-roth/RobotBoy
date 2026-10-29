@@ -85,7 +85,7 @@ public:
 	}
 
 	double speedRatio(const LyrebirdControls& c) const;
-	// Points evenly spaced across the take: raw as stored, out as OUT would play it
+	// Audio thread only. Points evenly spaced across the take: raw as stored, out as OUT would play it
 	void renderTrace(const LyrebirdControls& c, float* raw, float* out, int n);
 
 	static double syncRatio(double speedOct);
@@ -118,6 +118,10 @@ private:
 	bool active_ = false;  // a ONCE pass is running
 	double freePhase_ = 0.0;  // Free: 0..1 through the take
 	double lastWraps_ = 0.0;  // whole wraps already reported
+	bool resync_ = true;
+	bool prevSyncLoop_ = false;
+	double lastRatio_ = 1.0;
+	double lastBars_ = 0.0;
 	Status status_ = Status::Idle;
 };
 

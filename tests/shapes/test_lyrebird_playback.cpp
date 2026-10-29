@@ -34,7 +34,8 @@ struct Rig {
 		t.seconds = seconds;
 		t.bpm = 120.0;
 		eng.requestLoad();
-		step();
+		// Serviced without moving the transport, so tests count exact samples
+		eng.process(c, Timebase::Step{0.0, 0, false, false});
 	}
 };
 
@@ -52,7 +53,7 @@ static void syncLoopLocksToBar() {
 	q.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
 	LyrebirdStep s{};
 	int n = 0;
-	while (n < 24000 - 1) {
+	while (n < 24000) {
 		s = q.step();
 		n++;
 	}
@@ -62,7 +63,7 @@ static void syncLoopLocksToBar() {
 	Rig e;
 	e.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
 	int eocs = 0;
-	for (int i = 0; i < 4 * 96000 - 1; i++)
+	for (int i = 0; i < 4 * 96000; i++)
 		if (e.step().eoc)
 			eocs++;
 	assert(eocs == 4);
@@ -77,7 +78,7 @@ static void syncSpeedSnaps() {
 	r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
 	r.c.speedOct = 1.0;
 	int eocs = 0;
-	for (int i = 0; i < 2 * 96000 - 1; i++)
+	for (int i = 0; i < 2 * 96000; i++)
 		if (r.step().eoc)
 			eocs++;
 	assert(eocs == 4);  // two per bar over two bars
@@ -137,9 +138,10 @@ static void reverseMirrors() {
 	r.c.reverse = true;
 	r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
 	LyrebirdStep s{};
-	for (int i = 0; i < 24000 - 1; i++)
+	for (int i = 0; i < 24000; i++)
 		s = r.step();
 	assert(std::fabs(s.volts - 2.5) < 0.05);
+	assert(std::fabs(s.playhead - 0.75) < 0.001);
 }
 
 static void freeTakeInSyncStretches() {
@@ -179,8 +181,10 @@ static void smoothingCentred() {
 		s = q.step();
 		if (i == 48000 - 1200 - 1)
 			before = s.volts;
-		if (i == 48000 - 1)
-			assert(std::fabs(s.volts) < 0.6);  // midpoint at the edge: no lag
+		// The step sits between samples 999 and 1000, i.e. at playhead
+		// 999.5 / 2000, reached on audio sample 47975: the midpoint, no lag
+		if (i == 47975)
+			assert(std::fabs(s.volts) < 0.02);
 		if (i == 48000 + 1200 - 1)
 			after = s.volts;
 	}
@@ -240,7 +244,140 @@ static void traceMatches() {
 	assert(std::fabs(out[10] - 2.5f) < 1e-4);
 }
 
+static int countEoc(Rig& r, int n, int* firstAt = nullptr) {
+	int eocs = 0;
+	for (int i = 0; i < n; i++)
+		if (r.step().eoc) {
+			if (!eocs && firstAt)
+				*firstAt = i;
+			eocs++;
+		}
+	return eocs;
+}
+
+static void reversePlayhead() {
+	{
+		Rig r;
+		r.c.reverse = true;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		LyrebirdStep s{};
+		for (int i = 0; i < 12000; i++)
+			s = r.step();
+		assert(std::fabs(s.playhead - 0.875) < 0.001);
+	}
+	// Resting ONCE: playhead is where the output reads from, mirrored
+	for (int rev = 0; rev < 2; rev++)
+		for (int idle = 0; idle < 3; idle++) {
+			Rig r;
+			r.c.loop = false;
+			r.c.reverse = rev;
+			r.c.idle = (IdleOutput) idle;
+			r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+			LyrebirdStep s = r.step();
+			double want = idle == 1 ? 0.0 : 1.0;  // First : Last/Zero
+			if (rev)
+				want = 1.0 - want;
+			assert(std::fabs(s.playhead - want) < 1e-9);
+		}
+}
+
+static void noFalseEoc() {
+	// Load mid-transport
+	{
+		Rig r;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		for (int i = 0; i < 144000; i++)  // 1.5 bars
+			r.step();
+		Take& t = r.eng.spare();
+		t.clear();
+		t.length = 100;
+		for (int i = 0; i < 100; i++)
+			t.samples[i] = 0.f;
+		t.seconds = 2.0;
+		r.eng.requestLoad();
+		int at = -1;
+		int n = countEoc(r, 48000, &at);  // up to the bar boundary at 2.0
+		assert(n == 1 && at == 47999);
+	}
+	// SPEED change x1 -> x2 across a would-be wrap, then a real wrap
+	{
+		Rig r;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		for (int i = 0; i < 67200; i++)  // bar position 0.7
+			r.step();
+		r.c.speedOct = 1.0;
+		int at = -1;
+		int n = countEoc(r, 28800, &at);  // to the boundary at 1.0
+		assert(n == 1 && at == 28799);
+	}
+}
+
+static void freeOnce() {
+	Rig r;
+	r.c.sync = false;
+	r.c.loop = false;
+	r.load(-5.f, 5.f, 2000, TakeMode::Free, 0, 2.0);
+	assert(countEoc(r, 5000) == 0);
+	r.step(true);
+	int at = -1;
+	int n = countEoc(r, 100000, &at);
+	assert(n == 1 && std::abs(at - 95999) <= 2);
+	LyrebirdStep s = r.step();
+	assert(std::fabs(s.volts - 5.0) < 1e-4);
+}
+
+static void trigRestartsLoopMidBar() {
+	Rig r;
+	r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	for (int i = 0; i < 57600; i++)  // 0.6 bar
+		r.step();
+	LyrebirdStep s = r.step(true);
+	assert(!s.eoc && s.playhead < 1e-6 && std::fabs(s.volts + 5.0) < 1e-4);
+	for (int i = 0; i < 24000; i++)
+		s = r.step();
+	assert(std::fabs(s.playhead - 0.25) < 0.001);
+	int at = -1;
+	assert(countEoc(r, 96000 - 24000, &at) == 1 && at == 96000 - 24000 - 1);
+}
+
+static void syncTakeInFree() {
+	// Recorded at 120 BPM over 2 bars: 4 s whatever the clock says
+	for (double oct : {0.0, 1.0}) {
+		Rig r;
+		r.c.sync = false;
+		r.load(-5.f, 5.f, 4000, TakeMode::Sync, 2.0, 4.0);
+		r.c.speedOct = oct;
+		int at = -1;
+		int n = countEoc(r, 200000, &at);
+		int want = oct == 0.0 ? 192000 : 96000;
+		assert(n >= 1 && std::abs(at + 1 - want) <= 2);
+	}
+}
+
+static void reverseOnce() {
+	Rig r;
+	r.c.loop = false;
+	r.c.reverse = true;
+	r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+	// Rests at the end of the reversed pass: the take's first value
+	assert(std::fabs(r.step().volts + 5.0) < 1e-4);
+	LyrebirdStep s = r.step(true);
+	assert(std::fabs(s.volts - 5.0) < 1e-4);
+	for (int i = 0; i < 48000; i++)
+		s = r.step();
+	assert(std::fabs(s.volts) < 0.05);
+	int n = countEoc(r, 48100);
+	assert(n == 1);
+	assert(std::fabs(r.step().volts + 5.0) < 1e-4);
+}
+
 int main() {
+	reversePlayhead();
+	noFalseEoc();
+	freeOnce();
+	trigRestartsLoopMidBar();
+	syncTakeInFree();
+	reverseOnce();
 	emptyPassesSource();
 	syncLoopLocksToBar();
 	syncSpeedSnaps();

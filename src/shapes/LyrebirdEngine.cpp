@@ -59,7 +59,9 @@ double LyrebirdEngine::smoothHalfWidth(const Take& t, double smoothMs) {
 void LyrebirdEngine::restart() {
 	active_ = false;
 	freePhase_ = 0.0;
-	lastWraps_ = 0.0;
+	// The transport doesn't move with the take, so wrap counting restarts from
+	// wherever it is now rather than from zero
+	resync_ = true;
 }
 
 // Runs at the start of every sample, so the UI's requests take effect promptly
@@ -82,6 +84,8 @@ void LyrebirdEngine::service() {
 		undoReq_.store(false);
 	}
 	if (snapReq_.load()) {
+		// Deliberate: one full copy per save request, so the UI can write the
+		// file without racing the audio thread
 		snap_->copyFrom(*cur_.load());
 		snapReq_.store(false);
 		snapReady_.store(true);
@@ -129,18 +133,24 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		active_ = true;
 	}
 
+	bool syncLoop = c.sync && c.loop;
 	// Position through the take, 0..1, before REVERSE; resting means a ONCE
 	// take that is not playing
 	double ph = 0.0;
 	bool resting = false;
 	if (c.sync) {
 		double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
-		x = x * ratio / effectiveBars(t);
+		double bars = effectiveBars(t);
+		x = x * ratio / bars;
 		if (c.loop) {
 			double wraps = std::floor(x + 1e-9);
-			if (wraps > lastWraps_)
+			// A new take, TRIG, a mode change or a SPEED change moves x without
+			// a wrap, so re-anchor instead of reporting one
+			bool jumped = resync_ || !prevSyncLoop_ || ratio != lastRatio_ || bars != lastBars_;
+			if (!jumped && wraps > lastWraps_)
 				out.eoc = true;
 			lastWraps_ = wraps;
+			resync_ = false;
 			ph = frac(x + 1e-9);
 			if (ph > 1.0 - 1e-6)
 				ph = 0.0;
@@ -182,6 +192,10 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			resting = true;
 	}
 
+	prevSyncLoop_ = syncLoop;
+	lastRatio_ = ratio;
+	lastBars_ = c.sync ? effectiveBars(t) : 0.0;
+
 	if (resting) {
 		// Rest at the end of the pass in the direction of play
 		switch (c.idle) {
@@ -197,22 +211,23 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 				ph = 1.0;
 				break;
 		}
-		out.playhead = ph;
 		if (c.reverse)
 			ph = 1.0 - ph;
+		out.playhead = ph;
 		out.volts = outputFor(c, t, ph);
 		out.status = status_;
 		return out;
 	}
 
-	out.playhead = ph;
 	if (c.reverse)
 		ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
+	out.playhead = ph;
 	out.volts = outputFor(c, t, ph);
 	out.status = status_;
 	return out;
 }
 
+// Audio thread only: it reads the smoother's sums, which that thread rebuilds
 void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* out, int n) {
 	const Take& t = *cur_.load();
 	if (n <= 0)
