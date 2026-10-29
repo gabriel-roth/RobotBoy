@@ -6,7 +6,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 
 # VCV-only until their MetaModule port, so left out of the parity check.
-VCV_ONLY = {"Skylark", "Weaver"}
+VCV_ONLY = {"Skylark", "Weaver", "Lyrebird"}
 
 
 class RobotBoyIdentityTest(unittest.TestCase):
@@ -17,7 +17,7 @@ class RobotBoyIdentityTest(unittest.TestCase):
         self.assertEqual(plugin["brand"], "Robot Boy")
         self.assertEqual(
             [module["slug"] for module in plugin["modules"]],
-            ["Loooop", "Lop", "MF20Filter", "Onbetap", "Particules", "Ondes", "Vespid", "Retours", "Lucarne", "Skylark", "Weaver"],
+            ["Loooop", "Lop", "MF20Filter", "Onbetap", "Particules", "Ondes", "Vespid", "Retours", "Lucarne", "Skylark", "Weaver", "Lyrebird"],
         )
 
         mm = json.loads((ROOT / "metamodule/plugin-mm.json").read_text())

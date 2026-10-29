@@ -24,6 +24,11 @@ struct Settings {
 // Output range, When out of range, Slew, Clock pulses per cycle.
 void appendSettingsMenu(Menu* menu, Module* module, Settings* settings);
 
+// Clock pulses per cycle: the menu item, and a saved value checked against its
+// choices (anything else falls back to 4).
+MenuItem* createPulsesMenuItem(Module* module, int* pulsesPerCycle);
+int validPulses(int pulsesPerCycle);
+
 constexpr float kMinBpm = 20.f, kMaxBpm = 300.f;
 // The BPM knob: unsnapped, shown and used to 0.01 BPM, not randomized.
 ParamQuantity* configBpm(Module* module, int paramId);

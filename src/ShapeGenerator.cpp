@@ -25,11 +25,28 @@ void Settings::fromJson(json_t* rootJ) {
 		if (ms == choice)
 			slewMs = choice;
 	j = json_object_get(rootJ, "pulsesPerCycle");
-	int ppc = j ? (int) json_integer_value(j) : 4;
-	pulsesPerCycle = 4;
+	pulsesPerCycle = validPulses(j ? (int) json_integer_value(j) : 4);
+}
+
+int validPulses(int ppc) {
 	for (int choice : kPulseChoices)
 		if (ppc == choice)
-			pulsesPerCycle = choice;
+			return choice;
+	return 4;
+}
+
+MenuItem* createPulsesMenuItem(Module* module, int* ppc) {
+	return createIndexSubmenuItem("Clock pulses per cycle",
+		{"1", "2", "4", "8", "16", "24", "32", "48", "96"},
+		[=]() {
+			for (int i = 0; i < 9; i++)
+				if (*ppc == kPulseChoices[i])
+					return i;
+			return 2;
+		},
+		[=](int i) {
+			withMenuUndo(module, "set clock pulses per cycle", [=]() { *ppc = kPulseChoices[i]; });
+		});
 }
 
 void appendSettingsMenu(Menu* menu, Module* module, Settings* s) {
@@ -53,17 +70,7 @@ void appendSettingsMenu(Menu* menu, Module* module, Settings* s) {
 		[=](int i) {
 			withMenuUndo(module, "set slew", [=]() { s->slewMs = kSlewMs[i]; });
 		}));
-	menu->addChild(createIndexSubmenuItem("Clock pulses per cycle",
-		{"1", "2", "4", "8", "16", "24", "32", "48", "96"},
-		[=]() {
-			for (int i = 0; i < 9; i++)
-				if (s->pulsesPerCycle == kPulseChoices[i])
-					return i;
-			return 2;
-		},
-		[=](int i) {
-			withMenuUndo(module, "set clock pulses per cycle", [=]() { s->pulsesPerCycle = kPulseChoices[i]; });
-		}));
+	menu->addChild(createPulsesMenuItem(module, &s->pulsesPerCycle));
 }
 
 // Tempo in 0.01 BPM steps, so a typed 121.35 holds. Rounded where it's

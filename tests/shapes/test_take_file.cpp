@@ -335,6 +335,72 @@ static void packRoundTrip() {
 	assert(unpackSamples16(max.data(), max.size(), r) && r.length == kMaxTakeSamples);
 }
 
+// Standard base64, as Rack's string::toBase64 writes it for the patch JSON
+static std::string toBase64(const std::vector<uint8_t>& b) {
+	static const char* k = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+	std::string s;
+	for (size_t i = 0; i < b.size(); i += 3) {
+		uint32_t v = (uint32_t) b[i] << 16;
+		if (i + 1 < b.size())
+			v |= (uint32_t) b[i + 1] << 8;
+		if (i + 2 < b.size())
+			v |= b[i + 2];
+		s += k[(v >> 18) & 63];
+		s += k[(v >> 12) & 63];
+		s += i + 1 < b.size() ? k[(v >> 6) & 63] : '=';
+		s += i + 2 < b.size() ? k[v & 63] : '=';
+	}
+	return s;
+}
+
+static std::vector<uint8_t> fromBase64(const std::string& s) {
+	std::vector<uint8_t> b;
+	uint32_t v = 0;
+	int bits = 0;
+	for (char c : s) {
+		int d;
+		if (c >= 'A' && c <= 'Z')
+			d = c - 'A';
+		else if (c >= 'a' && c <= 'z')
+			d = c - 'a' + 26;
+		else if (c >= '0' && c <= '9')
+			d = c - '0' + 52;
+		else if (c == '+')
+			d = 62;
+		else if (c == '/')
+			d = 63;
+		else
+			break;
+		v = (v << 6) | (uint32_t) d;
+		bits += 6;
+		if (bits >= 8) {
+			bits -= 8;
+			b.push_back((v >> bits) & 0xff);
+		}
+	}
+	return b;
+}
+
+// The path a take takes through the patch JSON: a full 3 min take survives
+// within 1 LSB, and data cut mid-sample is refused
+static void takeJsonRoundTrip() {
+	Take t;
+	t.length = kMaxTakeSamples;
+	for (int i = 0; i < t.length; i++)
+		t.samples[i] = 9.9f * std::sin(i * 0.0013f) + 0.1f * std::sin(i * 0.7f);
+	std::string text = toBase64(packSamples16(t));
+	std::vector<uint8_t> b = fromBase64(text);
+	assert(b.size() == 2 * (size_t) kMaxTakeSamples);
+	Take r;
+	assert(unpackSamples16(b.data(), b.size(), r));
+	assert(r.length == kMaxTakeSamples);
+	for (int i = 0; i < r.length; i++)
+		assert(std::fabs(r.samples[i] - t.samples[i]) <= 20.0 / 65534.0 + 1e-6);
+	std::vector<uint8_t> cut = fromBase64(text.substr(0, text.size() - 6));
+	assert(cut.size() & 1);
+	assert(!unpackSamples16(cut.data(), cut.size(), r));
+}
+
 static void metaRoundTrip() {
 	Take t;
 	t.mode = TakeMode::Sync;
@@ -389,6 +455,7 @@ int main() {
 	truncatesLongWav();
 	rejectsGarbage();
 	packRoundTrip();
+	takeJsonRoundTrip();
 	metaRoundTrip();
 	takeBasics();
 	namesAndStepping();
