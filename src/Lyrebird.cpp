@@ -1141,8 +1141,8 @@ struct LyrebirdWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(50.149, 94.15)), module, Lyrebird::PUNCH_INPUT));
 
 		// SOURCE plate
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(19.775, 110.038)), module, Lyrebird::GESTURE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.107, 110.038)), module, Lyrebird::CV_INPUT));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(33.0, 112.93)), module, Lyrebird::GESTURE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(53.0, 112.93)), module, Lyrebird::CV_INPUT));
 
 		// PLAYBACK plate
 		addParam(createParamCentered<TL1105>(mm2px(Vec(77.08, 28.275)), module, Lyrebird::FILE_PREV_PARAM));

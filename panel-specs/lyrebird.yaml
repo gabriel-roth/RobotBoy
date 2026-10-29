@@ -16,12 +16,15 @@
 #        77.66.
 #      - RECORD and PUNCH, each a lit button with its gate jack beside (8.5 apart, one label
 #        above the pair); labels 87.45, controls 94.15.
-#    - SOURCE plate, opaque magenta #b8466a with dark dots (texture.svg: #7e2445, r 0.26 on a
-#      1.6 grid, cleared round the label; local/panel-mockups/lyrebird_texture.py), 102.86-123:
-#      GESTURE (regular knob, the knob you record) and CV IN, the two sources, at 110.04; one
-#      INPUT label (4.0, larger than the rest) between them at the bottom, baseline 120.44. Knob,
-#      label ink and the gaps around them evenly spaced (2.38). The display's punch-in trace is
-#      the brighter #ff5f95 (mock-lyrebird.py).
+#    - SOURCE plate, opaque magenta #b8466a, 102.86-123, drawn unlike the other plates: a
+#      panel-gray (#3d3d3d) 0.7 rule 1.3 mm inside every edge, broken at the top left by an INPUT
+#      legend in Futura Bold (4.0 em, 0.4 tracking) whose caps hang just below the plate edge
+#      (input-fieldset.svg, local/panel-mockups/lyrebird_input_fieldset.py; mocks in
+#      local/panel-mockups/lyrebird-input/). GESTURE is a big knob (the knob you record) at 33.0,
+#      CV IN at 53.0, both centered vertically (112.93). The display's punch-in trace is the
+#      brighter #ff5f95 (mock-lyrebird.py).
+#  - Signal-flow arrows (Brume's style, zone defaults 3.0 x 1.4) centered on each edge: SOURCE up
+#    into PERFORM, PERFORM across into PLAYBACK, PLAYBACK down into the output plate.
 #  - Right column (66.38-105.18): as narrow as two 13.4 label-width columns (77.08 / 94.48)
 #    with 4.0 gaps.
 #    - PLAYBACK plate (17-100.86), labels above, blocks and margins evenly spaced (4.23):
@@ -49,11 +52,14 @@ zones:
   # Display background.
   - {x: 1.5, y: 17.0, w: 62.88, h: 47.16, rx: 2, fill: "#0c0e10", opacity: 1.0}
   # PERFORM plate.
-  - {x: 1.5, y: 66.16, w: 62.88, h: 34.70, rx: 2, fill: "#8a9a83", opacity: 0.55}
+  - {x: 1.5, y: 66.16, w: 62.88, h: 34.70, rx: 2, fill: "#8a9a83", opacity: 0.55,
+     arrows: [{side: right, at: 83.51}]}
   # SOURCE plate.
-  - {x: 1.5, y: 102.86, w: 62.88, h: 20.14, rx: 2, fill: "#b8466a", opacity: 1.0}
+  - {x: 1.5, y: 102.86, w: 62.88, h: 20.14, rx: 2, fill: "#b8466a", opacity: 1.0,
+     arrows: [{side: top, at: 32.94}]}
   # PLAYBACK plate.
-  - {x: 66.38, y: 17.0, w: 38.8, h: 83.86, rx: 2, fill: "#7f9fb3", opacity: 0.55}
+  - {x: 66.38, y: 17.0, w: 38.8, h: 83.86, rx: 2, fill: "#7f9fb3", opacity: 0.55,
+     arrows: [{side: bottom, at: 85.78}]}
   # Output plate.
   - {x: 66.38, y: 102.86, w: 38.8, h: 20.14, rx: 2, fill: "#9a9a9a", opacity: 0.55}
   # OUT ring, as on Skylark and Weaver.
@@ -77,9 +83,8 @@ elements:
   - {name: PUNCH_INPUT, x: 50.149, y: 94.15}
 
   # --- SOURCE plate.
-  - {name: GESTURE_PARAM, x: 19.775, y: 110.038}
-  - {name: CV_INPUT, x: 46.107, y: 110.038}
-  - {text: INPUT, x: 32.941, y: 120.437, size: 4.0}
+  - {name: GESTURE_PARAM, widget: RoundBigBlackKnob, x: 33.0, y: 112.93}
+  - {name: CV_INPUT, x: 53.0, y: 112.93}
 
   # --- PLAYBACK plate.
   - {text: FILE, x: 85.78, y: 23.525}
@@ -127,7 +132,7 @@ connectors:
   - [REVERSE_PARAM, REVERSE_INPUT]
 
 glyphs:
-  # SOURCE plate texture (generated: dark dots, cleared round the label).
-  - {src: glyphs/lyrebird/texture.svg, at: [32.94, 112.93]}
+  # SOURCE plate rule and INPUT legend (generated; viewBox = the plate).
+  - {src: glyphs/lyrebird/input-fieldset.svg, at: [32.94, 112.93]}
   - {src: glyphs/weaver/step-back.svg,    at: [72.58, 28.275]}
   - {src: glyphs/weaver/step-forward.svg, at: [98.98, 28.275]}
