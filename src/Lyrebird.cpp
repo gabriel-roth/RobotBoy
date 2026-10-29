@@ -20,8 +20,8 @@ static constexpr int kPublishInterval = 512;
 static constexpr float kMessageSeconds = 3.f;
 // Footer characters a message can use before it runs into the source
 static constexpr size_t kMessageChars = 18;
-
-static const char* const kLengthNames[7] = {"1/4 BAR", "1/2 BAR", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
+// How long the footer shows the LENGTH setting after it's turned
+static constexpr double kLengthShowSeconds = 2.0;
 
 // Take generations, unique across every Lyrebird, so a history step can't
 // match a different (or deleted and restored) module's takes
@@ -40,8 +40,9 @@ static std::string screenText(const std::string& s, size_t max) {
 	return out;
 }
 
+// The screen's brighter version of the SOURCE plate's magenta
 static NVGcolor recColor() {
-	return nvgRGB(0xff, 0x4d, 0x4d);
+	return nvgRGB(0xff, 0x5f, 0x95);
 }
 
 // "1/4 BAR", "1 BAR", "4 BARS"
@@ -75,12 +76,13 @@ struct LyrebirdFrame {
 	float spanFrom = 0.f, spanTo = 0.f;
 	shapes::Status status = shapes::Status::Idle;
 	bool empty = true;
-	bool sync = true;  // how the take plays (TIME)
+	bool sync = true;  // how the take plays (the Time menu)
 	bool loop = true;
 	bool reverse = false;
 	bool cv = false;  // the source in use
 	bool unipolar = false;  // knob range 0-10 V
 	float bars = 1.f;  // as played in Sync
+	int lengthIndex = 2;  // the LENGTH knob
 	float seconds = 0.f;
 	float bpm = 120.f;
 	float ratio = 1.f;
@@ -92,16 +94,11 @@ struct LyrebirdFrame {
 struct Lyrebird : Module, MenuUndoFilter {
 	enum ParamId {
 		GESTURE_PARAM,
-		REC_PARAM,
+		RECORD_PARAM,
 		PUNCH_PARAM,
-		SOURCE_PARAM,
 		LENGTH_PARAM,
-		TIME_PARAM,
-		PLAY_PARAM,
 		SPEED_PARAM,
 		SMOOTH_PARAM,
-		SCALE_PARAM,
-		OFFSET_PARAM,
 		REVERSE_PARAM,
 		BPM_PARAM,
 		TRIG_PARAM,
@@ -111,16 +108,16 @@ struct Lyrebird : Module, MenuUndoFilter {
 		PARAMS_LEN
 	};
 	enum InputId {
-		REC_INPUT,
+		RECORD_INPUT,
 		PUNCH_INPUT,
-		SOURCE_INPUT,
 		CV_INPUT,
 		SPEED_INPUT,
 		SMOOTH_INPUT,
-		SCALE_INPUT,
 		REVERSE_INPUT,
 		CLOCK_INPUT,
 		TRIG_INPUT,
+		FILE_PREV_INPUT,
+		FILE_NEXT_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -129,9 +126,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		OUTPUTS_LEN
 	};
 	enum LightId {
-		REC_LIGHT,
+		RECORD_LIGHT,
 		PUNCH_LIGHT,
-		ENUMS(SOURCE_LIGHT, 3),
 		LIGHTS_LEN
 	};
 
@@ -143,8 +139,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::StartOn startOn = shapes::StartOn::Press;
 	shapes::IdleOutput idleOutput = shapes::IdleOutput::Last;
 	int pulsesPerCycle = 4;
-	// The SOURCE button's latched choice; the gate flips it while high
-	bool sourceIsCv = false;
+	bool sync = true;  // Time: Sync / Free
+	bool loop = true;  // Play: Loop / Once
 	// The folder of the last file opened or saved; empty until one is
 	// chosen, which means the default folder
 	std::string folder;
@@ -152,8 +148,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::Timebase timebase;
 	shapes::LyrebirdEngine engine;
 	shapes::Trigger eoc;
-	dsp::BooleanTrigger sourceButton;
-	dsp::SchmittTrigger sourceGate, recGate, punchGate, reverseGate;
+	dsp::SchmittTrigger recGate, punchGate, reverseGate, prevGate, nextGate;
 	dsp::BooleanTrigger prevButton, saveButton, nextButton;
 	float blinkPhase = 0.f;
 	int sincePublish = kPublishInterval;
@@ -209,7 +204,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// Shown as the ratio it plays at: snapped to powers of two in Sync
 	struct SpeedQuantity : ParamQuantity {
 		bool sync() {
-			return module && module->params[TIME_PARAM].getValue() > 0.5f;
+			Lyrebird* m = dynamic_cast<Lyrebird*>(module);
+			return !m || m->sync;
 		}
 		std::string getDisplayValueString() override {
 			double oct = getValue();
@@ -249,38 +245,32 @@ struct Lyrebird : Module, MenuUndoFilter {
 	Lyrebird() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
 		configParam<GestureQuantity>(GESTURE_PARAM, 0.f, 1.f, 0.5f, "Gesture", " V");
-		configButton(REC_PARAM, "Record");
+		configButton(RECORD_PARAM, "Record");
 		configButton(PUNCH_PARAM, "Punch in");
-		configButton(SOURCE_PARAM, "Source (knob / CV)");
 		configSwitch(LENGTH_PARAM, 0.f, 6.f, 2.f, "Length",
 			{"1/4 bar", "1/2 bar", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars"});
-		configSwitch(TIME_PARAM, 0.f, 1.f, 1.f, "Time", {"Free", "Sync"});
-		configSwitch(PLAY_PARAM, 0.f, 1.f, 1.f, "Play", {"Once", "Loop"});
 		configParam<SpeedQuantity>(SPEED_PARAM, -2.f, 2.f, 0.f, "Speed");
 		configParam<SmoothQuantity>(SMOOTH_PARAM, 0.f, 1.f, 0.f, "Smooth", " ms");
-		configParam(SCALE_PARAM, -1.f, 1.f, 1.f, "Scale", "%", 0.f, 100.f);
-		configParam(OFFSET_PARAM, -5.f, 5.f, 0.f, "Offset", " V");
 		configButton(REVERSE_PARAM, "Reverse");
 		shapeui::configBpm(this, BPM_PARAM);
 		configButton(TRIG_PARAM, "Trigger");
 		configButton(FILE_PREV_PARAM, "Previous file");
 		configButton(SAVE_PARAM, "Save");
 		configButton(FILE_NEXT_PARAM, "Next file");
-		configInput(REC_INPUT, "Record gate");
+		configInput(RECORD_INPUT, "Record gate");
 		configInput(PUNCH_INPUT, "Punch gate");
-		configInput(SOURCE_INPUT, "Source gate (other source while high)");
-		configInput(CV_INPUT, "CV");
+		configInput(CV_INPUT, "CV (recorded instead of Gesture when connected)");
 		configInput(SPEED_INPUT, "Speed CV (1 V/oct)");
 		configInput(SMOOTH_INPUT, "Smooth CV");
-		configInput(SCALE_INPUT, "Scale CV");
 		configInput(REVERSE_INPUT, "Reverse gate");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(TRIG_INPUT, "Trigger");
+		configInput(FILE_PREV_INPUT, "Previous file trigger");
+		configInput(FILE_NEXT_INPUT, "Next file trigger");
 		configOutput(EOC_OUTPUT, "End of cycle");
 		configOutput(MAIN_OUTPUT, "Main");
-		configLight(REC_LIGHT, "Recording");
+		configLight(RECORD_LIGHT, "Recording");
 		configLight(PUNCH_LIGHT, "Punching");
-		configLight(SOURCE_LIGHT, "Source");
 		setRate(APP->engine->getSampleRate());
 	}
 
@@ -306,7 +296,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		startOn = shapes::StartOn::Press;
 		idleOutput = shapes::IdleOutput::Last;
 		pulsesPerCycle = 4;
-		sourceIsCv = false;
+		sync = true;
+		loop = true;
 	}
 
 	float cv(int input) {
@@ -334,9 +325,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	}
 
 	void process(const ProcessArgs& args) override {
-		if (sourceButton.process(params[SOURCE_PARAM].getValue() > 0.5f))
-			sourceIsCv = !sourceIsCv;
-		bool useCv = sourceIsCv != gate(sourceGate, SOURCE_INPUT);
+		// A cable in CV IN records it instead of GESTURE
+		bool useCv = inputs[CV_INPUT].isConnected();
 
 		shapes::TimebaseInput tin;
 		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
@@ -351,16 +341,14 @@ struct Lyrebird : Module, MenuUndoFilter {
 		c.source = useCv ? clamp(cv(CV_INPUT), -10.f, 10.f) : knobVolts();
 		c.bpm = timebase.tempoBpm();
 		c.sourceIsKnob = !useCv;
-		c.sync = params[TIME_PARAM].getValue() > 0.5f;
-		c.loop = params[PLAY_PARAM].getValue() > 0.5f;
+		c.sync = sync;
+		c.loop = loop;
 		c.lengthIndex = clamp((int) std::round(params[LENGTH_PARAM].getValue()), 0, 6);
 		c.speedOct = params[SPEED_PARAM].getValue() + cv(SPEED_INPUT);
 		float smooth = clamp(params[SMOOTH_PARAM].getValue() + cv(SMOOTH_INPUT) / 10.f, 0.f, 1.f);
 		c.smoothMs = 1000.0 * smooth * smooth * smooth;
-		c.scale = clamp(params[SCALE_PARAM].getValue() + cv(SCALE_INPUT) / 5.f, -2.f, 2.f);
-		c.offset = params[OFFSET_PARAM].getValue();
 		c.reverse = params[REVERSE_PARAM].getValue() > 0.5f || gate(reverseGate, REVERSE_INPUT);
-		c.rec = params[REC_PARAM].getValue() > 0.5f || gate(recGate, REC_INPUT);
+		c.rec = params[RECORD_PARAM].getValue() > 0.5f || gate(recGate, RECORD_INPUT);
 		c.punch = params[PUNCH_PARAM].getValue() > 0.5f || gate(punchGate, PUNCH_INPUT);
 		c.buttons = recordButtons;
 		c.startOn = startOn;
@@ -368,9 +356,12 @@ struct Lyrebird : Module, MenuUndoFilter {
 
 		shapes::LyrebirdStep step = engine.process(c, tb);
 
-		if (prevButton.process(params[FILE_PREV_PARAM].getValue() > 0.5f))
+		// Each jack does what the button above it does
+		bool prevTrig = prevGate.process(cv(FILE_PREV_INPUT), 0.1f, 1.f);
+		bool nextTrig = nextGate.process(cv(FILE_NEXT_INPUT), 0.1f, 1.f);
+		if (prevButton.process(params[FILE_PREV_PARAM].getValue() > 0.5f) || prevTrig)
 			fileStepRequest.fetch_sub(1);
-		if (nextButton.process(params[FILE_NEXT_PARAM].getValue() > 0.5f))
+		if (nextButton.process(params[FILE_NEXT_PARAM].getValue() > 0.5f) || nextTrig)
 			fileStepRequest.fetch_add(1);
 		if (saveButton.process(params[SAVE_PARAM].getValue() > 0.5f))
 			saveRequest.fetch_add(1);
@@ -398,11 +389,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		if (blinkPhase >= 1.f)
 			blinkPhase -= 1.f;
 		float blink = blinkPhase < 0.5f ? 1.f : 0.f;
-		lights[REC_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
+		lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
 		lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
-		lights[SOURCE_LIGHT + 0].setBrightness(useCv ? 0.f : 1.f);
-		lights[SOURCE_LIGHT + 1].setBrightness(useCv ? 0.8f : 1.f);
-		lights[SOURCE_LIGHT + 2].setBrightness(1.f);
 
 		displayPos.store((float) step.playhead, std::memory_order_relaxed);
 		if (++sincePublish >= kPublishInterval) {
@@ -435,6 +423,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		f.cv = useCv;
 		f.unipolar = knobRange == KnobRange::Unipolar10;
 		f.bars = (float) shapes::LyrebirdEngine::effectiveBars(t);
+		f.lengthIndex = c.lengthIndex;
 		f.seconds = (float) t.seconds;
 		f.bpm = (float) timebase.tempoBpm();
 		f.ratio = (float) engine.speedRatio(c);
@@ -484,7 +473,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		json_object_set_new(rootJ, "startOn", json_integer((int) startOn));
 		json_object_set_new(rootJ, "idleOutput", json_integer((int) idleOutput));
 		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
-		json_object_set_new(rootJ, "sourceIsCv", json_boolean(sourceIsCv));
+		json_object_set_new(rootJ, "sync", json_boolean(sync));
+		json_object_set_new(rootJ, "loop", json_boolean(loop));
 		json_object_set_new(rootJ, "folder", json_string(folder.c_str()));
 		// Read while the audio thread may be writing it: at worst a sample or
 		// two of a take being recorded is saved half-updated
@@ -517,8 +507,10 @@ struct Lyrebird : Module, MenuUndoFilter {
 		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 0);
 		json_t* j = json_object_get(rootJ, "pulsesPerCycle");
 		pulsesPerCycle = shapeui::validPulses(j ? (int) json_integer_value(j) : 4);
-		j = json_object_get(rootJ, "sourceIsCv");
-		sourceIsCv = j && json_is_true(j);
+		j = json_object_get(rootJ, "sync");
+		sync = !j || !json_is_false(j);
+		j = json_object_get(rootJ, "loop");
+		loop = !j || !json_is_false(j);
 		j = json_object_get(rootJ, "folder");
 		folder = j && json_is_string(j) ? json_string_value(j) : "";
 		// A menu undo step: settings only
@@ -857,11 +849,14 @@ static float finiteAt(const float* values, int n, float pos) {
 }
 
 // The whole take, raw (dim) and as played (white), with bar lines in Sync,
-// the span being written in red, and a header and footer of its state.
+// the span being written in magenta, and a header and footer of its state.
 struct LyrebirdDisplay : shapeui::Screen {
 	Lyrebird* module = nullptr;
 	LyrebirdFrame preview;
 	bool havePreview = false;
+	// UI thread: the LENGTH knob as last drawn, to show it for a while once turned
+	int lastLengthIndex = -1;
+	double lengthShownUntil = 0.0;
 
 	LyrebirdDisplay() {
 		// The plates' corner radius
@@ -984,12 +979,12 @@ struct LyrebirdDisplay : shapeui::Screen {
 			main.closed = false;
 			drawRuns(vg, out, kTracePoints, 0, kTracePoints - 1, gx, gy, gw, gh, main);
 
-			shapeui::TraceStyle red = main;
-			red.color = recColor();
+			shapeui::TraceStyle rec = main;
+			rec.color = recColor();
 			for (int k = 0; k < nPieces; k++) {
 				int i0 = clamp((int) std::floor(pieces[k][0] * (kTracePoints - 1)), 0, kTracePoints - 1);
 				int i1 = clamp((int) std::ceil(pieces[k][1] * (kTracePoints - 1)), 0, kTracePoints - 1);
-				drawRuns(vg, raw, kTracePoints, i0, i1, gx, gy, gw, gh, red);
+				drawRuns(vg, raw, kTracePoints, i0, i1, gx, gy, gw, gh, rec);
 			}
 		}
 		else {
@@ -1003,7 +998,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		float value = finiteAt(span ? raw : out, kTracePoints, pos);
 		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, value);
 		if (span) {
-			// The dot turns red while writing
+			// The dot turns magenta while writing
 			nvgBeginPath(vg);
 			nvgCircle(vg, gx + gw * clamp(pos, 0.f, 1.f), gy + gh * 0.5f - clamp(value, -1.f, 1.f) * gh * 0.5f, mm2px(0.7f));
 			nvgFillColor(vg, recColor());
@@ -1023,13 +1018,10 @@ struct LyrebirdDisplay : shapeui::Screen {
 			if (f.modified)
 				title += "*";
 		}
-		std::string right;
-		if (f.sync)
-			right = (f.empty ? std::string() : barsText(f.bars) + "  ") + string::f("%.2f BPM", f.bpm);
-		else if (!f.empty)
-			right = string::f("%.1f S", f.seconds);
-		if (!f.empty && std::fabs(f.ratio - 1.f) > 1e-4f)
-			right += "  " + ratioText(f.ratio);
+		std::string smooth = f.smoothMs < 0.05f ? "OFF"
+		                     : f.smoothMs < 10.f ? string::f("%.1fms", f.smoothMs)
+		                                         : string::f("%dms", (int) std::lround(f.smoothMs));
+		std::string play = string::f("%s  %s  SMOOTH %s", f.loop ? "LOOP" : "ONCE", ratioText(f.ratio).c_str(), smooth.c_str());
 
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
@@ -1039,9 +1031,9 @@ struct LyrebirdDisplay : shapeui::Screen {
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 		nvgFontSize(vg, mm2px(2.2f));
 		nvgFillColor(vg, shapeui::mutedColor());
-		nvgText(vg, gx + gw, mm2px(4.6f), right.c_str(), nullptr);
+		nvgText(vg, gx + gw, mm2px(4.6f), play.c_str(), nullptr);
 
-		// Footer: status or a message, the source, and how the take plays
+		// Footer: status or a message, the source, and the take's length and tempo
 		float fy = box.size.y - mm2px(2.f);
 		using shapes::Status;
 		std::string status;
@@ -1072,40 +1064,30 @@ struct LyrebirdDisplay : shapeui::Screen {
 		nvgFillColor(vg, shapeui::mutedColor());
 		nvgText(vg, sourceX, fy, f.cv ? "CV" : "KNOB", nullptr);
 
-		std::string smooth = f.smoothMs < 0.05f ? "OFF"
-		                     : f.smoothMs < 10.f ? string::f("%.1fms", f.smoothMs)
-		                                         : string::f("%dms", (int) std::lround(f.smoothMs));
-		std::string play = string::f("%s  %s  SMOOTH %s", f.loop ? "LOOP" : "ONCE", ratioText(f.ratio).c_str(), smooth.c_str());
+		// LENGTH shows only here: the setting with no take or just after it's
+		// turned, otherwise the take's length as it plays
+		int lengthIndex = clamp(f.lengthIndex, 0, 6);
+		if (lengthIndex != lastLengthIndex) {
+			if (lastLengthIndex >= 0)
+				lengthShownUntil = now + kLengthShowSeconds;
+			lastLengthIndex = lengthIndex;
+		}
+		std::string length;
+		if (f.sync) {
+			bool setting = f.empty || now < lengthShownUntil;
+			length = barsText(setting ? shapes::kLengthBars[lengthIndex] : f.bars) + string::f("  %.2f BPM", f.bpm);
+		}
+		else
+			length = f.empty ? "FREE" : string::f("%.1f S", f.seconds);
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-		nvgText(vg, gx + gw, fy, play.c_str(), nullptr);
+		nvgText(vg, gx + gw, fy, length.c_str(), nullptr);
 	}
 };
 
-// LENGTH as bars, or FREE when TIME is Free.
-struct LengthDisplay : shapeui::Screen {
-	Lyrebird* module = nullptr;
-
-	LengthDisplay() {
-		// Square: a rounded rect inside the rounded plate looks off
-		radiusMm = 0.f;
-	}
-
-	void drawScreen(NVGcontext* vg) override {
-		const char* text = kLengthNames[2];
-		if (module) {
-			if (module->params[Lyrebird::TIME_PARAM].getValue() < 0.5f)
-				text = "FREE";
-			else
-				text = kLengthNames[clamp((int) std::round(module->params[Lyrebird::LENGTH_PARAM].getValue()), 0, 6)];
-		}
-		std::shared_ptr<window::Font> font = shapeui::loadFont();
-		if (!font)
-			return;
-		nvgFontFaceId(vg, font->handle);
-		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(2.6f));
-		nvgFillColor(vg, shapeui::inkColor());
-		nvgText(vg, box.size.x / 2, box.size.y / 2 + mm2px(0.9f), text, nullptr);
+// RECORD and PUNCH light in the display's record colour
+struct RecordLight : GrayModuleLightWidget {
+	RecordLight() {
+		addBaseColor(recColor());
 	}
 };
 
@@ -1127,47 +1109,41 @@ struct LyrebirdWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		LyrebirdDisplay* display = createWidget<LyrebirdDisplay>(mm2px(Vec(1.5, 17.0)));
-		display->box.size = mm2px(Vec(56.0, 42.0));
+		display->box.size = mm2px(Vec(62.88, 47.16));
 		display->module = module;
 		addChild(display);
 
-		addParam(createParamCentered<RoundHugeBlackKnob>(mm2px(Vec(75.275, 41.0)), module, Lyrebird::GESTURE_PARAM));
-		addParam(createLightParamCentered<VCVLightBezel<RedLight>>(mm2px(Vec(95.065, 36.0)), module, Lyrebird::REC_PARAM, Lyrebird::REC_LIGHT));
-		addParam(createLightParamCentered<VCVLightBezel<YellowLight>>(mm2px(Vec(109.75, 36.0)), module, Lyrebird::PUNCH_PARAM, Lyrebird::PUNCH_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(95.065, 46.0)), module, Lyrebird::REC_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(109.75, 46.0)), module, Lyrebird::PUNCH_INPUT));
+		// PERFORM plate
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.917, 77.66)), module, Lyrebird::BPM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.417, 77.66)), module, Lyrebird::CLOCK_INPUT));
+		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(46.107, 77.66)), module, Lyrebird::LENGTH_PARAM));
+		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(15.317, 94.15)), module, Lyrebird::RECORD_PARAM, Lyrebird::RECORD_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.817, 94.15)), module, Lyrebird::RECORD_INPUT));
+		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(41.649, 94.15)), module, Lyrebird::PUNCH_PARAM, Lyrebird::PUNCH_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(50.149, 94.15)), module, Lyrebird::PUNCH_INPUT));
 
-		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(9.22, 69.0)), module, Lyrebird::SOURCE_PARAM, Lyrebird::SOURCE_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(17.72, 69.0)), module, Lyrebird::SOURCE_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(29.87, 69.0)), module, Lyrebird::CV_INPUT));
+		// SOURCE plate
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(19.775, 114.93)), module, Lyrebird::GESTURE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.107, 114.93)), module, Lyrebird::CV_INPUT));
 
-		LengthDisplay* length = createWidget<LengthDisplay>(mm2px(Vec(47.2, 66.0)));
-		length->box.size = mm2px(Vec(13.0, 6.0));
-		length->module = module;
-		addChild(length);
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(67.0, 69.0)), module, Lyrebird::LENGTH_PARAM));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(81.37, 69.0)), module, Lyrebird::TIME_PARAM));
-		addParam(createParamCentered<CKSS>(mm2px(Vec(102.07, 69.0)), module, Lyrebird::PLAY_PARAM));
+		// PLAYBACK plate
+		addParam(createParamCentered<TL1105>(mm2px(Vec(77.08, 28.275)), module, Lyrebird::FILE_PREV_PARAM));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(85.78, 28.275)), module, Lyrebird::SAVE_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(94.48, 28.275)), module, Lyrebird::FILE_NEXT_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 38.275)), module, Lyrebird::FILE_PREV_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 38.275)), module, Lyrebird::FILE_NEXT_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(77.08, 55.315)), module, Lyrebird::SPEED_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(94.48, 55.315)), module, Lyrebird::SMOOTH_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 67.315)), module, Lyrebird::SPEED_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 67.315)), module, Lyrebird::SMOOTH_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(77.08, 82.605)), module, Lyrebird::TRIG_PARAM));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(94.48, 82.605)), module, Lyrebird::REVERSE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 92.605)), module, Lyrebird::TRIG_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 92.605)), module, Lyrebird::REVERSE_INPUT));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.018, 96.3)), module, Lyrebird::SPEED_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.018, 96.3)), module, Lyrebird::SPEED_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(37.551, 96.3)), module, Lyrebird::SMOOTH_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.551, 96.3)), module, Lyrebird::SMOOTH_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(63.084, 96.3)), module, Lyrebird::SCALE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(74.084, 96.3)), module, Lyrebird::SCALE_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(88.617, 96.3)), module, Lyrebird::OFFSET_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(102.185, 96.3)), module, Lyrebird::REVERSE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(110.685, 96.3)), module, Lyrebird::REVERSE_INPUT));
-
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.78, 112.6)), module, Lyrebird::BPM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(21.28, 112.6)), module, Lyrebird::CLOCK_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(32.83, 112.6)), module, Lyrebird::TRIG_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(41.33, 112.6)), module, Lyrebird::TRIG_INPUT));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(62.5, 112.6)), module, Lyrebird::FILE_PREV_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(69.4, 112.6)), module, Lyrebird::SAVE_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(76.3, 112.6)), module, Lyrebird::FILE_NEXT_PARAM));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(98.135, 112.6)), module, Lyrebird::EOC_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(111.285, 112.6)), module, Lyrebird::MAIN_OUTPUT));
+		// Output plate
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(78.18, 111.105)), module, Lyrebird::EOC_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(92.045, 111.105)), module, Lyrebird::MAIN_OUTPUT));
 	}
 
 	void step() override {
@@ -1216,6 +1192,16 @@ struct LyrebirdWidget : ModuleWidget {
 			return;
 
 		menu->addChild(new MenuSeparator);
+		menu->addChild(createIndexSubmenuItem("Time", {"Sync", "Free"},
+			[=]() { return module->sync ? 0 : 1; },
+			[=](int i) {
+				withMenuUndo(module, "set time", [=]() { module->sync = i == 0; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Play", {"Loop", "Once"},
+			[=]() { return module->loop ? 0 : 1; },
+			[=](int i) {
+				withMenuUndo(module, "set play", [=]() { module->loop = i == 0; });
+			}));
 		menu->addChild(createIndexSubmenuItem("Knob range", {"+-5 V", "0-10 V"},
 			[=]() { return (int) module->knobRange; },
 			[=](int i) {

@@ -19,14 +19,12 @@ enum class Status { Idle, Armed, Recording, PunchArmed, Punching };
 struct LyrebirdControls {
 	double source = 0;  // volts, the selected source
 	double bpm = 120;  // the transport's tempo, stored with a new take
-	bool sourceIsKnob = true;
+	bool sourceIsKnob = true;  // GESTURE, or CV IN when it has a cable
 	bool sync = true;
 	bool loop = true;
 	int lengthIndex = 2;
 	double speedOct = 0;  // knob + CV, octaves
 	double smoothMs = 0;
-	double scale = 1;
-	double offset = 0;
 	bool reverse = false;
 	bool rec = false;
 	bool punch = false;  // button OR gate, level
@@ -115,7 +113,7 @@ private:
 	void restart();
 	double outputFor(const LyrebirdControls& c, const Take& t, double ph);
 	double rawFor(const LyrebirdControls& c, const Take& t, double ph);
-	double finish(const LyrebirdControls& c, double v) const;
+	static double finish(double v);
 
 	// Recording
 	void startRec(const LyrebirdControls& c, double x);
@@ -165,7 +163,7 @@ private:
 	bool recByPunch_ = false;  // PUNCH with no take records, and owns the stop
 	double armValue_ = 0.0;
 	Slew monitor_;
-	double lastRaw_ = 0.0;  // last playback value before SCALE/OFFSET
+	double lastRaw_ = 0.0;  // last playback value before the clamp
 
 	// One 1 ms input block being averaged, centred on take sample blockIdx_
 	double blockSum_ = 0.0;

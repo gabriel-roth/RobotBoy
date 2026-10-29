@@ -42,10 +42,10 @@ struct Rig {
 static void emptyPassesSource() {
 	Rig r;
 	r.c.source = 2;
-	r.c.scale = -1;
-	r.c.offset = 1;
 	for (int i = 0; i < 100; i++)
-		assert(std::fabs(r.step().volts - -1.0) < 1e-9);
+		assert(std::fabs(r.step().volts - 2.0) < 1e-9);
+	r.c.source = 15;
+	assert(std::fabs(r.step().volts - 10.0) < 1e-9);
 }
 
 static void syncLoopLocksToBar() {
@@ -111,9 +111,8 @@ static void onceRestsOnLastValue() {
 		Rig r;
 		r.c.loop = false;
 		r.c.idle = (IdleOutput) idle;
-		r.c.offset = 0.5;
 		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
-		double want = idle == 0 ? 5.5 : idle == 1 ? -4.5 : 0.5;
+		double want = idle == 0 ? 5.0 : idle == 1 ? -5.0 : 0.0;
 		for (int i = 0; i < 1000; i++)
 			assert(std::fabs(r.step().volts - want) < 1e-4);
 		// A pass
@@ -128,7 +127,7 @@ static void onceRestsOnLastValue() {
 			v = s.volts;
 		}
 		assert(eocs == 1);
-		assert(std::fabs(mid - 0.5) < 0.05);
+		assert(std::fabs(mid) < 0.05);
 		assert(std::fabs(v - want) < 1e-4);
 	}
 }
@@ -198,8 +197,6 @@ static void outputsNeverNonFinite() {
 		if (!empty)
 			r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
 		r.c.source = nan;
-		r.c.scale = nan;
-		r.c.offset = nan;
 		r.c.speedOct = nan;
 		r.c.smoothMs = nan;
 		for (int i = 0; i < 5000; i++) {
@@ -207,9 +204,7 @@ static void outputsNeverNonFinite() {
 			assert(std::isfinite(s.volts) && std::fabs(s.volts) <= 10.0);
 			assert(std::isfinite(s.playhead));
 		}
-		r.c.scale = 1e30;
-		r.c.offset = 1e30;
-		r.c.source = 5;
+		r.c.source = 1e30;
 		LyrebirdStep s = r.step();
 		assert(std::fabs(s.volts) <= 10.0);
 	}
@@ -235,13 +230,12 @@ static void loadUndoSnapshot() {
 static void traceMatches() {
 	Rig r;
 	r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
-	r.c.scale = 0.5;
 	for (int i = 0; i < 5000; i++)
 		r.step();
 	float raw[11], out[11];
 	r.eng.renderTrace(r.c, raw, out, 11);
 	assert(std::fabs(raw[0] + 5.f) < 1e-4 && std::fabs(raw[10] - 5.f) < 1e-4);
-	assert(std::fabs(out[10] - 2.5f) < 1e-4);
+	assert(std::fabs(out[10] - 5.f) < 1e-4);
 }
 
 static int countEoc(Rig& r, int n, int* firstAt = nullptr) {

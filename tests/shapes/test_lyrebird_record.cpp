@@ -537,8 +537,6 @@ static void traceWhileWriting() {
 	Rig r;
 	r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
 	r.c.smoothMs = 200;
-	r.c.scale = 0.5;
-	r.c.offset = 1;
 	r.c.source = 5;
 	r.runTo(0.25);
 	r.pressPunch();
@@ -546,7 +544,7 @@ static void traceWhileWriting() {
 	float raw[256], out[256];
 	r.eng.renderTrace(r.c, raw, out, 256);
 	for (int i = 0; i < 256; i++)
-		assert(std::fabs(out[i] - (raw[i] * 0.5f + 1.f)) < 1e-5);
+		assert(std::fabs(out[i] - raw[i]) < 1e-5);
 	// The written span already shows
 	assert(std::fabs(raw[96] - 5.f) < 1e-5);
 }

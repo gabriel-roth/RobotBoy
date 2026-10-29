@@ -374,18 +374,16 @@ int LyrebirdEngine::maxPunchStep(const LyrebirdControls& c, const Take& t, doubl
 	return (int) std::min(step, (double) t.length);
 }
 
-double LyrebirdEngine::finish(const LyrebirdControls& c, double v) const {
-	double scale = sanitize(c.scale, 1.0);
-	double offset = sanitize(c.offset, 0.0);
-	return std::clamp(sanitize(v * scale + offset, 0.0), -10.0, 10.0);
+double LyrebirdEngine::finish(double v) {
+	return std::clamp(sanitize(v, 0.0), -10.0, 10.0);
 }
 
 // Smoothed take value at playhead ph (0..1)
 double LyrebirdEngine::outputFor(const LyrebirdControls& c, const Take& t, double ph) {
-	return finish(c, rawFor(c, t, ph));
+	return finish(rawFor(c, t, ph));
 }
 
-// As outputFor, before SCALE and OFFSET
+// As outputFor, before the clamp
 double LyrebirdEngine::rawFor(const LyrebirdControls& c, const Take& t, double ph) {
 	double span = c.loop ? (double) t.length : (double) (t.length - 1);
 	double idx = std::clamp(sanitize(ph, 0.0), 0.0, 1.0) * span;
@@ -461,7 +459,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		// OUT monitors the live source while the take is written
 		recordSample(c, tb, x, out);
 		lastRaw_ = monitor_.process(src);
-		out.volts = finish(c, lastRaw_);
+		out.volts = finish(lastRaw_);
 		out.status = status_;
 		return out;
 	}
@@ -470,7 +468,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 
 	if (t.empty()) {
 		lastRaw_ = src;
-		out.volts = finish(c, src);
+		out.volts = finish(src);
 		out.status = status_;
 		return out;
 	}
@@ -639,7 +637,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	}
 
 	lastRaw_ = v;
-	out.volts = finish(c, v);
+	out.volts = finish(v);
 	out.status = status_;
 	return out;
 }
@@ -650,7 +648,7 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 	if (n <= 0)
 		return;
 	if (t.empty()) {
-		float v = (float) finish(c, sanitize(c.source, 0.0));
+		float v = (float) finish(sanitize(c.source, 0.0));
 		for (int i = 0; i < n; i++) {
 			raw[i] = 0.f;
 			out[i] = v;
@@ -683,7 +681,7 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 		double a = value(k);
 		double b = k + 1 < t.length && has(k + 1) ? value(k + 1) : a;
 		raw[i] = (float) (a + (b - a) * f);
-		out[i] = (float) finish(c, live ? raw[i] : smoother_.at(t, idx, hw, c.loop));
+		out[i] = (float) finish(live ? raw[i] : smoother_.at(t, idx, hw, c.loop));
 	}
 }
 
