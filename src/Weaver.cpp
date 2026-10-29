@@ -163,6 +163,12 @@ struct Weaver : Module {
 	// The waves and the algorithm the buttons and their menus have chosen
 	int waves[3] = {};
 	int algorithm = 0;
+	// A new algorithm waits for the end of the cycle
+	bool algorithmAtCycleEnd = false;
+	int heldAlgorithm = 0;
+	// Take the algorithm now even when waiting (preset, load). Set from the
+	// UI thread after the choices it publishes.
+	std::atomic<bool> algorithmNow{true};
 
 	shapes::Timebase timebase;
 	shapes::CombineEngine engine;
@@ -208,12 +214,14 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++)
 			waves[i] = defaults().op[i].wave;
 		algorithm = defaults().algorithm;
+		algorithmNow.store(true, std::memory_order_release);
 	}
 
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		resetChoices();
 		settings.reset();
+		algorithmAtCycleEnd = false;
 	}
 
 	float cv(int in) {
@@ -254,6 +262,7 @@ struct Weaver : Module {
 		}
 		algorithm = p.algorithm;
 		params[WINDOW_PARAM].setValue((float) p.window);
+		algorithmNow.store(true, std::memory_order_release);
 	}
 
 	// Steps through the presets; from settings that match none, Next starts
@@ -331,9 +340,13 @@ struct Weaver : Module {
 		// The Input peak rolls over here, before this sample is processed
 		if (step.wrapped)
 			engine.cycleWrapped();
+		// Reset starts a cycle too, so a waiting algorithm lands there
+		bool cycleStart = step.wrapped || step.reset;
 
 		shapes::CombineControls c = controls();
-		c.algorithm = (shapes::Algorithm) targetAlgorithm();
+		if (algorithmNow.exchange(false, std::memory_order_acquire) || !algorithmAtCycleEnd || cycleStart)
+			heldAlgorithm = targetAlgorithm();
+		c.algorithm = (shapes::Algorithm) heldAlgorithm;
 
 		double t = (double) step.cycle + step.pos;
 		shapes::CombineFrame f = engine.process(c, t, false);
@@ -409,6 +422,7 @@ struct Weaver : Module {
 			json_array_append_new(wavesJ, json_integer(waves[i]));
 		json_object_set_new(rootJ, "waves", wavesJ);
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
+		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
 		return rootJ;
 	}
 
@@ -425,6 +439,8 @@ struct Weaver : Module {
 		json_t* j = json_object_get(rootJ, "algorithm");
 		if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumAlgorithms)
 			algorithm = (int) json_integer_value(j);
+		j = json_object_get(rootJ, "algorithmAtCycleEnd");
+		algorithmAtCycleEnd = j && json_is_true(j);
 	}
 };
 
@@ -625,15 +641,28 @@ struct AlgorithmDisplay : shapeui::Screen {
 	}
 };
 
-// One operator's wave: what PARAM does for it in a top band, a divider, then
-// one cycle of the wave (an Input: its last cycle, scrolling).
+// One operator's wave: what PARAM does for it in a top band, one cycle of the
+// wave (an Input: its last cycle, scrolling), then the wave's name in a bottom
+// band.
 struct WaveDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 	int op = 0;
-	static constexpr float kLabelBand = 4.4f;  // mm
+	// mm; the top band's text is level with the PARAM knob
+	static constexpr float kLabelBand = 4.9f;
+	static constexpr float kLabelBaseline = 3.9f;
+	static constexpr float kNameBand = 3.4f;
 
 	WaveDisplay() {
 		radiusMm = 0.4f;
+	}
+
+	void divider(NVGcontext* vg, float y) {
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, 0, mm2px(y));
+		nvgLineTo(vg, box.size.x, mm2px(y));
+		nvgStrokeWidth(vg, mm2px(0.2f));
+		nvgStrokeColor(vg, shapeui::dividerColor());
+		nvgStroke(vg);
 	}
 
 	void drawScreen(NVGcontext* vg) override {
@@ -650,16 +679,22 @@ struct WaveDisplay : shapeui::Screen {
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			nvgFontSize(vg, mm2px(2.0f));
 			nvgFillColor(vg, shapeui::mutedColor());
-			nvgText(vg, mm2px(w - 1.f), mm2px(kLabelBand / 2 + 0.7f), shapes::paramName((shapes::Wave) wave), nullptr);
-		}
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, 0, mm2px(kLabelBand));
-		nvgLineTo(vg, box.size.x, mm2px(kLabelBand));
-		nvgStrokeWidth(vg, mm2px(0.2f));
-		nvgStrokeColor(vg, shapeui::dividerColor());
-		nvgStroke(vg);
+			nvgText(vg, mm2px(w - 1.f), mm2px(kLabelBaseline), shapes::paramName((shapes::Wave) wave), nullptr);
 
-		float ty = kLabelBand + 1.f, th = h - 1.f - ty;
+			// As large as fits, up to the top band's size (Share Tech Mono:
+			// advance 0.54 em, cap height 0.70 em)
+			char name[24];
+			upperCase(name, sizeof(name), kWaveNames[wave]);
+			float size = std::min(2.0f, (w - 1.4f) / (std::max<size_t>(strlen(name), 1) * 0.54f));
+			nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+			nvgFontSize(vg, mm2px(size));
+			nvgFillColor(vg, shapeui::operatorColor(op));
+			nvgText(vg, box.size.x / 2, mm2px(h - kNameBand / 2 + 0.35f * size), name, nullptr);
+		}
+		divider(vg, kLabelBand);
+		divider(vg, h - kNameBand);
+
+		float ty = kLabelBand + 0.7f, th = h - kNameBand - 0.7f - ty;
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, mm2px(1.f), mm2px(ty + th / 2));
 		nvgLineTo(vg, mm2px(w - 1.f), mm2px(ty + th / 2));
@@ -715,24 +750,18 @@ struct PresetButton : TL1105 {
 	}
 };
 
-// Clicking WAVE or ALGORITHM pops up a menu of the choices. Pressing the
-// param any other way (MIDI map, the MetaModule) still steps to the next one.
+// Clicking WAVE or ALGORITHM steps to the next choice; right-clicking lists
+// them all below the usual parameter menu.
 template <typename TBase>
 struct ChoiceMenuButton : TBase {
 	virtual void appendChoices(Menu* menu, Weaver* module) = 0;
 
-	void onDragStart(const event::DragStart& e) override {
+	void appendContextMenu(Menu* menu) override {
 		Weaver* module = this->getParamQuantity() ? dynamic_cast<Weaver*>(this->getParamQuantity()->module) : nullptr;
-		if (e.button != GLFW_MOUSE_BUTTON_LEFT || !module) {
-			TBase::onDragStart(e);
+		if (!module)
 			return;
-		}
-		Menu* menu = createMenu();
+		menu->addChild(new MenuSeparator);
 		appendChoices(menu, module);
-	}
-	void onDragEnd(const event::DragEnd& e) override {
-		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
-			TBase::onDragEnd(e);
 	}
 };
 
@@ -803,9 +832,9 @@ struct WeaverWidget : ModuleWidget {
 
 		addScreen<WeaverMainDisplay>(module, 1.5, 17.0, 87.74, 45.7);
 		addScreen<AlgorithmDisplay>(module, 3.9, 67.1, 26.0, 13.3);
-		addScreen<WaveDisplay>(module, 110.85, 29.39, 13.0, 13.0)->op = 0;
-		addScreen<WaveDisplay>(module, 110.85, 62.22, 13.0, 13.0)->op = 1;
-		addScreen<WaveDisplay>(module, 110.85, 95.05, 13.0, 13.0)->op = 2;
+		addScreen<WaveDisplay>(module, 110.35, 28.39, 14.0, 17.0)->op = 0;
+		addScreen<WaveDisplay>(module, 110.35, 61.22, 14.0, 17.0)->op = 1;
+		addScreen<WaveDisplay>(module, 110.35, 94.05, 14.0, 17.0)->op = 2;
 		addScreen<RatioDisplay>(module, 94.25, 26.8, 11.0, 6.0)->op = 0;
 		addScreen<RatioDisplay>(module, 94.25, 59.63, 11.0, 6.0)->op = 1;
 		addScreen<RatioDisplay>(module, 94.25, 92.46, 11.0, 6.0)->op = 2;
@@ -813,7 +842,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator A
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 39.9)), module, Weaver::A_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 51.03)), module, Weaver::A_RATIO_INPUT));
-		addWaveButton(module, mm2px(Vec(117.35, 48.99)), Weaver::A_WAVE_PARAM, Weaver::A_WAVE_LIGHT, 0);
+		addWaveButton(module, mm2px(Vec(117.35, 51.03)), Weaver::A_WAVE_PARAM, Weaver::A_WAVE_LIGHT, 0);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 31.59)), module, Weaver::A_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 41.7)), module, Weaver::A_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 51.03)), module, Weaver::A_PARAM_INPUT));
@@ -827,7 +856,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator B
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 72.73)), module, Weaver::B_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 83.86)), module, Weaver::B_RATIO_INPUT));
-		addWaveButton(module, mm2px(Vec(117.35, 81.82)), Weaver::B_WAVE_PARAM, Weaver::B_WAVE_LIGHT, 1);
+		addWaveButton(module, mm2px(Vec(117.35, 83.86)), Weaver::B_WAVE_PARAM, Weaver::B_WAVE_LIGHT, 1);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 64.42)), module, Weaver::B_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 74.53)), module, Weaver::B_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 83.86)), module, Weaver::B_PARAM_INPUT));
@@ -841,7 +870,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator C
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 105.56)), module, Weaver::C_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 116.69)), module, Weaver::C_RATIO_INPUT));
-		addWaveButton(module, mm2px(Vec(117.35, 114.65)), Weaver::C_WAVE_PARAM, Weaver::C_WAVE_LIGHT, 2);
+		addWaveButton(module, mm2px(Vec(117.35, 116.69)), Weaver::C_WAVE_PARAM, Weaver::C_WAVE_LIGHT, 2);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 97.25)), module, Weaver::C_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 107.36)), module, Weaver::C_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 116.69)), module, Weaver::C_PARAM_INPUT));
@@ -887,6 +916,11 @@ struct WeaverWidget : ModuleWidget {
 			return;
 		menu->addChild(new MenuSeparator);
 		shapeui::appendSettingsMenu(menu, module, &module->settings);
+		menu->addChild(createIndexSubmenuItem("Algorithm changes", {"Immediately", "At end of cycle"},
+			[=]() { return module->algorithmAtCycleEnd ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
+			}));
 	}
 };
 

@@ -24,16 +24,18 @@
 #  - Operator rows (91.24-176.30): one plate per operator in the original JS
 #    prototype's operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
 #    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (heading size) in
-#    the bottom-left corner of each plate.
+#    the bottom-left corner of each plate, in white at 60% over the plate, precomputed (Rack can't
+#    read #rrggbbaa).
 #    Five equal 17.01 cells from 91.24: 99.75 / 116.76 / 133.77 / 150.78 / 167.79.
 #    Columns, left to right: RATIO, WAVE, PARAM, PHASE, LEVEL.
-#    WAVE: a lit bezel button stepping through the waves (light color shows
-#    the wave, like Particules' QUALITY and Brume's MODE; no CV) over a small
-#    live display of the operator's wave (13 x 10, inside its cell; drawn by the module, so it
-#    shows on MetaModule too; it names what PARAM does for the current wave). RATIO (snap), PARAM, PHASE, LEVEL: knob, CV
+#    WAVE: a lit bezel button stepping through the waves (right-click lists them; light color shows
+#    the wave, like Particules' QUALITY and Brume's MODE; no CV) under a small
+#    live display of the operator's wave (drawn by the module, so it
+#    shows on MetaModule too; it names what PARAM does for the current wave above the trace and
+#    the wave below it). RATIO (snap), PARAM, PHASE, LEVEL: knob, CV
 #    attenuator trimpot (RATIO: no trimpot, a small readout of the ratio above its knob) and CV jack, stacked with equal gaps (rows at top + 7.09 / 17.2 / 26.53);
-#    the Wave display (13 x 13, from top + 4.89; its PARAM name level with the PARAM knob) over
-#    its button (top + 24.49). WAVE's tab spans WAVE and PARAM, which share a cell with no divider.
+#    the Wave display (14 x 17, from top + 3.89; its PARAM name level with the PARAM knob) over
+#    its button (top + 26.53, level with the jacks). WAVE's tab spans WAVE and PARAM, which share a cell with no divider.
 #    Hairline dividers between the columns, headings through row C.
 slug: Weaver
 name: WEAVER
@@ -86,9 +88,9 @@ elements:
   - {text: LEVEL, x: 167.79, y: 21.85, size: 2.9}
 
   # --- Operator A.
-  - {text: "A", x: 93.24, y: 55.93, size: 2.9, color: "#ffffff"}
-  - {name: A_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 48.99}
-  - {name: A_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 29.39, w: 13.0, h: 13.0}}
+  - {text: "A", x: 93.24, y: 55.93, size: 2.9, color: "#c9bda7"}
+  - {name: A_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 51.03}
+  - {name: A_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 28.39, w: 14.0, h: 17.0}}
   - {name: A_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 26.80, w: 11.0, h: 6.0}}
   - {name: A_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 39.90}
   - {name: A_RATIO_INPUT, x: 99.75, y: 51.03}
@@ -103,9 +105,9 @@ elements:
   - {name: A_LEVEL_INPUT, x: 167.79, y: 51.03}
 
   # --- Operator B.
-  - {text: "B", x: 93.24, y: 88.76, size: 2.9, color: "#ffffff"}
-  - {name: B_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 81.82}
-  - {name: B_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 62.22, w: 13.0, h: 13.0}}
+  - {text: "B", x: 93.24, y: 88.76, size: 2.9, color: "#a7bfbe"}
+  - {name: B_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 83.86}
+  - {name: B_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 61.22, w: 14.0, h: 17.0}}
   - {name: B_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 59.63, w: 11.0, h: 6.0}}
   - {name: B_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 72.73}
   - {name: B_RATIO_INPUT, x: 99.75, y: 83.86}
@@ -120,9 +122,9 @@ elements:
   - {name: B_LEVEL_INPUT, x: 167.79, y: 83.86}
 
   # --- Operator C.
-  - {text: "C", x: 93.24, y: 121.59, size: 2.9, color: "#ffffff"}
-  - {name: C_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 114.65}
-  - {name: C_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 95.05, w: 13.0, h: 13.0}}
+  - {text: "C", x: 93.24, y: 121.59, size: 2.9, color: "#c6b0bc"}
+  - {name: C_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 116.69}
+  - {name: C_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 94.05, w: 14.0, h: 17.0}}
   - {name: C_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 92.46, w: 11.0, h: 6.0}}
   - {name: C_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 105.56}
   - {name: C_RATIO_INPUT, x: 99.75, y: 116.69}
@@ -203,8 +205,8 @@ glyphs:
   - {src: glyphs/weaver/window-off.svg,  at: [65.11, 67.30]}
   - {src: glyphs/weaver/window-full.svg, at: [78.11, 67.30]}
   # PRESET's directions, beside its buttons.
-  - {src: glyphs/weaver/step-back.svg,    at: [70.20, 87.8]}
-  - {src: glyphs/weaver/step-forward.svg, at: [84.40, 87.8]}
+  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 87.8]}
+  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 87.8]}
   # Arrows from each Wave display's PARAM name to the PARAM knob, level with both.
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 31.59]}
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 64.42]}

@@ -70,6 +70,9 @@ struct Skylark : Module {
 	// Context menu settings
 	shapeui::Settings settings;
 	bool variationPerCycle = false;
+	// A new shape waits for the end of the cycle
+	bool shapeAtCycleEnd = false;
+	int heldShape = 0;
 
 	shapes::Timebase timebase;
 	shapes::SkylarkEngine engine;
@@ -139,6 +142,7 @@ struct Skylark : Module {
 		Module::onReset(e);
 		settings.reset();
 		variationPerCycle = false;
+		shapeAtCycleEnd = false;
 	}
 
 	float cv(int input) {
@@ -187,7 +191,10 @@ struct Skylark : Module {
 		// first so the rounding can't overflow
 		double shapeCv = clamp(cv(SHAPE_INPUT), -100.f, 100.f);
 		int shape = (int) std::round(params[SHAPE_PARAM].getValue()) + (int) std::round(shapeCv / 10.0 * shapes::kNumRecipes);
-		c.shape = ((shape % shapes::kNumRecipes) + shapes::kNumRecipes) % shapes::kNumRecipes;
+		shape = ((shape % shapes::kNumRecipes) + shapes::kNumRecipes) % shapes::kNumRecipes;
+		if (!shapeAtCycleEnd || cycleStart)
+			heldShape = shape;
+		c.shape = heldShape;
 		double variation = params[VARIATION_PARAM].getValue() + heldVariationCv * 0.2 * params[VARIATION_CV_PARAM].getValue();
 		c.variation = std::clamp(shapes::sanitize(variation, 0.5), 0.0, 1.0);
 		c.timing = control(TIMING_PARAM, TIMING_INPUT, TIMING_CV_PARAM, -1.f, 1.f);
@@ -238,6 +245,7 @@ struct Skylark : Module {
 		json_t* rootJ = json_object();
 		settings.toJson(rootJ);
 		json_object_set_new(rootJ, "variationPerCycle", json_boolean(variationPerCycle));
+		json_object_set_new(rootJ, "shapeAtCycleEnd", json_boolean(shapeAtCycleEnd));
 		return rootJ;
 	}
 
@@ -245,6 +253,8 @@ struct Skylark : Module {
 		settings.fromJson(rootJ);
 		json_t* j = json_object_get(rootJ, "variationPerCycle");
 		variationPerCycle = j && json_is_true(j);
+		j = json_object_get(rootJ, "shapeAtCycleEnd");
+		shapeAtCycleEnd = j && json_is_true(j);
 	}
 };
 
@@ -373,6 +383,11 @@ struct SkylarkWidget : ModuleWidget {
 			[=]() { return module->variationPerCycle ? 1 : 0; },
 			[=](int i) {
 				withMenuUndo(module, "set Variation CV mode", [=]() { module->variationPerCycle = i == 1; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Shape changes", {"Immediately", "At end of cycle"},
+			[=]() { return module->shapeAtCycleEnd ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "set shape change timing", [=]() { module->shapeAtCycleEnd = i == 1; });
 			}));
 	}
 };

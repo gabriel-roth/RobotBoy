@@ -1,6 +1,7 @@
 # Skylark (the Recipes generator): 20 HP, tinted plates in the Brume style, 1.5 mm from the panel
 # edges with 2.0 mm between them.
-#  - Title centered in a 17 mm band (rows start at 17.0), spread across the display's width.
+#  - Title centered in a 17 mm band (rows start at 17.0), at the 22 HP panel's width: flush
+#    with the display's left edge, reaching a little past its right.
 #  - Display (4:3, 62 x 46.5) on the bare panel, top left (1.5-63.5, 17-63.5).
 #  - Top plate (65.5-100.1, 17-63.5): VARIATION and SHAPE (picks the recipe) in two columns
 #    (75.225 / 90.375), centered in the plate: labels 24.5, knobs 33.5, jacks 46.0.
@@ -26,11 +27,11 @@ hp: 20
 
 title:
   size: 9.5
-  tracking: 3.032
+  tracking: 3.682
   # Vertically centered in the 17 mm band above the plates: baseline (17 + 9.5) / 2 = 13.25
-  # (default baseline size + 1.0 = 10.5, so dy 2.75). x and tracking spread the ink across the
-  # display's full width.
-  x: 33.846
+  # (default baseline size + 1.0 = 10.5, so dy 2.75). x and tracking spread the ink over 1.5-67.4,
+  # the width of the 22 HP panel's display.
+  x: 36.103
   dy: 2.75
 
 zones:
