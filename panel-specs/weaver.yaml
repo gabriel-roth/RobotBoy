@@ -77,7 +77,7 @@ elements:
   - {text: LEVEL, x: 167.79, y: 21.85, size: 2.9}
 
   # --- Operator A.
-  - {text: "A", x: 93.24, y: 55.93, size: 2.9, color: "#ffffff99"}
+  - {text: "A", x: 93.24, y: 55.93, size: 2.9, color: "#ffffff"}
   - {name: A_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 48.99}
   - {name: A_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 29.39, w: 13.0, h: 13.0}}
   - {name: A_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 26.80, w: 11.0, h: 6.0}}
@@ -94,7 +94,7 @@ elements:
   - {name: A_LEVEL_INPUT, x: 167.79, y: 51.03}
 
   # --- Operator B.
-  - {text: "B", x: 93.24, y: 88.76, size: 2.9, color: "#ffffff99"}
+  - {text: "B", x: 93.24, y: 88.76, size: 2.9, color: "#ffffff"}
   - {name: B_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 81.82}
   - {name: B_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 62.22, w: 13.0, h: 13.0}}
   - {name: B_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 59.63, w: 11.0, h: 6.0}}
@@ -111,7 +111,7 @@ elements:
   - {name: B_LEVEL_INPUT, x: 167.79, y: 83.86}
 
   # --- Operator C.
-  - {text: "C", x: 93.24, y: 121.59, size: 2.9, color: "#ffffff99"}
+  - {text: "C", x: 93.24, y: 121.59, size: 2.9, color: "#ffffff"}
   - {name: C_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 114.65}
   - {name: C_WAVE_SCREEN, kind: widget, rect: {x: 110.85, y: 95.05, w: 13.0, h: 13.0}}
   - {name: C_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 92.46, w: 11.0, h: 6.0}}

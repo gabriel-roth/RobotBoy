@@ -156,14 +156,9 @@ struct Weaver : Module {
 
 	// Context menu settings
 	shapeui::Settings settings;
-	// The waves and the algorithm the buttons have chosen
+	// The waves and the algorithm the buttons and their menus have chosen
 	int waves[3] = {};
 	int algorithm = 0;
-	// The algorithm running: a new choice waits for the next cycle
-	int activeAlgorithm = 0;
-	// Take the algorithm now instead of at the next cycle (preset, load).
-	// Set from the UI thread after the choices it publishes.
-	std::atomic<bool> latchNow{true};
 
 	shapes::Timebase timebase;
 	shapes::CombineEngine engine;
@@ -173,7 +168,6 @@ struct Weaver : Module {
 	dsp::SchmittTrigger reverseGate;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
-	bool started = false;
 	int sincePublish = kPublishInterval;
 
 	// The last cycle as it played, one slot per 1/256 of the cycle, for the
@@ -211,7 +205,6 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++)
 			waves[i] = defaults().op[i].wave;
 		algorithm = defaults().algorithm;
-		latchNow.store(true, std::memory_order_release);
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -258,7 +251,6 @@ struct Weaver : Module {
 		}
 		algorithm = p.algorithm;
 		params[WINDOW_PARAM].setValue((float) p.window);
-		latchNow.store(true, std::memory_order_release);
 	}
 
 	// Steps through the presets; from settings that match none, Next starts
@@ -336,14 +328,9 @@ struct Weaver : Module {
 		// The Input peak rolls over here, before this sample is processed
 		if (step.wrapped)
 			engine.cycleWrapped();
-		// Reset starts a cycle too, so a pending algorithm change lands there
-		bool cycleStart = step.wrapped || step.reset || !started;
-		started = true;
 
 		shapes::CombineControls c = controls();
-		if (latchNow.exchange(false, std::memory_order_acquire) || cycleStart)
-			activeAlgorithm = targetAlgorithm();
-		c.algorithm = (shapes::Algorithm) activeAlgorithm;
+		c.algorithm = (shapes::Algorithm) targetAlgorithm();
 		reverseGate.process(cv(REVERSE_INPUT), 0.1f, 1.f);
 		bool reverse = params[REVERSE_PARAM].getValue() > 0.5f || reverseGate.isHigh();
 
@@ -715,6 +702,59 @@ struct PresetButton : TL1105 {
 	}
 };
 
+// Clicking WAVE or ALGORITHM pops up a menu of the choices. Pressing the
+// param any other way (MIDI map, the MetaModule) still steps to the next one.
+template <typename TBase>
+struct ChoiceMenuButton : TBase {
+	virtual void appendChoices(Menu* menu, Weaver* module) = 0;
+
+	void onDragStart(const event::DragStart& e) override {
+		Weaver* module = this->getParamQuantity() ? dynamic_cast<Weaver*>(this->getParamQuantity()->module) : nullptr;
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT || !module) {
+			TBase::onDragStart(e);
+			return;
+		}
+		Menu* menu = createMenu();
+		appendChoices(menu, module);
+	}
+	void onDragEnd(const event::DragEnd& e) override {
+		if (e.button != GLFW_MOUSE_BUTTON_LEFT)
+			TBase::onDragEnd(e);
+	}
+};
+
+struct WaveButton : ChoiceMenuButton<VCVLightBezel<RedGreenBlueLight>> {
+	int op = 0;
+
+	void appendChoices(Menu* menu, Weaver* module) override {
+		menu->addChild(createMenuLabel(std::string("Operator ") + (char) ('A' + op) + " wave"));
+		for (int w = 0; w < shapes::kNumWaves; w++) {
+			int o = op;
+			menu->addChild(createCheckMenuItem(kWaveNames[w], "",
+				[=]() { return module->waves[o] == w; },
+				[=]() {
+					if (module->waves[o] != w)
+						withMenuUndo(module, "set wave", [=]() { module->waves[o] = w; });
+				}));
+		}
+	}
+};
+
+struct AlgorithmButton : ChoiceMenuButton<VCVButton> {
+	void appendChoices(Menu* menu, Weaver* module) override {
+		menu->addChild(createMenuLabel("Algorithm"));
+		for (int a = 0; a < shapes::kNumAlgorithms; a++) {
+			std::string formula = shapes::algorithmFormula((shapes::Algorithm) a);
+			menu->addChild(createCheckMenuItem(shapes::algorithmName((shapes::Algorithm) a), formula,
+				[=]() { return module->algorithm == a; },
+				[=]() {
+					if (module->algorithm != a)
+						withMenuUndo(module, "set algorithm", [=]() { module->algorithm = a; });
+				}));
+		}
+	}
+};
+
 struct WeaverWidget : ModuleWidget {
 	template <typename T>
 	T* addScreen(Weaver* module, float x, float y, float w, float h) {
@@ -723,6 +763,12 @@ struct WeaverWidget : ModuleWidget {
 		screen->module = module;
 		addChild(screen);
 		return screen;
+	}
+
+	void addWaveButton(Weaver* module, Vec pos, int paramId, int lightId, int op) {
+		WaveButton* b = createLightParamCentered<WaveButton>(pos, module, paramId, lightId);
+		b->op = op;
+		addParam(b);
 	}
 
 	WeaverWidget(Weaver* module) {
@@ -746,7 +792,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator A
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 39.9)), module, Weaver::A_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 51.03)), module, Weaver::A_RATIO_INPUT));
-		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(117.35, 48.99)), module, Weaver::A_WAVE_PARAM, Weaver::A_WAVE_LIGHT));
+		addWaveButton(module, mm2px(Vec(117.35, 48.99)), Weaver::A_WAVE_PARAM, Weaver::A_WAVE_LIGHT, 0);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 31.59)), module, Weaver::A_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 41.7)), module, Weaver::A_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 51.03)), module, Weaver::A_PARAM_INPUT));
@@ -760,7 +806,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator B
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 72.73)), module, Weaver::B_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 83.86)), module, Weaver::B_RATIO_INPUT));
-		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(117.35, 81.82)), module, Weaver::B_WAVE_PARAM, Weaver::B_WAVE_LIGHT));
+		addWaveButton(module, mm2px(Vec(117.35, 81.82)), Weaver::B_WAVE_PARAM, Weaver::B_WAVE_LIGHT, 1);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 64.42)), module, Weaver::B_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 74.53)), module, Weaver::B_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 83.86)), module, Weaver::B_PARAM_INPUT));
@@ -774,7 +820,7 @@ struct WeaverWidget : ModuleWidget {
 		// Operator C
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.75, 105.56)), module, Weaver::C_RATIO_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.75, 116.69)), module, Weaver::C_RATIO_INPUT));
-		addParam(createLightParamCentered<VCVLightBezel<RedGreenBlueLight>>(mm2px(Vec(117.35, 114.65)), module, Weaver::C_WAVE_PARAM, Weaver::C_WAVE_LIGHT));
+		addWaveButton(module, mm2px(Vec(117.35, 114.65)), Weaver::C_WAVE_PARAM, Weaver::C_WAVE_LIGHT, 2);
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(134.88, 97.25)), module, Weaver::C_PARAM_PARAM));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(134.88, 107.36)), module, Weaver::C_PARAM_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(134.88, 116.69)), module, Weaver::C_PARAM_INPUT));
@@ -786,7 +832,7 @@ struct WeaverWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
 		// Algorithm, envelope and presets
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(39.6, 71.9)), module, Weaver::ALGORITHM_PARAM));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(39.6, 71.9)), module, Weaver::ALGORITHM_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.6, 71.9)), module, Weaver::ALGORITHM_INPUT));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(66.3, 71.9)), module, Weaver::WINDOW_PARAM));
 		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(81.75, 70.05)), module, Weaver::PRESET_NEXT_PARAM);
