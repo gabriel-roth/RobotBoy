@@ -267,6 +267,11 @@ struct SkylarkDisplay : shapeui::Screen {
 	SkylarkFrame preview;
 	bool havePreview = false;
 
+	SkylarkDisplay() {
+		// The plates' corner radius
+		radiusMm = 2.f;
+	}
+
 	const SkylarkFrame& frame() {
 		if (module)
 			return module->frames[module->frontFrame.load(std::memory_order_acquire)];

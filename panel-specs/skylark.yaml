@@ -37,7 +37,7 @@ title:
 zones:
   # Under the display (hidden by it): only its arrow shows, pointing into the
   # top plate's notch at the VARIATION jack, for the output->VARIATION feedback.
-  - {x: 1.5, y: 17.0, w: 62.0, h: 46.5, rx: 1, fill: "#0c0e10", opacity: 1.0,
+  - {x: 1.5, y: 17.0, w: 62.0, h: 46.5, rx: 2, fill: "#0c0e10", opacity: 1.0,
      arrows: [{side: right, at: 46.0}]}
   - {x: 65.5, y: 17.0, w: 34.6, h: 46.5, rx: 2, fill: "#b98f6a", opacity: 0.55,
      notches: [{side: left, at: 46.0}]}
