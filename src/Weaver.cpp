@@ -753,7 +753,11 @@ struct WaveDisplay : shapeui::Screen {
 			// As large as fits, up to the top band's size (Share Tech Mono:
 			// advance 0.54 em, cap height 0.70 em)
 			char name[24];
-			upperCase(name, sizeof(name), kWaveNames[wave]);
+			// The loop waves' full names would shrink too small to read
+			const char* label = wave == shapes::SteppedLoop ? "Stepped loop"
+			                    : wave == shapes::SmoothLoop ? "Smooth loop"
+			                                                 : kWaveNames[wave];
+			upperCase(name, sizeof(name), label);
 			float size = std::min(2.0f, (w - 1.4f) / (std::max<size_t>(strlen(name), 1) * 0.54f));
 			nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(size));
