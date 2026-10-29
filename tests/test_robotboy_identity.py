@@ -5,9 +5,6 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# VCV-only until their MetaModule port, so left out of the parity check.
-VCV_ONLY = {"Skylark", "Weaver", "Lyrebird"}
-
 
 class RobotBoyIdentityTest(unittest.TestCase):
     def test_public_metadata(self):
@@ -28,7 +25,7 @@ class RobotBoyIdentityTest(unittest.TestCase):
         # public VCV manifest and the MetaModule manifest, or a module added
         # to one and forgotten in the other silently falls out of sync.
         self.assertEqual(
-            [module["slug"] for module in plugin["modules"] if module["slug"] not in VCV_ONLY],
+            [module["slug"] for module in plugin["modules"]],
             [module["slug"] for module in mm["MetaModuleIncludedModules"]],
         )
 
