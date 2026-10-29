@@ -5,8 +5,11 @@
 #include "shapes/TakeFile.hpp"
 #include "shapes/Timebase.hpp"
 
+#include <osdialog.h>
+
 #include <atomic>
 #include <cctype>
+#include <cstdlib>
 
 // Lyrebird: a shape modulator that records a knob gesture or a CV and plays
 // it back in time with the clock, looped or one-shot, with punch-in.
@@ -15,12 +18,27 @@ static constexpr int kTracePoints = 256;
 // Samples between display updates.
 static constexpr int kPublishInterval = 512;
 static constexpr float kMessageSeconds = 3.f;
+// Footer characters a message can use before it runs into the source
+static constexpr size_t kMessageChars = 18;
 
 static const char* const kLengthNames[7] = {"1/4 BAR", "1/2 BAR", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
 
 // Take generations, unique across every Lyrebird, so a history step can't
 // match a different (or deleted and restored) module's takes
 static std::atomic<uint32_t> takeGenCounter{0};
+
+// Upper case ASCII for the display font, at most max characters. Anything
+// else, a whole UTF-8 sequence at a time, shows as '?'.
+static std::string screenText(const std::string& s, size_t max) {
+	std::string out;
+	for (size_t i = 0; i < s.size() && out.size() < max; i++) {
+		unsigned char ch = (unsigned char) s[i];
+		if (ch >= 0x80 && ch < 0xc0)
+			continue;
+		out += ch >= 32 && ch < 127 ? (char) std::toupper(ch) : '?';
+	}
+	return out;
+}
 
 static NVGcolor recColor() {
 	return nvgRGB(0xff, 0x4d, 0x4d);
@@ -128,6 +146,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// The SOURCE button's latched choice; the gate flips it while high
 	bool sourceIsCv = false;
 	// The folder of the last file opened or saved; empty until one is
+	// chosen, which means the default folder
 	std::string folder;
 
 	shapes::Timebase timebase;
@@ -135,6 +154,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::Trigger eoc;
 	dsp::BooleanTrigger sourceButton;
 	dsp::SchmittTrigger sourceGate, recGate, punchGate, reverseGate;
+	dsp::BooleanTrigger prevButton, saveButton, nextButton;
 	float blinkPhase = 0.f;
 	int sincePublish = kPublishInterval;
 	shapes::Status lastStatus = shapes::Status::Idle;
@@ -147,6 +167,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// Audio thread to UI: a Free take reached the limit; REC or PUNCH started writing
 	std::atomic<bool> limitHit{false};
 	std::atomic<uint32_t> writesStarted{0};
+	// Audio thread to UI: file button presses, since files are the UI's to touch
+	std::atomic<int> fileStepRequest{0}, saveRequest{0};
 
 	// UI thread. Names the current pair of takes (current and undo slot), so a
 	// history step only swaps them when they are still the pair it left.
@@ -158,6 +180,12 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// Footer message, UI thread only
 	std::string message;
 	double messageUntil = 0.0;
+
+	// A save waiting for its snapshot, UI thread only. An empty path means
+	// the next free name in saveDir, picked once the snapshot is ready.
+	bool saving = false;
+	std::string savePath, saveDir;
+	uint32_t saveGen = 0;
 
 	// A patch take that arrived while a load was still pending, applied once it's done
 	json_t* deferredTakeJ = nullptr;
@@ -338,6 +366,13 @@ struct Lyrebird : Module, MenuUndoFilter {
 
 		shapes::LyrebirdStep step = engine.process(c, tb);
 
+		if (prevButton.process(params[FILE_PREV_PARAM].getValue() > 0.5f))
+			fileStepRequest.fetch_sub(1);
+		if (nextButton.process(params[FILE_NEXT_PARAM].getValue() > 0.5f))
+			fileStepRequest.fetch_add(1);
+		if (saveButton.process(params[SAVE_PARAM].getValue() > 0.5f))
+			saveRequest.fetch_add(1);
+
 		outputs[MAIN_OUTPUT].setVoltage((float) shapes::sanitize(step.volts, 0.0));
 		if (step.eoc)
 			eoc.fire();
@@ -408,8 +443,21 @@ struct Lyrebird : Module, MenuUndoFilter {
 
 	// UI thread
 	void showMessage(const std::string& text) {
-		message = text;
+		message = screenText(text, kMessageChars);
 		messageUntil = system::getTime() + kMessageSeconds;
+	}
+
+	static std::string defaultFolder() {
+		return asset::user("RobotBoy/Lyrebird");
+	}
+	std::string currentFolder() const {
+		return folder.empty() ? defaultFolder() : folder;
+	}
+
+	// The current take, for the UI to name. The engine owns it as non-const;
+	// its name and modified flag are read tear-tolerantly by the audio thread.
+	shapes::Take& currentTake() {
+		return const_cast<shapes::Take&>(engine.take());
 	}
 
 	json_t* takeToJson(const shapes::Take& t) {
@@ -603,6 +651,159 @@ static void pushTakeSwap(Lyrebird* module, const char* name, uint32_t undone) {
 	h->undone = undone;
 	h->after = module->takeGen = module->newGen();
 	APP->history->push(h);
+}
+
+// File work, all on the UI thread
+
+// The file names in dir, or none when it can't be read
+static std::vector<std::string> fileNames(const std::string& dir) {
+	std::vector<std::string> names;
+	try {
+		for (const std::string& path : system::getEntries(dir))
+			names.push_back(system::getFilename(path));
+	}
+	catch (std::exception&) {
+	}
+	return names;
+}
+
+// The path chosen in a file dialog, or "" when it's cancelled
+static std::string fileDialog(osdialog_file_action action, const std::string& dir, const char* name) {
+	osdialog_filters* filters = osdialog_filters_parse("WAV:wav,WAV");
+	char* path = osdialog_file(action, dir.c_str(), name, filters);
+	osdialog_filters_free(filters);
+	if (!path)
+		return "";
+	std::string s = path;
+	std::free(path);
+	return s;
+}
+
+static bool ensureDirectory(const std::string& dir) {
+	try {
+		if (!system::isDirectory(dir))
+			system::createDirectories(dir);
+		return system::isDirectory(dir);
+	}
+	catch (std::exception&) {
+		return false;
+	}
+}
+
+// Asks for a copy of the take; finishSave writes it once the engine has made it
+static void startSave(Lyrebird* m, const std::string& path, const std::string& dir) {
+	if (m->saving)
+		return;
+	if (m->engine.take().empty()) {
+		m->showMessage("NOTHING TO SAVE");
+		return;
+	}
+	m->saving = true;
+	m->savePath = path;
+	m->saveDir = dir;
+	m->saveGen = m->takeGen;
+	m->engine.requestSnapshot();
+}
+
+static void saveAs(Lyrebird* m) {
+	if (m->saving)
+		return;
+	std::string dir = m->currentFolder();
+	std::string name = shapes::nextTakeName(fileNames(dir));
+	std::string path = fileDialog(OSDIALOG_SAVE, dir, name.c_str());
+	if (path.empty())
+		return;
+	if (string::lowercase(system::getExtension(path)) != ".wav")
+		path += ".wav";
+	startSave(m, path, system::getDirectory(path));
+}
+
+// SAVE: no dialog, the next free name in the current folder
+static void quickSave(Lyrebird* m) {
+	if (m->saving)
+		return;
+	std::string dir = m->currentFolder();
+	if (ensureDirectory(dir))
+		startSave(m, "", dir);
+	else
+		saveAs(m);
+}
+
+static void finishSave(Lyrebird* m) {
+	if (!m->saving || !m->engine.snapshotReady())
+		return;
+	m->saving = false;
+	const shapes::Take& snap = m->engine.snapshot();
+	std::string path = m->savePath.empty() ? system::join(m->saveDir, shapes::nextTakeName(fileNames(m->saveDir)))
+	                                       : m->savePath;
+	bool ok = shapes::writeTakeWav(path, snap);
+	uint32_t version = snap.version;
+	m->engine.releaseSnapshot();
+	if (!ok) {
+		m->showMessage("SAVE FAILED");
+		return;
+	}
+	std::string stem = system::getStem(path);
+	if (!m->savePath.empty())
+		m->folder = system::getDirectory(path);
+	// Named only if it's still the take that was saved
+	shapes::Take& t = m->currentTake();
+	if (m->takeGen == m->saveGen && t.version == version) {
+		snprintf(t.name, sizeof t.name, "%s", stem.c_str());
+		t.modified = false;
+	}
+	m->showMessage("SAVED " + stem);
+}
+
+// Loads a file as the current take, as an undoable step
+static void loadFile(Lyrebird* m, const std::string& path) {
+	if (m->engine.loadPending()) {
+		m->showMessage("BUSY");
+		return;
+	}
+	shapes::LoadResult r = shapes::readTakeWav(path, m->engine.spare());
+	switch (r.error) {
+		case shapes::LoadError::CantOpen: m->showMessage("CANT OPEN"); return;
+		case shapes::LoadError::NotWav: m->showMessage("NOT A WAV"); return;
+		case shapes::LoadError::Unsupported: m->showMessage("UNSUPPORTED"); return;
+		case shapes::LoadError::Empty: m->showMessage("EMPTY FILE"); return;
+		case shapes::LoadError::None: break;
+	}
+	m->engine.requestLoad();
+	pushTakeSwap(m, "load take", m->newGen());
+	m->folder = system::getDirectory(path);
+	m->showMessage(r.truncated ? "TRUNCATED TO 3 MIN" : "LOADED " + system::getStem(path));
+}
+
+static void openFile(Lyrebird* m) {
+	std::string path = fileDialog(OSDIALOG_OPEN, m->currentFolder(), nullptr);
+	if (!path.empty())
+		loadFile(m, path);
+}
+
+// Previous / next .wav in the current folder, by name, wrapping
+static void stepFile(Lyrebird* m, int delta) {
+	std::string dir = m->currentFolder();
+	if (!system::isDirectory(dir)) {
+		openFile(m);
+		return;
+	}
+	std::vector<std::string> names = shapes::sortedWavNames(fileNames(dir));
+	if (names.empty()) {
+		m->showMessage("NO FILES");
+		return;
+	}
+	// The current take's file, whatever the case of its name on disk
+	std::string current = string::lowercase(std::string(m->engine.take().name) + ".wav");
+	for (const std::string& n : names) {
+		if (string::lowercase(n) == current) {
+			current = n;
+			break;
+		}
+	}
+	int i = shapes::stepName(names, current, delta);
+	if (i >= 0)
+		loadFile(m, system::join(dir, names[i]));
 }
 
 // Draws the finite runs of values[i0..i1] (of n spanning the box); NaN marks
@@ -805,11 +1006,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		if (f.empty)
 			title = "EMPTY";
 		else {
-			for (const char* p = f.name; *p && title.size() < 18; p++) {
-				unsigned char ch = (unsigned char) *p;
-				// ASCII only: the display font has nothing else
-				title += ch >= 32 && ch < 127 ? (char) std::toupper(ch) : '?';
-			}
+			title = screenText(f.name, 18);
 			if (title.empty())
 				title = "NEW TAKE";
 			if (f.modified)
@@ -974,6 +1171,9 @@ struct LyrebirdWidget : ModuleWidget {
 		if (starts != seenStarts) {
 			seenStarts = starts;
 			module->takeGen = module->newGen();
+			// A save finishing just before may have marked this take unmodified
+			// as the write began
+			module->currentTake().modified = true;
 		}
 		// Each finished take is an undo step, so Ctrl+Z brings back the one
 		// before. Undoing it leaves a pair that never existed before, so it gets
@@ -984,6 +1184,14 @@ struct LyrebirdWidget : ModuleWidget {
 			pushTakeSwap(module, "record take", module->newGen());
 		if (module->limitHit.exchange(false))
 			module->showMessage("LIMIT 3 MIN");
+
+		finishSave(module);
+		if (module->saveRequest.exchange(0) > 0)
+			quickSave(module);
+		// Presses on both cancel out
+		int delta = module->fileStepRequest.exchange(0);
+		if (delta != 0)
+			stepFile(module, delta);
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -1015,6 +1223,8 @@ struct LyrebirdWidget : ModuleWidget {
 		menu->addChild(shapeui::createPulsesMenuItem(module, &module->pulsesPerCycle));
 
 		menu->addChild(new MenuSeparator);
+		menu->addChild(createMenuItem("Open...", "", [=]() { openFile(module); }));
+		menu->addChild(createMenuItem("Save as...", "", [=]() { saveAs(module); }));
 		menu->addChild(createMenuItem("Undo last take", "", [=]() {
 			// Undoing this swaps straight back to the pair before it
 			uint32_t before = module->takeGen;
