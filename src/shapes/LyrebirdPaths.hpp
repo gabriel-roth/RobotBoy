@@ -1,4 +1,7 @@
 #pragma once
+#include <atomic>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -33,5 +36,52 @@ inline std::string pickFolder(const std::vector<std::string>& candidates,
 			return c;
 	return "";
 }
+
+// A path one thread writes while others read it, with no lock to wait on: a
+// thread may interrupt another mid-write, so nobody spins. Fixed size, so
+// nothing is freed under a reader. A read that keeps meeting a write, or a
+// write that keeps meeting another, gives up: the read returns "" (the
+// default folder) and the write is dropped, never a mix of two paths.
+template <size_t N>
+struct SharedPath {
+	// False when another write held it throughout. Too long a path is stored as "".
+	bool set(const std::string& path) {
+		const std::string& s = path.size() <= N ? path : std::string();
+		uint32_t seq = 0;
+		for (int i = 0;; i++) {
+			if (i == kTries)
+				return false;
+			seq = seq_.load(std::memory_order_relaxed);
+			if (!(seq & 1) && seq_.compare_exchange_weak(seq, seq + 1, std::memory_order_acq_rel))
+				break;
+		}
+		std::atomic_thread_fence(std::memory_order_release);
+		for (size_t i = 0; i <= N; i++)
+			chars_[i].store(i < s.size() ? s[i] : 0, std::memory_order_relaxed);
+		seq_.store(seq + 2, std::memory_order_release);
+		return true;
+	}
+
+	std::string get() const {
+		char buf[N + 1];
+		for (int i = 0; i < kTries; i++) {
+			uint32_t a = seq_.load(std::memory_order_acquire);
+			if (a & 1)
+				continue;
+			for (size_t k = 0; k < N; k++)
+				buf[k] = chars_[k].load(std::memory_order_relaxed);
+			buf[N] = 0;
+			std::atomic_thread_fence(std::memory_order_acquire);
+			if (seq_.load(std::memory_order_relaxed) == a)
+				return buf;
+		}
+		return "";
+	}
+
+private:
+	static constexpr int kTries = 1000;
+	std::atomic<char> chars_[N + 1] = {};
+	std::atomic<uint32_t> seq_{0};
+};
 
 }  // namespace shapes

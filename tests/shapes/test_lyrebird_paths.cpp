@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdio>
 #include <string>
+#include <thread>
 #include <vector>
 
 using namespace shapes;
@@ -40,10 +41,41 @@ static void pickedFolders() {
 	assert(pickFolder({}, [](const std::string&) { return true; }) == "");
 }
 
+static void sharedPaths() {
+	SharedPath<16> p;
+	assert(p.get() == "");
+	assert(p.set("sdc:/takes"));
+	assert(p.get() == "sdc:/takes");
+	assert(p.set("usb:/"));
+	assert(p.get() == "usb:/");
+	// Too long to hold: the default folder, rather than a cut-off path
+	assert(p.set("sdc:/a/very/long/folder/name"));
+	assert(p.get() == "");
+	assert(p.set(std::string(16, 'x')) && p.get() == std::string(16, 'x'));
+}
+
+// A reader never sees a mix of two paths, only one of them or ""
+static void sharedPathConcurrent() {
+	SharedPath<255> p;
+	const std::string a = "sdc:/" + std::string(200, 'a'), b = "usb:/" + std::string(100, 'b');
+	p.set(a);
+	std::thread writer([&]() {
+		for (int i = 0; i < 200000; i++)
+			p.set(i % 2 ? a : b);
+	});
+	for (int i = 0; i < 200000; i++) {
+		std::string s = p.get();
+		assert(s == a || s == b || s == "");
+	}
+	writer.join();
+}
+
 int main() {
 	volumePaths();
 	usableFolders();
 	pickedFolders();
+	sharedPaths();
+	sharedPathConcurrent();
 	printf("lyrebird path tests passed\n");
 	return 0;
 }

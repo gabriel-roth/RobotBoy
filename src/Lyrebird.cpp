@@ -1,14 +1,20 @@
 #include "plugin.hpp"
 #include "ShapeGenerator.hpp"
 #include "shapes/LyrebirdEngine.hpp"
+#include "shapes/LyrebirdPaths.hpp"
 #include "shapes/OutputStage.hpp"
+#include "shapes/ScreenMessage.hpp"
 #include "shapes/TakeFile.hpp"
 #include "shapes/Timebase.hpp"
 
+// On MetaModule only for the WAV filter; its file browser is the firmware's
 #include <osdialog.h>
+#ifdef METAMODULE
+#include "filesystem/async_filebrowser.hh"
+#include "threads/async_thread.hh"
+#endif
 
 #include <atomic>
-#include <cctype>
 #include <cstdlib>
 
 // Lyrebird: a shape modulator that records a knob gesture or a CV and plays
@@ -26,18 +32,11 @@ static constexpr double kLengthShowSeconds = 2.0;
 // match a different (or deleted and restored) module's takes
 static std::atomic<uint32_t> takeGenCounter{0};
 
-// Upper case ASCII for the display font, at most max characters. Anything
-// else, a whole UTF-8 sequence at a time, shows as '?'.
-static std::string screenText(const std::string& s, size_t max) {
-	std::string out;
-	for (size_t i = 0; i < s.size() && out.size() < max; i++) {
-		unsigned char ch = (unsigned char) s[i];
-		if (ch >= 0x80 && ch < 0xc0)
-			continue;
-		out += ch >= 32 && ch < 127 ? (char) std::toupper(ch) : '?';
-	}
-	return out;
-}
+#ifdef METAMODULE
+static constexpr bool kOnMetaModule = true;
+#else
+static constexpr bool kOnMetaModule = false;
+#endif
 
 // The screen's brighter version of the SOURCE plate's magenta
 static NVGcolor recColor() {
@@ -144,8 +143,9 @@ struct Lyrebird : Module, MenuUndoFilter {
 	bool loop = true;  // Play: Loop / Once
 	bool reversed = false;  // REVERSE's latched state when its button toggles
 	// The folder of the last file opened or saved; empty until one is
-	// chosen, which means the default folder
-	std::string folder;
+	// chosen, which means the default folder. The file service writes it
+	// and the UI reads it, on different threads on MetaModule.
+	shapes::SharedPath<1023> folder;
 
 	shapes::Timebase timebase;
 	shapes::LyrebirdEngine engine;
@@ -166,28 +166,46 @@ struct Lyrebird : Module, MenuUndoFilter {
 	std::atomic<uint32_t> writesStarted{0};
 	// Recording or punching now, for the UI thread
 	std::atomic<bool> writingNow{false};
-	// Audio thread to UI: file button presses, since files are the UI's to touch
+	// Audio thread to the file service: file button presses, since files
+	// are the service's to touch
 	std::atomic<int> fileStepRequest{0}, saveRequest{0};
 
-	// UI thread. Names the current pair of takes (current and undo slot), so a
-	// history step only swaps them when they are still the pair it left.
-	uint32_t takeGen = newGen();
+	// Names the current pair of takes (current and undo slot), so a history
+	// step only swaps them when they are still the pair it left, and a save
+	// only names the take it saved. Written by the file service and the UI.
+	std::atomic<uint32_t> takeGen{newGen()};
 	static uint32_t newGen() {
 		return ++takeGenCounter;
 	}
 
-	// Footer message, UI thread only
-	std::string message;
-	double messageUntil = 0.0;
+	// Footer message: the file service writes it, the display reads it
+	shapes::ScreenMessage<kMessageChars> message;
 
-	// A save waiting for its snapshot, UI thread only. An empty path means
+	// A save waiting for its snapshot, file service only. An empty path means
 	// the next free name in saveDir, picked once the snapshot is ready.
 	bool saving = false;
 	std::string savePath, saveDir;
 	uint32_t saveGen = 0;
+	// File service only: the writes started that it has seen
+	uint32_t seenStarts = 0;
 
-	// A patch take that arrived while a load was still pending, applied once it's done
-	json_t* deferredTakeJ = nullptr;
+	// A patch take for the file service to load: one that arrived while a
+	// load was still pending, or on MetaModule any patch take
+	std::atomic<json_t*> deferredTakeJ{nullptr};
+
+#ifdef METAMODULE
+	// File service only: the finished takes it has seen
+	uint32_t seenRecs = 0, seenPunches = 0;
+	// Menu to file service: open the browser to Open (1) or Save as (2)
+	std::atomic<int> dialogRequest{0};
+	// File browser (GUI) to file service: the path chosen, in a single slot.
+	// 0 empty, 1 being written, 2 ready.
+	std::atomic<int> dialogState{0};
+	std::string dialogPath;
+	bool dialogSave = false;
+	// Runs the file service whether or not the module is on screen
+	MetaModule::AsyncThread fileThread{this, [this]() { serviceFiles(); }};
+#endif
 
 	struct GestureQuantity : ParamQuantity {
 		bool unipolar() {
@@ -275,11 +293,18 @@ struct Lyrebird : Module, MenuUndoFilter {
 		configLight(PUNCH_LIGHT, "Punching");
 		configLight(REVERSE_LIGHT, "Reversed");
 		setRate(APP->engine->getSampleRate());
+#ifdef METAMODULE
+		seenRecs = engine.recsFinished();
+		seenPunches = engine.punchesFinished();
+		fileThread.start();
+#endif
 	}
 
 	~Lyrebird() {
-		if (deferredTakeJ)
-			json_decref(deferredTakeJ);
+#ifdef METAMODULE
+		fileThread.stop();
+#endif
+		dropDeferredTake();
 	}
 
 	void setRate(float rate) {
@@ -446,18 +471,39 @@ struct Lyrebird : Module, MenuUndoFilter {
 		frontFrame.store(back, std::memory_order_release);
 	}
 
-	// UI thread
 	void showMessage(const std::string& text) {
-		message = screenText(text, kMessageChars);
-		messageUntil = system::getTime() + kMessageSeconds;
+		message.set(text, system::getTime() + kMessageSeconds);
 	}
 
+	// MetaModule can't create folders: the first of these that exists, looked
+	// up each time so a card put in later is found. "" when there's none.
 	static std::string defaultFolder() {
+#ifdef METAMODULE
+		return shapes::pickFolder({"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"},
+		                          [](const std::string& p) { return system::isDirectory(p); });
+#else
 		return asset::user("RobotBoy/Lyrebird");
+#endif
 	}
 	std::string currentFolder() const {
-		return folder.empty() ? defaultFolder() : folder;
+		std::string f = folder.get();
+		return f.empty() ? defaultFolder() : f;
 	}
+
+	void serviceFiles();
+#ifdef METAMODULE
+	// GUI context: the file browser's choice, for the file service
+	void postDialogPath(const char* path, bool save) {
+		int expected = 0;
+		if (!dialogState.compare_exchange_strong(expected, 1)) {
+			showMessage("BUSY");
+			return;
+		}
+		dialogPath = path;
+		dialogSave = save;
+		dialogState.store(2, std::memory_order_release);
+	}
+#endif
 
 	// The current take, for the UI to name. The engine owns it as non-const;
 	// its name and modified flag are read tear-tolerantly by the audio thread.
@@ -489,7 +535,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
 		json_object_set_new(rootJ, "sync", json_boolean(sync));
 		json_object_set_new(rootJ, "loop", json_boolean(loop));
-		json_object_set_new(rootJ, "folder", json_string(folder.c_str()));
+		json_object_set_new(rootJ, "folder", json_string(folder.get().c_str()));
 		// Read while the audio thread may be writing it: at worst a sample or
 		// two of a take being recorded is saved half-updated
 		const shapes::Take& t = engine.take();
@@ -529,23 +575,37 @@ struct Lyrebird : Module, MenuUndoFilter {
 		j = json_object_get(rootJ, "reversed");
 		reversed = j && json_is_true(j);
 		j = json_object_get(rootJ, "folder");
-		folder = j && json_is_string(j) ? json_string_value(j) : "";
+		// The other platform's folder means nothing here: the default instead
+		folder.set(shapes::usableFolder(j && json_is_string(j) ? json_string_value(j) : "", kOnMetaModule));
 		// A menu undo step: settings only
 		j = json_object_get(rootJ, "keepTake");
 		if (j && json_is_true(j))
 			return;
 
-		if (deferredTakeJ) {
-			json_decref(deferredTakeJ);
-			deferredTakeJ = nullptr;
-		}
 		json_t* takeJ = json_object_get(rootJ, "take");
+#ifdef METAMODULE
+		// The file thread is the only one to fill spare(): it loads the take
+		deferTake(takeJ);
+#else
+		dropDeferredTake();
 		if (engine.loadPending()) {
 			// The engine hasn't taken the last load yet: try again once it has
-			deferredTakeJ = takeJ ? json_deep_copy(takeJ) : json_object();
+			deferTake(takeJ);
 			return;
 		}
 		loadTakeJson(takeJ);
+#endif
+	}
+
+	// Hands a copy of takeJ (nullptr: no take) to the file service, replacing
+	// any it hasn't loaded yet. An empty object stands in for "no take".
+	void deferTake(json_t* takeJ) {
+		if (json_t* oldJ = deferredTakeJ.exchange(takeJ ? json_deep_copy(takeJ) : json_object()))
+			json_decref(oldJ);
+	}
+	void dropDeferredTake() {
+		if (json_t* oldJ = deferredTakeJ.exchange(nullptr))
+			json_decref(oldJ);
 	}
 
 	// Parses a patch take into spare(); false when it's missing or unusable
@@ -611,7 +671,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		return same;
 	}
 
-	// UI thread, with no load pending. Patch loads aren't undoable takes.
+	// File service (UI thread on VCV), with no load pending. Patch loads
+	// aren't undoable takes.
 	void loadTakeJson(json_t* takeJ) {
 		if (sameAsCurrent(takeJ))
 			return;
@@ -623,18 +684,20 @@ struct Lyrebird : Module, MenuUndoFilter {
 		takeGen = newGen();
 	}
 
-	// UI thread: a patch take that had to wait for the engine
+	// File service: a patch take that had to wait for the engine
 	void applyDeferredTake() {
-		if (!deferredTakeJ || engine.loadPending())
+		if (!deferredTakeJ.load() || engine.loadPending())
 			return;
-		json_t* takeJ = deferredTakeJ;
-		deferredTakeJ = nullptr;
+		json_t* takeJ = deferredTakeJ.exchange(nullptr);
+		if (!takeJ)
+			return;
 		// An empty object stood in for "no take"
 		loadTakeJson(json_object_size(takeJ) ? takeJ : nullptr);
 		json_decref(takeJ);
 	}
 };
 
+#ifndef METAMODULE
 // Swaps the take with the one in the undo slot; doing it again swaps back. It
 // only acts when the takes are the pair it expects: the engine keeps one
 // level of undo, so steps further back in the history can't be replayed.
@@ -665,8 +728,9 @@ static void pushTakeSwap(Lyrebird* module, const char* name, uint32_t undone) {
 	h->after = module->takeGen = module->newGen();
 	APP->history->push(h);
 }
+#endif
 
-// File work, all on the UI thread
+// File work, all in the file service (on VCV, the UI thread)
 
 // The file names in dir, or none when it can't be read
 static std::vector<std::string> fileNames(const std::string& dir) {
@@ -680,6 +744,21 @@ static std::vector<std::string> fileNames(const std::string& dir) {
 	return names;
 }
 
+#ifdef METAMODULE
+// Opens the firmware's file browser; the path chosen reaches the file service
+// through postDialogPath
+static void fileDialog(Lyrebird* m, osdialog_file_action action, const std::string& dir, const char* name) {
+	osdialog_filters* filters = osdialog_filters_parse("WAV:wav,WAV");
+	bool save = action == OSDIALOG_SAVE;
+	async_osdialog_file(action, dir.c_str(), name, filters, [m, save](char* path) {
+		if (!path)
+			return;
+		m->postDialogPath(path, save);
+		std::free(path);
+	});
+	osdialog_filters_free(filters);
+}
+#else
 // The path chosen in a file dialog, or "" when it's cancelled
 static std::string fileDialog(osdialog_file_action action, const std::string& dir, const char* name) {
 	osdialog_filters* filters = osdialog_filters_parse("WAV:wav,WAV");
@@ -702,6 +781,7 @@ static bool ensureDirectory(const std::string& dir) {
 		return false;
 	}
 }
+#endif
 
 // Asks for a copy of the take; finishSave writes it once the engine has made it
 static void startSave(Lyrebird* m, const std::string& path, const std::string& dir) {
@@ -718,17 +798,25 @@ static void startSave(Lyrebird* m, const std::string& path, const std::string& d
 	m->engine.requestSnapshot();
 }
 
+// Saves to a path chosen in the Save as dialog
+static void saveTo(Lyrebird* m, std::string path) {
+	if (string::lowercase(system::getExtension(path)) != ".wav")
+		path += ".wav";
+	startSave(m, path, system::getDirectory(path));
+}
+
 static void saveAs(Lyrebird* m) {
 	if (m->saving)
 		return;
 	std::string dir = m->currentFolder();
 	std::string name = shapes::nextTakeName(fileNames(dir));
+#ifdef METAMODULE
+	fileDialog(m, OSDIALOG_SAVE, dir, name.c_str());
+#else
 	std::string path = fileDialog(OSDIALOG_SAVE, dir, name.c_str());
-	if (path.empty())
-		return;
-	if (string::lowercase(system::getExtension(path)) != ".wav")
-		path += ".wav";
-	startSave(m, path, system::getDirectory(path));
+	if (!path.empty())
+		saveTo(m, path);
+#endif
 }
 
 // SAVE: no dialog, the next free name in the current folder
@@ -736,7 +824,13 @@ static void quickSave(Lyrebird* m) {
 	if (m->saving)
 		return;
 	std::string dir = m->currentFolder();
-	if (ensureDirectory(dir))
+#ifdef METAMODULE
+	// Nothing to save to (no card, say), and no making a folder here
+	bool usable = !dir.empty() && system::isDirectory(dir);
+#else
+	bool usable = ensureDirectory(dir);
+#endif
+	if (usable)
 		startSave(m, "", dir);
 	else
 		saveAs(m);
@@ -758,7 +852,7 @@ static void finishSave(Lyrebird* m) {
 	}
 	std::string stem = system::getStem(path);
 	if (!m->savePath.empty())
-		m->folder = system::getDirectory(path);
+		m->folder.set(system::getDirectory(path));
 	// Named only if it's still the take that was saved
 	shapes::Take& t = m->currentTake();
 	if (m->takeGen == m->saveGen && t.version == version) {
@@ -790,22 +884,35 @@ static void loadFile(Lyrebird* m, const std::string& path) {
 		case shapes::LoadError::None: break;
 	}
 	m->engine.requestLoad();
+#ifdef METAMODULE
+	m->takeGen = m->newGen();
+#else
 	pushTakeSwap(m, "load take", m->newGen());
-	m->folder = system::getDirectory(path);
+#endif
+	m->folder.set(system::getDirectory(path));
 	m->showMessage(r.truncated ? "TRUNCATED TO 3 MIN" : "LOADED " + system::getStem(path));
 }
 
 static void openFile(Lyrebird* m) {
+#ifdef METAMODULE
+	fileDialog(m, OSDIALOG_OPEN, m->currentFolder(), nullptr);
+#else
 	std::string path = fileDialog(OSDIALOG_OPEN, m->currentFolder(), nullptr);
 	if (!path.empty())
 		loadFile(m, path);
+#endif
 }
 
 // Previous / next .wav in the current folder, by name, wrapping
 static void stepFile(Lyrebird* m, int delta) {
 	std::string dir = m->currentFolder();
-	if (!system::isDirectory(dir)) {
+	if (dir.empty() || !system::isDirectory(dir)) {
+#ifdef METAMODULE
+		// A trigger mustn't pop up a browser, maybe with the module off screen
+		m->showMessage("NO FOLDER");
+#else
 		openFile(m);
+#endif
 		return;
 	}
 	std::vector<std::string> names = shapes::sortedWavNames(fileNames(dir));
@@ -824,6 +931,61 @@ static void stepFile(Lyrebird* m, int delta) {
 	int i = shapes::stepName(names, current, delta);
 	if (i >= 0)
 		loadFile(m, system::join(dir, names[i]));
+}
+
+// All the file work: VCV's widget calls it each frame, after its history
+// bookkeeping; MetaModule's file thread calls it whether or not the module
+// is on screen
+void Lyrebird::serviceFiles() {
+	applyDeferredTake();
+#ifdef METAMODULE
+	// No history here, but each finished take is a new pair all the same
+	for (uint32_t n = engine.punchesFinished(); seenPunches != n; seenPunches++)
+		takeGen = newGen();
+	for (uint32_t n = engine.recsFinished(); seenRecs != n; seenRecs++)
+		takeGen = newGen();
+#endif
+	// A write in progress is a new pair already: the last finished take's
+	// step mustn't swap under it. Checked after the finished takes, since
+	// REC taking over a punch finishes one and starts the other at once;
+	// a write that started and finished since the last check is covered
+	// by its own step.
+	uint32_t starts = writesStarted.load();
+	if (starts != seenStarts) {
+		seenStarts = starts;
+		if (writingNow.load()) {
+			takeGen = newGen();
+			// A save finishing just before may have marked this take
+			// unmodified as the write began
+			currentTake().modified = true;
+		}
+	}
+	if (limitHit.exchange(false))
+		showMessage("LIMIT 3 MIN");
+
+	finishSave(this);
+#ifdef METAMODULE
+	if (dialogState.load(std::memory_order_acquire) == 2) {
+		std::string path = dialogPath;
+		bool save = dialogSave;
+		dialogState.store(0, std::memory_order_release);
+		if (save)
+			saveTo(this, path);
+		else
+			loadFile(this, path);
+	}
+	int dialog = dialogRequest.exchange(0);
+	if (dialog == 1)
+		openFile(this);
+	else if (dialog == 2)
+		saveAs(this);
+#endif
+	if (saveRequest.exchange(0) > 0)
+		quickSave(this);
+	// Presses on both cancel out
+	int delta = fileStepRequest.exchange(0);
+	if (delta != 0)
+		stepFile(this, delta);
 }
 
 // Draws the finite runs of values[i0..i1] (of n spanning the box); NaN marks
@@ -1029,7 +1191,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		if (f.empty)
 			title = "EMPTY";
 		else {
-			title = screenText(f.name, 18);
+			title = shapes::screenText(f.name, 18);
 			if (title.empty())
 				title = "NEW TAKE";
 			if (f.modified)
@@ -1061,9 +1223,12 @@ struct LyrebirdDisplay : shapeui::Screen {
 			status = "PUNCH";
 		else if (f.status == Status::Armed || f.status == Status::PunchArmed)
 			status = blinkOn ? "ARMED" : "";
-		else if (module && now < module->messageUntil) {
-			status = module->message;
-			statusColor = shapeui::inkColor();
+		else if (module) {
+			char text[kMessageChars + 1];
+			if (module->message.get(text, now)) {
+				status = text;
+				statusColor = shapeui::inkColor();
+			}
 		}
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
 		const float footerPx = mm2px(2.2f);
@@ -1107,16 +1272,19 @@ struct RecordLight : GrayModuleLightWidget {
 };
 
 struct LyrebirdWidget : ModuleWidget {
-	uint32_t seenRecs = 0, seenPunches = 0, seenStarts = 0;
+#ifndef METAMODULE
+	uint32_t seenRecs = 0, seenPunches = 0;
+#endif
 
 	LyrebirdWidget(Lyrebird* module) {
 		setModule(module);
 		setPanel(createPanel(asset::plugin(pluginInstance, "res/Lyrebird.svg")));
+#ifndef METAMODULE
 		if (module) {
 			seenRecs = module->engine.recsFinished();
 			seenPunches = module->engine.punchesFinished();
-			seenStarts = module->writesStarted.load();
 		}
+#endif
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
@@ -1161,44 +1329,22 @@ struct LyrebirdWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(92.045, 111.105)), module, Lyrebird::MAIN_OUTPUT));
 	}
 
+	// MetaModule has no history, and runs the file service on its own thread
 	void step() override {
 		ModuleWidget::step();
+#ifndef METAMODULE
 		Lyrebird* module = getModule<Lyrebird>();
 		if (!module)
 			return;
-		module->applyDeferredTake();
 		// Each finished take is an undo step, so Ctrl+Z brings back the one
 		// before. Undoing it leaves a pair that never existed before, so it gets
-		// a new name too.
+		// a new name too. The service then checks for a write in progress.
 		for (uint32_t n = module->engine.punchesFinished(); seenPunches != n; seenPunches++)
 			pushTakeSwap(module, "punch in", module->newGen());
 		for (uint32_t n = module->engine.recsFinished(); seenRecs != n; seenRecs++)
 			pushTakeSwap(module, "record take", module->newGen());
-		// A write in progress is a new pair already: the last finished take's
-		// step mustn't swap under it. Checked after the finished takes, since
-		// REC taking over a punch finishes one and starts the other at once;
-		// a write that started and finished since the last frame is covered
-		// by its own step above.
-		uint32_t starts = module->writesStarted.load();
-		if (starts != seenStarts) {
-			seenStarts = starts;
-			if (module->writingNow.load()) {
-				module->takeGen = module->newGen();
-				// A save finishing just before may have marked this take
-				// unmodified as the write began
-				module->currentTake().modified = true;
-			}
-		}
-		if (module->limitHit.exchange(false))
-			module->showMessage("LIMIT 3 MIN");
-
-		finishSave(module);
-		if (module->saveRequest.exchange(0) > 0)
-			quickSave(module);
-		// Presses on both cancel out
-		int delta = module->fileStepRequest.exchange(0);
-		if (delta != 0)
-			stepFile(module, delta);
+		module->serviceFiles();
+#endif
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -1251,6 +1397,16 @@ struct LyrebirdWidget : ModuleWidget {
 		menu->addChild(shapeui::createPulsesMenuItem(module, &module->pulsesPerCycle));
 
 		menu->addChild(new MenuSeparator);
+#ifdef METAMODULE
+		// The file thread opens the browser and does the file work
+		menu->addChild(createMenuItem("Open...", "", [=]() { module->dialogRequest.store(1); }));
+		menu->addChild(createMenuItem("Save as...", "", [=]() { module->dialogRequest.store(2); }));
+		menu->addChild(createMenuItem("Undo last take", "", [=]() {
+			module->engine.requestUndo();
+			// A new pair, so a save in flight doesn't name the take swapped in
+			module->takeGen = module->newGen();
+		}));
+#else
 		menu->addChild(createMenuItem("Open...", "", [=]() { openFile(module); }));
 		menu->addChild(createMenuItem("Save as...", "", [=]() { saveAs(module); }));
 		menu->addChild(createMenuItem("Undo last take", "", [=]() {
@@ -1259,6 +1415,7 @@ struct LyrebirdWidget : ModuleWidget {
 			module->engine.requestUndo();
 			pushTakeSwap(module, "undo last take", before);
 		}));
+#endif
 	}
 };
 
