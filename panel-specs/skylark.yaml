@@ -137,5 +137,5 @@ glyphs:
   - {src: glyphs/skylark/tilt-rising.svg, at: [75.278, 84.362]}
   - {src: glyphs/skylark/drift-steady.svg, at: [85.474, 84.362]}
   - {src: glyphs/skylark/drift-wander.svg, at: [94.998, 84.362]}
-  - {src: glyphs/weaver/step-back.svg,    at: [83.475, 55.5]}
-  - {src: glyphs/weaver/step-forward.svg, at: [97.275, 55.5]}
+  - {src: glyphs/weaver/step-back.svg,    at: [82.575, 55.5]}
+  - {src: glyphs/weaver/step-forward.svg, at: [98.175, 55.5]}

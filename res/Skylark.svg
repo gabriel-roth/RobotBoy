@@ -51,8 +51,8 @@
     <polyline points="74.428,84.702 76.128,84.022" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="84.624,84.362 86.324,84.362" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="94.148,84.362 94.3605,84.1131 94.573,84.4978 94.7855,84.0452 94.998,84.6336 95.2105,84.2715 95.423,84.7015 95.6355,84.181 95.848,84.4073" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
-    <polyline points="83.85,54.8 83.1,55.5 83.85,56.2" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
-    <polyline points="96.9,54.8 97.65,55.5 96.9,56.2" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="82.95,54.8 82.2,55.5 82.95,56.2" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="97.8,54.8 98.55,55.5 97.8,56.2" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <g inkscape:label="components" inkscape:groupmode="layer" id="components" style="display:none">
     <rect id="SCREEN#Widget" x="1.5" y="17.0" width="62.0" height="46.5" fill="#ffff00"/>
