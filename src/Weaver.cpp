@@ -14,7 +14,6 @@
 
 static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
-// Samples between display updates.
 // Operator traces on the main display are clamped to this.
 static constexpr float kOperatorLimit = 1.2f;
 
@@ -37,7 +36,7 @@ static constexpr float kWaveColors[shapes::kNumWaves][3] = {
 	{1.f, 0.f, 1.f},
 };
 
-// What the displays show, written by the audio thread.
+// What the displays show, drawn up on the UI thread from a snapshot.
 struct WeaverFrame {
 	float result[kTracePoints] = {};  // -1..1 within the output range
 	float scaled[3][kTracePoints] = {};  // each operator times its LEVEL
@@ -49,6 +48,27 @@ struct WeaverFrame {
 	int algorithm = 0;  // the one running
 	int preset = 0;  // -1 when the settings match none
 	float bpm = 120.f;
+};
+
+// What the audio thread hands the displays: little enough to copy each
+// publish, so the traces (hundreds of formula evaluations) are worked out on
+// the UI thread, not in process().
+struct WeaverSnapshot {
+	shapes::CombineControls controls;
+	// Its phase offsets and Fit peak
+	shapes::CombineEngine engine;
+	double cycle = 0.0;
+	shapes::Treat treatMode = shapes::Treat::Fit;
+	bool traceOn[3] = {true, true, true};
+	int preset = 0;
+	float bpm = 120.f;
+	// The last cycle as it played, one slot per point of the open trace, for
+	// the traces that have no formula: Input operators and a result using
+	// them. Copied only when an operator is an Input.
+	float historyResult[kTracePoints] = {};
+	float historyScaled[3][kTracePoints] = {};
+	float historyRaw[3][kTracePoints] = {};
+	int historyWrite = 0;
 };
 
 static const shapes::CombineControls& defaults() {
@@ -80,6 +100,26 @@ static void renderFormulas(WeaverFrame& f, const shapes::CombineEngine& e, const
 		f.shown[i] = c.op[i].level != 0.0;
 	}
 	f.algorithm = c.algorithm;
+}
+
+static void buildFrame(WeaverFrame& f, const WeaverSnapshot& s) {
+	renderFormulas(f, s.engine, s.controls, s.cycle, s.treatMode);
+	for (int i = 0; i < 3; i++)
+		f.traceOn[i] = s.traceOn[i];
+	bool anyInput = false;
+	for (int i = 0; i < 3; i++) {
+		if (s.controls.op[i].wave != shapes::Input)
+			continue;
+		anyInput = true;
+		std::copy(s.historyScaled[i], s.historyScaled[i] + kTracePoints, f.scaled[i]);
+		// Oldest first, so the newest input is at the right and the trace scrolls
+		for (int k = 0; k < kWavePoints; k++)
+			f.wave[i][k] = s.historyRaw[i][(s.historyWrite + 1 + k * (kTracePoints / kWavePoints)) % kTracePoints];
+	}
+	if (anyInput)
+		std::copy(s.historyResult, s.historyResult + kTracePoints, f.result);
+	f.preset = s.preset;
+	f.bpm = s.bpm;
 }
 
 struct Weaver : Module {
@@ -183,21 +223,29 @@ struct Weaver : Module {
 #ifdef METAMODULE
 	// MetaModule has no widget events, so the PRESET buttons are read here
 	dsp::BooleanTrigger presetPrevTrigger, presetNextTrigger;
+	// The wave each WAVE knob was last seen at; kAdoptWave until the first
+	// process() after a load, which turns the knobs to the loaded waves
+	static constexpr int kAdoptWave = -1;
+	int knobWaves[3] = {kAdoptWave, kAdoptWave, kAdoptWave};
 #endif
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
 	int sincePublish = shapeui::kPublishInterval;
 
-	// The last cycle as it played, one slot per point of the open trace, for the
-	// traces that have no formula: Input operators and a result using them
+	// The last cycle as it played (see WeaverSnapshot)
 	float historyResult[kTracePoints] = {};
 	float historyScaled[3][kTracePoints] = {};
 	float historyRaw[3][kTracePoints] = {};
 	int historyWrite = 0;
 
-	WeaverFrame frames[2];
-	std::atomic<int> frontFrame{0};
+	WeaverSnapshot snapshots[2];
+	std::atomic<int> frontSnapshot{0};
+	std::atomic<uint32_t> publishCount{0};
 	std::atomic<float> displayPos{0.f};
+	// UI thread only: the snapshot being drawn and the frame made from it
+	WeaverSnapshot uiSnapshot;
+	WeaverFrame uiFrame;
+	uint32_t uiCount = ~0u;
 
 	static int param(int op, int first) {
 		return first + op * kOpParams;
@@ -356,10 +404,22 @@ struct Weaver : Module {
 			stepPreset(-1);
 		if (presetNextTrigger.process(params[PRESET_NEXT_PARAM].getValue() > 0.5f))
 			stepPreset(1);
-#endif
+		// The WAVE knobs: turning one picks its wave, and a wave picked any
+		// other way (preset, load, randomize) turns the knob to match
+		for (int i = 0; i < 3; i++) {
+			Param& knob = params[param(i, A_WAVE_PARAM)];
+			int w = clamp((int) std::round(knob.getValue()), 0, shapes::kNumWaves - 1);
+			if (knobWaves[i] != kAdoptWave && w != knobWaves[i])
+				selectWave(i, w);
+			else if (w != waves[i])
+				knob.setValue((float) waves[i]);
+			knobWaves[i] = waves[i];
+		}
+#else
 		for (int i = 0; i < 3; i++)
 			if (waveTriggers[i].process(params[param(i, A_WAVE_PARAM)].getValue() > 0.5f))
 				selectWave(i, (waves[i] + 1) % shapes::kNumWaves);
+#endif
 		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
 		if (settings.slewMs != appliedSlewMs) {
@@ -436,26 +496,29 @@ struct Weaver : Module {
 	}
 
 	void publish(const shapes::CombineControls& c, double cycle) {
-		int back = 1 - frontFrame.load(std::memory_order_relaxed);
-		WeaverFrame& f = frames[back];
-		renderFormulas(f, engine, c, cycle, settings.treatMode);
+		int back = 1 - frontSnapshot.load(std::memory_order_relaxed);
+		WeaverSnapshot& s = snapshots[back];
+		s.controls = c;
+		s.engine = engine;
+		s.cycle = cycle;
+		s.treatMode = settings.treatMode;
 		for (int i = 0; i < 3; i++)
-			f.traceOn[i] = params[A_TRACE_PARAM + i].getValue() > 0.5f;
+			s.traceOn[i] = params[A_TRACE_PARAM + i].getValue() > 0.5f;
 		bool anyInput = false;
 		for (int i = 0; i < 3; i++) {
 			if (c.op[i].wave != shapes::Input)
 				continue;
 			anyInput = true;
-			std::copy(historyScaled[i], historyScaled[i] + kTracePoints, f.scaled[i]);
-			// Oldest first, so the newest input is at the right and the trace scrolls
-			for (int k = 0; k < kWavePoints; k++)
-				f.wave[i][k] = historyRaw[i][(historyWrite + 1 + k * (kTracePoints / kWavePoints)) % kTracePoints];
+			std::copy(historyScaled[i], historyScaled[i] + kTracePoints, s.historyScaled[i]);
+			std::copy(historyRaw[i], historyRaw[i] + kTracePoints, s.historyRaw[i]);
 		}
 		if (anyInput)
-			std::copy(historyResult, historyResult + kTracePoints, f.result);
-		f.preset = shapes::presetMatches(panelControls());
-		f.bpm = (float) timebase.tempoBpm();
-		frontFrame.store(back, std::memory_order_release);
+			std::copy(historyResult, historyResult + kTracePoints, s.historyResult);
+		s.historyWrite = historyWrite;
+		s.preset = shapes::presetMatches(panelControls());
+		s.bpm = (float) timebase.tempoBpm();
+		frontSnapshot.store(back, std::memory_order_release);
+		publishCount.fetch_add(1, std::memory_order_release);
 	}
 
 	json_t* dataToJson() override {
@@ -478,6 +541,11 @@ struct Weaver : Module {
 	}
 
 	void dataFromJson(json_t* rootJ) override {
+#ifdef METAMODULE
+		// The WAVE knobs follow the loaded waves (a patch from before they were knobs saved 0)
+		for (int i = 0; i < 3; i++)
+			knobWaves[i] = kAdoptWave;
+#endif
 		settings.fromJson(rootJ);
 		// Missing or unknown values fall back to the first preset
 		resetChoices();
@@ -538,11 +606,19 @@ Weaver::Weaver() {
 	std::vector<std::string> ratioNames;
 	for (int r = 0; r < shapes::kNumRatios; r++)
 		ratioNames.push_back(shapes::ratioLabel(r));
+#ifdef METAMODULE
+	std::vector<std::string> waveNames(kWaveNames, kWaveNames + shapes::kNumWaves);
+#endif
 	for (int i = 0; i < 3; i++) {
 		const shapes::OperatorControls& d = defaults().op[i];
 		std::string op(1, (char) ('A' + i));
 		configSwitch(param(i, A_RATIO_PARAM), 0.f, shapes::kNumRatios - 1, (float) d.ratio, op + " ratio", ratioNames);
+#ifdef METAMODULE
+		// A knob that names the wave; randomize picks waves itself, never Input
+		configSwitch(param(i, A_WAVE_PARAM), 0.f, shapes::kNumWaves - 1, (float) d.wave, op + " wave", waveNames)->randomizeEnabled = false;
+#else
 		configButton<WaveQuantity>(param(i, A_WAVE_PARAM), op + " wave");
+#endif
 		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) d.param, op + " param", "%", 0.f, 100.f);
 		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) d.phase, op + " phase", " deg", 0.f, 360.f);
 		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, (float) d.level, op + " level", "%", 0.f, 100.f);
@@ -577,14 +653,25 @@ Weaver::Weaver() {
 	resetChoices();
 	for (int i = 0; i < 3; i++)
 		loopSeeds[i] = random::u32();
+#ifdef METAMODULE
+	// One point a sample: the full scan at once dominated the cost
+	engine.setScanSpread(1);
+#endif
 	setRate(APP->engine->getSampleRate());
 }
 
-// The module's latest frame, or, in the module browser, the first preset
-// at default settings, built once.
+// The module's latest frame, drawn up once per publish, or, in the module
+// browser, the first preset at default settings, built once. UI thread only.
 static const WeaverFrame& frameOf(Weaver* module) {
-	if (module)
-		return module->frames[module->frontFrame.load(std::memory_order_acquire)];
+	if (module) {
+		uint32_t count = module->publishCount.load(std::memory_order_acquire);
+		if (count != module->uiCount) {
+			module->uiSnapshot = module->snapshots[module->frontSnapshot.load(std::memory_order_acquire)];
+			buildFrame(module->uiFrame, module->uiSnapshot);
+			module->uiCount = count;
+		}
+		return module->uiFrame;
+	}
 	static WeaverFrame preview;
 	static bool built = false;
 	if (!built) {
@@ -616,8 +703,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
-		// Copied so a publish mid-draw can't tear the traces
-		WeaverFrame f = frameOf(module);
+		const WeaverFrame& f = frameOf(module);
 		float pos = module ? module->displayPos.load(std::memory_order_relaxed) : 0.62f;
 		if (!std::isfinite(pos))
 			pos = 0.f;
@@ -682,7 +768,6 @@ struct AlgorithmDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
 	void drawScreen(NVGcontext* vg) override {
-		// Copied, as the main display does, so a publish can't change it mid-draw
 		int a = clamp(frameOf(module).algorithm, 0, shapes::kNumAlgorithms - 1);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
@@ -736,11 +821,9 @@ struct WaveDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
-		// Copied, as the main display does, so a publish can't tear the trace
-		const WeaverFrame& shared = frameOf(module);
-		float values[kWavePoints];
-		std::copy(shared.wave[op], shared.wave[op] + kWavePoints, values);
-		int wave = clamp(shared.waves[op], 0, shapes::kNumWaves - 1);
+		const WeaverFrame& f = frameOf(module);
+		const float* values = f.wave[op];
+		int wave = clamp(f.waves[op], 0, shapes::kNumWaves - 1);
 
 		float w = box.size.x / mm2px(1.f), h = box.size.y / mm2px(1.f);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
@@ -794,10 +877,9 @@ struct RatioDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
-		// Copied, as the main display does, so the two fields agree
-		const WeaverFrame& shared = frameOf(module);
-		int wave = shared.waves[op];
-		int ratio = clamp(shared.ratios[op], 0, shapes::kNumRatios - 1);
+		const WeaverFrame& f = frameOf(module);
+		int wave = f.waves[op];
+		int ratio = clamp(f.ratios[op], 0, shapes::kNumRatios - 1);
 		const char* text = wave == shapes::Input ? "IN" : shapes::ratioLabel(ratio);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
@@ -890,9 +972,14 @@ struct WeaverWidget : ModuleWidget {
 	}
 
 	void addWaveButton(Weaver* module, Vec pos, int paramId, int lightId, int op) {
+#ifdef METAMODULE
+		// A knob, so the wave's name shows as it turns
+		addParam(createParamCentered<RoundBlackSnapKnob>(pos, module, paramId));
+#else
 		WaveButton* b = createLightParamCentered<WaveButton>(pos, module, paramId, lightId);
 		b->op = op;
 		addParam(b);
+#endif
 	}
 
 	WeaverWidget(Weaver* module) {
@@ -1007,19 +1094,11 @@ struct WeaverWidget : ModuleWidget {
 				withMenuUndo(module, "set new random loops on reset", [=]() { module->newLoopOnReset = on; });
 			}));
 #ifdef METAMODULE
-		// No per-param right-click menus here, so list the choices in this one
-		std::vector<std::string> waveNames, algorithmNames;
-		for (int w = 0; w < shapes::kNumWaves; w++)
-			waveNames.push_back(kWaveNames[w]);
+		// No per-param right-click menus here, so list the algorithms in this
+		// one (the WAVE knobs name their waves)
+		std::vector<std::string> algorithmNames;
 		for (int a = 0; a < shapes::kNumAlgorithms; a++)
 			algorithmNames.push_back(shapes::algorithmName((shapes::Algorithm) a));
-		static const char* const kOpLabels[3] = {"A wave", "B wave", "C wave"};
-		for (int o = 0; o < 3; o++)
-			menu->addChild(createIndexSubmenuItem(kOpLabels[o], waveNames,
-				[=]() { return module->waves[o]; },
-				[=](int i) {
-					withMenuUndo(module, "set wave", [=]() { module->selectWave(o, i); });
-				}));
 		menu->addChild(createIndexSubmenuItem("Algorithm", algorithmNames,
 			[=]() { return module->algorithm; },
 			[=](int i) {
