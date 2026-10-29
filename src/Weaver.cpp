@@ -58,7 +58,8 @@ static void renderFormulas(WeaverFrame& f, const shapes::CombineEngine& e, const
                            double cycle, bool reverse, shapes::Treat mode) {
 	double peak = e.peak();
 	for (int k = 0; k < kTracePoints; k++) {
-		double t = cycle + (double) k / kTracePoints;
+		// Open traces: the last point ends this cycle rather than starting the next
+		double t = cycle + std::min((double) k / (kTracePoints - 1), 1.0 - 1e-9);
 		f.result[k] = (float) shapes::sanitize(shapes::treat(e.resultAt(c, t, reverse), mode, peak), 0.0);
 		for (int i = 0; i < 3; i++)
 			f.scaled[i][k] = (float) (e.operatorAt(c, i, t, reverse) * c.op[i].level);
@@ -170,7 +171,7 @@ struct Weaver : Module {
 	float appliedSlewMs = -1.f;
 	int sincePublish = kPublishInterval;
 
-	// The last cycle as it played, one slot per 1/256 of the cycle, for the
+	// The last cycle as it played, one slot per point of the open trace, for the
 	// traces that have no formula: Input operators and a result using them
 	float historyResult[kTracePoints] = {};
 	float historyScaled[3][kTracePoints] = {};
@@ -355,7 +356,7 @@ struct Weaver : Module {
 			outputs[A_OUTPUT + i].setVoltage(output(1 + i, shapes::treat(v, opMode, 1.0)));
 		}
 
-		historyWrite = clamp((int) (step.pos * kTracePoints), 0, kTracePoints - 1);
+		historyWrite = clamp((int) std::lround(step.pos * (kTracePoints - 1)), 0, kTracePoints - 1);
 		historyResult[historyWrite] = (float) x;
 		for (int i = 0; i < 3; i++) {
 			historyScaled[i][historyWrite] = (float) f.scaled[i];
@@ -565,6 +566,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 		dashed.limit = kOperatorLimit;
 		dashed.dashMm = 0.9f;
 		dashed.gapMm = 0.6f;
+		dashed.closed = false;
 		for (int i = 0; i < 3; i++) {
 			if (!f.shown[i])
 				continue;
@@ -573,8 +575,11 @@ struct WeaverMainDisplay : shapeui::Screen {
 		}
 		shapeui::TraceStyle solid;
 		solid.color = shapeui::signalColor();
+		// A jump at the loop point shows at the start, where it's heard
+		solid.closed = false;
+		solid.leadIn = true;
 		shapeui::drawTrace(vg, f.result, kTracePoints, gx, gy, gw, gh, solid);
-		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.result, kTracePoints, pos));
+		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.result, kTracePoints, pos, false));
 	}
 };
 
