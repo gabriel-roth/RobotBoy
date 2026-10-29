@@ -1,0 +1,138 @@
+# Lyrebird (gesture/CV recorder, shape modulator family).
+# LOOP/ONCE and SYNC/FREE are menu items, not panel controls. A cable in CV IN records CV
+# instead of GESTURE. No LENGTH readout: the display's footer shows LENGTH and BPM.
+# FILE_PREV_INPUT / FILE_NEXT_INPUT: a trigger steps to the previous / next file, as the
+# button above each jack does.
+#
+# 21 HP, two columns, plates in the Skylark/Weaver style, 1.5 mm from the panel edges, 2.0 mm
+# between them. Both columns split at the same gap (100.86-102.86).
+#  - Title flush left with the display, tracking halfway between Weaver's and Skylark's (3.182), centered in the 17 mm band.
+#  - Left column (1.5-64.38), two columns inside (19.775 / 46.107, from RECORD's and PUNCH's
+#    units, gap-equalized 10.22), each item centered on its column, labels above:
+#    - Display (4:3, 62.88 x 47.16, 17-64.16).
+#    - PERFORM plate, sage (#8a9a83 at 55%; magenta's muted complement), 66.16-100.86, rows and
+#      margins evenly spaced (2.7):
+#      - CLOCK (BPM knob + jack, 10.5 apart) and LENGTH (snapped knob); labels 71.16, controls
+#        77.66.
+#      - RECORD and PUNCH, each a lit button with its gate jack beside (8.5 apart, one label
+#        above the pair); labels 87.45, controls 94.15.
+#    - SOURCE plate, opaque magenta #b8466a with dark dots (texture.svg: #7e2445, r 0.26 on a
+#      1.6 grid, cleared round the label; local/panel-mockups/lyrebird_texture.py), 102.86-123:
+#      GESTURE (regular knob, the knob you record) and CV IN, the two sources, at 110.04; one
+#      INPUT label (4.0, larger than the rest) between them at the bottom, baseline 120.44. Knob,
+#      label ink and the gaps around them evenly spaced (2.38). The display's punch-in trace is
+#      the brighter #ff5f95 (mock-lyrebird.py).
+#  - Signal-flow arrows (Brume's style, zone defaults 3.0 x 1.4) centered on each edge: SOURCE up
+#    into PERFORM, PERFORM across into PLAYBACK, PLAYBACK down into the output plate.
+#  - Right column (66.38-105.18): as narrow as two 13.4 label-width columns (77.08 / 94.48)
+#    with 4.0 gaps.
+#    - PLAYBACK plate (17-100.86), labels above, blocks and margins evenly spaced (4.23):
+#      - FILE: previous and next on the two columns, each over its trigger jack (10 apart,
+#        connector), SAVE between them (no jack), chevrons outside; label 23.53, buttons
+#        28.28, jacks 38.28.
+#      - SPEED and SMOOTH: knob over CV jack (12 apart, connector); labels 48.82, knobs 55.32,
+#        jacks 67.32.
+#      - TRIG and REVERSE: button over gate jack (10 apart, connector); labels 77.86, buttons
+#        82.61, jacks 92.61.
+#    - Output plate (102.86-123): EOC and OUT (in a white ring) 4.5 apart, centered, the ring
+#      and labels centered vertically (2.9 above the ring); controls 111.11, labels 120.11.
+slug: Lyrebird
+name: LYREBIRD
+hp: 21
+
+title:
+  size: 9.5
+  tracking: 3.182
+  # Ink's left edge at 1.5 (title_fit.py LYREBIRD 9.5 3.182 1.5).
+  x: 36.995
+  dy: 2.75
+
+zones:
+  # Display background.
+  - {x: 1.5, y: 17.0, w: 62.88, h: 47.16, rx: 2, fill: "#0c0e10", opacity: 1.0}
+  # PERFORM plate.
+  - {x: 1.5, y: 66.16, w: 62.88, h: 34.70, rx: 2, fill: "#8a9a83", opacity: 0.55,
+     arrows: [{side: right, at: 83.51}]}
+  # SOURCE plate.
+  - {x: 1.5, y: 102.86, w: 62.88, h: 20.14, rx: 2, fill: "#b8466a", opacity: 1.0,
+     arrows: [{side: top, at: 32.94}]}
+  # PLAYBACK plate.
+  - {x: 66.38, y: 17.0, w: 38.8, h: 83.86, rx: 2, fill: "#7f9fb3", opacity: 0.55,
+     arrows: [{side: bottom, at: 85.78}]}
+  # Output plate.
+  - {x: 66.38, y: 102.86, w: 38.8, h: 20.14, rx: 2, fill: "#9a9a9a", opacity: 0.55}
+  # OUT ring, as on Skylark and Weaver.
+  - {x: 86.695, y: 105.755, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
+  - {x: 87.445, y: 106.505, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 62.88, h: 47.16}}
+
+  # --- PERFORM plate.
+  - {text: CLOCK, x: 20.167, y: 71.16}
+  - {name: BPM_PARAM, x: 14.917, y: 77.66}
+  - {name: CLOCK_INPUT, x: 25.417, y: 77.66}
+  - {text: LENGTH, x: 46.107, y: 71.16}
+  - {name: LENGTH_PARAM, widget: RoundBlackSnapKnob, x: 46.107, y: 77.66}
+  - {text: RECORD, x: 19.567, y: 87.45}
+  - {name: RECORD_PARAM, widget: VCVBezel, x: 15.317, y: 94.15}
+  - {name: RECORD_INPUT, x: 23.817, y: 94.15}
+  - {text: PUNCH, x: 45.899, y: 87.45}
+  - {name: PUNCH_PARAM, widget: VCVBezel, x: 41.649, y: 94.15}
+  - {name: PUNCH_INPUT, x: 50.149, y: 94.15}
+
+  # --- SOURCE plate.
+  - {name: GESTURE_PARAM, x: 19.775, y: 110.038}
+  - {name: CV_INPUT, x: 46.107, y: 110.038}
+  - {text: INPUT, x: 32.941, y: 120.437, size: 4.0}
+
+  # --- PLAYBACK plate.
+  - {text: FILE, x: 85.78, y: 23.525}
+  - {name: FILE_PREV_PARAM, widget: TL1105, x: 77.08, y: 28.275}
+  - {name: SAVE_PARAM, widget: VCVButton, x: 85.78, y: 28.275}
+  - {name: FILE_NEXT_PARAM, widget: TL1105, x: 94.48, y: 28.275}
+  - {name: FILE_PREV_INPUT, x: 77.08, y: 38.275}
+  - {name: FILE_NEXT_INPUT, x: 94.48, y: 38.275}
+  - row: {grid: playback, at: labels}
+    place: [SPEED, SMOOTH]
+  - row: {grid: playback, at: knobs}
+    place: [{name: SPEED_PARAM}, {name: SMOOTH_PARAM}]
+  - row: {grid: playback, at: cv}
+    place: [{name: SPEED_INPUT}, {name: SMOOTH_INPUT}]
+  - row: {grid: playback, at: btn_labels}
+    place: [TRIG, REVERSE]
+  - row: {grid: playback, at: buttons, widget: VCVButton}
+    place: [{name: TRIG_PARAM}, {name: REVERSE_PARAM}]
+  - row: {grid: playback, at: gates}
+    place: [{name: TRIG_INPUT}, {name: REVERSE_INPUT}]
+
+  # --- Output plate.
+  - {name: EOC_OUTPUT, x: 78.18, y: 111.105}
+  - {text: EOC, x: 78.18, y: 120.105, size: 3.175}
+  - {name: MAIN_OUTPUT, x: 92.045, y: 111.105}
+  - {text: OUT, x: 92.045, y: 120.105, size: 3.175}
+
+grids:
+  playback:
+    cols: [77.08, 94.48]
+    rows:
+      labels: 48.815
+      knobs: 55.315
+      cv: 67.315
+      btn_labels: 77.855
+      buttons: 82.605
+      gates: 92.605
+
+connectors:
+  - [FILE_PREV_PARAM, FILE_PREV_INPUT]
+  - [FILE_NEXT_PARAM, FILE_NEXT_INPUT]
+  - [SPEED_PARAM, SPEED_INPUT]
+  - [SMOOTH_PARAM, SMOOTH_INPUT]
+  - [TRIG_PARAM, TRIG_INPUT]
+  - [REVERSE_PARAM, REVERSE_INPUT]
+
+glyphs:
+  # SOURCE plate texture (generated: dark dots, cleared round the label).
+  - {src: glyphs/lyrebird/texture.svg, at: [32.94, 112.93]}
+  - {src: glyphs/weaver/step-back.svg,    at: [72.58, 28.275]}
+  - {src: glyphs/weaver/step-forward.svg, at: [98.98, 28.275]}

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.9000 -0.6500 3.8000 1.3000">
+  <!-- From the PARAM name in the Wave display to the PARAM knob. -->
+  <polyline points="-1.8000,0 1.8000,0" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round"/>
+  <polyline points="1.2500,-0.5500 1.8000,0 1.2500,0.5500" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

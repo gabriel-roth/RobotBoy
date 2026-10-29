@@ -78,16 +78,18 @@ struct LoopDisplayWidget : Widget {
 
 			const float waveBoxH = box.size.y * float(waveH) / float(h);
 			const float laneBoxH = box.size.y - waveBoxH;
-			auto drawImage = [&](int image, float y, float height) {
+			// Rounded outer corners, matching the panel plates' 2mm radius.
+			const float r = mm2px(2.f);
+			auto drawImage = [&](int image, float y, float height, float top, float bottom) {
 				NVGpaint paint = nvgImagePattern(
 					args.vg, 0.f, y, box.size.x, height, 0.f, image, 1.f);
 				nvgBeginPath(args.vg);
-				nvgRect(args.vg, 0.f, y, box.size.x, height);
+				nvgRoundedRectVarying(args.vg, 0.f, y, box.size.x, height, top, top, bottom, bottom);
 				nvgFillPaint(args.vg, paint);
 				nvgFill(args.vg);
 			};
-			drawImage(waveImg, 0.f, waveBoxH);
-			drawImage(laneImg, waveBoxH, laneBoxH);
+			drawImage(waveImg, 0.f, waveBoxH, r, 0.f);
+			drawImage(laneImg, waveBoxH, laneBoxH, 0.f, r);
 		}
 		Widget::drawLayer(args, layer);
 	}

@@ -1,0 +1,221 @@
+# Weaver (the Combine engine): 35 HP. Tinted plates 1.5 mm from the panel
+# edges with 2.0 mm between them, title centered in a 17 mm band, display on
+# the bare panel.
+#  - Left column (1.50-89.24): display (full column width, 17-62.7; not
+#    4:3, about 1.9:1), then three 18.1 mm rows (control row top + 7.2,
+#    labels below at + 15.7). The plates on the right of the lower two rows
+#    are L-shaped, so they're opaque: each fill is its old 55% tint
+#    composited over the panel.
+#    - Globals plate: a display naming the algorithm at its left end (26 x
+#      13.3, inset 2.4); then ALGORITHM (the button that pops up the
+#      algorithms + its CV jack, 9.0 apart, labelled together) and ENVELOPE
+#      (the WINDOW knob, knob-end marks above its sides), gaps after the
+#      display equalized by label width. The plate reaches down on the right
+#      (50.37-89.24, to 94.85, over half the clock row) for PRESET: a label
+#      and previous / next buttons side by side, chevrons beside.
+#    - Clock plate (1.50-48.37): CLOCK (BPM knob + CLOCK jack, 10.5 apart)
+#      and RESET (button + jack, 8.5 apart), 4.0 gaps.
+#    - Output plate: OUT, INV, EOC spread over the clock plate's width, OUT
+#      circled by a thin ring in the display's signal orange (the main
+#      trace's color). On the right the plate reaches up (from 96.85) for A,
+#      B, C: 10 mm tabs in their operator colors, each a lit latching button
+#      that shows or hides the operator's trace on the display, over the
+#      operator's output.
+#  - Operator rows (91.24-176.30): one plate per operator in the original JS
+#    prototype's operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
+#    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (heading size) in
+#    the bottom-left corner of each plate, in white at 60% over the plate, precomputed (Rack can't
+#    read #rrggbbaa).
+#    Five equal 17.01 cells from 91.24: 99.75 / 116.76 / 133.77 / 150.78 / 167.79.
+#    Columns, left to right: RATIO, WAVE, PARAM, PHASE, LEVEL.
+#    WAVE: a lit bezel button stepping through the waves (right-click lists them; light color shows
+#    the wave, like Particules' QUALITY and Brume's MODE; no CV) under a small
+#    live display of the operator's wave (drawn by the module, so it
+#    shows on MetaModule too; it names what PARAM does for the current wave above the trace and
+#    the wave below it). RATIO (snap), PARAM, PHASE, LEVEL: knob, CV
+#    attenuator trimpot (RATIO: no trimpot, a small readout of the ratio above its knob) and CV jack, stacked with equal gaps (rows at top + 7.09 / 17.2 / 26.53);
+#    the Wave display (14 x 17, from top + 3.89; its PARAM name level with the PARAM knob) over
+#    its button (top + 26.53, level with the jacks). WAVE's tab spans WAVE and PARAM, which share a cell with no divider.
+#    Hairline dividers between the columns, headings through row C.
+slug: Weaver
+name: WEAVER
+hp: 35
+
+title:
+  size: 9.5
+  tracking: 2.682
+  # Centered vertically in the 17 mm band above the plates, as on Skylark; Skylark's tracking, ink flush with the display's left edge.
+  x: 29.819
+  dy: 2.75
+
+zones:
+  - {x: 91.24, y: 24.5, w: 85.06, h: 32.83, rx: 0, fill: "#785b24", opacity: 1.0}
+  - {x: 91.24, y: 57.33, w: 85.06, h: 32.83, rx: 0, fill: "#235f5d", opacity: 1.0}
+  - {x: 91.24, y: 90.16, w: 85.06, h: 32.83, rx: 2, fill: "#713957", opacity: 1.0}
+  - {x: 91.24, y: 90.16, w: 85.06, h: 3.0, rx: 0, fill: "#713957", opacity: 1.0}
+  # Globals plate, reaching down on the right for PRESET (#b98f6a at 55%).
+  - {x: 1.50, y: 64.7, w: 87.74, h: 18.1, rx: 2, fill: "#816a56", opacity: 1.0}
+  - {x: 50.37, y: 64.7, w: 38.87, h: 30.15, rx: 2, fill: "#816a56", opacity: 1.0}
+  # Output plate, reaching up on the right for A, B, C (#9a9a9a at 55%).
+  - {x: 1.50, y: 104.9, w: 87.74, h: 18.1, rx: 2, fill: "#707070", opacity: 1.0}
+  - {x: 50.37, y: 96.85, w: 38.87, h: 26.15, rx: 2, fill: "#707070", opacity: 1.0}
+  # Rounded inner corners where the two L-shaped plates wrap the clock plate:
+  # fill each corner (overlapping the plates, so no seam), then cut it back with a panel-colored circle centered on
+  # the clock plate's corner arc (radius 2 + the 2 mm gap), so the gap stays
+  # 2 mm all the way round. The clock plate is drawn over the circles.
+  - {x: 46.37, y: 81.8, w: 5.0, h: 5.0, rx: 0, fill: "#816a56", opacity: 1.0}
+  - {x: 46.37, y: 100.9, w: 5.0, h: 5.0, rx: 0, fill: "#707070", opacity: 1.0}
+  - {x: 42.37, y: 82.8, w: 8.0, h: 8.0, rx: 4.0, fill: "#3d3d3d", opacity: 1.0}
+  - {x: 42.37, y: 96.9, w: 8.0, h: 8.0, rx: 4.0, fill: "#3d3d3d", opacity: 1.0}
+  - {x: 1.50, y: 84.8, w: 46.87, h: 18.1, rx: 2, fill: "#9aa883", opacity: 0.55}
+  - {x: 5.865, y: 106.75, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
+  - {x: 6.615, y: 107.50, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
+  - {x: 52.59, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#785b24", opacity: 1.0}
+  - {x: 64.81, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#235f5d", opacity: 1.0}
+  - {x: 77.03, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#713957", opacity: 1.0}
+  - {x: 91.24, y: 17.0, w: 17.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
+  - {x: 91.24, y: 20.75, w: 17.02, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
+  - {x: 108.26, y: 17.0, w: 34.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
+  - {x: 108.26, y: 20.75, w: 34.02, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
+  - {x: 142.28, y: 17.0, w: 17.01, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
+  - {x: 142.28, y: 20.75, w: 17.01, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
+  - {x: 159.29, y: 17.0, w: 17.01, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
+  - {x: 159.29, y: 20.75, w: 17.01, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
+  # Column dividers: hairlines between columns, from the tabs through row C; none between WAVE and PARAM.
+  - {x: 108.11, y: 17.0, w: 0.3, h: 105.50, rx: 0.15, fill: "#000000", opacity: 0.3}
+  - {x: 142.13, y: 17.0, w: 0.3, h: 105.50, rx: 0.15, fill: "#000000", opacity: 0.3}
+  - {x: 159.14, y: 17.0, w: 0.3, h: 105.50, rx: 0.15, fill: "#000000", opacity: 0.3}
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 1.50, y: 17.0, w: 87.74, h: 45.7}}
+
+  # --- Column headings, above row A.
+  - {text: RATIO, x: 99.75, y: 21.85, size: 2.9}
+  - {text: WAVE, x: 125.27, y: 21.85, size: 2.9}
+  - {text: PHASE, x: 150.78, y: 21.85, size: 2.9}
+  - {text: LEVEL, x: 167.79, y: 21.85, size: 2.9}
+
+  # --- Operator A.
+  - {text: "A", x: 93.24, y: 55.93, size: 2.9, color: "#c9bda7"}
+  - {name: A_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 51.03}
+  - {name: A_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 28.39, w: 14.0, h: 17.0}}
+  - {name: A_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 26.80, w: 11.0, h: 6.0}}
+  - {name: A_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 39.90}
+  - {name: A_RATIO_INPUT, x: 99.75, y: 51.03}
+  - {name: A_PARAM_PARAM, x: 134.88, y: 31.59}
+  - {name: A_PARAM_ATTEN_PARAM, widget: Trimpot, x: 134.88, y: 41.7}
+  - {name: A_PARAM_INPUT, x: 134.88, y: 51.03}
+  - {name: A_PHASE_PARAM, x: 150.78, y: 31.59}
+  - {name: A_PHASE_ATTEN_PARAM, widget: Trimpot, x: 150.78, y: 41.7}
+  - {name: A_PHASE_INPUT, x: 150.78, y: 51.03}
+  - {name: A_LEVEL_PARAM, x: 167.79, y: 31.59}
+  - {name: A_LEVEL_ATTEN_PARAM, widget: Trimpot, x: 167.79, y: 41.7}
+  - {name: A_LEVEL_INPUT, x: 167.79, y: 51.03}
+
+  # --- Operator B.
+  - {text: "B", x: 93.24, y: 88.76, size: 2.9, color: "#a7bfbe"}
+  - {name: B_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 83.86}
+  - {name: B_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 61.22, w: 14.0, h: 17.0}}
+  - {name: B_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 59.63, w: 11.0, h: 6.0}}
+  - {name: B_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 72.73}
+  - {name: B_RATIO_INPUT, x: 99.75, y: 83.86}
+  - {name: B_PARAM_PARAM, x: 134.88, y: 64.42}
+  - {name: B_PARAM_ATTEN_PARAM, widget: Trimpot, x: 134.88, y: 74.53}
+  - {name: B_PARAM_INPUT, x: 134.88, y: 83.86}
+  - {name: B_PHASE_PARAM, x: 150.78, y: 64.42}
+  - {name: B_PHASE_ATTEN_PARAM, widget: Trimpot, x: 150.78, y: 74.53}
+  - {name: B_PHASE_INPUT, x: 150.78, y: 83.86}
+  - {name: B_LEVEL_PARAM, x: 167.79, y: 64.42}
+  - {name: B_LEVEL_ATTEN_PARAM, widget: Trimpot, x: 167.79, y: 74.53}
+  - {name: B_LEVEL_INPUT, x: 167.79, y: 83.86}
+
+  # --- Operator C.
+  - {text: "C", x: 93.24, y: 121.59, size: 2.9, color: "#c6b0bc"}
+  - {name: C_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 116.69}
+  - {name: C_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 94.05, w: 14.0, h: 17.0}}
+  - {name: C_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 92.46, w: 11.0, h: 6.0}}
+  - {name: C_RATIO_PARAM, widget: RoundBlackSnapKnob, x: 99.75, y: 105.56}
+  - {name: C_RATIO_INPUT, x: 99.75, y: 116.69}
+  - {name: C_PARAM_PARAM, x: 134.88, y: 97.25}
+  - {name: C_PARAM_ATTEN_PARAM, widget: Trimpot, x: 134.88, y: 107.36}
+  - {name: C_PARAM_INPUT, x: 134.88, y: 116.69}
+  - {name: C_PHASE_PARAM, x: 150.78, y: 97.25}
+  - {name: C_PHASE_ATTEN_PARAM, widget: Trimpot, x: 150.78, y: 107.36}
+  - {name: C_PHASE_INPUT, x: 150.78, y: 116.69}
+  - {name: C_LEVEL_PARAM, x: 167.79, y: 97.25}
+  - {name: C_LEVEL_ATTEN_PARAM, widget: Trimpot, x: 167.79, y: 107.36}
+  - {name: C_LEVEL_INPUT, x: 167.79, y: 116.69}
+
+  # --- Clock plate.
+  - {name: BPM_PARAM, x: 10.30, y: 92.0}
+  - {name: CLOCK_INPUT, x: 20.80, y: 92.0}
+  - {name: RESET_PARAM, widget: VCVButton, x: 31.865, y: 92.0}
+  - {name: RESET_INPUT, x: 40.365, y: 92.0}
+  - {text: CLOCK, x: 15.55, y: 100.5, size: 3.175}
+  - {text: RESET, x: 36.115, y: 100.5, size: 3.175}
+
+  # --- Globals plate.
+  # ALGORITHM: a display naming the algorithm at the plate's left end, inset 2.4 like the controls; the
+  # button that pops up the algorithms and its CV jack carry the ALGORITHM label.
+  - {name: ALGORITHM_SCREEN, kind: widget, rect: {x: 3.9, y: 67.10, w: 26.0, h: 13.3}}
+  - {name: ALGORITHM_PARAM, widget: VCVButton, x: 42.13, y: 71.9}
+  - {name: ALGORITHM_INPUT, x: 51.13, y: 71.9}
+  - {name: WINDOW_PARAM, x: 71.61, y: 71.9}
+  - {text: ALGORITHM, x: 46.63, y: 80.4, size: 3.175}
+  - {text: ENVELOPE, x: 71.61, y: 80.4, size: 3.175}   # the WINDOW control
+  # PRESET steps through the factory presets (the original JS prototype's examples), previous / next.
+  - {text: PRESET, x: 60.70, y: 89.9, size: 3.175}
+  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 74.00, y: 88.8}
+  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 80.60, y: 88.8}
+
+  # --- Output plate: the main outputs, then each operator's trace button over its output.
+  - {name: MAIN_OUTPUT, x: 11.215, y: 112.1}
+  - {text: OUT, x: 11.215, y: 120.6, size: 3.175}
+  - {name: INV_OUTPUT, x: 24.955, y: 112.1}
+  - {text: INV, x: 24.955, y: 120.6, size: 3.175}
+  - {name: EOC_OUTPUT, x: 38.695, y: 112.1}
+  - {text: EOC, x: 38.695, y: 120.6, size: 3.175}
+  - {name: A_TRACE_PARAM, widget: VCVButton, x: 57.59, y: 103.0}
+  - {name: B_TRACE_PARAM, widget: VCVButton, x: 69.81, y: 103.0}
+  - {name: C_TRACE_PARAM, widget: VCVButton, x: 82.03, y: 103.0}
+  - {name: A_OUTPUT, x: 57.59, y: 112.1}
+  - {text: A, x: 57.59, y: 120.6, size: 3.175}
+  - {name: B_OUTPUT, x: 69.81, y: 112.1}
+  - {text: B, x: 69.81, y: 120.6, size: 3.175}
+  - {name: C_OUTPUT, x: 82.03, y: 112.1}
+  - {text: C, x: 82.03, y: 120.6, size: 3.175}
+
+connectors:
+  - [A_RATIO_PARAM, A_RATIO_INPUT]
+  - [A_PARAM_PARAM, A_PARAM_ATTEN_PARAM]
+  - [A_PARAM_ATTEN_PARAM, A_PARAM_INPUT]
+  - [A_PHASE_PARAM, A_PHASE_ATTEN_PARAM]
+  - [A_PHASE_ATTEN_PARAM, A_PHASE_INPUT]
+  - [A_LEVEL_PARAM, A_LEVEL_ATTEN_PARAM]
+  - [A_LEVEL_ATTEN_PARAM, A_LEVEL_INPUT]
+  - [B_RATIO_PARAM, B_RATIO_INPUT]
+  - [B_PARAM_PARAM, B_PARAM_ATTEN_PARAM]
+  - [B_PARAM_ATTEN_PARAM, B_PARAM_INPUT]
+  - [B_PHASE_PARAM, B_PHASE_ATTEN_PARAM]
+  - [B_PHASE_ATTEN_PARAM, B_PHASE_INPUT]
+  - [B_LEVEL_PARAM, B_LEVEL_ATTEN_PARAM]
+  - [B_LEVEL_ATTEN_PARAM, B_LEVEL_INPUT]
+  - [C_RATIO_PARAM, C_RATIO_INPUT]
+  - [C_PARAM_PARAM, C_PARAM_ATTEN_PARAM]
+  - [C_PARAM_ATTEN_PARAM, C_PARAM_INPUT]
+  - [C_PHASE_PARAM, C_PHASE_ATTEN_PARAM]
+  - [C_PHASE_ATTEN_PARAM, C_PHASE_INPUT]
+  - [C_LEVEL_PARAM, C_LEVEL_ATTEN_PARAM]
+  - [C_LEVEL_ATTEN_PARAM, C_LEVEL_INPUT]
+
+glyphs:
+  # WINDOW's ends, above the knob's sides (its label sits below).
+  - {src: glyphs/weaver/window-off.svg,  at: [65.11, 67.30]}
+  - {src: glyphs/weaver/window-full.svg, at: [78.11, 67.30]}
+  # PRESET's directions, beside its buttons.
+  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 88.8]}
+  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 88.8]}
+  # Arrows from each Wave display's PARAM name to the PARAM knob, level with both.
+  - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 31.59]}
+  - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 64.42]}
+  - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 97.25]}

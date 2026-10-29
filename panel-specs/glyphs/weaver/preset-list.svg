@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.1 -0.95 2.2 1.9">
+  <!-- PRESET candidate: a list with the current entry pointed at. -->
+  <polyline points="-0.3,-0.75 1.0,-0.75" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="-0.3,0.00 1.0,0.00" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <polyline points="-0.3,0.75 1.0,0.75" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="-1.05,-0.32 -0.6,0 -1.05,0.32" fill="#ffffff"/>
+</svg>
