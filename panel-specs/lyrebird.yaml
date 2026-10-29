@@ -1,0 +1,128 @@
+# Lyrebird (gesture/CV recorder, shape modulator family).
+#
+# 24 HP, plates in the Skylark/Weaver style, 1.5 mm from the panel edges, 2.0 mm between them.
+#  - Title flush left with the display, Weaver's tracking (2.682), centered in the 17 mm band.
+#  - Row 1 (17-59): display (4:3, 56 x 42) and the PERFORM plate (59.5-120.42): the GESTURE knob
+#    (RoundHugeBlackKnob, the knob you record) and REC / PUNCH, each a lit button over its gate
+#    jack. Units gap-equalized across the plate (6.655).
+#  - Row 2 (61-81): SOURCE plate (lit button + gate jack, 8.5 apart; CV IN jack) and TAKE plate
+#    (LENGTH readout + snapped knob, TIME switch SYNC/FREE, PLAY switch LOOP/ONCE). Controls at
+#    69.0, labels below at 78.5.
+#  - Row 3 (83-104): PLAYBACK plate: SPEED, SMOOTH, SCALE each a knob with its CV jack beside
+#    (11 apart), OFFSET (knob only), REVERSE (button + gate jack, 8.5 apart). Labels above at
+#    89.8, controls at 96.3; units gap-equalized (5.718).
+#  - Row 4 (106-123): timing plate as Skylark's (CLOCK = BPM knob + jack, TRIG button + jack),
+#    FILE plate (previous / SAVE / next), output plate (EOC, OUT in a white ring).
+slug: Lyrebird
+name: LYREBIRD
+hp: 24
+
+title:
+  size: 9.5
+  tracking: 2.682
+  # Ink's left edge at 1.5.
+  x: 34.995
+  dy: 2.75
+
+zones:
+  # Display background.
+  - {x: 1.5, y: 17.0, w: 56.0, h: 42.0, rx: 2, fill: "#0c0e10", opacity: 1.0}
+  # PERFORM plate.
+  - {x: 59.5, y: 17.0, w: 60.92, h: 42.0, rx: 2, fill: "#b9796a", opacity: 0.55}
+  # SOURCE plate.
+  - {x: 1.5, y: 61.0, w: 36.5, h: 20.0, rx: 2, fill: "#b98f6a", opacity: 0.55}
+  # TAKE plate.
+  - {x: 40.0, y: 61.0, w: 80.42, h: 20.0, rx: 2, fill: "#b98f6a", opacity: 0.55}
+  # LENGTH readout background: square corners (no rounded rect inside a rounded plate).
+  - {x: 47.2, y: 66.0, w: 13.0, h: 6.0, rx: 0, fill: "#0c0e10", opacity: 1.0}
+  # PLAYBACK plate.
+  - {x: 1.5, y: 83.0, w: 118.92, h: 21.0, rx: 2, fill: "#7f9fb3", opacity: 0.55}
+  # Timing, FILE and output plates.
+  - {x: 1.5, y: 106.0, w: 48.3, h: 17.0, rx: 2, fill: "#9aa883", opacity: 0.55}
+  - {x: 51.8, y: 106.0, w: 35.2, h: 17.0, rx: 2, fill: "#a99ab3", opacity: 0.55}
+  - {x: 89.0, y: 106.0, w: 31.42, h: 17.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
+  # OUT ring, as on Skylark and Weaver.
+  - {x: 105.935, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
+  - {x: 106.685, y: 108.00, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
+
+elements:
+  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 56.0, h: 42.0}}
+
+  # --- PERFORM plate.
+  - row: {grid: perform, at: labels}
+    place: [GESTURE, REC, PUNCH]
+  - {name: GESTURE_PARAM, widget: RoundHugeBlackKnob, x: 75.275, y: 41.0}
+  - {name: REC_PARAM, widget: VCVBezel, x: 95.065, y: 36.0}
+  - {name: PUNCH_PARAM, widget: VCVBezel, x: 109.75, y: 36.0}
+  - {name: REC_INPUT, x: 95.065, y: 46.0}
+  - {name: PUNCH_INPUT, x: 109.75, y: 46.0}
+
+  # --- SOURCE plate.
+  - {name: SOURCE_PARAM, widget: VCVBezel, x: 9.22, y: 69.0}
+  - {name: SOURCE_INPUT, x: 17.72, y: 69.0}
+  - {name: CV_INPUT, x: 29.87, y: 69.0}
+  - {text: SOURCE, x: 13.47, y: 78.5}
+  - {text: CV IN, x: 29.87, y: 78.5}
+
+  # --- TAKE plate.
+  - {name: LENGTH_SCREEN, kind: widget, rect: {x: 47.2, y: 66.0, w: 13.0, h: 6.0}}
+  - {name: LENGTH_PARAM, widget: RoundBlackSnapKnob, x: 67.0, y: 69.0}
+  - {text: LENGTH, x: 59.5, y: 78.5}
+  - {name: TIME_PARAM, widget: CKSS, x: 81.37, y: 69.0}
+  - {text: SYNC, x: 88.7, y: 67.9, size: 2.6}
+  - {text: FREE, x: 88.7, y: 72.1, size: 2.6}
+  - {text: TIME, x: 85.75, y: 78.5}
+  - {name: PLAY_PARAM, widget: CKSS, x: 102.07, y: 69.0}
+  - {text: LOOP, x: 109.4, y: 67.9, size: 2.6}
+  - {text: ONCE, x: 109.4, y: 72.1, size: 2.6}
+  - {text: PLAY, x: 106.45, y: 78.5}
+
+  # --- PLAYBACK plate.
+  - {text: SPEED, x: 17.518, y: 89.8}
+  - {name: SPEED_PARAM, x: 12.018, y: 96.3}
+  - {name: SPEED_INPUT, x: 23.018, y: 96.3}
+  - {text: SMOOTH, x: 43.051, y: 89.8}
+  - {name: SMOOTH_PARAM, x: 37.551, y: 96.3}
+  - {name: SMOOTH_INPUT, x: 48.551, y: 96.3}
+  - {text: SCALE, x: 68.584, y: 89.8}
+  - {name: SCALE_PARAM, x: 63.084, y: 96.3}
+  - {name: SCALE_INPUT, x: 74.084, y: 96.3}
+  - {text: OFFSET, x: 88.617, y: 89.8}
+  - {name: OFFSET_PARAM, x: 88.617, y: 96.3}
+  - {text: REVERSE, x: 106.435, y: 89.8}
+  - {name: REVERSE_PARAM, widget: VCVButton, x: 102.185, y: 96.3}
+  - {name: REVERSE_INPUT, x: 110.685, y: 96.3}
+
+  # --- Timing plate (as Skylark's; TRIG in RESET's place).
+  - {name: BPM_PARAM, x: 10.78, y: 112.6}
+  - {name: CLOCK_INPUT, x: 21.28, y: 112.6}
+  - {name: TRIG_PARAM, widget: VCVButton, x: 32.83, y: 112.6}
+  - {name: TRIG_INPUT, x: 41.33, y: 112.6}
+  - {text: CLOCK, x: 16.03, y: 120.6, size: 3.175}
+  - {text: TRIG, x: 37.08, y: 120.6, size: 3.175}
+
+  # --- FILE plate: previous / SAVE / next, chevrons outside the step buttons.
+  - {name: FILE_PREV_PARAM, widget: TL1105, x: 62.5, y: 112.6}
+  - {name: SAVE_PARAM, widget: VCVButton, x: 69.4, y: 112.6}
+  - {name: FILE_NEXT_PARAM, widget: TL1105, x: 76.3, y: 112.6}
+  - {text: FILE, x: 69.4, y: 120.6, size: 3.175}
+
+  # --- Output plate.
+  - {name: EOC_OUTPUT, x: 98.135, y: 112.6}
+  - {text: EOC, x: 98.135, y: 120.6, size: 3.175}
+  - {name: MAIN_OUTPUT, x: 111.285, y: 112.6}
+  - {text: OUT, x: 111.285, y: 120.6, size: 3.175}
+
+grids:
+  perform:
+    cols: [75.275, 95.065, 109.75]
+    rows:
+      labels: 29.3
+
+connectors:
+  - [REC_PARAM, REC_INPUT]
+  - [PUNCH_PARAM, PUNCH_INPUT]
+
+glyphs:
+  - {src: glyphs/weaver/step-back.svg,    at: [58.0, 112.6]}
+  - {src: glyphs/weaver/step-forward.svg, at: [80.8, 112.6]}
