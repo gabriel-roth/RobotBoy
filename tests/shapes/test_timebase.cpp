@@ -277,6 +277,42 @@ static void clockGapReacquires() {
 	assert(std::fabs(tb.tempoBpm() - 240.0) < 0.5);
 }
 
+// A swung clock (alternating 60% / 40% of the beat): the tempo is the
+// average over a cycle of pulses, so it holds steady instead of jumping
+// between the long and short intervals.
+static void swungClockTempoIsSteady() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	in.pulsesPerCycle = 4;
+	std::vector<int> times;
+	int at = 1000;
+	for (int k = 0; k < 40; k++) {
+		times.push_back(at);
+		at += (k % 2) ? 9600 : 14400;  // average 12000: 240 BPM at 4 ppc
+	}
+	size_t next = 0;
+	int measuredPulses = 0;
+	double lo = 1e9, hi = 0.0;
+	for (int i = 0; i < at; i++) {
+		bool high = next < times.size() && i >= times[next] && i < times[next] + 48;
+		in.clockVoltage = high ? 10.f : 0.f;
+		tb.process(in);
+		if (next < times.size() && i == times[next] + 1) {
+			// Once a full cycle of intervals has been heard
+			if (next >= 5) {
+				lo = std::min(lo, tb.tempoBpm());
+				hi = std::max(hi, tb.tempoBpm());
+				measuredPulses++;
+			}
+			next++;
+		}
+	}
+	assert(measuredPulses > 20);
+	assert(lo >= 240.0 * 0.99 && hi <= 240.0 * 1.01);
+}
+
 static void bpmInputIsClamped() {
 	Timebase tb;
 	tb.setSampleRate(kSr);
@@ -300,6 +336,7 @@ int main() {
 	softLockConvergesWithoutJumps();
 	hardAlignWrapsOnce();
 	clockGapReacquires();
+	swungClockTempoIsSteady();
 	bpmInputIsClamped();
 	printf("test_timebase OK\n");
 	return 0;

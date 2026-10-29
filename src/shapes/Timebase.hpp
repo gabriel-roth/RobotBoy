@@ -139,9 +139,19 @@ private:
 			pulseIndex = 0;
 			havePrev = true;
 			locked = false;
+			intervalCount = 0;
 			return alignTo(0.0);
 		}
-		double cycleLen = std::clamp(interval * ppc, 0.05, 60.0);
+		// The tempo is the average of the last ppc intervals (one cycle's
+		// worth), so a swung clock doesn't wobble the shape or the display
+		intervals[intervalWrite] = interval;
+		intervalWrite = (intervalWrite + 1) % kMaxIntervals;
+		intervalCount = std::min(intervalCount + 1, kMaxIntervals);
+		int n = std::min(intervalCount, std::min(ppc, kMaxIntervals));
+		double sum = 0.0;
+		for (int k = 1; k <= n; k++)
+			sum += intervals[(intervalWrite - k + kMaxIntervals) % kMaxIntervals];
+		double cycleLen = std::clamp(sum / n * ppc, 0.05, 60.0);
 		pulseIndex = (pulseIndex + 1) % ppc;
 		double expected = (double) pulseIndex / ppc;
 		if (!locked) {
@@ -162,6 +172,8 @@ private:
 	}
 
 	static constexpr double kLockGain = 0.1;
+	// The largest pulses-per-cycle choice
+	static constexpr int kMaxIntervals = 96;
 
 	double sampleRate = 48000.0;
 	double pos = 0.0;
@@ -171,6 +183,9 @@ private:
 	int64_t sampleCount = 0;
 	int64_t lastPulseSample = 0;
 	int pulseIndex = 0;
+	double intervals[kMaxIntervals] = {};
+	int intervalWrite = 0;
+	int intervalCount = 0;
 	bool havePrev = false;
 	bool locked = false;
 	bool measured = false;  // a clock tempo has been read since connecting
