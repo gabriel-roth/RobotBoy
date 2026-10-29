@@ -19,7 +19,7 @@ static constexpr int kWavePoints = 64;
 static constexpr float kOperatorLimit = 1.2f;
 
 static const char* const kWaveNames[shapes::kNumWaves] = {
-	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Input",
+	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Stepped random loop", "Smooth random loop", "Input",
 };
 
 // The WAVE bezel's colour for each wave.
@@ -32,6 +32,8 @@ static constexpr float kWaveColors[shapes::kNumWaves][3] = {
 	{1.f, 0.5f, 0.f},
 	{1.f, 1.f, 1.f},
 	{0.6f, 0.85f, 1.f},
+	{1.f, 0.55f, 0.6f},
+	{0.f, 1.f, 0.85f},
 	{1.f, 0.f, 1.f},
 };
 
@@ -162,6 +164,10 @@ struct Weaver : Module {
 	// The waves and the algorithm the buttons and their menus have chosen
 	int waves[3] = {};
 	int algorithm = 0;
+	// Each operator's loop pattern: new when a loop wave is chosen, saved
+	uint32_t loopSeeds[3] = {};
+	// A reset also makes new loop patterns
+	bool newLoopOnReset = false;
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
 	int heldAlgorithm = 0;
@@ -213,6 +219,20 @@ struct Weaver : Module {
 		setRate(e.sampleRate);
 	}
 
+	// Choosing a loop wave makes a new pattern. Called from the UI thread
+	// (menus) and from process() (the buttons).
+	void selectWave(int i, int w) {
+		if (w != waves[i] && shapes::isLoop((shapes::Wave) w))
+			loopSeeds[i] = random::u32();
+		waves[i] = w;
+	}
+
+	void newLoops() {
+		for (int i = 0; i < 3; i++)
+			if (shapes::isLoop((shapes::Wave) waves[i]))
+				loopSeeds[i] = random::u32();
+	}
+
 	void resetChoices() {
 		for (int i = 0; i < 3; i++)
 			waves[i] = defaults().op[i].wave;
@@ -225,6 +245,7 @@ struct Weaver : Module {
 		resetChoices();
 		settings.reset();
 		algorithmAtCycleEnd = false;
+		newLoopOnReset = false;
 	}
 
 	float cv(int in) {
@@ -285,6 +306,7 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++) {
 			shapes::OperatorControls& o = c.op[i];
 			o.wave = (shapes::Wave) waves[i];
+			o.loopSeed = loopSeeds[i];
 			// 1 V per ratio step; huge voltages are clamped first so the
 			// rounding can't overflow
 			float ratioCv = clamp(cv(input(i, A_RATIO_INPUT)), -100.f, 100.f);
@@ -328,7 +350,7 @@ struct Weaver : Module {
 #endif
 		for (int i = 0; i < 3; i++)
 			if (waveTriggers[i].process(params[param(i, A_WAVE_PARAM)].getValue() > 0.5f))
-				waves[i] = (waves[i] + 1) % shapes::kNumWaves;
+				selectWave(i, (waves[i] + 1) % shapes::kNumWaves);
 		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
 		if (settings.slewMs != appliedSlewMs) {
@@ -345,8 +367,11 @@ struct Weaver : Module {
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
 		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
-		if (step.reset)
+		if (step.reset) {
 			engine.reset();
+			if (newLoopOnReset)
+				newLoops();
+		}
 		// The Input peak rolls over here, before this sample is processed
 		if (step.wrapped)
 			engine.cycleWrapped();
@@ -431,6 +456,13 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++)
 			json_array_append_new(wavesJ, json_integer(waves[i]));
 		json_object_set_new(rootJ, "waves", wavesJ);
+		// 2: the loop waves sit before Input
+		json_object_set_new(rootJ, "wavesVersion", json_integer(2));
+		json_t* seedsJ = json_array();
+		for (int i = 0; i < 3; i++)
+			json_array_append_new(seedsJ, json_integer(loopSeeds[i]));
+		json_object_set_new(rootJ, "loopSeeds", seedsJ);
+		json_object_set_new(rootJ, "newLoopOnReset", json_boolean(newLoopOnReset));
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
 		return rootJ;
@@ -441,16 +473,27 @@ struct Weaver : Module {
 		// Missing or unknown values fall back to the first preset
 		resetChoices();
 		json_t* wavesJ = json_object_get(rootJ, "waves");
+		bool beforeLoops = !json_object_get(rootJ, "wavesVersion");
+		json_t* seedsJ = json_object_get(rootJ, "loopSeeds");
 		for (int i = 0; i < 3; i++) {
 			json_t* j = json_array_get(wavesJ, i);
-			if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumWaves)
+			if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumWaves) {
 				waves[i] = (int) json_integer_value(j);
+				// Input was 8 before the loop waves were added
+				if (beforeLoops && waves[i] == 8)
+					waves[i] = shapes::Input;
+			}
+			j = json_array_get(seedsJ, i);
+			if (j && json_is_integer(j))
+				loopSeeds[i] = (uint32_t) json_integer_value(j);
 		}
 		json_t* j = json_object_get(rootJ, "algorithm");
 		if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumAlgorithms)
 			algorithm = (int) json_integer_value(j);
 		j = json_object_get(rootJ, "algorithmAtCycleEnd");
 		algorithmAtCycleEnd = j && json_is_true(j);
+		j = json_object_get(rootJ, "newLoopOnReset");
+		newLoopOnReset = j && json_is_true(j);
 	}
 };
 
@@ -522,6 +565,8 @@ Weaver::Weaver() {
 	configOutput(INV_OUTPUT, "Inverted");
 	configOutput(EOC_OUTPUT, "End of cycle");
 	resetChoices();
+	for (int i = 0; i < 3; i++)
+		loopSeeds[i] = random::u32();
 	setRate(APP->engine->getSampleRate());
 }
 
@@ -614,9 +659,9 @@ struct WeaverMainDisplay : shapeui::Screen {
 		}
 		shapeui::TraceStyle solid;
 		solid.color = shapeui::signalColor();
-		// A jump at the loop point shows at the start, where it's heard
+		// A jump at the loop point shows at the end of the cycle
 		solid.closed = false;
-		solid.leadIn = true;
+		solid.leadOut = true;
 		shapeui::drawTrace(vg, f.result, kTracePoints, gx, gy, gw, gh, solid);
 		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.result, kTracePoints, pos, false));
 	}
@@ -791,7 +836,7 @@ struct WaveButton : ChoiceMenuButton<VCVLightBezel<RedGreenBlueLight>> {
 				[=]() { return module->waves[o] == w; },
 				[=]() {
 					if (module->waves[o] != w)
-						withMenuUndo(module, "set wave", [=]() { module->waves[o] = w; });
+						withMenuUndo(module, "set wave", [=]() { module->selectWave(o, w); });
 				}));
 		}
 	}
@@ -942,6 +987,11 @@ struct WeaverWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
 			}));
+		menu->addChild(createBoolMenuItem("New random loops on reset", "",
+			[=]() { return module->newLoopOnReset; },
+			[=](bool on) {
+				withMenuUndo(module, "set new random loops on reset", [=]() { module->newLoopOnReset = on; });
+			}));
 #ifdef METAMODULE
 		// No per-param right-click menus here, so list the choices in this one
 		std::vector<std::string> waveNames, algorithmNames;
@@ -954,7 +1004,7 @@ struct WeaverWidget : ModuleWidget {
 			menu->addChild(createIndexSubmenuItem(kOpLabels[o], waveNames,
 				[=]() { return module->waves[o]; },
 				[=](int i) {
-					withMenuUndo(module, "set wave", [=]() { module->waves[o] = i; });
+					withMenuUndo(module, "set wave", [=]() { module->selectWave(o, i); });
 				}));
 		menu->addChild(createIndexSubmenuItem("Algorithm", algorithmNames,
 			[=]() { return module->algorithm; },

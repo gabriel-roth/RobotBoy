@@ -178,6 +178,8 @@ void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, flo
 			else
 				nvgLineTo(vg, p.x, p.y);
 		}
+		if (style.leadOut && !style.closed)
+			nvgLineTo(vg, pointAt(n - 1).x, pointAt(0).y);
 	}
 	else {
 		// nanovg has no dashes: walk the polyline, drawing only the dash parts

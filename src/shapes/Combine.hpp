@@ -7,7 +7,13 @@
 // never allocates or locks.
 namespace shapes {
 
-enum Wave { Sine, Triangle, RampUp, RampDown, Square, Envelope, SteppedRandom, SmoothRandom, Input, kNumWaves };
+// Saved by index: Weaver's file loading maps the pre-loop Input index (8) to Input
+enum Wave { Sine, Triangle, RampUp, RampDown, Square, Envelope, SteppedRandom, SmoothRandom, SteppedLoop, SmoothLoop, Input, kNumWaves };
+
+// The random waves that repeat each operator cycle.
+inline bool isLoop(Wave wave) {
+	return wave == SteppedLoop || wave == SmoothLoop;
+}
 
 enum Algorithm { Mix, Scale, Scale2, Ring, Bend, Max, Min, Xfade, Fold, SampleHold, Gate, kNumAlgorithms };
 
@@ -29,6 +35,8 @@ struct OperatorControls {
 	// Used only by the Input wave
 	double inputVolts = 0.0;
 	double inputGain = 1.0;
+	// Used only by the loop waves: picks the pattern
+	uint32_t loopSeed = 0;
 };
 
 struct CombineControls {

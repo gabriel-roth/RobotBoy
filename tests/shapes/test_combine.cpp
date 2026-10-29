@@ -406,6 +406,54 @@ static void presetMatchFindsDefault() {
 	check(presetMatches(c) == -1, "algorithm must match");
 }
 
+static void loopWavesRepeatEachCycle() {
+	check(isLoop(SteppedLoop) && isLoop(SmoothLoop) && !isLoop(SteppedRandom) && !isLoop(Input), "isLoop");
+	check(Input == 10 && kNumWaves == 11, "Input stays last");
+	check(std::strcmp(paramName(SteppedLoop), "STEPS") == 0 && std::strcmp(paramName(SmoothLoop), "DENSITY") == 0, "loop param names");
+	for (Wave w : {SteppedLoop, SmoothLoop}) {
+		for (double param : {0.0, 0.3, 1.0}) {
+			OperatorControls op{};
+			op.wave = w;
+			op.param = param;
+			op.loopSeed = 12345;
+			double lo = 1.0, hi = -1.0;
+			for (int k = 0; k < 200; k++) {
+				double x = k / 200.0;
+				double v = evalOperator(op, x, 0);
+				lo = std::min(lo, v);
+				hi = std::max(hi, v);
+				check(v >= -1.0 && v <= 1.0, "loop in range", w, k);
+				check(std::fabs(evalOperator(op, x + 3.0, 0) - v) < 1e-9, "loop repeats", w, k);
+				check(evalOperator(op, x, 2) == v, "loop ignores the operator letter", w, k);
+			}
+			// Stepped with one step is flat; everything else moves
+			if (!(w == SteppedLoop && param == 0.0))
+				check(hi - lo > 0.05, "loop moves", w, (int) (param * 10));
+			OperatorControls other = op;
+			other.loopSeed = 999;
+			bool differs = false;
+			for (int k = 0; k < 64; k++)
+				differs = differs || evalOperator(other, k / 64.0, 0) != evalOperator(op, k / 64.0, 0);
+			check(differs, "seed picks the pattern", w, (int) (param * 10));
+		}
+	}
+	// Stepped: 1 + round(7 * param) steps per cycle
+	OperatorControls st{};
+	st.wave = SteppedLoop;
+	st.param = 3.0 / 7.0;
+	st.loopSeed = 7;
+	int changes = 0;
+	for (int k = 1; k < 400; k++)
+		changes += evalOperator(st, k / 400.0, 0) != evalOperator(st, (k - 1) / 400.0, 0);
+	check(changes == 3, "four steps", changes);
+	// Smooth: continuous through the loop point
+	OperatorControls sm{};
+	sm.wave = SmoothLoop;
+	sm.param = 0.5;
+	sm.loopSeed = 42;
+	check(std::fabs(evalOperator(sm, 1.0 - 1e-9, 0) - evalOperator(sm, 0.0, 0)) < 1e-6, "smooth loop joins up");
+}
+
 int main() {
 	ratioTable();
 	wavesMatch();
@@ -421,6 +469,7 @@ int main() {
 	displayAccessorsMatchProcess();
 	presetsAreAscii();
 	presetMatchFindsDefault();
+	loopWavesRepeatEachCycle();
 	if (failures) {
 		std::printf("test_combine: %d failures\n", failures);
 		return 1;

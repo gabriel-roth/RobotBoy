@@ -110,6 +110,9 @@ struct TraceStyle {
 	// Open traces only: start from the last value at the left edge, so the
 	// jump from one cycle into the next is drawn where it happens
 	bool leadIn = false;
+	// Open traces only: end with a drop to the first value at the right edge,
+	// so the jump into the next cycle is drawn at the end of this one
+	bool leadOut = false;
 };
 
 // n values (-1..1 fills the box height) drawn across the box.
