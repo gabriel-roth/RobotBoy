@@ -43,7 +43,13 @@ public:
 private:
 	// The expensive work (rebuild, peak rescan) runs at most this often; the
 	// transforms themselves apply every sample.
+#ifdef METAMODULE
+	// Modulated Variation made this check dominate the cost (about 10x static
+	// on the desktop bench), so the MetaModule build runs it less often.
+	static constexpr int kCheckInterval = 256;
+#else
 	static constexpr int kCheckInterval = 64;
+#endif
 	static constexpr double kEpsilon = 1e-4;
 
 	// The instance at p with the transforms in v applied.
