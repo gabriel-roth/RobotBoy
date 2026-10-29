@@ -18,6 +18,10 @@ static constexpr float kMessageSeconds = 3.f;
 
 static const char* const kLengthNames[7] = {"1/4 BAR", "1/2 BAR", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
 
+// Take generations, unique across every Lyrebird, so a history step can't
+// match a different (or deleted and restored) module's takes
+static std::atomic<uint32_t> takeGenCounter{0};
+
 static NVGcolor recColor() {
 	return nvgRGB(0xff, 0x4d, 0x4d);
 }
@@ -140,15 +144,15 @@ struct Lyrebird : Module, MenuUndoFilter {
 	std::atomic<int> frontFrame{0};
 	std::atomic<float> displayPos{0.f};
 
-	// Audio thread to UI: a Free take reached the limit
+	// Audio thread to UI: a Free take reached the limit; REC or PUNCH started writing
 	std::atomic<bool> limitHit{false};
+	std::atomic<uint32_t> writesStarted{0};
 
 	// UI thread. Names the current pair of takes (current and undo slot), so a
 	// history step only swaps them when they are still the pair it left.
-	uint32_t takeGen = 0;
-	uint32_t genCounter = 0;
-	uint32_t newGen() {
-		return ++genCounter;
+	uint32_t takeGen = newGen();
+	static uint32_t newGen() {
+		return ++takeGenCounter;
 	}
 
 	// Footer message, UI thread only
@@ -344,8 +348,10 @@ struct Lyrebird : Module, MenuUndoFilter {
 			limitHit.store(true);
 		bool writing = step.status == Status::Recording || step.status == Status::Punching;
 		bool wasWriting = lastStatus == Status::Recording || lastStatus == Status::Punching;
-		if (writing && !wasWriting)
+		if (writing && !wasWriting) {
 			spanFrom = (float) step.playhead;
+			writesStarted.fetch_add(1);
+		}
 		lastStatus = step.status;
 
 		// Solid while writing, blinking at 2 Hz while armed
@@ -616,6 +622,28 @@ static void drawRuns(NVGcontext* vg, const float* values, int n, int i0, int i1,
 	}
 }
 
+// The trace at pos (0..1) as traceAt reads it, but skipping NaN points: next to
+// the write head the next point isn't recorded yet, so this falls back to the
+// nearest recorded one at or before pos, then after it
+static float finiteAt(const float* values, int n, float pos) {
+	float k = clamp(std::isfinite(pos) ? pos : 0.f, 0.f, 1.f) * (n - 1);
+	int i0 = std::min((int) k, n - 2);
+	float a = values[i0], b = values[i0 + 1];
+	if (std::isfinite(a) && std::isfinite(b))
+		return a + (b - a) * (k - i0);
+	if (std::isfinite(a))
+		return a;
+	if (std::isfinite(b) && k - i0 >= 0.5f)
+		return b;
+	for (int i = i0; i >= 0; i--)
+		if (std::isfinite(values[i]))
+			return values[i];
+	for (int i = i0 + 1; i < n; i++)
+		if (std::isfinite(values[i]))
+			return values[i];
+	return 0.f;
+}
+
 // The whole take, raw (dim) and as played (white), with bar lines in Sync,
 // the span being written in red, and a header and footer of its state.
 struct LyrebirdDisplay : shapeui::Screen {
@@ -760,9 +788,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			shapeui::drawTrace(vg, out, kTracePoints, gx, gy, gw, gh, main);
 		}
 
-		float value = shapeui::traceAt(span ? raw : out, kTracePoints, pos, false);
-		if (!std::isfinite(value))
-			value = 0.f;
+		float value = finiteAt(span ? raw : out, kTracePoints, pos);
 		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, value);
 		if (span) {
 			// The dot turns red while writing
@@ -876,7 +902,7 @@ struct LengthDisplay : shapeui::Screen {
 };
 
 struct LyrebirdWidget : ModuleWidget {
-	uint32_t seenRecs = 0, seenPunches = 0;
+	uint32_t seenRecs = 0, seenPunches = 0, seenStarts = 0;
 
 	LyrebirdWidget(Lyrebird* module) {
 		setModule(module);
@@ -884,6 +910,7 @@ struct LyrebirdWidget : ModuleWidget {
 		if (module) {
 			seenRecs = module->engine.recsFinished();
 			seenPunches = module->engine.punchesFinished();
+			seenStarts = module->writesStarted.load();
 		}
 
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, 0)));
@@ -941,6 +968,13 @@ struct LyrebirdWidget : ModuleWidget {
 		if (!module)
 			return;
 		module->applyDeferredTake();
+		// A write in progress is a new pair already: the last finished take's
+		// step mustn't swap under it
+		uint32_t starts = module->writesStarted.load();
+		if (starts != seenStarts) {
+			seenStarts = starts;
+			module->takeGen = module->newGen();
+		}
 		// Each finished take is an undo step, so Ctrl+Z brings back the one
 		// before. Undoing it leaves a pair that never existed before, so it gets
 		// a new name too.
