@@ -31,6 +31,17 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/Lucarne.cpp
     ${SRC}/src/lucarne/GrainLayout.cpp
     ${SRC}/src/lucarne/ScopeLayout.cpp
+    # Shape modulators: Skylark, Weaver, Lyrebird
+    ${SRC}/src/ShapeGenerator.cpp
+    ${SRC}/src/Skylark.cpp
+    ${SRC}/src/Weaver.cpp
+    ${SRC}/src/Lyrebird.cpp
+    ${SRC}/src/shapes/Recipes.cpp
+    ${SRC}/src/shapes/SkylarkEngine.cpp
+    ${SRC}/src/shapes/Combine.cpp
+    ${SRC}/src/shapes/LyrebirdEngine.cpp
+    ${SRC}/src/shapes/TakeFile.cpp
+    ${SRC}/src/shapes/TakeSmoother.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
