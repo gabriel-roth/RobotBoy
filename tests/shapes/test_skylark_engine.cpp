@@ -1,8 +1,9 @@
 // Skylark engine tests: transforms against reference vectors, shape
-// latching, Fit range guarantee and display table consistency.
+// changes, Fit range guarantee and display table consistency.
 #include "reference.hpp"
 #include "shapes/OutputStage.hpp"
 #include "shapes/SkylarkEngine.hpp"
+#include <algorithm>
 #include <cassert>
 #include <cmath>
 #include <cstdio>
@@ -41,7 +42,7 @@ static void transformsMatch() {
 		SkylarkEngine e;
 		e.setControls(c);
 		for (int k = 0; k < 65; k++) {
-			double got = e.raw(k / 64.0 * 0.99999, 0, k == 0);
+			double got = e.raw(k / 64.0 * 0.99999, 0);
 			double want = ref::transformRaw[n][k];
 			if (!(std::fabs(got - want) <= 1e-6)) {
 				if (failures < 20)
@@ -52,28 +53,20 @@ static void transformsMatch() {
 	}
 }
 
-static void shapeLatchesAtCycleBoundary() {
+static void shapeChangesImmediately() {
 	SkylarkControls c = defaults();
 	c.shape = 0;
 	SkylarkEngine e;
 	e.setControls(c);
-	e.raw(0.1, 0, true);
+	e.raw(0.1, 0);
 	check(e.activeShape() == 0, "first shape");
 	c.shape = 5;
 	e.setControls(c);
-	e.raw(0.2, 0, false);
-	check(e.activeShape() == 0, "not latched mid-cycle");
-	e.raw(0.9, 0, false);
-	check(e.activeShape() == 0, "still not latched");
-	e.raw(0.0, 1, true);
-	check(e.activeShape() == 5, "latched on wrap");
-	c.shape = 7;
-	e.setControls(c);
-	e.raw(0.5, 1, false);
-	check(e.activeShape() == 5, "pending again");
-	e.reset();
-	e.raw(0.5, 0, false);
-	check(e.activeShape() == 7, "latched after reset");
+	double got = e.raw(0.2, 0);
+	check(e.activeShape() == 5, "changed mid-cycle");
+	SkylarkEngine fresh;
+	fresh.setControls(c);
+	check(got == fresh.raw(0.2, 0), "new shape on the next call");
 }
 
 static void fitNeverExceedsRange() {
@@ -88,9 +81,9 @@ static void fitNeverExceedsRange() {
 				c.lift = 1;
 			e.reset();
 			e.setControls(c);
-			e.raw(0.0, 0, true);
+			e.raw(0.0, 0);
 			for (int i = 0; i < 1024; i++) {
-				double x = e.raw(i / 1024.0, 0, false);
+				double x = e.raw(i / 1024.0, 0);
 				double y = treat(x, Treat::Fit, e.peak());
 				check(std::fabs(y) <= 1 + 1e-9 && std::isfinite(y), "fit range", r, i);
 			}
@@ -105,12 +98,13 @@ static void renderCycleMatchesRaw() {
 	c.timing = 0.3;
 	SkylarkEngine e;
 	e.setControls(c);
-	e.raw(0.0, 0, true);
+	e.raw(0.0, 0);
 	const int n = 128;
 	std::vector<float> out(n);
 	e.renderCycle(out.data(), n, Treat::Soft, Range::Bipolar5);
 	for (int i = 0; i < n; i++) {
-		double want = toVolts(treat(e.raw((double) i / n, 0, false), Treat::Soft, e.peak()), Range::Bipolar5);
+		double p = std::min((double) i / (n - 1), 1.0 - 1e-9);
+		double want = toVolts(treat(e.raw(p, 0), Treat::Soft, e.peak()), Range::Bipolar5);
 		check(std::fabs(out[i] - want) <= 1e-6, "render", i);
 	}
 }
@@ -121,10 +115,10 @@ static void driftRebuildsPerCycle() {
 	c.drift = 0.7;
 	SkylarkEngine e;
 	e.setControls(c);
-	double a = e.raw(0.37, 0, true);
-	double b = e.raw(0.37, 1, true);
+	double a = e.raw(0.37, 0);
+	double b = e.raw(0.37, 1);
 	check(a != b, "drift changes the cycle");
-	double a2 = e.raw(0.37, 0, true);
+	double a2 = e.raw(0.37, 0);
 	check(a == a2, "drift replays");
 }
 
@@ -135,27 +129,27 @@ static void reverseTakesEffectImmediately() {
 	c.shape = 3;
 	SkylarkEngine e;
 	e.setControls(c);
-	e.raw(0.0, 0, true);
-	double forward = e.raw(0.3, 0, false);
+	e.raw(0.0, 0);
+	double forward = e.raw(0.3, 0);
 	c.reverse = true;
 	e.setControls(c);
-	double reversed = e.raw(0.3, 0, false);
+	double reversed = e.raw(0.3, 0);
 	SkylarkEngine fresh;
 	fresh.setControls(c);
-	fresh.raw(0.0, 0, true);
-	double want = fresh.raw(0.3, 0, false);
+	fresh.raw(0.0, 0);
+	double want = fresh.raw(0.3, 0);
 	check(reversed == want, "reverse on the next call");
 	check(reversed != forward, "reverse changes the value");
 	c.reverse = false;
 	c.tilt = 0.5;
 	e.setControls(c);
 	fresh.setControls(c);
-	check(e.raw(0.4, 0, false) == fresh.raw(0.4, 0, false), "tilt on the next call");
+	check(e.raw(0.4, 0) == fresh.raw(0.4, 0), "tilt on the next call");
 }
 
 int main() {
 	transformsMatch();
-	shapeLatchesAtCycleBoundary();
+	shapeChangesImmediately();
 	fitNeverExceedsRange();
 	renderCycleMatchesRaw();
 	driftRebuildsPerCycle();

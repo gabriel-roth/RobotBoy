@@ -1,52 +1,54 @@
-# Skylark (the Recipes generator): 22 HP, tinted plates in the Brume style, 1.5 mm from the panel
+# Skylark (the Recipes generator): 20 HP, tinted plates in the Brume style, 1.5 mm from the panel
 # edges with 2.0 mm between them.
 #  - Title centered in a 17 mm band (rows start at 17.0), spread across the display's width.
-#  - Display (4:3, 66 x 49.5) on the bare panel, top left (1.5-67.5, 17-66.5).
-#  - Top plate (69.5-110.26, 17-66.5): VARIATION and SHAPE (picks the recipe) in two columns
-#    (80.51 / 99.25): labels 24.85, knobs 34.35, jacks 47.85. VARIATION has an attenuverter
-#    under its jack (57.85, - / + beside it): with nothing patched, the output is normalled to
-#    the VARIATION input and the attenuverter sets the feedback depth. An arrow from the
-#    display (the output) meets a notch in the plate's left edge at the VARIATION jack, as
-#    Brume marks its normalled follower; the arrow is display-colored so it reads as part of
-#    the display. SHAPE previous / next buttons sit in the attenuverter row, chevrons beside.
-#  - Transform plate (1.5-110.26, 68.5-104): TIMING, LIFT, SYMMETRY, TILT, DRIFT in five
-#    columns (12.38 / 34.13 / 55.88 / 77.63 / 99.38), each a stack of label 72.6, knob 80.6
-#    (end-of-travel glyphs beside it), CV trimpot 89.5 and CV jack 98.0.
-#  - Bottom row (106-123), controls at 112.6, labels below at 120.6:
-#    - Timing plate (1.5-63.5): CLOCK (the BPM knob, live only while the CLOCK jack is
-#      unpatched, and the CLOCK jack, 10.5 apart), RESET and REVERSE (button + jack, 8.5
-#      apart, as Brume's CLEAR). No beat light; the display shows the tempo.
-#    - Output plate (65.5-110.26, gray as Brume's output column): EOC, INV, OUT
-#      (74.68 / 87.88 / 101.08), OUT circled by a ring in the display's signal orange.
+#  - Display (4:3, 62 x 46.5) on the bare panel, top left (1.5-63.5, 17-63.5).
+#  - Top plate (65.5-100.1, 17-63.5): VARIATION and SHAPE (picks the recipe) in two columns
+#    (75.225 / 90.375), centered in the plate: labels 24.5, knobs 33.5, jacks 46.0.
+#    VARIATION has an attenuverter under its jack (55.5, - / + beside it): with nothing
+#    patched, the output is normalled to the VARIATION input and the attenuverter sets the
+#    feedback depth. An arrow from the display (the output) meets a notch in the plate's left
+#    edge at the VARIATION jack, as Brume marks its normalled follower; the arrow is
+#    display-colored so it reads as part of the display. SHAPE previous / next buttons sit in
+#    the attenuverter row, chevrons beside.
+#  - Transform plate (1.5-100.1, 65.5-104): TIMING, LIFT, SYMMETRY, TILT, DRIFT in five
+#    columns 19.72 apart, half a column from each edge, each a stack of label 71.0, knob 79.6
+#    (end-of-travel glyphs beside it), CV trimpot 89.0 and CV jack 98.0.
+#  - Bottom row (106-123), two equal plates, controls at 112.6, labels below at 120.6, gaps
+#    equalized:
+#    - Timing plate (1.5-49.8): CLOCK (the BPM knob, live only while the CLOCK jack is
+#      unpatched, and the CLOCK jack, 10.5 apart), RESET (button + jack, 8.5 apart). No beat
+#      light; the display shows the tempo.
+#    - Output plate (51.8-100.1, gray as Brume's output column): EOC, INV, OUT, OUT circled by
+#      a ring in the display's signal orange.
 slug: Skylark
 name: SKYLARK
-hp: 22
+hp: 20
 
 title:
   size: 9.5
-  tracking: 3.682
+  tracking: 3.032
   # Vertically centered in the 17 mm band above the plates: baseline (17 + 9.5) / 2 = 13.25
   # (default baseline size + 1.0 = 10.5, so dy 2.75). x and tracking spread the ink across the
   # display's full width.
-  x: 36.103
+  x: 33.846
   dy: 2.75
 
 zones:
   # Under the display (hidden by it): only its arrow shows, pointing into the
   # top plate's notch at the VARIATION jack, for the output->VARIATION feedback.
-  - {x: 1.5, y: 17.0, w: 66.0, h: 49.5, rx: 1, fill: "#0c0e10", opacity: 1.0,
-     arrows: [{side: right, at: 47.85}]}
-  - {x: 69.5, y: 17.0, w: 40.76, h: 49.5, rx: 2, fill: "#b98f6a", opacity: 0.55,
-     notches: [{side: left, at: 47.85}]}
-  - {x: 1.5, y: 68.5, w: 108.76, h: 35.5, rx: 2, fill: "#7f9fb3", opacity: 0.55}
-  - {x: 1.5, y: 106.0, w: 62.00, h: 17.0, rx: 2, fill: "#9aa883", opacity: 0.55}
-  - {x: 65.50, y: 106.0, w: 44.76, h: 17.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
+  - {x: 1.5, y: 17.0, w: 62.0, h: 46.5, rx: 1, fill: "#0c0e10", opacity: 1.0,
+     arrows: [{side: right, at: 46.0}]}
+  - {x: 65.5, y: 17.0, w: 34.6, h: 46.5, rx: 2, fill: "#b98f6a", opacity: 0.55,
+     notches: [{side: left, at: 46.0}]}
+  - {x: 1.5, y: 65.5, w: 98.6, h: 38.5, rx: 2, fill: "#7f9fb3", opacity: 0.55}
+  - {x: 1.5, y: 106.0, w: 48.3, h: 17.0, rx: 2, fill: "#9aa883", opacity: 0.55}
+  - {x: 51.8, y: 106.0, w: 48.3, h: 17.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
   # OUT ring, as on Weaver.
-  - {x: 95.73, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ff8a3d", opacity: 1.0}
-  - {x: 96.48, y: 108.00, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
+  - {x: 84.675, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ff8a3d", opacity: 1.0}
+  - {x: 85.425, y: 108.00, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
 
 elements:
-  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 66.0, h: 49.5}}
+  - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 62.0, h: 46.5}}
 
   # --- Top plate.
   - row: {grid: top, at: labels}
@@ -57,12 +59,12 @@ elements:
       - {name: SHAPE_PARAM, widget: RoundBlackSnapKnob}
   - row: {grid: top, at: jacks}
     place: [{name: VARIATION_INPUT}, {name: SHAPE_INPUT}]
-  - {name: VARIATION_CV_PARAM, widget: Trimpot, x: 80.51, y: 57.85}
-  - {text: "−", x: 75.31, y: 58.85, size: 3.175}
-  - {text: "+", x: 85.71, y: 58.85, size: 3.175}
+  - {name: VARIATION_CV_PARAM, widget: Trimpot, x: 75.225, y: 55.5}
+  - {text: "−", x: 70.325, y: 56.5, size: 3.175}
+  - {text: "+", x: 80.125, y: 56.5, size: 3.175}
   # SHAPE previous / next in the trimpot row, previous left, next right.
-  - {name: SHAPE_PREV_PARAM, widget: TL1105, x: 95.95, y: 57.85}
-  - {name: SHAPE_NEXT_PARAM, widget: TL1105, x: 102.55, y: 57.85}
+  - {name: SHAPE_PREV_PARAM, widget: TL1105, x: 87.075, y: 55.5}
+  - {name: SHAPE_NEXT_PARAM, widget: TL1105, x: 93.675, y: 55.5}
 
   # --- Transform plate.
   - row: {grid: mid, at: labels}
@@ -79,39 +81,36 @@ elements:
             {name: DRIFT_INPUT}]
 
   # --- Timing plate.
-  - {name: BPM_PARAM, widget: RoundBlackSnapKnob, x: 9.18, y: 112.6}
-  - {name: CLOCK_INPUT, x: 19.68, y: 112.6}
-  - {name: RESET_PARAM, widget: VCVButton, x: 29.64, y: 112.6}
-  - {name: RESET_INPUT, x: 38.14, y: 112.6}
-  - {name: REVERSE_PARAM, widget: VCVButton, x: 48.09, y: 112.6}
-  - {name: REVERSE_INPUT, x: 56.59, y: 112.6}
-  - {text: CLOCK, x: 14.43, y: 120.6, size: 3.175}
-  - {text: RESET, x: 33.89, y: 120.6, size: 3.175}
-  - {text: REVERSE, x: 52.34, y: 120.6, size: 3.175}
+  - {name: BPM_PARAM, x: 10.78, y: 112.6}
+  - {name: CLOCK_INPUT, x: 21.28, y: 112.6}
+  - {name: RESET_PARAM, widget: VCVButton, x: 32.83, y: 112.6}
+  - {name: RESET_INPUT, x: 41.33, y: 112.6}
+  - {text: CLOCK, x: 16.03, y: 120.6, size: 3.175}
+  - {text: RESET, x: 37.08, y: 120.6, size: 3.175}
 
   # --- Output plate.
-  - {name: EOC_OUTPUT, x: 74.68, y: 112.6}
-  - {text: EOC, x: 74.68, y: 120.6, size: 3.175}
-  - {name: INV_OUTPUT, x: 87.88, y: 112.6}
-  - {text: INV, x: 87.88, y: 120.6, size: 3.175}
-  - {name: MAIN_OUTPUT, x: 101.08, y: 112.6}
-  - {text: OUT, x: 101.08, y: 120.6, size: 3.175}
+  - {name: EOC_OUTPUT, x: 61.865, y: 112.6}
+  - {text: EOC, x: 61.865, y: 120.6, size: 3.175}
+  - {name: INV_OUTPUT, x: 75.945, y: 112.6}
+  - {text: INV, x: 75.945, y: 120.6, size: 3.175}
+  - {name: MAIN_OUTPUT, x: 90.025, y: 112.6}
+  - {text: OUT, x: 90.025, y: 120.6, size: 3.175}
 
 grids:
   top:
-    cols: [80.51, 99.25]
+    cols: [75.225, 90.375]
     rows:
-      labels: 24.85
-      knobs: 34.35
-      jacks: 47.85
-      trim: 57.85
+      labels: 24.5
+      knobs: 33.5
+      jacks: 46.0
+      trim: 55.5
   mid:
-    cols: [12.38, 34.13, 55.88, 77.63, 99.38]
+    cols: [11.36, 31.08, 50.80, 70.52, 90.24]
     rows:
-      labels: 72.60
-      knobs: 80.60
-      trims: 89.50
-      jacks: 98.00
+      labels: 71.0
+      knobs: 79.6
+      trims: 89.0
+      jacks: 98.0
 
 connectors:
   - [VARIATION_PARAM, VARIATION_INPUT]
@@ -129,15 +128,15 @@ connectors:
   - [DRIFT_CV_PARAM, DRIFT_INPUT]
 
 glyphs:
-  - {src: glyphs/skylark/timing-earlier.svg, at: [7.614, 85.362]}
-  - {src: glyphs/skylark/timing-later.svg, at: [17.138, 85.362]}
-  - {src: glyphs/skylark/lift-down.svg, at: [29.366, 85.362]}
-  - {src: glyphs/skylark/lift-up.svg, at: [38.890, 85.362]}
-  - {src: glyphs/skylark/symmetry-off.svg, at: [51.118, 85.362]}
-  - {src: glyphs/skylark/symmetry-mirrored.svg, at: [60.642, 85.362]}
-  - {src: glyphs/skylark/tilt-falling.svg, at: [72.870, 85.362]}
-  - {src: glyphs/skylark/tilt-rising.svg, at: [82.394, 85.362]}
-  - {src: glyphs/skylark/drift-steady.svg, at: [94.622, 85.362]}
-  - {src: glyphs/skylark/drift-wander.svg, at: [104.146, 85.362]}
-  - {src: glyphs/weaver/step-back.svg,    at: [91.85, 57.85]}
-  - {src: glyphs/weaver/step-forward.svg, at: [106.65, 57.85]}
+  - {src: glyphs/skylark/timing-earlier.svg, at: [6.594, 84.362]}
+  - {src: glyphs/skylark/timing-later.svg, at: [16.118, 84.362]}
+  - {src: glyphs/skylark/lift-down.svg, at: [26.314, 84.362]}
+  - {src: glyphs/skylark/lift-up.svg, at: [35.838, 84.362]}
+  - {src: glyphs/skylark/symmetry-off.svg, at: [46.034, 84.362]}
+  - {src: glyphs/skylark/symmetry-mirrored.svg, at: [55.558, 84.362]}
+  - {src: glyphs/skylark/tilt-falling.svg, at: [65.754, 84.362]}
+  - {src: glyphs/skylark/tilt-rising.svg, at: [75.278, 84.362]}
+  - {src: glyphs/skylark/drift-steady.svg, at: [85.474, 84.362]}
+  - {src: glyphs/skylark/drift-wander.svg, at: [94.998, 84.362]}
+  - {src: glyphs/weaver/step-back.svg,    at: [83.475, 55.5]}
+  - {src: glyphs/weaver/step-forward.svg, at: [97.275, 55.5]}

@@ -25,17 +25,18 @@ public:
 		controls = c;
 	}
 
-	// The transformed shape at cyclePos in [0, 1) of the given cycle.
-	// A new shape takes effect only when cycleWrapped is true.
-	double raw(double cyclePos, int64_t cycle, bool cycleWrapped);
+	// The transformed shape at cyclePos in [0, 1) of the given cycle. A new
+	// shape takes effect on the next call.
+	double raw(double cyclePos, int64_t cycle);
 	// Max |raw| over the current cycle (1 before the first call).
 	double peak() const {
 		return peakValue;
 	}
 	int activeShape() const {
-		return latchedShape;
+		return currentShape;
 	}
-	// Fills out with n treated, scaled points of the current cycle.
+	// Fills out with n treated, scaled points of the current cycle, the first
+	// at its start and the last at its end (an open trace).
 	void renderCycle(float* out, int n, Treat treatMode, Range range) const;
 	void reset();
 
@@ -55,7 +56,7 @@ private:
 	SkylarkControls built;  // controls the instance and peak were computed from
 	RecipeInstance inst;
 	bool haveInstance = false;
-	int latchedShape = 0;
+	int currentShape = 0;
 	int64_t builtCycle = 0;
 	int sinceCheck = 0;
 	double peakValue = 1.0;

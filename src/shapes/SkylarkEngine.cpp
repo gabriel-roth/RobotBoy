@@ -68,22 +68,18 @@ void SkylarkEngine::updatePeak() {
 }
 
 void SkylarkEngine::rebuild(int64_t cycle) {
-	buildRecipe(inst, latchedShape, controls.variation, controls.drift, cycle);
+	buildRecipe(inst, currentShape, controls.variation, controls.drift, cycle);
 	haveInstance = true;
 	builtCycle = cycle;
 	built = controls;
-	built.shape = latchedShape;
+	built.shape = currentShape;
 	updatePeak();
 }
 
-double SkylarkEngine::raw(double cyclePos, int64_t cycle, bool cycleWrapped) {
-	bool shapeChanged = false;
-	if (!haveInstance || cycleWrapped) {
-		if (!haveInstance || controls.shape != latchedShape) {
-			latchedShape = std::clamp(controls.shape, 0, kNumRecipes - 1);
-			shapeChanged = true;
-		}
-	}
+double SkylarkEngine::raw(double cyclePos, int64_t cycle) {
+	int shape = std::clamp(controls.shape, 0, kNumRecipes - 1);
+	bool shapeChanged = shape != currentShape;
+	currentShape = shape;
 	bool newCycle = built.drift > 0.0 && cycle != builtCycle;
 	if (!haveInstance || shapeChanged || newCycle) {
 		rebuild(cycle);
@@ -109,7 +105,10 @@ double SkylarkEngine::raw(double cyclePos, int64_t cycle, bool cycleWrapped) {
 
 void SkylarkEngine::renderCycle(float* out, int n, Treat treatMode, Range range) const {
 	for (int i = 0; i < n; i++) {
-		double y = treat(shapeAt((double) i / n, controls), treatMode, peakValue);
+		// Just short of 1, so the last point ends this cycle rather than
+		// starting the next
+		double p = std::min((double) i / (n - 1), 1.0 - 1e-9);
+		double y = treat(shapeAt(p, controls), treatMode, peakValue);
 		out[i] = (float) sanitize(toVolts(y, range), 0.0);
 	}
 }

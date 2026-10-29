@@ -43,7 +43,6 @@ struct Skylark : Module {
 		DRIFT_CV_PARAM,
 		BPM_PARAM,
 		RESET_PARAM,
-		REVERSE_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -56,7 +55,6 @@ struct Skylark : Module {
 		DRIFT_INPUT,
 		CLOCK_INPUT,
 		RESET_INPUT,
-		REVERSE_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -78,7 +76,6 @@ struct Skylark : Module {
 	shapes::Slew slew;
 	shapes::Trigger eoc;
 	dsp::BooleanTrigger prevTrigger, nextTrigger;
-	dsp::SchmittTrigger reverseGate;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
 	// OUT on the previous sample: Variation's feedback when its jack is empty
@@ -111,11 +108,8 @@ struct Skylark : Module {
 		configParam(SYMMETRY_CV_PARAM, -1.f, 1.f, 0.f, "Symmetry CV amount");
 		configParam(TILT_CV_PARAM, -1.f, 1.f, 0.f, "Tilt CV amount");
 		configParam(DRIFT_CV_PARAM, -1.f, 1.f, 0.f, "Drift CV amount");
-		ParamQuantity* bpm = configParam(BPM_PARAM, 20.f, 300.f, 120.f, "Tempo", " BPM");
-		bpm->snapEnabled = true;
-		bpm->randomizeEnabled = false;
+		shapeui::configBpm(this, BPM_PARAM);
 		configButton(RESET_PARAM, "Reset");
-		configButton(REVERSE_PARAM, "Reverse");
 		configInput(VARIATION_INPUT, "Variation CV (OUT when unpatched)");
 		configInput(SHAPE_INPUT, "Shape CV");
 		configInput(TIMING_INPUT, "Timing CV");
@@ -125,7 +119,6 @@ struct Skylark : Module {
 		configInput(DRIFT_INPUT, "Drift CV");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
-		configInput(REVERSE_INPUT, "Reverse gate");
 		configOutput(MAIN_OUTPUT, "Main");
 		configOutput(INV_OUTPUT, "Inverted");
 		configOutput(EOC_OUTPUT, "End of cycle");
@@ -174,21 +167,20 @@ struct Skylark : Module {
 		}
 
 		shapes::TimebaseInput tin;
-		tin.bpm = params[BPM_PARAM].getValue() + settings.bpmFine;
+		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
 		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
 		tin.clockVoltage = cv(CLOCK_INPUT);
 		tin.resetVoltage = cv(RESET_INPUT);
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
 		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
-		// Reset starts a cycle too, so a pending shape change lands there
+		// Reset starts a cycle too
 		bool cycleStart = step.wrapped || step.reset || !started;
 		started = true;
 
 		float variationCv = inputs[VARIATION_INPUT].isConnected() ? cv(VARIATION_INPUT) : lastOut;
 		if (!variationPerCycle || cycleStart)
 			heldVariationCv = variationCv;
-		reverseGate.process(cv(REVERSE_INPUT), 0.1f, 1.f);
 
 		shapes::SkylarkControls c;
 		// 10 V of Shape CV spans all the recipes; huge voltages are clamped
@@ -203,10 +195,9 @@ struct Skylark : Module {
 		c.symmetry = control(SYMMETRY_PARAM, SYMMETRY_INPUT, SYMMETRY_CV_PARAM, 0.f, 1.f);
 		c.tilt = control(TILT_PARAM, TILT_INPUT, TILT_CV_PARAM, -1.f, 1.f);
 		c.drift = control(DRIFT_PARAM, DRIFT_INPUT, DRIFT_CV_PARAM, 0.f, 1.f);
-		c.reverse = params[REVERSE_PARAM].getValue() > 0.5f || reverseGate.isHigh();
 		engine.setControls(c);
 
-		double raw = engine.raw(step.pos, step.cycle, cycleStart);
+		double raw = engine.raw(step.pos, step.cycle);
 		double y = shapes::treat(raw, settings.treatMode, engine.peak());
 		// The peak is rescanned every 64 samples while the transforms apply
 		// every sample, so Fit can briefly overshoot: keep it in range
@@ -270,7 +261,7 @@ struct SkylarkDisplay : shapeui::Screen {
 		if (module)
 			return module->frames[module->frontFrame.load(std::memory_order_acquire)];
 		if (!havePreview) {
-			previewEngine.raw(0.0, 0, true);
+			previewEngine.raw(0.0, 0);
 			previewEngine.renderCycle(preview.trace, kTracePoints, shapes::Treat::Fit, shapes::Range::Bipolar5);
 			for (float& v : preview.trace)
 				v *= 0.2f;
@@ -312,10 +303,14 @@ struct SkylarkDisplay : shapeui::Screen {
 
 		shapeui::TraceStyle style;
 		style.color = shapeui::signalColor();
+		// Open with a lead-in, so a jump at the loop point shows at the start,
+		// where it's heard
+		style.closed = false;
+		style.leadIn = true;
 		shapeui::drawTrace(vg, f.trace, kTracePoints, gx, gy, gw, gh, style);
 		if (!std::isfinite(pos))
 			pos = 0.f;
-		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.trace, kTracePoints, pos));
+		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.trace, kTracePoints, pos, false));
 	}
 };
 
@@ -330,43 +325,41 @@ struct SkylarkWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		SkylarkDisplay* display = createWidget<SkylarkDisplay>(mm2px(Vec(1.5, 17.0)));
-		display->box.size = mm2px(Vec(66.0, 49.5));
+		display->box.size = mm2px(Vec(62.0, 46.5));
 		display->module = module;
 		addChild(display);
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(80.51, 34.35)), module, Skylark::VARIATION_PARAM));
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(99.25, 34.35)), module, Skylark::SHAPE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(80.51, 47.85)), module, Skylark::VARIATION_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.25, 47.85)), module, Skylark::SHAPE_INPUT));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(80.51, 57.85)), module, Skylark::VARIATION_CV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(95.95, 57.85)), module, Skylark::SHAPE_PREV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(102.55, 57.85)), module, Skylark::SHAPE_NEXT_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(75.225, 33.5)), module, Skylark::VARIATION_PARAM));
+		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(90.375, 33.5)), module, Skylark::SHAPE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(75.225, 46)), module, Skylark::VARIATION_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(90.375, 46)), module, Skylark::SHAPE_INPUT));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(75.225, 55.5)), module, Skylark::VARIATION_CV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(87.075, 55.5)), module, Skylark::SHAPE_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(93.675, 55.5)), module, Skylark::SHAPE_NEXT_PARAM));
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.38, 80.6)), module, Skylark::TIMING_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(34.13, 80.6)), module, Skylark::LIFT_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(55.88, 80.6)), module, Skylark::SYMMETRY_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(77.63, 80.6)), module, Skylark::TILT_PARAM));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(99.38, 80.6)), module, Skylark::DRIFT_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(12.38, 89.5)), module, Skylark::TIMING_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(34.13, 89.5)), module, Skylark::LIFT_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(55.88, 89.5)), module, Skylark::SYMMETRY_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(77.63, 89.5)), module, Skylark::TILT_CV_PARAM));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(99.38, 89.5)), module, Skylark::DRIFT_CV_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(12.38, 98.0)), module, Skylark::TIMING_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(34.13, 98.0)), module, Skylark::LIFT_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(55.88, 98.0)), module, Skylark::SYMMETRY_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.63, 98.0)), module, Skylark::TILT_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(99.38, 98.0)), module, Skylark::DRIFT_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(11.36, 79.6)), module, Skylark::TIMING_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(31.08, 79.6)), module, Skylark::LIFT_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(50.8, 79.6)), module, Skylark::SYMMETRY_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(70.52, 79.6)), module, Skylark::TILT_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(90.24, 79.6)), module, Skylark::DRIFT_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(11.36, 89)), module, Skylark::TIMING_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(31.08, 89)), module, Skylark::LIFT_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(50.8, 89)), module, Skylark::SYMMETRY_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(70.52, 89)), module, Skylark::TILT_CV_PARAM));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(90.24, 89)), module, Skylark::DRIFT_CV_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.36, 98)), module, Skylark::TIMING_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(31.08, 98)), module, Skylark::LIFT_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(50.8, 98)), module, Skylark::SYMMETRY_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(70.52, 98)), module, Skylark::TILT_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(90.24, 98)), module, Skylark::DRIFT_INPUT));
 
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(9.18, 112.6)), module, Skylark::BPM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(19.68, 112.6)), module, Skylark::CLOCK_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(29.64, 112.6)), module, Skylark::RESET_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(38.14, 112.6)), module, Skylark::RESET_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(48.09, 112.6)), module, Skylark::REVERSE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(56.59, 112.6)), module, Skylark::REVERSE_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(74.68, 112.6)), module, Skylark::EOC_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(87.88, 112.6)), module, Skylark::INV_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(101.08, 112.6)), module, Skylark::MAIN_OUTPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.78, 112.6)), module, Skylark::BPM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(21.28, 112.6)), module, Skylark::CLOCK_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(32.83, 112.6)), module, Skylark::RESET_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(41.33, 112.6)), module, Skylark::RESET_INPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(61.865, 112.6)), module, Skylark::EOC_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(75.945, 112.6)), module, Skylark::INV_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(90.025, 112.6)), module, Skylark::MAIN_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
