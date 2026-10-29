@@ -28,7 +28,11 @@ struct Rig {
 	LyrebirdStep step() {
 		last = tb.process(in);
 		in.resetButton = false;
-		return eng.process(c, last);
+		LyrebirdStep s = eng.process(c, last);
+		// As the module does
+		if (s.restartTransport)
+			tb.reset();
+		return s;
 	}
 	double bars() const {
 		return (double) last.cycle + last.pos;
@@ -114,6 +118,42 @@ static void syncTakeStartsMidBarAndWraps() {
 		double want = i >= 1000 ? 0.5 + (i - 1000) / 2000.0 : 1.0 + i / 2000.0;
 		assert(std::fabs(t.samples[i] - want) < 0.002);
 	}
+}
+
+static void syncOnceTakeStartsAtPress() {
+	// In ONCE the take starts where REC is pressed, not where the bar is
+	Rig r;
+	r.c.loop = false;
+	r.c.lengthIndex = 2;  // 1 bar
+	r.in.resetButton = true;
+	r.runTo(2.5);
+	int n = 0;
+	r.c.source = 0.5 / 96000.0;
+	LyrebirdStep s = r.pressRec();
+	assert(s.status == Status::Recording && s.restartTransport);
+	assert(r.tb.position() == 0.0);
+	s = r.run(96000 + 200, [&](int) {
+		n++;
+		r.c.source = (n + 0.5) / 96000.0;
+	});
+	assert(s.status == Status::Idle);
+	const Take& t = r.eng.take();
+	assert(t.length == 2000);
+	for (int i = 0; i < 2000; i++)
+		assert(std::fabs(t.samples[i] - i / 2000.0) < 0.002);
+	// TRIG plays it from the start of the gesture
+	r.in.resetButton = true;
+	s = r.step();
+	// once the declick has settled, it tracks the take's opening
+	s = r.run(2400);
+	assert(std::fabs(s.volts - 2401.0 / 96000.0) < 0.002);
+
+	// In LOOP, REC leaves the transport alone
+	Rig l;
+	l.runTo(0.5);
+	s = l.pressRec();
+	assert(s.status == Status::Recording && !s.restartTransport);
+	assert(l.tb.position() > 0.5);
 }
 
 static void syncTakeStopsItself() {
@@ -760,6 +800,7 @@ static void versionsUniqueAcrossBuffers() {
 
 int main() {
 	syncTakeStartsMidBarAndWraps();
+	syncOnceTakeStartsAtPress();
 	syncTakeStopsItself();
 	syncTakeFullUnderTempoChange();
 	syncEarlyStopHoldsLast();

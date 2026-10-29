@@ -451,6 +451,13 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		default:
 			break;
 	}
+	// A Sync ONCE take starts its pass where it starts, as TRIG would, so the
+	// gesture isn't rotated by wherever the bar happened to be
+	if (status_ == Status::Recording && statusIn != Status::Recording && c.sync && !c.loop) {
+		x = 0.0;
+		recSegX_ = 0.0;
+		out.restartTransport = true;
+	}
 	// A press used by REC above mustn't also start a punch below
 	if (status_ != statusIn || recByPunch_)
 		punchEdge = false;

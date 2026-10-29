@@ -39,6 +39,7 @@ struct LyrebirdStep {
 	double playhead = 0;  // 0..1 within the take
 	Status status = Status::Idle;
 	bool hitLimit = false;  // a Free take reached 3 min this sample
+	bool restartTransport = false;  // a Sync ONCE take started: the host resets the transport, as on TRIG
 };
 
 // Records and plays back one gesture. The UI thread never touches the audio

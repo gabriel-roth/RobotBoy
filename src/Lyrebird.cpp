@@ -365,6 +365,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		c.idle = idleOutput;
 
 		shapes::LyrebirdStep step = engine.process(c, tb);
+		if (step.restartTransport)
+			timebase.reset();
 
 		// Each jack does what the button above it does
 		bool prevTrig = prevGate.process(cv(FILE_PREV_INPUT), 0.1f, 1.f);
