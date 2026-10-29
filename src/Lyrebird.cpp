@@ -136,11 +136,13 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// Context menu settings, saved with the patch
 	KnobRange knobRange = KnobRange::Bipolar5;
 	shapes::RecordButtons recordButtons = shapes::RecordButtons::Toggle;
+	shapes::RecordButtons reverseButton = shapes::RecordButtons::Hold;
 	shapes::StartOn startOn = shapes::StartOn::Press;
 	shapes::IdleOutput idleOutput = shapes::IdleOutput::Last;
 	int pulsesPerCycle = 4;
 	bool sync = true;  // Time: Sync / Free
 	bool loop = true;  // Play: Loop / Once
+	bool reversed = false;  // REVERSE's latched state when its button toggles
 	// The folder of the last file opened or saved; empty until one is
 	// chosen, which means the default folder
 	std::string folder;
@@ -149,7 +151,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::LyrebirdEngine engine;
 	shapes::Trigger eoc;
 	dsp::SchmittTrigger recGate, punchGate, reverseGate, prevGate, nextGate;
-	dsp::BooleanTrigger prevButton, saveButton, nextButton;
+	dsp::BooleanTrigger prevButton, saveButton, nextButton, reversePress;
 	float blinkPhase = 0.f;
 	int sincePublish = kPublishInterval;
 	shapes::Status lastStatus = shapes::Status::Idle;
@@ -293,6 +295,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		Module::onReset(e);
 		knobRange = KnobRange::Bipolar5;
 		recordButtons = shapes::RecordButtons::Toggle;
+		reverseButton = shapes::RecordButtons::Hold;
+		reversed = false;
 		startOn = shapes::StartOn::Press;
 		idleOutput = shapes::IdleOutput::Last;
 		pulsesPerCycle = 4;
@@ -347,7 +351,11 @@ struct Lyrebird : Module, MenuUndoFilter {
 		c.speedOct = params[SPEED_PARAM].getValue() + cv(SPEED_INPUT);
 		float smooth = clamp(params[SMOOTH_PARAM].getValue() + cv(SMOOTH_INPUT) / 10.f, 0.f, 1.f);
 		c.smoothMs = 1000.0 * smooth * smooth * smooth;
-		c.reverse = params[REVERSE_PARAM].getValue() > 0.5f || gate(reverseGate, REVERSE_INPUT);
+		// Like RECORD in Toggle: each press or rising gate flips it
+		bool reverseLevel = params[REVERSE_PARAM].getValue() > 0.5f || gate(reverseGate, REVERSE_INPUT);
+		if (reversePress.process(reverseLevel) && reverseButton == shapes::RecordButtons::Toggle)
+			reversed = !reversed;
+		c.reverse = reverseButton == shapes::RecordButtons::Toggle ? reversed : reverseLevel;
 		c.rec = params[RECORD_PARAM].getValue() > 0.5f || gate(recGate, RECORD_INPUT);
 		c.punch = params[PUNCH_PARAM].getValue() > 0.5f || gate(punchGate, PUNCH_INPUT);
 		c.buttons = recordButtons;
@@ -470,6 +478,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		json_t* rootJ = json_object();
 		json_object_set_new(rootJ, "knobRange", json_integer((int) knobRange));
 		json_object_set_new(rootJ, "recordButtons", json_integer((int) recordButtons));
+		json_object_set_new(rootJ, "reverseButton", json_integer((int) reverseButton));
+		json_object_set_new(rootJ, "reversed", json_boolean(reversed));
 		json_object_set_new(rootJ, "startOn", json_integer((int) startOn));
 		json_object_set_new(rootJ, "idleOutput", json_integer((int) idleOutput));
 		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
@@ -503,6 +513,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	void dataFromJson(json_t* rootJ) override {
 		knobRange = (KnobRange) intOf(rootJ, "knobRange", 0, 1, 0);
 		recordButtons = (shapes::RecordButtons) intOf(rootJ, "recordButtons", 0, 1, 0);
+		reverseButton = (shapes::RecordButtons) intOf(rootJ, "reverseButton", 0, 1, 1);
 		startOn = (shapes::StartOn) intOf(rootJ, "startOn", 0, 1, 0);
 		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 0);
 		json_t* j = json_object_get(rootJ, "pulsesPerCycle");
@@ -511,6 +522,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		sync = !j || !json_is_false(j);
 		j = json_object_get(rootJ, "loop");
 		loop = !j || !json_is_false(j);
+		j = json_object_get(rootJ, "reversed");
+		reversed = j && json_is_true(j);
 		j = json_object_get(rootJ, "folder");
 		folder = j && json_is_string(j) ? json_string_value(j) : "";
 		// A menu undo step: settings only
@@ -1211,6 +1224,17 @@ struct LyrebirdWidget : ModuleWidget {
 			[=]() { return (int) module->recordButtons; },
 			[=](int i) {
 				withMenuUndo(module, "set record buttons", [=]() { module->recordButtons = (shapes::RecordButtons) i; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Reverse button", {"Toggle", "Hold"},
+			[=]() { return (int) module->reverseButton; },
+			[=](int i) {
+				// Switching starts forward, rather than in a state left over from Toggle
+				if (i == (int) module->reverseButton)
+					return;
+				withMenuUndo(module, "set reverse button", [=]() {
+					module->reverseButton = (shapes::RecordButtons) i;
+					module->reversed = false;
+				});
 			}));
 		menu->addChild(createIndexSubmenuItem("Start recording", {"On press", "On first movement"},
 			[=]() { return (int) module->startOn; },
