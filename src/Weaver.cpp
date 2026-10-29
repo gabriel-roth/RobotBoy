@@ -248,6 +248,15 @@ struct Weaver : Module {
 		newLoopOnReset = false;
 	}
 
+	// Picks new waves and loop patterns too; never Input, which needs a cable to be heard
+	void onRandomize(const RandomizeEvent& e) override {
+		Module::onRandomize(e);
+		// Input is the last wave
+		for (int i = 0; i < 3; i++)
+			waves[i] = (int) (random::u32() % shapes::Input);
+		newLoops();
+	}
+
 	float cv(int in) {
 		return (float) shapes::sanitize(inputs[in].getVoltage(), 0.0);
 	}
