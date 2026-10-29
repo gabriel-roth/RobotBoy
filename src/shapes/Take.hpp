@@ -56,7 +56,7 @@ struct Take {
 		bpm = o.bpm;
 		memcpy(name, o.name, sizeof name);
 		modified = o.modified;
-		version++;
+		version = o.version;  // a snapshot compares equal to its source
 	}
 
 	float at(int i) const {

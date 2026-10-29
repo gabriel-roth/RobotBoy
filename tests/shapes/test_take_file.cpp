@@ -360,6 +360,7 @@ static void takeBasics() {
 	assert(!a.empty());
 	b.copyFrom(a);
 	assert(b.length == 5 && b.samples[2] == 1.5f && b.mode == TakeMode::Free && b.seconds == 3);
+	assert(b.version == a.version);
 	assert(b.at(2) == 1.5f && b.at(-1) == 0.f && b.at(5) == 0.f);
 	b.clear();
 	assert(b.empty());
