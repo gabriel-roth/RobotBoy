@@ -113,6 +113,7 @@ struct Skylark : Module {
 		configParam(DRIFT_CV_PARAM, -1.f, 1.f, 0.f, "Drift CV amount");
 		ParamQuantity* bpm = configParam(BPM_PARAM, 20.f, 300.f, 120.f, "Tempo", " BPM");
 		bpm->snapEnabled = true;
+		bpm->randomizeEnabled = false;
 		configButton(RESET_PARAM, "Reset");
 		configButton(REVERSE_PARAM, "Reverse");
 		configInput(VARIATION_INPUT, "Variation CV (OUT when unpatched)");

@@ -4,10 +4,9 @@
 
 namespace shapes {
 
-double SkylarkEngine::shapeAt(double p) const {
+double SkylarkEngine::shapeAt(double p, const SkylarkControls& v) const {
 	if (!haveInstance)
 		return 0.0;
-	const SkylarkControls& v = built;
 	if (v.reverse)
 		p = p > 0.0 ? 1.0 - p : 0.0;
 	double k = 0.5 + v.timing * 0.48;
@@ -35,7 +34,7 @@ void SkylarkEngine::updatePeak() {
 	double a[kScan];
 	double m = 0.0;
 	for (int i = 0; i < kScan; i++) {
-		a[i] = std::fabs(shapeAt((double) i / kScan));
+		a[i] = std::fabs(shapeAt((double) i / kScan, built));
 		m = std::max(m, a[i]);
 	}
 	double done[3] = {-1.0, -1.0, -1.0};
@@ -57,7 +56,7 @@ void SkylarkEngine::updatePeak() {
 		double lo = std::max(0.0, (best - 1.0) / kScan), hi = std::min(1.0 - 1e-9, (best + 1.0) / kScan);
 		for (int it = 0; it < 14; it++) {
 			double m1 = lo + (hi - lo) / 3.0, m2 = hi - (hi - lo) / 3.0;
-			double y1 = std::fabs(shapeAt(m1)), y2 = std::fabs(shapeAt(m2));
+			double y1 = std::fabs(shapeAt(m1, built)), y2 = std::fabs(shapeAt(m2, built));
 			m = std::max(m, std::max(y1, y2));
 			if (y1 < y2)
 				lo = m1;
@@ -103,12 +102,14 @@ double SkylarkEngine::raw(double cyclePos, int64_t cycle, bool cycleWrapped) {
 			updatePeak();
 		}
 	}
-	return shapeAt(cyclePos);
+	// The current transforms, not the ones last scanned, so a knob or a
+	// Reverse gate is heard on the next sample
+	return shapeAt(cyclePos, controls);
 }
 
 void SkylarkEngine::renderCycle(float* out, int n, Treat treatMode, Range range) const {
 	for (int i = 0; i < n; i++) {
-		double y = treat(shapeAt((double) i / n), treatMode, peakValue);
+		double y = treat(shapeAt((double) i / n, controls), treatMode, peakValue);
 		out[i] = (float) sanitize(toVolts(y, range), 0.0);
 	}
 }

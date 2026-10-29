@@ -40,11 +40,13 @@ public:
 	void reset();
 
 private:
-	// The expensive work (rebuild, peak scan) runs at most this often.
+	// The expensive work (rebuild, peak rescan) runs at most this often; the
+	// transforms themselves apply every sample.
 	static constexpr int kCheckInterval = 64;
 	static constexpr double kEpsilon = 1e-4;
 
-	double shapeAt(double p) const;
+	// The instance at p with the transforms in v applied.
+	double shapeAt(double p, const SkylarkControls& v) const;
 	void rebuild(int64_t cycle);
 	void updatePeak();
 	bool transformChanged() const;

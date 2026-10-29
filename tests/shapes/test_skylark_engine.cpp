@@ -128,12 +128,38 @@ static void driftRebuildsPerCycle() {
 	check(a == a2, "drift replays");
 }
 
+// Reverse (and the other transforms) apply on the next call, not after the
+// 64-sample check.
+static void reverseTakesEffectImmediately() {
+	SkylarkControls c = defaults();
+	c.shape = 3;
+	SkylarkEngine e;
+	e.setControls(c);
+	e.raw(0.0, 0, true);
+	double forward = e.raw(0.3, 0, false);
+	c.reverse = true;
+	e.setControls(c);
+	double reversed = e.raw(0.3, 0, false);
+	SkylarkEngine fresh;
+	fresh.setControls(c);
+	fresh.raw(0.0, 0, true);
+	double want = fresh.raw(0.3, 0, false);
+	check(reversed == want, "reverse on the next call");
+	check(reversed != forward, "reverse changes the value");
+	c.reverse = false;
+	c.tilt = 0.5;
+	e.setControls(c);
+	fresh.setControls(c);
+	check(e.raw(0.4, 0, false) == fresh.raw(0.4, 0, false), "tilt on the next call");
+}
+
 int main() {
 	transformsMatch();
 	shapeLatchesAtCycleBoundary();
 	fitNeverExceedsRange();
 	renderCycleMatchesRaw();
 	driftRebuildsPerCycle();
+	reverseTakesEffectImmediately();
 	if (failures) {
 		std::printf("%d failures\n", failures);
 		return 1;
