@@ -5,7 +5,7 @@
 // and stop where a channel would clip. VCV draws the schemes as they are.
 // Pure C++ (no Rack).
 
-#include "DrawList.hpp"
+#include "lucarne/DrawList.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -16,7 +16,6 @@
 
 static constexpr int kTracePoints = 256;
 // Samples between display updates.
-static constexpr int kPublishInterval = 512;
 static constexpr float kMessageSeconds = 3.f;
 // Footer characters a message can use before it runs into the source
 static constexpr size_t kMessageChars = 18;
@@ -154,7 +153,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	dsp::SchmittTrigger recGate, punchGate, reverseGate, prevGate, nextGate;
 	dsp::BooleanTrigger prevButton, saveButton, nextButton, reversePress;
 	float blinkPhase = 0.f;
-	int sincePublish = kPublishInterval;
+	int sincePublish = shapeui::kPublishInterval;
 	shapes::Status lastStatus = shapes::Status::Idle;
 	float spanFrom = 0.f;
 
@@ -406,7 +405,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
 
 		displayPos.store((float) step.playhead, std::memory_order_relaxed);
-		if (++sincePublish >= kPublishInterval) {
+		if (++sincePublish >= shapeui::kPublishInterval) {
 			sincePublish = 0;
 			publish(c, step, useCv);
 		}
@@ -932,7 +931,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 				nvgMoveTo(vg, bx, gy);
 				nvgLineTo(vg, bx, gy + gh);
 				nvgStrokeWidth(vg, mm2px(0.12f));
-				nvgStrokeColor(vg, shapeui::gridColor());
+				nvgStrokeColor(vg, shapeui::screenColor(shapeui::gridColor()));
 				nvgStroke(vg);
 			}
 		}
@@ -982,7 +981,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 				for (int k = 0; k < nPieces; k++) {
 					nvgBeginPath(vg);
 					nvgRect(vg, gx + gw * pieces[k][0], gy, gw * (pieces[k][1] - pieces[k][0]), gh);
-					nvgFillColor(vg, nvgTransRGBAf(recColor(), 0.12f));
+					nvgFillColor(vg, shapeui::screenColor(nvgTransRGBAf(recColor(), 0.12f)));
 					nvgFill(vg);
 				}
 			}
@@ -1019,7 +1018,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			// The dot turns magenta while writing
 			nvgBeginPath(vg);
 			nvgCircle(vg, gx + gw * clamp(pos, 0.f, 1.f), gy + gh * 0.5f - clamp(value, -1.f, 1.f) * gh * 0.5f, mm2px(0.7f));
-			nvgFillColor(vg, recColor());
+			nvgFillColor(vg, shapeui::screenColor(recColor()));
 			nvgFill(vg);
 		}
 	}
@@ -1043,12 +1042,12 @@ struct LyrebirdDisplay : shapeui::Screen {
 
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(2.6f));
-		nvgFillColor(vg, shapeui::inkColor());
+		shapeui::fontSize(vg, mm2px(2.6f));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 		nvgText(vg, gx, mm2px(4.6f), title.c_str(), nullptr);
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(2.2f));
-		nvgFillColor(vg, shapeui::mutedColor());
+		shapeui::fontSize(vg, mm2px(2.2f));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 		nvgText(vg, gx + gw, mm2px(4.6f), play.c_str(), nullptr);
 
 		// Footer: status or a message, the source, and the take's length and tempo
@@ -1067,19 +1066,17 @@ struct LyrebirdDisplay : shapeui::Screen {
 			statusColor = shapeui::inkColor();
 		}
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(2.2f));
+		const float footerPx = mm2px(2.2f);
+		shapeui::fontSize(vg, footerPx);
 		if (!status.empty()) {
-			nvgFillColor(vg, statusColor);
+			nvgFillColor(vg, shapeui::screenColor(statusColor));
 			nvgText(vg, gx, fy, status.c_str(), nullptr);
 		}
 		// Messages are longer than a status, so the source moves along for them
 		float sourceX = gx + mm2px(9.5f);
-		if (!status.empty()) {
-			float bounds[4];
-			nvgTextBounds(vg, gx, fy, status.c_str(), nullptr, bounds);
-			sourceX = std::max(sourceX, bounds[2] + mm2px(1.5f));
-		}
-		nvgFillColor(vg, shapeui::mutedColor());
+		if (!status.empty())
+			sourceX = std::max(sourceX, gx + shapeui::textWidth(footerPx, status.size()) + mm2px(1.5f));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 		nvgText(vg, sourceX, fy, f.cv ? "CV" : "KNOB", nullptr);
 
 		// LENGTH shows only here: the setting with no take or just after it's

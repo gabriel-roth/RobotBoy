@@ -60,6 +60,27 @@ inline NVGcolor operatorColor(int i) {
 	return colors[clamp(i, 0, 2)];
 }
 
+// The colour to hand to nanovg for a display. On MetaModule, translucent
+// colours are laid over the display background first, then the whole colour
+// gets the display correction; VCV draws the colour as it is.
+NVGcolor screenColor(NVGcolor c);
+
+// nvgFontSize for a display. MetaModule draws Share Tech Mono 1.5x larger
+// below 12 px, so those sizes are shrunk to match VCV.
+void fontSize(NVGcontext* vg, float px);
+
+// Samples between publishes of a display's state to its widget.
+#ifdef METAMODULE
+constexpr int kPublishInterval = 2048;
+#else
+constexpr int kPublishInterval = 512;
+#endif
+
+// Width of text in Share Tech Mono at px, without asking nanovg.
+inline float textWidth(float px, size_t chars) {
+	return chars * 0.54f * px;
+}
+
 // Share Tech Mono from Rack's own assets; may be null.
 std::shared_ptr<window::Font> loadFont();
 

@@ -1,5 +1,5 @@
 #include "../../src/lucarne/ColorScheme.hpp"
-#include "../../src/lucarne/DisplayBoost.hpp"
+#include "../../src/shared/DisplayBoost.hpp"
 
 #include <algorithm>
 #include <cmath>

@@ -1,7 +1,7 @@
 #include "Lucarne.hpp"
 #include "BeadsModule.hpp"
 #include "lucarne/ColorScheme.hpp"
-#include "lucarne/DisplayBoost.hpp"
+#include "shared/DisplayBoost.hpp"
 #include "lucarne/GrainLayout.hpp"
 #include "lucarne/KeyLayout.hpp"
 #include "lucarne/ScopeLayout.hpp"

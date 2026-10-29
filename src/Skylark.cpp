@@ -14,7 +14,6 @@
 
 static constexpr int kTracePoints = 256;
 // Samples between display updates.
-static constexpr int kPublishInterval = 512;
 
 // What the display shows, written by the audio thread.
 struct SkylarkFrame {
@@ -85,7 +84,7 @@ struct Skylark : Module {
 	float lastOut = 0.f;
 	float heldVariationCv = 0.f;
 	bool started = false;
-	int sincePublish = kPublishInterval;
+	int sincePublish = shapeui::kPublishInterval;
 
 	SkylarkFrame frames[2];
 	std::atomic<int> frontFrame{0};
@@ -221,7 +220,7 @@ struct Skylark : Module {
 		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
 
 		displayPos.store((float) step.pos, std::memory_order_relaxed);
-		if (++sincePublish >= kPublishInterval) {
+		if (++sincePublish >= shapeui::kPublishInterval) {
 			sincePublish = 0;
 			publish(c.variation);
 		}
@@ -307,12 +306,12 @@ struct SkylarkDisplay : shapeui::Screen {
 
 			nvgFontFaceId(vg, font->handle);
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(2.6f));
-			nvgFillColor(vg, shapeui::inkColor());
+			shapeui::fontSize(vg, mm2px(2.6f));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 			nvgText(vg, gx, mm2px(4.6f), title, nullptr);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(2.2f));
-			nvgFillColor(vg, shapeui::mutedColor());
+			shapeui::fontSize(vg, mm2px(2.2f));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 			nvgText(vg, gx + gw, mm2px(4.6f), right, nullptr);
 		}
 

@@ -15,7 +15,6 @@
 static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
 // Samples between display updates.
-static constexpr int kPublishInterval = 512;
 // Operator traces on the main display are clamped to this.
 static constexpr float kOperatorLimit = 1.2f;
 
@@ -177,7 +176,7 @@ struct Weaver : Module {
 	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
-	int sincePublish = kPublishInterval;
+	int sincePublish = shapeui::kPublishInterval;
 
 	// The last cycle as it played, one slot per point of the open trace, for the
 	// traces that have no formula: Input operators and a result using them
@@ -385,7 +384,7 @@ struct Weaver : Module {
 			lights[TRACE_LIGHT + i].setBrightness(params[A_TRACE_PARAM + i].getValue());
 
 		displayPos.store((float) step.pos, std::memory_order_relaxed);
-		if (++sincePublish >= kPublishInterval) {
+		if (++sincePublish >= shapeui::kPublishInterval) {
 			sincePublish = 0;
 			publish(c, (double) step.cycle);
 		}
@@ -566,11 +565,11 @@ struct WeaverMainDisplay : shapeui::Screen {
 			const float baseline = mm2px(4.6f);
 			nvgFontFaceId(vg, font->handle);
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(2.4f));
+			shapeui::fontSize(vg, mm2px(2.4f));
 			for (int i = 0; i < 3; i++) {
 				char letter[2] = {(char) ('A' + i), 0};
 				// Dimmed while its trace is hidden
-				nvgFillColor(vg, f.traceOn[i] ? shapeui::operatorColor(i) : shapeui::dividerColor());
+				nvgFillColor(vg, shapeui::screenColor(f.traceOn[i] ? shapeui::operatorColor(i) : shapeui::dividerColor()));
 				nvgText(vg, gx + mm2px(3.4f) * i, baseline, letter, nullptr);
 			}
 			if (f.preset >= 0 && f.preset < shapes::kNumWeaverPresets) {
@@ -578,15 +577,15 @@ struct WeaverMainDisplay : shapeui::Screen {
 				upperCase(name, sizeof(name), shapes::kWeaverPresets[f.preset].name);
 				snprintf(title, sizeof(title), "%02d %s", f.preset + 1, name);
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-				nvgFontSize(vg, mm2px(2.6f));
-				nvgFillColor(vg, shapeui::inkColor());
+				shapeui::fontSize(vg, mm2px(2.6f));
+				nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 				nvgText(vg, gx + gw / 2, baseline, title, nullptr);
 			}
 			char right[24];
 			snprintf(right, sizeof(right), "%.2f BPM", f.bpm);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(2.2f));
-			nvgFillColor(vg, shapeui::mutedColor());
+			shapeui::fontSize(vg, mm2px(2.2f));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 			nvgText(vg, gx + gw, baseline, right, nullptr);
 		}
 
@@ -637,11 +636,11 @@ struct AlgorithmDisplay : shapeui::Screen {
 
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(ns));
-		nvgFillColor(vg, shapeui::inkColor());
+		shapeui::fontSize(vg, mm2px(ns));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 		nvgText(vg, box.size.x / 2, mm2px(nameBaseline), name, nullptr);
-		nvgFontSize(vg, mm2px(fs));
-		nvgFillColor(vg, shapeui::mutedColor());
+		shapeui::fontSize(vg, mm2px(fs));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 		nvgText(vg, box.size.x / 2, mm2px(formulaBaseline), formula, nullptr);
 	}
 };
@@ -666,7 +665,7 @@ struct WaveDisplay : shapeui::Screen {
 		nvgMoveTo(vg, 0, mm2px(y));
 		nvgLineTo(vg, box.size.x, mm2px(y));
 		nvgStrokeWidth(vg, mm2px(0.2f));
-		nvgStrokeColor(vg, shapeui::dividerColor());
+		nvgStrokeColor(vg, shapeui::screenColor(shapeui::dividerColor()));
 		nvgStroke(vg);
 	}
 
@@ -682,8 +681,8 @@ struct WaveDisplay : shapeui::Screen {
 		if (font) {
 			nvgFontFaceId(vg, font->handle);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(2.0f));
-			nvgFillColor(vg, shapeui::mutedColor());
+			shapeui::fontSize(vg, mm2px(2.0f));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 			nvgText(vg, mm2px(w - 1.f), mm2px(kLabelBaseline), shapes::paramName((shapes::Wave) wave), nullptr);
 
 			// As large as fits, up to the top band's size (Share Tech Mono:
@@ -692,8 +691,8 @@ struct WaveDisplay : shapeui::Screen {
 			upperCase(name, sizeof(name), kWaveNames[wave]);
 			float size = std::min(2.0f, (w - 1.4f) / (std::max<size_t>(strlen(name), 1) * 0.54f));
 			nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-			nvgFontSize(vg, mm2px(size));
-			nvgFillColor(vg, shapeui::operatorColor(op));
+			shapeui::fontSize(vg, mm2px(size));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::operatorColor(op)));
 			nvgText(vg, box.size.x / 2, mm2px(h - kNameBand / 2 + 0.35f * size), name, nullptr);
 		}
 		divider(vg, kLabelBand);
@@ -704,7 +703,7 @@ struct WaveDisplay : shapeui::Screen {
 		nvgMoveTo(vg, mm2px(1.f), mm2px(ty + th / 2));
 		nvgLineTo(vg, mm2px(w - 1.f), mm2px(ty + th / 2));
 		nvgStrokeWidth(vg, mm2px(0.12f));
-		nvgStrokeColor(vg, shapeui::gridColor());
+		nvgStrokeColor(vg, shapeui::screenColor(shapeui::gridColor()));
 		nvgStroke(vg);
 
 		shapeui::TraceStyle style;
@@ -735,8 +734,8 @@ struct RatioDisplay : shapeui::Screen {
 			return;
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-		nvgFontSize(vg, mm2px(3.2f));
-		nvgFillColor(vg, shapeui::inkColor());
+		shapeui::fontSize(vg, mm2px(3.2f));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 		nvgText(vg, box.size.x / 2, box.size.y / 2 + mm2px(1.1f), text, nullptr);
 	}
 };

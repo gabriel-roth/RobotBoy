@@ -1,4 +1,7 @@
 #include "ShapeGenerator.hpp"
+#ifdef METAMODULE
+#include "shared/DisplayBoost.hpp"
+#endif
 
 namespace shapeui {
 
@@ -91,6 +94,32 @@ ParamQuantity* configBpm(Module* module, int paramId) {
 	return q;
 }
 
+NVGcolor screenColor(NVGcolor c) {
+#ifdef METAMODULE
+	static const lucarne::DisplayBoost boost{lucarne::DisplayBoost::kMetaModule};
+	if (c.a < 1.f) {
+		NVGcolor bg = backgroundColor();
+		c.r = bg.r + (c.r - bg.r) * c.a;
+		c.g = bg.g + (c.g - bg.g) * c.a;
+		c.b = bg.b + (c.b - bg.b) * c.a;
+		c.a = 1.f;
+	}
+	auto byte = [](float v) { return (uint8_t) std::lround(clamp(v, 0.f, 1.f) * 255.f); };
+	lucarne::Rgb out = boost.apply({byte(c.r), byte(c.g), byte(c.b)});
+	return nvgRGB(out.r, out.g, out.b);
+#else
+	return c;
+#endif
+}
+
+void fontSize(NVGcontext* vg, float px) {
+#ifdef METAMODULE
+	if (px <= 12.f)
+		px /= 1.5f;
+#endif
+	nvgFontSize(vg, px);
+}
+
 std::shared_ptr<window::Font> loadFont() {
 	return APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
 }
@@ -98,7 +127,7 @@ std::shared_ptr<window::Font> loadFont() {
 void Screen::draw(const DrawArgs& args) {
 	nvgBeginPath(args.vg);
 	nvgRoundedRect(args.vg, 0, 0, box.size.x, box.size.y, mm2px(radiusMm));
-	nvgFillColor(args.vg, backgroundColor());
+	nvgFillColor(args.vg, screenColor(backgroundColor()));
 	nvgFill(args.vg);
 }
 
@@ -118,7 +147,7 @@ void drawGrid(NVGcontext* vg, float x, float y, float w, float h) {
 		nvgMoveTo(vg, x, ly);
 		nvgLineTo(vg, x + w, ly);
 		nvgStrokeWidth(vg, mm2px(i == 2 ? 0.25f : 0.12f));
-		nvgStrokeColor(vg, gridColor());
+		nvgStrokeColor(vg, screenColor(gridColor()));
 		nvgStroke(vg);
 	}
 }
@@ -179,7 +208,7 @@ void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, flo
 	}
 	nvgLineJoin(vg, NVG_ROUND);
 	nvgStrokeWidth(vg, mm2px(style.widthMm));
-	nvgStrokeColor(vg, style.color);
+	nvgStrokeColor(vg, screenColor(style.color));
 	nvgStroke(vg);
 }
 
@@ -205,11 +234,11 @@ void drawPlayhead(NVGcontext* vg, float x, float y, float w, float h, float pos,
 	nvgMoveTo(vg, hx, y);
 	nvgLineTo(vg, hx, y + h);
 	nvgStrokeWidth(vg, mm2px(0.15f));
-	nvgStrokeColor(vg, nvgRGBA(0xe6, 0xe8, 0xeb, 153));
+	nvgStrokeColor(vg, screenColor(nvgRGBA(0xe6, 0xe8, 0xeb, 153)));
 	nvgStroke(vg);
 	nvgBeginPath(vg);
 	nvgCircle(vg, hx, y + h * 0.5f - clamp(value, -1.f, 1.f) * h * 0.5f, mm2px(0.7f));
-	nvgFillColor(vg, signalColor());
+	nvgFillColor(vg, screenColor(signalColor()));
 	nvgFill(vg);
 }
 
