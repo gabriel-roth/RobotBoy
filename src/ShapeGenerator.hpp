@@ -47,7 +47,7 @@ inline NVGcolor inkColor() {
 	return nvgRGB(0xe6, 0xe8, 0xeb);
 }
 inline NVGcolor signalColor() {
-	return nvgRGB(0xff, 0x8a, 0x3d);
+	return nvgRGB(0xff, 0xff, 0xff);
 }
 // Weaver's operators A, B, C
 inline NVGcolor operatorColor(int i) {

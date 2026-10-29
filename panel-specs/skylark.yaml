@@ -45,7 +45,7 @@ zones:
   - {x: 1.5, y: 106.0, w: 48.3, h: 17.0, rx: 2, fill: "#9aa883", opacity: 0.55}
   - {x: 51.8, y: 106.0, w: 48.3, h: 17.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
   # OUT ring, as on Weaver.
-  - {x: 84.675, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ff8a3d", opacity: 1.0}
+  - {x: 84.675, y: 107.25, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
   - {x: 85.425, y: 108.00, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
 
 elements:

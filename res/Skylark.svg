@@ -7,7 +7,7 @@
     <rect class="zone" x="1.50" y="65.50" width="98.60" height="38.50" rx="2.00" fill="#7f9fb3" fill-opacity="0.55"/>
     <rect class="zone" x="1.50" y="106.00" width="48.30" height="17.00" rx="2.00" fill="#9aa883" fill-opacity="0.55"/>
     <rect class="zone" x="51.80" y="106.00" width="48.30" height="17.00" rx="2.00" fill="#9a9a9a" fill-opacity="0.55"/>
-    <rect class="zone" x="84.67" y="107.25" width="10.70" height="10.70" rx="5.35" fill="#ff8a3d" fill-opacity="1.0"/>
+    <rect class="zone" x="84.67" y="107.25" width="10.70" height="10.70" rx="5.35" fill="#ffffff" fill-opacity="1.0"/>
     <rect class="zone" x="85.42" y="108.00" width="9.20" height="9.20" rx="4.60" fill="#707070" fill-opacity="1.0"/>
     <circle cx="7.5" cy="3.0" r="1.6" fill="#333333"/>
     <circle cx="94.1" cy="3.0" r="1.6" fill="#333333"/>
