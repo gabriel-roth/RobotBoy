@@ -27,7 +27,7 @@ using namespace shapes;
 static constexpr double kSr = 48000.0;
 static constexpr int kSeconds = 10;
 static constexpr int kN = (int) kSr * kSeconds;
-static constexpr int kTracePoints = 256, kWavePoints = 64;
+static constexpr int kTracePoints = 256;
 static constexpr int kPublishInterval = 2048;
 static volatile double sink;
 
@@ -71,31 +71,21 @@ static void skylark(const char* name, bool sweep) {
 	});
 }
 
-// Mirrors Weaver's renderFormulas
-static void renderFormulas(float* result, float (*scaled)[kTracePoints], float (*wave)[kWavePoints],
-                           const CombineEngine& e, const CombineControls& c, double cycle) {
-	double peak = e.peak();
-	for (int k = 0; k < kTracePoints; k++) {
-		double t = cycle + std::min((double) k / (kTracePoints - 1), 1.0 - 1e-9);
-		result[k] = (float) sanitize(treat(e.resultAt(c, t, false), Treat::Fit, peak), 0.0);
-		for (int i = 0; i < 3; i++)
-			scaled[i][k] = (float) (e.operatorAt(c, i, t, false) * c.op[i].level);
-	}
-	for (int i = 0; i < 3; i++)
-		for (int k = 0; k < kWavePoints; k++)
-			wave[i][k] = (float) sanitize(evalOperator(c.op[i], (double) k / (kWavePoints - 1) * 0.99999, i), 0.0);
-}
-
-static void weaver(const char* name, CombineControls c) {
+// Weaver's audio thread: the engine, plus a snapshot copy each publish (the
+// traces are drawn up on the UI thread). spread is the engine's scan spread
+// (MetaModule: 1); modulate sweeps A's PARAM every sample, as a CV would.
+static void weaver(const char* name, CombineControls c, int spread, bool modulate = false) {
 	run(name, [&](int n) {
 		CombineEngine e;
 		e.setSampleRate(kSr);
+		e.setScanSpread(spread);
 		Timebase tb;
 		tb.setSampleRate(kSr);
 		TimebaseInput in;
-		float result[kTracePoints], scaled[3][kTracePoints], wave[3][kWavePoints];
+		static CombineEngine snapshot;
 		double acc = 0;
 		int since = 0;
+		double param = c.op[0].param;
 		for (int i = 0; i < n; i++) {
 			Timebase::Step s = tb.process(in);
 			if (s.wrapped)
@@ -103,12 +93,14 @@ static void weaver(const char* name, CombineControls c) {
 			for (int k = 0; k < 3; k++)
 				if (c.op[k].wave == Input)
 					c.op[k].inputVolts = 2.0 * std::sin(2.0 * M_PI * (3 + k) * i / kSr);
+			if (modulate)
+				c.op[0].param = std::clamp(param + 0.3 * std::sin(2.0 * M_PI * i / kSr), 0.0, 1.0);
 			CombineFrame f = e.process(c, (double) s.cycle + s.pos, false);
 			acc += toVolts(treat(f.result, Treat::Fit, e.peak()), Range::Bipolar5);
 			if (++since >= kPublishInterval) {
 				since = 0;
-				renderFormulas(result, scaled, wave, e, c, (double) s.cycle);
-				acc += result[5];
+				snapshot = e;
+				acc += snapshot.peak();
 			}
 		}
 		sink = acc;
@@ -197,13 +189,17 @@ static void particules() {
 int main() {
 	skylark("Skylark Bounce, static", false);
 	skylark("Skylark Bounce, Variation 1 Hz sine", true);
-	weaver("Weaver preset 1 (Envelope + triangle x16)", kWeaverPresets[0].controls);
+	weaver("Weaver preset 1 (Envelope + triangle x16)", kWeaverPresets[0].controls, 0);
+	weaver("Weaver preset 1, scan spread 1 (MM)", kWeaverPresets[0].controls, 1);
+	weaver("Weaver preset 1, PARAM swept", kWeaverPresets[0].controls, 0, true);
+	weaver("Weaver preset 1, PARAM swept, spread 1 (MM)", kWeaverPresets[0].controls, 1, true);
+	weaver("Weaver preset 5 (random steps), spread 1 (MM)", kWeaverPresets[4].controls, 1);
 	CombineControls in3 = kWeaverPresets[0].controls;
 	for (int i = 0; i < 3; i++) {
 		in3.op[i].wave = Input;
 		in3.op[i].level = 1.0;
 	}
-	weaver("Weaver three Input operators", in3);
+	weaver("Weaver three Input operators", in3, 0);
 	lyrebird();
 #ifdef BENCH_PARTICULES
 	particules();

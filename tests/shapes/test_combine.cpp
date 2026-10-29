@@ -254,16 +254,60 @@ static void fitNeverExceedsRange() {
 		check(std::fabs(out) <= 1.0 + 1e-9, "fit in range (input)", i);
 		t += 0.0031;
 	}
-	// Formula peak on every preset, with ratios changing mid-cycle
-	for (int n = 0; n < 15; n++) {
-		CombineControls p = kWeaverPresets[n].controls;
-		CombineEngine f;
-		f.setSampleRate(1000.0);
-		for (int i = 0; i < 3000; i++) {
-			if (i == 1234)
-				p.op[0].ratio = (p.op[0].ratio + 3) % kNumRatios;
-			double y = f.process(p, i * 0.0017, false).result;
-			check(std::fabs(treat(y, Treat::Fit, f.peak())) <= 1.0 + 1e-9, "fit in range (preset)", n, i);
+	// Formula peak on every preset, with ratios changing mid-cycle, scanned
+	// at once and spread
+	for (int spread : {0, 1, 4}) {
+		for (int n = 0; n < 15; n++) {
+			CombineControls p = kWeaverPresets[n].controls;
+			CombineEngine f;
+			f.setSampleRate(1000.0);
+			f.setScanSpread(spread);
+			for (int i = 0; i < 3000; i++) {
+				if (i == 1234)
+					p.op[0].ratio = (p.op[0].ratio + 3) % kNumRatios;
+				double y = f.process(p, i * 0.0017, false).result;
+				check(std::fabs(treat(y, Treat::Fit, f.peak())) <= 1.0 + 1e-9, "fit in range (preset)", n, i);
+			}
+		}
+	}
+}
+
+// The peak a full scan of this cycle gives, as Fit uses it
+static double scannedPeak(const CombineEngine& e, const CombineControls& c, double t, double y) {
+	double pk = 0.0;
+	for (int k = 0; k < 256; k++)
+		pk = std::max(pk, std::fabs(e.resultAt(c, std::floor(t) + k / 256.0, false)));
+	return std::max(pk, std::fabs(y));
+}
+
+// Scans are skipped while nothing changes, but once settled the peak is the
+// full scan's, after a control change and in a new cycle (random waves differ
+// from cycle to cycle)
+static void peakFollowsControlsAndCycles() {
+	for (int spread : {0, 1, 3}) {
+		for (int n = 0; n < 15; n++) {
+			CombineControls c = kWeaverPresets[n].controls;
+			CombineEngine e;
+			e.setSampleRate(48000.0);
+			e.setScanSpread(spread);
+			const double dt = 1.0 / 2000.0;
+			double t = 0.1, y = 0.0;
+			auto run = [&](int samples) {
+				for (int i = 0; i < samples; i++, t += dt)
+					y = e.process(c, t, false).result;
+			};
+			auto expect = [&](const char* what) {
+				double want = scannedPeak(e, c, t - dt, y);
+				check(std::fabs(e.peak() - want) <= 1e-9 * std::max(1.0, want), what, spread, n);
+			};
+			run(400);
+			expect("settled peak");
+			c.op[0].level *= 2.5;
+			run(400);
+			expect("peak after a level change");
+			// Past the next cycle start
+			run(1400);
+			expect("peak in a new cycle");
 		}
 	}
 }
@@ -464,6 +508,7 @@ int main() {
 	sampleHoldOnInputBRisingEdge();
 	bendWithInputAPassesThrough();
 	fitNeverExceedsRange();
+	peakFollowsControlsAndCycles();
 	outputsAreFinite();
 	reverseMirrorsTime();
 	hotInputDoesNotOvershoot();

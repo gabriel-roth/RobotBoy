@@ -1,5 +1,6 @@
 #pragma once
 #include "OutputStage.hpp"
+#include <algorithm>
 #include <cstdint>
 
 // Combine: three operators (a wave each, or external CV) mixed by one of
@@ -72,16 +73,27 @@ public:
 	// Call on each cycle wrap, before that sample's process().
 	void cycleWrapped();
 	void reset();
+	// Points of the formula peak scan done per sample. 0, the default, does
+	// each scan in one sample; a spread scan takes 256 / pointsPerSample
+	// samples, during which Fit uses the last scan's peak as well.
+	void setScanSpread(int pointsPerSample) {
+		scanSpread = std::max(pointsPerSample, 0);
+	}
 
 private:
-	// The formula peak scan runs at most this often (and on each new cycle).
+	// The formula peak is rescanned when the controls change, at most this
+	// often (unspread), and on each new cycle when cycles differ.
 	static constexpr int kScanInterval = 64;
+	static constexpr int kScanPoints = 256;
 	static constexpr double kHysteresis = 0.05;
 
 	double opAbs(const CombineControls& c, int i, double t) const;
 	// combineRaw from the original JS prototype (not in this repo) for internal waves, using the current offsets.
 	double formulaRaw(const CombineControls& c, double t) const;
 	double inputValue(const CombineControls& c, int i);
+	// Whether the scan's peak still holds for these controls in this cycle.
+	bool scanCurrent(const CombineControls& c, int64_t cycle) const;
+	void scanStarted(const CombineControls& c, int64_t cycle);
 	void updateHold(const CombineControls& c, double te, const double* r);
 
 	double sampleRate = 48000.0;
@@ -108,6 +120,14 @@ private:
 	int64_t scanCycle = 0;
 	bool scanValid = false;
 	int sinceScan = 0;
+	// What the last scan was made from
+	CombineControls scanControls;
+	double scanOffset[3] = {};
+	// A spread scan in progress
+	int scanSpread = 0;
+	bool scanning = false;
+	int scanPoint = 0;
+	double scanPartial = 0.0;
 	double runningPeak = 0.0;
 	double prevPeak = 0.0;
 };

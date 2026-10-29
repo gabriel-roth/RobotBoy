@@ -107,6 +107,22 @@ bool anyInput(const CombineControls& c) {
 	return c.op[0].wave == Input || c.op[1].wave == Input || c.op[2].wave == Input;
 }
 
+// Everything formulaRaw() reads from an operator
+bool sameFormula(const OperatorControls& a, const OperatorControls& b) {
+	return a.wave == b.wave && a.ratio == b.ratio && a.param == b.param && a.phase == b.phase && a.level == b.level &&
+	       a.loopSeed == b.loopSeed;
+}
+
+// Whether one cycle of the formulas can differ from the next: a ratio below
+// x1 spreads an operator cycle over several, and the random waves that don't
+// loop change every operator cycle. The other ratios are whole numbers.
+bool cyclesDiffer(const CombineControls& c) {
+	for (const OperatorControls& op : c.op)
+		if (ratioValue(op.ratio) < 1.0 || op.wave == SteppedRandom || op.wave == SmoothRandom)
+			return true;
+	return false;
+}
+
 }  // namespace
 
 double ratioValue(int index) {
@@ -316,23 +332,71 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 	if (anyInput(c)) {
 		// No formula for a live input: measure, never below the last cycle's peak
 		scanValid = false;
+		scanning = false;
 		peakValue = std::max(prevPeak, runningPeak);
 	}
 	else {
 		int64_t cycle = (int64_t) std::clamp(std::floor(te), -9e18, 9e18);
-		if (!scanValid || cycle != scanCycle || ++sinceScan >= kScanInterval) {
-			double pk = 0.0;
-			for (int k = 0; k < 256; k++)
-				pk = std::max(pk, std::fabs(formulaRaw(c, cycle + k / 256.0)));
-			scanPeak = sanitize(pk, 0.0);
-			scanCycle = cycle;
-			scanValid = true;
-			sinceScan = 0;
+		if (scanSpread == 0) {
+			if (!scanCurrent(c, cycle) && (!scanValid || cycle != scanCycle || sinceScan >= kScanInterval)) {
+				double pk = 0.0;
+				for (int k = 0; k < kScanPoints; k++)
+					pk = std::max(pk, std::fabs(formulaRaw(c, cycle + (double) k / kScanPoints)));
+				scanPeak = sanitize(pk, 0.0);
+				scanValid = true;
+				scanStarted(c, cycle);
+			}
+			// The 256-point scan can miss a sharp peak; the live value keeps Fit in range
+			peakValue = std::max(scanPeak, a);
 		}
-		// The 256-point scan can miss a sharp peak; the live value keeps Fit in range
-		peakValue = std::max(scanPeak, a);
+		else {
+			if (!scanning && !scanCurrent(c, cycle)) {
+				scanning = true;
+				scanPoint = 0;
+				scanPartial = 0.0;
+				scanStarted(c, cycle);
+			}
+			if (scanning) {
+				// A new cycle that differs starts the scan again
+				if (cycle != scanCycle && cyclesDiffer(c)) {
+					scanPoint = 0;
+					scanPartial = 0.0;
+					scanStarted(c, cycle);
+				}
+				for (int n = 0; n < scanSpread && scanPoint < kScanPoints; n++, scanPoint++)
+					scanPartial = std::max(scanPartial, std::fabs(formulaRaw(c, scanCycle + (double) scanPoint / kScanPoints)));
+				scanPartial = sanitize(scanPartial, 0.0);
+				if (scanPoint >= kScanPoints) {
+					scanPeak = scanPartial;
+					scanValid = true;
+					scanning = false;
+				}
+			}
+			peakValue = std::max({scanValid ? scanPeak : 0.0, scanning ? scanPartial : 0.0, a});
+		}
+		if (sinceScan < kScanInterval)
+			sinceScan++;
 	}
 	return f;
+}
+
+bool CombineEngine::scanCurrent(const CombineControls& c, int64_t cycle) const {
+	if (!scanValid && !scanning)
+		return false;
+	if (c.algorithm != scanControls.algorithm || c.window != scanControls.window)
+		return false;
+	for (int i = 0; i < 3; i++)
+		if (!sameFormula(c.op[i], scanControls.op[i]) || offset[i] != scanOffset[i])
+			return false;
+	return cycle == scanCycle || !cyclesDiffer(c);
+}
+
+void CombineEngine::scanStarted(const CombineControls& c, int64_t cycle) {
+	scanControls = c;
+	for (int i = 0; i < 3; i++)
+		scanOffset[i] = offset[i];
+	scanCycle = cycle;
+	sinceScan = 0;
 }
 
 double CombineEngine::resultAt(const CombineControls& c, double t, bool reverse) const {
@@ -358,6 +422,7 @@ void CombineEngine::reset() {
 	bSeen = false;
 	peakValue = 1.0;
 	scanValid = false;
+	scanning = false;
 	sinceScan = 0;
 	runningPeak = 0.0;
 	prevPeak = 0.0;
