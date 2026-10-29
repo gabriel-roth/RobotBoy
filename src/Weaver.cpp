@@ -174,6 +174,10 @@ struct Weaver : Module {
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
 	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger;
+#ifdef METAMODULE
+	// MetaModule has no widget events, so the PRESET buttons are read here
+	dsp::BooleanTrigger presetPrevTrigger, presetNextTrigger;
+#endif
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
 	int sincePublish = shapeui::kPublishInterval;
@@ -265,7 +269,8 @@ struct Weaver : Module {
 	}
 
 	// Steps through the presets; from settings that match none, Next starts
-	// at the first and Previous at the last. Called from the UI thread.
+	// at the first and Previous at the last. Called from the UI thread in VCV
+	// Rack and from process() on MetaModule.
 	void stepPreset(int delta) {
 		int n = shapes::presetMatches(panelControls());
 		if (n < 0)
@@ -315,6 +320,12 @@ struct Weaver : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+#ifdef METAMODULE
+		if (presetPrevTrigger.process(params[PRESET_PREV_PARAM].getValue() > 0.5f))
+			stepPreset(-1);
+		if (presetNextTrigger.process(params[PRESET_NEXT_PARAM].getValue() > 0.5f))
+			stepPreset(1);
+#endif
 		for (int i = 0; i < 3; i++)
 			if (waveTriggers[i].process(params[param(i, A_WAVE_PARAM)].getValue() > 0.5f))
 				waves[i] = (waves[i] + 1) % shapes::kNumWaves;
@@ -889,12 +900,18 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(42.13, 71.9)), module, Weaver::ALGORITHM_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.13, 71.9)), module, Weaver::ALGORITHM_INPUT));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(71.61, 71.9)), module, Weaver::WINDOW_PARAM));
+#ifdef METAMODULE
+		// Plain buttons: process() steps the presets, as PresetButton never gets events here
+		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 88.8)), module, Weaver::PRESET_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 88.8)), module, Weaver::PRESET_PREV_PARAM));
+#else
 		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 88.8)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
 		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 88.8)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
+#endif
 
 		// Clock row
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.3, 92.0)), module, Weaver::BPM_PARAM));
@@ -925,6 +942,26 @@ struct WeaverWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
 			}));
+#ifdef METAMODULE
+		// No per-param right-click menus here, so list the choices in this one
+		std::vector<std::string> waveNames, algorithmNames;
+		for (int w = 0; w < shapes::kNumWaves; w++)
+			waveNames.push_back(kWaveNames[w]);
+		for (int a = 0; a < shapes::kNumAlgorithms; a++)
+			algorithmNames.push_back(shapes::algorithmName((shapes::Algorithm) a));
+		static const char* const kOpLabels[3] = {"A wave", "B wave", "C wave"};
+		for (int o = 0; o < 3; o++)
+			menu->addChild(createIndexSubmenuItem(kOpLabels[o], waveNames,
+				[=]() { return module->waves[o]; },
+				[=](int i) {
+					withMenuUndo(module, "set wave", [=]() { module->waves[o] = i; });
+				}));
+		menu->addChild(createIndexSubmenuItem("Algorithm", algorithmNames,
+			[=]() { return module->algorithm; },
+			[=](int i) {
+				withMenuUndo(module, "set algorithm", [=]() { module->algorithm = i; });
+			}));
+#endif
 	}
 };
 
