@@ -161,14 +161,15 @@ struct Weaver : Module {
 	int algorithm = 0;
 	// The algorithm running: a new choice waits for the next cycle
 	int activeAlgorithm = 0;
-	// Take the algorithm now instead of at the next cycle (preset, load)
-	bool latchNow = true;
+	// Take the algorithm now instead of at the next cycle (preset, load).
+	// Set from the UI thread after the choices it publishes.
+	std::atomic<bool> latchNow{true};
 
 	shapes::Timebase timebase;
 	shapes::CombineEngine engine;
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
-	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger, prevTrigger, nextTrigger;
+	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger;
 	dsp::SchmittTrigger reverseGate;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
@@ -210,7 +211,7 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++)
 			waves[i] = defaults().op[i].wave;
 		algorithm = defaults().algorithm;
-		latchNow = true;
+		latchNow.store(true, std::memory_order_release);
 	}
 
 	void onReset(const ResetEvent& e) override {
@@ -257,11 +258,11 @@ struct Weaver : Module {
 		}
 		algorithm = p.algorithm;
 		params[WINDOW_PARAM].setValue((float) p.window);
-		latchNow = true;
+		latchNow.store(true, std::memory_order_release);
 	}
 
 	// Steps through the presets; from settings that match none, Next starts
-	// at the first and Previous at the last.
+	// at the first and Previous at the last. Called from the UI thread.
 	void stepPreset(int delta) {
 		int n = shapes::presetMatches(panelControls());
 		if (n < 0)
@@ -316,10 +317,6 @@ struct Weaver : Module {
 				waves[i] = (waves[i] + 1) % shapes::kNumWaves;
 		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
-		if (prevTrigger.process(params[PRESET_PREV_PARAM].getValue() > 0.5f))
-			stepPreset(-1);
-		if (nextTrigger.process(params[PRESET_NEXT_PARAM].getValue() > 0.5f))
-			stepPreset(1);
 		if (settings.slewMs != appliedSlewMs) {
 			for (shapes::Slew& s : slew)
 				s.set(settings.slewMs, sampleRate);
@@ -344,9 +341,8 @@ struct Weaver : Module {
 		started = true;
 
 		shapes::CombineControls c = controls();
-		if (cycleStart || latchNow)
+		if (latchNow.exchange(false, std::memory_order_acquire) || cycleStart)
 			activeAlgorithm = targetAlgorithm();
-		latchNow = false;
 		c.algorithm = (shapes::Algorithm) activeAlgorithm;
 		reverseGate.process(cv(REVERSE_INPUT), 0.1f, 1.f);
 		bool reverse = params[REVERSE_PARAM].getValue() > 0.5f || reverseGate.isHigh();
@@ -364,8 +360,13 @@ struct Weaver : Module {
 		// Each operator's own wave at full level. A single wave has no cycle
 		// peak to fit (an Input can be any size), so Fit clips here.
 		shapes::Treat opMode = settings.treatMode == shapes::Treat::Fit ? shapes::Treat::Clip : settings.treatMode;
-		for (int i = 0; i < 3; i++)
-			outputs[A_OUTPUT + i].setVoltage(output(1 + i, shapes::treat(f.raw[i], opMode, 1.0)));
+		for (int i = 0; i < 3; i++) {
+			double v = f.raw[i];
+			// An Envelope is 0..1: in 0-10 V it spans the full range like the others
+			if (settings.range == shapes::Range::Unipolar10 && c.op[i].wave == shapes::Envelope)
+				v = 2.0 * v - 1.0;
+			outputs[A_OUTPUT + i].setVoltage(output(1 + i, shapes::treat(v, opMode, 1.0)));
+		}
 
 		historyWrite = clamp((int) (step.pos * kTracePoints), 0, kTracePoints - 1);
 		historyResult[historyWrite] = (float) x;
@@ -491,6 +492,7 @@ Weaver::Weaver() {
 	configButton(PRESET_NEXT_PARAM, "Next preset");
 	ParamQuantity* bpm = configParam(BPM_PARAM, 20.f, 300.f, 120.f, "Tempo", " BPM");
 	bpm->snapEnabled = true;
+	bpm->randomizeEnabled = false;
 	configButton(RESET_PARAM, "Reset");
 	configButton(REVERSE_PARAM, "Reverse");
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
@@ -596,6 +598,7 @@ struct AlgorithmDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
 	void drawScreen(NVGcontext* vg) override {
+		// Copied, as the main display does, so a publish can't change it mid-draw
 		int a = clamp(frameOf(module).algorithm, 0, shapes::kNumAlgorithms - 1);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
@@ -636,6 +639,7 @@ struct WaveDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
+		// Copied, as the main display does, so a publish can't tear the trace
 		const WeaverFrame& shared = frameOf(module);
 		float values[kWavePoints];
 		std::copy(shared.wave[op], shared.wave[op] + kWavePoints, values);
@@ -683,9 +687,11 @@ struct RatioDisplay : shapeui::Screen {
 	}
 
 	void drawScreen(NVGcontext* vg) override {
-		const WeaverFrame& f = frameOf(module);
-		bool isInput = f.waves[op] == shapes::Input;
-		const char* text = isInput ? "IN" : shapes::ratioLabel(f.ratios[op]);
+		// Copied, as the main display does, so the two fields agree
+		const WeaverFrame& shared = frameOf(module);
+		int wave = shared.waves[op];
+		int ratio = clamp(shared.ratios[op], 0, shapes::kNumRatios - 1);
+		const char* text = wave == shapes::Input ? "IN" : shapes::ratioLabel(ratio);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
 			return;
@@ -694,6 +700,20 @@ struct RatioDisplay : shapeui::Screen {
 		nvgFontSize(vg, mm2px(3.2f));
 		nvgFillColor(vg, shapeui::inkColor());
 		nvgText(vg, box.size.x / 2, box.size.y / 2 + mm2px(1.1f), text, nullptr);
+	}
+};
+
+// The PRESET buttons load on the UI thread so the change can be undone.
+struct PresetButton : TL1105 {
+	int delta = 1;
+
+	void onDragStart(const DragStartEvent& e) override {
+		Weaver* module = getParamQuantity() ? dynamic_cast<Weaver*>(getParamQuantity()->module) : nullptr;
+		if (module && e.button == GLFW_MOUSE_BUTTON_LEFT) {
+			int d = delta;
+			withMenuUndo(module, "load preset", [=]() { module->stepPreset(d); });
+		}
+		TL1105::onDragStart(e);
 	}
 };
 
@@ -771,8 +791,12 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(39.6, 71.9)), module, Weaver::ALGORITHM_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(48.6, 71.9)), module, Weaver::ALGORITHM_INPUT));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(66.3, 71.9)), module, Weaver::WINDOW_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(81.75, 70.05)), module, Weaver::PRESET_NEXT_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(81.75, 77.45)), module, Weaver::PRESET_PREV_PARAM));
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(81.75, 70.05)), module, Weaver::PRESET_NEXT_PARAM);
+		next->delta = 1;
+		addParam(next);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(81.75, 77.45)), module, Weaver::PRESET_PREV_PARAM);
+		prev->delta = -1;
+		addParam(prev);
 
 		// Clock row
 		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(15.62, 92.0)), module, Weaver::BPM_PARAM));
