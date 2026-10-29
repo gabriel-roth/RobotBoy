@@ -13,7 +13,12 @@ static void volumePaths() {
 	assert(isVolumePath("sdc:/RobotBoy/Lyrebird"));
 	assert(isVolumePath("usb:/x.wav"));
 	assert(isVolumePath("sdc:/"));
-	assert(!isVolumePath("sdc:"));
+	// A volume root as getDirectory gives it ("sdc:/x.wav" -> "sdc:")
+	assert(isVolumePath("sdc:"));
+	assert(isVolumePath("USB:"));
+	assert(!isVolumePath("sd:"));
+	assert(!isVolumePath("sdcx"));
+	assert(!isVolumePath("sdc:x"));
 	assert(!isVolumePath("/Users/me/Documents/Rack2/RobotBoy/Lyrebird"));
 	assert(!isVolumePath("C:/Users/me"));  // Windows drive: one letter
 	assert(!isVolumePath("C:\\Users\\me"));
@@ -27,6 +32,11 @@ static void usableFolders() {
 	assert(usableFolder("sdc:/takes", false) == "");
 	assert(usableFolder("/Users/me/takes", false) == "/Users/me/takes");
 	assert(usableFolder("", false) == "" && usableFolder("", true) == "");
+	// A file at a volume root: MetaModule keeps the root, VCV ignores it
+	assert(usableFolder("sdc:", true) == "sdc:/");
+	assert(usableFolder("usb:", true) == "usb:/");
+	assert(usableFolder("sdc:", false) == "");
+	assert(usableFolder("sdc:/", true) == "sdc:/");
 }
 
 static void pickedFolders() {

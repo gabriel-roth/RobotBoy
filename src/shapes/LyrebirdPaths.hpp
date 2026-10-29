@@ -8,23 +8,28 @@
 
 namespace shapes {
 
-// A MetaModule volume path: three letters, then ":/" ("sdc:/", "usb:/")
+// A MetaModule volume path: three letters and ":", then "/..." ("sdc:/",
+// "usb:/x.wav") or nothing ("sdc:", the folder of a file at a volume root)
 inline bool isVolumePath(const std::string& p) {
-	if (p.size() < 5)
+	if (p.size() < 4)
 		return false;
 	for (int i = 0; i < 3; i++) {
 		char c = p[i];
 		if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')))
 			return false;
 	}
-	return p[3] == ':' && p[4] == '/';
+	return p[3] == ':' && (p.size() == 4 || p[4] == '/');
 }
 
 // A saved folder if this platform can use it, else "" for the default folder.
-// Each platform ignores the other's paths.
+// Each platform ignores the other's paths. A bare volume ("sdc:") becomes
+// its root ("sdc:/").
 inline std::string usableFolder(const std::string& saved, bool onMetaModule) {
-	if (onMetaModule)
-		return isVolumePath(saved) ? saved : "";
+	if (onMetaModule) {
+		if (!isVolumePath(saved))
+			return "";
+		return saved.size() == 4 ? saved + "/" : saved;
+	}
 	return !saved.empty() && !isVolumePath(saved) ? saved : "";
 }
 
