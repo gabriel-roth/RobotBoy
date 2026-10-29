@@ -8,9 +8,13 @@
     <rect class="zone" x="91.24" y="90.16" width="85.06" height="3.00" rx="0.00" fill="#713957" fill-opacity="1.0"/>
     <rect class="zone" x="1.50" y="64.70" width="87.74" height="18.10" rx="2.00" fill="#816a56" fill-opacity="1.0"/>
     <rect class="zone" x="50.37" y="64.70" width="38.87" height="30.15" rx="2.00" fill="#816a56" fill-opacity="1.0"/>
-    <rect class="zone" x="1.50" y="84.80" width="46.87" height="18.10" rx="2.00" fill="#9aa883" fill-opacity="0.55"/>
     <rect class="zone" x="1.50" y="104.90" width="87.74" height="18.10" rx="2.00" fill="#707070" fill-opacity="1.0"/>
     <rect class="zone" x="50.37" y="96.85" width="38.87" height="26.15" rx="2.00" fill="#707070" fill-opacity="1.0"/>
+    <rect class="zone" x="46.37" y="82.80" width="4.00" height="4.00" rx="0.00" fill="#816a56" fill-opacity="1.0"/>
+    <rect class="zone" x="46.37" y="100.90" width="4.00" height="4.00" rx="0.00" fill="#707070" fill-opacity="1.0"/>
+    <rect class="zone" x="42.37" y="82.80" width="8.00" height="8.00" rx="4.00" fill="#3d3d3d" fill-opacity="1.0"/>
+    <rect class="zone" x="42.37" y="96.90" width="8.00" height="8.00" rx="4.00" fill="#3d3d3d" fill-opacity="1.0"/>
+    <rect class="zone" x="1.50" y="84.80" width="46.87" height="18.10" rx="2.00" fill="#9aa883" fill-opacity="0.55"/>
     <rect class="zone" x="5.87" y="106.75" width="10.70" height="10.70" rx="5.35" fill="#ff8a3d" fill-opacity="1.0"/>
     <rect class="zone" x="6.62" y="107.50" width="9.20" height="9.20" rx="4.60" fill="#707070" fill-opacity="1.0"/>
     <rect class="zone" x="52.59" y="98.35" width="10.00" height="23.35" rx="1.50" fill="#785b24" fill-opacity="1.0"/>
