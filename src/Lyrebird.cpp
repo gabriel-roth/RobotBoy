@@ -128,6 +128,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	enum LightId {
 		RECORD_LIGHT,
 		PUNCH_LIGHT,
+		REVERSE_LIGHT,
 		LIGHTS_LEN
 	};
 
@@ -273,6 +274,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		configOutput(MAIN_OUTPUT, "Main");
 		configLight(RECORD_LIGHT, "Recording");
 		configLight(PUNCH_LIGHT, "Punching");
+		configLight(REVERSE_LIGHT, "Reversed");
 		setRate(APP->engine->getSampleRate());
 	}
 
@@ -398,6 +400,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 			blinkPhase -= 1.f;
 		float blink = blinkPhase < 0.5f ? 1.f : 0.f;
 		lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
+		lights[REVERSE_LIGHT].setBrightness(c.reverse ? 1.f : 0.f);
 		lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
 
 		displayPos.store((float) step.playhead, std::memory_order_relaxed);
@@ -1150,7 +1153,7 @@ struct LyrebirdWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 67.315)), module, Lyrebird::SPEED_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 67.315)), module, Lyrebird::SMOOTH_INPUT));
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(77.08, 82.605)), module, Lyrebird::TRIG_PARAM));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(94.48, 82.605)), module, Lyrebird::REVERSE_PARAM));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(94.48, 82.605)), module, Lyrebird::REVERSE_PARAM, Lyrebird::REVERSE_LIGHT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 92.605)), module, Lyrebird::TRIG_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 92.605)), module, Lyrebird::REVERSE_INPUT));
 
