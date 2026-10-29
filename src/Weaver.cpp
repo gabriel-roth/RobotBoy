@@ -324,7 +324,7 @@ struct Weaver : Module {
 		}
 
 		shapes::TimebaseInput tin;
-		tin.bpm = params[BPM_PARAM].getValue() + settings.bpmFine;
+		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
 		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
 		tin.clockVoltage = cv(CLOCK_INPUT);
 		tin.resetVoltage = cv(RESET_INPUT);
@@ -490,9 +490,7 @@ Weaver::Weaver() {
 	configParam(WINDOW_PARAM, 0.f, 1.f, (float) defaults().window, "Envelope", "%", 0.f, 100.f);
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
-	ParamQuantity* bpm = configParam(BPM_PARAM, 20.f, 300.f, 120.f, "Tempo", " BPM");
-	bpm->snapEnabled = true;
-	bpm->randomizeEnabled = false;
+	shapeui::configBpm(this, BPM_PARAM);
 	configButton(RESET_PARAM, "Reset");
 	configButton(REVERSE_PARAM, "Reverse");
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
@@ -799,7 +797,7 @@ struct WeaverWidget : ModuleWidget {
 		addParam(prev);
 
 		// Clock row
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(15.62, 92.0)), module, Weaver::BPM_PARAM));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(15.62, 92.0)), module, Weaver::BPM_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(26.12, 92.0)), module, Weaver::CLOCK_INPUT));
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(42.51, 92.0)), module, Weaver::RESET_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.01, 92.0)), module, Weaver::RESET_INPUT));

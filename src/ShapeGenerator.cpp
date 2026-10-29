@@ -10,7 +10,6 @@ void Settings::toJson(json_t* rootJ) const {
 	json_object_set_new(rootJ, "treat", json_integer((int) treatMode));
 	json_object_set_new(rootJ, "slewMs", json_real(slewMs));
 	json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
-	json_object_set_new(rootJ, "bpmFine", json_real(bpmFine));
 }
 
 void Settings::fromJson(json_t* rootJ) {
@@ -31,96 +30,7 @@ void Settings::fromJson(json_t* rootJ) {
 	for (int choice : kPulseChoices)
 		if (ppc == choice)
 			pulsesPerCycle = choice;
-	j = json_object_get(rootJ, "bpmFine");
-	float fine = j ? (float) json_number_value(j) : 0.f;
-	bpmFine = std::isfinite(fine) ? clamp(std::round(fine * 100.f) / 100.f, -0.5f, 0.5f) : 0.f;
 }
-
-// BPM fine as a menu slider. A drag (or double-click reset) is one undo step.
-// The slider moves an unrounded value so slow drags still creep along; the
-// module gets it rounded to 0.01 BPM.
-struct BpmFineQuantity : Quantity {
-	Settings* settings;
-	float raw;
-	explicit BpmFineQuantity(Settings* s) : settings(s), raw(s->bpmFine) {}
-	void setValue(float v) override {
-		raw = clamp(v, -0.5f, 0.5f);
-		settings->bpmFine = std::round(raw * 100.f) / 100.f;
-	}
-	float getValue() override {
-		return raw;
-	}
-	float getMinValue() override {
-		return -0.5f;
-	}
-	float getMaxValue() override {
-		return 0.5f;
-	}
-	float getDefaultValue() override {
-		return 0.f;
-	}
-	int getDisplayPrecision() override {
-		return 2;
-	}
-	std::string getLabel() override {
-		return "BPM fine";
-	}
-	std::string getUnit() override {
-		return " BPM";
-	}
-	std::string getDisplayValueString() override {
-		return string::f("%+.2f", settings->bpmFine);
-	}
-};
-
-struct BpmFineSlider : ui::Slider {
-	Module* module;
-	Settings* settings;
-	json_t* oldModuleJ = nullptr;
-	float oldFine = 0.f;
-
-	BpmFineSlider(Module* m, Settings* s) : module(m), settings(s) {
-		quantity = new BpmFineQuantity(s);
-		box.size.x = 200.f;
-	}
-	~BpmFineSlider() override {
-		if (oldModuleJ)
-			json_decref(oldModuleJ);
-		delete quantity;
-	}
-	void onDragStart(const DragStartEvent& e) override {
-		if (e.button == GLFW_MOUSE_BUTTON_LEFT && !oldModuleJ) {
-			oldModuleJ = APP->engine->moduleToJson(module);
-			oldFine = settings->bpmFine;
-		}
-		ui::Slider::onDragStart(e);
-	}
-	void onDragEnd(const DragEndEvent& e) override {
-		ui::Slider::onDragEnd(e);
-		if (!oldModuleJ)
-			return;
-		// A click without a drag changes nothing; leave no undo step
-		if (settings->bpmFine == oldFine) {
-			json_decref(oldModuleJ);
-			oldModuleJ = nullptr;
-			return;
-		}
-		history::ModuleChange* h = new history::ModuleChange;
-		h->name = "set BPM fine";
-		h->moduleId = module->id;
-		h->oldModuleJ = oldModuleJ;
-		h->newModuleJ = APP->engine->moduleToJson(module);
-		APP->history->push(h);
-		oldModuleJ = nullptr;
-	}
-	void onDoubleClick(const DoubleClickEvent& e) override {
-		static_cast<BpmFineQuantity*>(quantity)->raw = 0.f;
-		if (settings->bpmFine == 0.f)
-			return;
-		Settings* s = settings;
-		withMenuUndo(module, "reset BPM fine", [s]() { s->bpmFine = 0.f; });
-	}
-};
 
 void appendSettingsMenu(Menu* menu, Module* module, Settings* s) {
 	menu->addChild(createIndexSubmenuItem("Output range", {"+-5 V", "0-10 V"},
@@ -154,7 +64,24 @@ void appendSettingsMenu(Menu* menu, Module* module, Settings* s) {
 		[=](int i) {
 			withMenuUndo(module, "set clock pulses per cycle", [=]() { s->pulsesPerCycle = kPulseChoices[i]; });
 		}));
-	menu->addChild(new BpmFineSlider(module, s));
+}
+
+// Tempo in 0.01 BPM steps, so a typed 121.35 holds. Rounded where it's
+// read, not as it's set, so slow knob drags still creep along.
+struct BpmQuantity : ParamQuantity {
+	std::string getDisplayValueString() override {
+		return string::f("%.2f", bpmOf(getValue()));
+	}
+};
+
+double bpmOf(float value) {
+	return std::round(clamp(value, kMinBpm, kMaxBpm) * 100.0) / 100.0;
+}
+
+ParamQuantity* configBpm(Module* module, int paramId) {
+	ParamQuantity* q = module->configParam<BpmQuantity>(paramId, kMinBpm, kMaxBpm, 120.f, "Tempo", " BPM");
+	q->randomizeEnabled = false;
+	return q;
 }
 
 std::shared_ptr<window::Font> loadFont() {
@@ -206,7 +133,11 @@ void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, flo
 	if (style.dashMm <= 0.f) {
 		for (int k = 0; k < points; k++) {
 			Vec p = pointAt(k);
-			if (k == 0)
+			if (k == 0 && style.leadIn && !style.closed) {
+				nvgMoveTo(vg, p.x, pointAt(n - 1).y);
+				nvgLineTo(vg, p.x, p.y);
+			}
+			else if (k == 0)
 				nvgMoveTo(vg, p.x, p.y);
 			else
 				nvgLineTo(vg, p.x, p.y);
@@ -245,7 +176,12 @@ void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, flo
 	nvgStroke(vg);
 }
 
-float traceAt(const float* values, int n, float pos) {
+float traceAt(const float* values, int n, float pos, bool closed) {
+	if (!closed) {
+		float k = clamp(pos, 0.f, 1.f) * (n - 1);
+		int i0 = std::min((int) k, n - 2);
+		return values[i0] + (values[i0 + 1] - values[i0]) * (k - i0);
+	}
 	float k = clamp(pos, 0.f, 1.f) * n;
 	int i0 = std::min((int) k, n - 1);
 	return values[i0] + (values[(i0 + 1) % n] - values[i0]) * (k - i0);

@@ -12,7 +12,6 @@ struct Settings {
 	shapes::Treat treatMode = shapes::Treat::Fit;
 	float slewMs = 0.f;
 	int pulsesPerCycle = 4;
-	float bpmFine = 0.f;
 
 	void reset() {
 		*this = Settings();
@@ -22,8 +21,14 @@ struct Settings {
 	void fromJson(json_t* rootJ);
 };
 
-// Output range, When out of range, Slew, Clock pulses per cycle, BPM fine.
+// Output range, When out of range, Slew, Clock pulses per cycle.
 void appendSettingsMenu(Menu* menu, Module* module, Settings* settings);
+
+constexpr float kMinBpm = 20.f, kMaxBpm = 300.f;
+// The BPM knob: unsnapped, shown and used to 0.01 BPM, not randomized.
+ParamQuantity* configBpm(Module* module, int paramId);
+// The tempo a BPM knob value means.
+double bpmOf(float value);
 
 // Display colours
 inline NVGcolor backgroundColor() {
@@ -76,13 +81,17 @@ struct TraceStyle {
 	// Closed: one more point repeats the first, so the trace spans the box
 	// and loops back to its start. Open: the n points span the box.
 	bool closed = true;
+	// Open traces only: start from the last value at the left edge, so the
+	// jump from one cycle into the next is drawn where it happens
+	bool leadIn = false;
 };
 
 // n values (-1..1 fills the box height) drawn across the box.
 void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, float w, float h, const TraceStyle& style);
 
-// Linear interpolation into a closed trace at position pos (0..1).
-float traceAt(const float* values, int n, float pos);
+// Linear interpolation into a trace at position pos (0..1); closed and open
+// as in TraceStyle.
+float traceAt(const float* values, int n, float pos, bool closed = true);
 
 // Vertical playhead at pos (0..1) and a dot on the trace at value.
 void drawPlayhead(NVGcontext* vg, float x, float y, float w, float h, float pos, float value);
