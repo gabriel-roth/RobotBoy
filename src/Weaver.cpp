@@ -564,7 +564,8 @@ Weaver::Weaver() {
 	configButton(RESET_PARAM, "Reset");
 	for (int i = 0; i < 3; i++) {
 		std::string op(1, (char) ('A' + i));
-		configSwitch(A_TRACE_PARAM + i, 0.f, 1.f, 1.f, op + " trace on the display", {"Hidden", "Shown"});
+		// Display settings, not part of the sound
+		configSwitch(A_TRACE_PARAM + i, 0.f, 1.f, 1.f, op + " trace on the display", {"Hidden", "Shown"})->randomizeEnabled = false;
 		configLight(TRACE_LIGHT + i, op + " trace");
 	}
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
