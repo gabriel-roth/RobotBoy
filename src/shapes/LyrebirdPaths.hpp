@@ -33,6 +33,17 @@ inline std::string usableFolder(const std::string& saved, bool onMetaModule) {
 	return !saved.empty() && !isVolumePath(saved) ? saved : "";
 }
 
+// A volume path with its volume repeated ("sdc:/x" -> "sdc:/sdc:/x"; a bare
+// "sdc:" -> "sdc:/sdc:/"); anything else unchanged. MetaModule's opendir()
+// strips the first volume and hands the rest to FatFS, which then reads the
+// second as the drive instead of using whichever drive it used last.
+inline std::string withVolumeRepeated(const std::string& p) {
+	if (!isVolumePath(p))
+		return p;
+	std::string vol = p.substr(0, 4) + "/";
+	return vol + vol + (p.size() > 5 ? p.substr(5) : "");
+}
+
 // Where MetaModule looks for takes, in order: a Lyrebird or RobotBoy folder
 // on the card, then on a USB drive, then either root
 inline const std::vector<std::string> kMetaModuleFolders = {

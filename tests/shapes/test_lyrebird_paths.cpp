@@ -40,6 +40,14 @@ static void usableFolders() {
 	assert(usableFolder("sdc:/", true) == "sdc:/");
 }
 
+static void repeatedVolumes() {
+	assert(withVolumeRepeated("sdc:/RobotBoy/Lyrebird") == "sdc:/sdc:/RobotBoy/Lyrebird");
+	assert(withVolumeRepeated("usb:/") == "usb:/usb:/");
+	assert(withVolumeRepeated("sdc:") == "sdc:/sdc:/");
+	assert(withVolumeRepeated("/Users/me/takes") == "/Users/me/takes");
+	assert(withVolumeRepeated("") == "");
+}
+
 static void pickedFolders() {
 	auto only = [](std::string d) { return [d](const std::string& p) { return p == d; }; };
 	std::vector<std::string> c = {"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"};
@@ -99,6 +107,7 @@ static void sharedPathConcurrent() {
 int main() {
 	volumePaths();
 	usableFolders();
+	repeatedVolumes();
 	pickedFolders();
 	sharedPaths();
 	sharedPathConcurrent();

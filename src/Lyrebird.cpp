@@ -39,12 +39,34 @@ static constexpr bool kOnMetaModule = true;
 static constexpr bool kOnMetaModule = false;
 #endif
 
+#ifdef METAMODULE
+// MetaModule's opendir() drops a path's volume ("sdc:/x" opens "x" on
+// whichever drive FatFS used last), so a card that isn't there can look as
+// if it is. Repeating the volume gets it through to FatFS. A firmware that
+// keeps the volume would reject the repeated form, so that form is used only
+// once a repeated volume root has opened.
+static std::atomic<bool> volumeRepeatWorks{false};
+
+static DIR* openFolder(const std::string& path) {
+	if (!volumeRepeatWorks.load()) {
+		for (const char* root : {"sdc:/", "usb:/"}) {
+			if (DIR* d = opendir(shapes::withVolumeRepeated(root).c_str())) {
+				closedir(d);
+				volumeRepeatWorks.store(true);
+				break;
+			}
+		}
+	}
+	return opendir((volumeRepeatWorks.load() ? shapes::withVolumeRepeated(path) : path).c_str());
+}
+#endif
+
 // Whether a folder exists. MetaModule's stat() calls everything a file (and
 // fails on volume roots), so system::isDirectory is always false there:
 // open it as a folder instead.
 static bool isFolder(const std::string& path) {
 #ifdef METAMODULE
-	DIR* d = opendir(path.c_str());
+	DIR* d = openFolder(path);
 	if (d)
 		closedir(d);
 	return d != nullptr;
@@ -776,8 +798,20 @@ static void pushTakeSwap(Lyrebird* module, const char* name, uint32_t undone) {
 static std::vector<std::string> fileNames(const std::string& dir) {
 	std::vector<std::string> names;
 	try {
+#ifdef METAMODULE
+		// Listed through openFolder, which reaches the right drive
+		if (DIR* d = openFolder(dir)) {
+			while (dirent* e = readdir(d)) {
+				if (!e->d_name[0])
+					break;
+				names.push_back(e->d_name);
+			}
+			closedir(d);
+		}
+#else
 		for (const std::string& path : system::getEntries(dir))
 			names.push_back(system::getFilename(path));
+#endif
 	}
 	catch (std::exception&) {
 	}
