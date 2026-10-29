@@ -104,8 +104,94 @@ void SkylarkEngine::rebuild(int64_t cycle) {
 	startPeakScan();
 }
 
+void SkylarkEngine::startBuild(int shape, int64_t cycle) {
+	buildRecipeTables(spare, shape, controls.variation, controls.drift, cycle);
+	spareFor = controls;
+	spareFor.shape = shape;
+	spareCycle = cycle;
+	buildIndex = 0;
+	buildPeak = 0.0;
+	build = Build::Normalizing;
+}
+
+void SkylarkEngine::stepBuild(int budget) {
+	// Table steps are cheaper than normalization points: kTableStepsPerUnit to a step of budget
+	int tableSteps = recipeTableSteps(spare);
+	for (; budget > 0 && buildIndex < tableSteps; budget--)
+		for (int k = 0; k < kTableStepsPerUnit && buildIndex < tableSteps; k++, buildIndex++)
+			recipeTableStep(spare, buildIndex);
+	for (; budget > 0 && buildIndex < tableSteps + kNormPoints; budget--, buildIndex++) {
+		double y = normPoint(spare, buildIndex - tableSteps);
+		if (y > buildPeak)
+			buildPeak = y;
+	}
+	if (buildIndex >= tableSteps + kNormPoints) {
+		setRecipeScale(spare, buildPeak);
+		build = Build::Ready;
+	}
+}
+
+void SkylarkEngine::swapIn() {
+	inst = spare;
+	haveInstance = true;
+	currentShape = spareFor.shape;
+	builtCycle = spareCycle;
+	built = controls;
+	built.shape = spareFor.shape;
+	built.variation = spareFor.variation;
+	built.drift = spareFor.drift;
+	build = Build::Idle;
+	sinceCheck = 0;
+	startPeakScan();
+}
+
+bool SkylarkEngine::spareIs(int shape, int64_t cycle) const {
+	return spareFor.shape == shape && (spareFor.drift > 0.0 ? spareCycle == cycle : true);
+}
+
+void SkylarkEngine::spreadUpdate(int shape, int64_t cycle) {
+	// A new shape, or a new cycle with Drift, is built at once in the spare
+	// and swapped in when done; the playing instance carries on meanwhile
+	bool urgent = shape != built.shape || (built.drift > 0.0 && cycle != builtCycle);
+	if (urgent) {
+		if (build == Build::Ready && spareIs(shape, cycle))
+			swapIn();
+		else if (build == Build::Idle || !spareIs(shape, cycle))
+			startBuild(shape, cycle);
+	}
+	else if (build != Build::Normalizing && scan == Scan::Idle && ++sinceCheck >= kCheckInterval) {
+		sinceCheck = 0;
+		bool inputs = std::fabs(controls.variation - built.variation) > kEpsilon || controls.drift != built.drift;
+		if (inputs)
+			startBuild(shape, cycle);
+		else if (transformChanged()) {
+			built.timing = controls.timing;
+			built.lift = controls.lift;
+			built.symmetry = controls.symmetry;
+			built.tilt = controls.tilt;
+			built.reverse = controls.reverse;
+			startPeakScan();
+		}
+	}
+	// With Drift, the next cycle's shape is built ahead and swapped in at its start
+	if (build == Build::Idle && scan == Scan::Idle && built.drift > 0.0 && !urgent)
+		startBuild(built.shape, builtCycle + 1);
+	if (build == Build::Normalizing) {
+		stepBuild(scanSpread);
+		// Built for now (not ahead): play it
+		if (build == Build::Ready && spareCycle <= cycle)
+			swapIn();
+	}
+}
+
 double SkylarkEngine::raw(double cyclePos, int64_t cycle) {
 	int shape = std::clamp(controls.shape, 0, kNumRecipes - 1);
+	if (scanSpread > 0 && haveInstance) {
+		spreadUpdate(shape, cycle);
+		if (scan != Scan::Idle)
+			stepPeakScan(scanSpread);
+		return shapeAt(cyclePos, controls);
+	}
 	bool shapeChanged = shape != currentShape;
 	currentShape = shape;
 	bool newCycle = built.drift > 0.0 && cycle != builtCycle;
@@ -148,6 +234,7 @@ void SkylarkEngine::reset() {
 	sinceCheck = 0;
 	peakValue = 1.0;
 	scan = Scan::Idle;
+	build = Build::Idle;
 }
 
 }  // namespace shapes

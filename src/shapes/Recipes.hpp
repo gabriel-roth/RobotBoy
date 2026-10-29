@@ -1,5 +1,6 @@
 #pragma once
 #include "Spline.hpp"
+#include <cmath>
 #include <cstdint>
 
 // Recipes: structured one-cycle shapes (a bounce, a ratchet, a fractal
@@ -69,5 +70,22 @@ struct RecipeInstance {
 void recipeVals(int recipe, double variation, double drift, int64_t cycle, double out[kMaxRecipeParams]);
 
 void buildRecipe(RecipeInstance& out, int recipe, double variation, double drift, int64_t cycle);
+
+// buildRecipe() in parts, so a caller can spread the costly ones: the
+// tables (scale left at 1), then recipeTableSteps() table steps (Chirp's
+// phase table; none for the others) in order, then kNormPoints points of
+// |raw|, then the scale from their peak. Together they give exactly what
+// buildRecipe() does.
+constexpr int kNormPoints = 512;
+constexpr int kChirpSteps = 1024;
+void buildRecipeTables(RecipeInstance& out, int recipe, double variation, double drift, int64_t cycle);
+int recipeTableSteps(const RecipeInstance& inst);
+void recipeTableStep(RecipeInstance& inst, int i);
+inline double normPoint(const RecipeInstance& inst, int i) {
+	return std::fabs(inst.raw(i / (double) kNormPoints));
+}
+inline void setRecipeScale(RecipeInstance& inst, double peak) {
+	inst.scale = peak > 1e-3 ? 1.0 / peak : 1.0;
+}
 
 }  // namespace shapes

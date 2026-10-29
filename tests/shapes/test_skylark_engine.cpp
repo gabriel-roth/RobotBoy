@@ -7,6 +7,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <utility>
 #include <vector>
 
 using namespace shapes;
@@ -182,8 +183,61 @@ static void spreadScanMatches() {
 	}
 }
 
+// Spread, a new shape or Variation is built while the old one plays, then
+// matches the engine that builds at once; with Drift, each cycle's shape is
+// built ahead and plays from the cycle's first sample.
+static void spreadBuildMatches() {
+	static SkylarkEngine whole, spread;
+	for (int r = 0; r < kNumRecipes; r++) {
+		SkylarkControls c = defaults();
+		c.shape = r;
+		whole.reset();
+		spread.reset();
+		whole.setScanSpread(0);
+		spread.setScanSpread(1);
+		int i = 0;
+		auto step = [&](int64_t cycle, double p) {
+			whole.setControls(c);
+			spread.setControls(c);
+			return std::make_pair(whole.raw(p, cycle), spread.raw(p, cycle));
+		};
+		auto run = [&](int calls) {
+			std::pair<double, double> y;
+			for (int k = 0; k < calls; k++, i++)
+				y = step(0, (i % 997) / 997.0);
+			return y;
+		};
+		run(400);
+		// A new shape: the old one plays until the build is done
+		SkylarkEngine before = spread;
+		before.setControls(c);
+		double old = before.raw(0.3, 0);
+		c.shape = (r + 5) % kNumRecipes;
+		check(step(0, 0.3).second == old, "old shape plays while building", r);
+		check(spread.activeShape() == r, "active shape is the playing one", r);
+		std::pair<double, double> y = run(1200);
+		check(y.first == y.second && whole.peak() == spread.peak(), "new shape after its build", r);
+		check(spread.activeShape() == c.shape, "active shape after the build", r);
+		// Variation, seen at the next check
+		c.variation = 0.8;
+		y = run(64 + 1200);
+		check(y.first == y.second && whole.peak() == spread.peak(), "new variation after its build", r);
+		// Drift: from the third cycle on, every sample matches
+		c.drift = 0.7;
+		bool same = true;
+		for (int64_t cycle = 1; cycle < 6; cycle++)
+			for (int k = 0; k < 2000; k++) {
+				std::pair<double, double> z = step(cycle, k / 2000.0);
+				if (cycle >= 3)
+					same = same && z.first == z.second;
+			}
+		check(same, "drifted cycles land on time", r);
+	}
+}
+
 int main() {
 	spreadScanMatches();
+	spreadBuildMatches();
 	transformsMatch();
 	shapeChangesImmediately();
 	fitNeverExceedsRange();

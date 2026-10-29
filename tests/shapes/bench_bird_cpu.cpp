@@ -48,7 +48,8 @@ static void run(const char* name, const std::function<void(int)>& body) {
 // (MetaModule: 1). Also prints the slowest sample, as bursts overload a
 // MetaModule audio block even when the average is low (timing each sample
 // adds about 15 ns to the average). Desktop checks every 64 samples, MetaModule 256.
-static void skylark(const char* name, bool sweep, int spread) {
+// shapes: also step the shape every 2400 samples, as turning SHAPE does.
+static void skylark(const char* name, bool sweep, int spread, bool shapes = false) {
 	double worst = 0.0;
 	run(name, [&](int n) {
 		SkylarkEngine e;
@@ -66,6 +67,8 @@ static void skylark(const char* name, bool sweep, int spread) {
 			auto t0 = std::chrono::steady_clock::now();
 			if (sweep)
 				c.variation = 0.5 + 0.5 * std::sin(2.0 * M_PI * i / kSr);
+			if (shapes)
+				c.shape = (i / 2400) % kNumRecipes;
 			Timebase::Step s = tb.process(in);
 			e.setControls(c);
 			double raw = e.raw(s.pos, s.cycle);
@@ -201,6 +204,8 @@ int main() {
 	skylark("Skylark Bounce, static", false, 0);
 	skylark("Skylark Bounce, Variation 1 Hz sine", true, 0);
 	skylark("Skylark Bounce, Variation swept, spread 1 (MM)", true, 1);
+	skylark("Skylark stepping through the shapes", false, 0, true);
+	skylark("Skylark stepping through the shapes, spread 1 (MM)", false, 1, true);
 	weaver("Weaver preset 1 (Envelope + triangle x16)", kWeaverPresets[0].controls, 0);
 	weaver("Weaver preset 1, scan spread 1 (MM)", kWeaverPresets[0].controls, 1);
 	weaver("Weaver preset 1, PARAM swept", kWeaverPresets[0].controls, 0, true);

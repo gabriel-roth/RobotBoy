@@ -39,8 +39,11 @@ public:
 	// at its start and the last at its end (an open trace).
 	void renderCycle(float* out, int n, Treat treatMode, Range range) const;
 	void reset();
-	// Steps of the peak scan done per call to raw(). 0, the default, does
-	// each scan in the call that needs it; a spread scan takes about
+	// Steps of the shape build and peak scan done per call to raw(). 0, the
+	// default, does each in the call that needs it. Spread, a new shape (or
+	// Variation, or Drift's next cycle) takes about 512 / stepsPerCall calls
+	// to build (Chirp 768), the old one playing meanwhile (Drift builds the
+	// next cycle ahead, so it lands on time), then the scan about
 	// 300 / stepsPerCall calls, during which Fit also uses the last peak.
 	void setScanSpread(int stepsPerCall) {
 		scanSpread = stepsPerCall > 0 ? stepsPerCall : 0;
@@ -62,6 +65,13 @@ private:
 	// The instance at p with the transforms in v applied.
 	double shapeAt(double p, const SkylarkControls& v) const;
 	void rebuild(int64_t cycle);
+	// Spread mode (scanSpread > 0): new instances are built in the spare a
+	// step at a time, then swapped in
+	void spreadUpdate(int shape, int64_t cycle);
+	void startBuild(int shape, int64_t cycle);
+	void stepBuild(int budget);
+	void swapIn();
+	bool spareIs(int shape, int64_t cycle) const;
 	// Starts a peak scan of the instance with the built transforms
 	void startPeakScan();
 	// Does up to budget steps of it (one or two shape evaluations each)
@@ -92,6 +102,16 @@ private:
 	double scanStartPeak = 1.0;
 	double scanDone[kRefineRounds] = {};
 	double scanLo = 0.0, scanHi = 0.0;
+
+	// The spare instance being built (spread mode)
+	static constexpr int kTableStepsPerUnit = 4;
+	enum class Build { Idle, Normalizing, Ready };
+	Build build = Build::Idle;
+	RecipeInstance spare;
+	SkylarkControls spareFor;  // shape, variation and drift it's built from
+	int64_t spareCycle = 0;
+	int buildIndex = 0;
+	double buildPeak = 0.0;
 };
 
 }  // namespace shapes

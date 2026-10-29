@@ -227,7 +227,7 @@ void recipeVals(int recipe, double variation, double drift, int64_t cycle, doubl
 	}
 }
 
-void buildRecipe(RecipeInstance& out, int recipe, double variation, double drift, int64_t cycle) {
+void buildRecipeTables(RecipeInstance& out, int recipe, double variation, double drift, int64_t cycle) {
 	recipe = checkRecipe(recipe);
 	const Recipe& rc = kRecipes[recipe];
 	out.recipe = recipe;
@@ -271,23 +271,10 @@ void buildRecipe(RecipeInstance& out, int recipe, double variation, double drift
 				t.harm.phase[k - 1] = rnd.next() * kTau;
 			}
 		} break;
-		case CHIRP: {
-			double lo = v[0], hi = v[1], dir = v[2], tim = v[3], g = std::pow(3, tim);
-			auto up = [g](double q) { return std::pow(q, g); };
-			// Rate profile 0..1: rising, peaked mid-cycle, falling. With
-			// Change point > 0 the change comes late.
-			auto m = [&](double q) {
-				double tr = up(1 - std::fabs(2 * q - 1));
-				return dir < .5 ? lerp(up(q), tr, dir * 2) : lerp(tr, 1 - up(q), dir * 2 - 1);
-			};
-			const int N = 1024;
-			double* ph = t.chirp.phase;
-			ph[0] = 0;
-			for (int i = 0; i < N; i++)
-				ph[i + 1] = ph[i] + (lo + (hi - lo) * m((i + .5) / N)) / N;
-			// Scale to a whole number of waves so the loop point doesn't jump.
-			t.chirp.k = std::max(1.0, jsRound(ph[N])) / ph[N];
-		} break;
+		case CHIRP:
+			// Filled by recipeTableSteps(), the costly part of a build
+			t.chirp.phase[0] = 0;
+			break;
 		case BEAT:
 			t.beat.ph1 = rnd.next() * kTau;
 			t.beat.ph2 = rnd.next() * kTau;
@@ -369,13 +356,44 @@ void buildRecipe(RecipeInstance& out, int recipe, double variation, double drift
 			break;
 	}
 
+}
+
+int recipeTableSteps(const RecipeInstance& inst) {
+	return inst.recipe == CHIRP ? kChirpSteps : 0;
+}
+
+void recipeTableStep(RecipeInstance& inst, int i) {
+	if (inst.recipe != CHIRP || i < 0 || i >= kChirpSteps)
+		return;
+	const double* v = inst.vals;
+	auto& t = inst.tab;
+	double lo = v[0], hi = v[1], dir = v[2], tim = v[3], g = std::pow(3, tim);
+	auto up = [g](double q) { return std::pow(q, g); };
+	// Rate profile 0..1: rising, peaked mid-cycle, falling. With
+	// Change point > 0 the change comes late.
+	auto m = [&](double q) {
+		double tr = up(1 - std::fabs(2 * q - 1));
+		return dir < .5 ? lerp(up(q), tr, dir * 2) : lerp(tr, 1 - up(q), dir * 2 - 1);
+	};
+	const int N = kChirpSteps;
+	double* ph = t.chirp.phase;
+	ph[i + 1] = ph[i] + (lo + (hi - lo) * m((i + .5) / N)) / N;
+	// Scale to a whole number of waves so the loop point doesn't jump.
+	if (i == N - 1)
+		t.chirp.k = std::max(1.0, jsRound(ph[N])) / ph[N];
+}
+
+void buildRecipe(RecipeInstance& out, int recipe, double variation, double drift, int64_t cycle) {
+	buildRecipeTables(out, recipe, variation, drift, cycle);
+	for (int i = 0, n = recipeTableSteps(out); i < n; i++)
+		recipeTableStep(out, i);
 	double pk = 0;
-	for (int i = 0; i < 512; i++) {
-		double y = std::fabs(out.raw(i / 512.0));
+	for (int i = 0; i < kNormPoints; i++) {
+		double y = normPoint(out, i);
 		if (y > pk)
 			pk = y;
 	}
-	out.scale = pk > 1e-3 ? 1.0 / pk : 1.0;
+	setRecipeScale(out, pk);
 }
 
 double RecipeInstance::raw(double p) const {
