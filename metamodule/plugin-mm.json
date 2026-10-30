@@ -2,7 +2,7 @@
   "MetaModuleBrandName": "Robot Boy",
   "MetaModuleBrandSlug": "RobotBoy",
   "MetaModulePluginMaintainer": "Gabriel Roth",
-  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, and Lucarne display expander for Particules and Retours, and Skylark, Weaver and Lyrebird shape modulators.",
+  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, Lucarne display expander for Particules and Retours, Brume reverb, and Skylark, Weaver and Lyrebird shape modulators.",
   "MetaModuleIncludedModules": [
     {
       "slug": "Loooop", "name": "Loooop", "displayName": "Loooop",
@@ -40,6 +40,21 @@
                 "Audio L Out", "Audio R Out", "Repeat gate Out"]
     },
     { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne" },
+    { "slug": "Brume", "name": "Brume", "displayName": "Brume",
+      "order": ["Rise", "Fall", "Sidechain In", "Envelope Out",
+                "Send", "Filter", "Smear", "Pre-delay", "Wow & flutter",
+                "Send CV In", "Filter CV In", "Smear CV In", "Pre-delay CV In", "Wow & flutter CV In",
+                "Send CV amount", "Filter CV amount", "Smear CV amount", "Pre-delay CV amount",
+                "Wow & flutter CV amount",
+                "Size", "Decay", "Damp", "Diffuse", "Mod speed", "Mod depth",
+                "Width", "Mix",
+                "Size CV In", "Decay CV In", "Damp CV In", "Diffuse CV In", "Mod speed CV In",
+                "Mod depth CV In", "Width CV In", "Mix CV In",
+                "Size CV amount", "Decay CV amount", "Damp CV amount", "Diffuse CV amount",
+                "Mod speed CV amount", "Mod depth CV amount", "Width CV amount", "Mix CV amount",
+                "Audio L In", "Audio R In", "Mode", "Quality", "Clear", "Clear trigger In",
+                "Audio L Out", "Audio R Out"]
+    },
     { "slug": "Skylark", "name": "Skylark", "displayName": "Skylark" },
     { "slug": "Weaver", "name": "Weaver", "displayName": "Weaver",
       "groups": {
@@ -93,5 +108,6 @@
       }
     },
     { "slug": "Lyrebird", "name": "Lyrebird", "displayName": "Lyrebird" }
+
   ]
 }

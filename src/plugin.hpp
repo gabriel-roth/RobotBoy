@@ -15,6 +15,7 @@ extern Model* modelOndes;
 extern Model* modelVespid;
 extern Model* modelRetours;
 extern Model* modelLucarne;
+extern Model* modelBrume;
 extern Model* modelSkylark;
 extern Model* modelWeaver;
 extern Model* modelLyrebird;

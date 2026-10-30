@@ -4,8 +4,6 @@
 
 <img src="screenshots/Retours.png" alt="Retours module" height="500">
 
-The [Lucarne](Lucarne.md) display expander can sit to the right of Retours (or attach from its Expanders menu on MetaModule) to show the buffer, each delay tap and the looping slices under Slice.
-
 ---
 
 ## How it works
@@ -104,6 +102,19 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Tape hiss (Scorched cassette)** — on by default. Beads' Scorched cassette setting runs its audio converter at a low sample rate, which makes it hiss; this adds a similar quiet hiss to the input (and so to the dry signal too). Turn it off for a clean noise floor. It has no effect in the other Quality settings.
 - **Clear saved tempo** — abandons a held tempo (from a tap or a patched clock) and returns Retours to free-running, so Interval sets the delay time directly again. Greyed out when no tempo is saved, and while a clock is patched (it would set the tempo again).
 - **Clear buffer** — empties the recording buffer immediately. Greyed out when the buffer is already empty.
+
+---
+
+## Lucarne display
+
+**[Lucarne](Lucarne.md)** is a display expander for Retours. It shows Retours' recent audio as a waveform scrolling from right to left, with a line near the right edge for the incoming sound and a line for each delay tap:
+
+- **Position:** the farther left a tap's line, the longer its echo. The view zooms so the longest echo sits near the left edge, and glides to the new zoom when you change **Time** or **Interval**. While the delay is being modulated (the **Time** trimpot away from noon, or a cable in **Interval CV**), it shows the whole buffer instead, so the waveform holds still.
+- **Color:** amber for the main taps, cyan for the second set: the extra taps that fade in as **Interval** turns clockwise past noon or, when clocked, the quieter of the two divisions Interval is blending between.
+- **Flashes:** each line brightens, with a bar showing the level, as sound passes that tap, so you see each echo as you hear it. The incoming-sound line flashes with the input, even with **Dry/Wet** fully wet.
+- **Slice:** the waveform freezes and the view shows the whole buffer. Each looping play head moves through a faint shaded band over the slice it plays.
+
+In VCV Rack, place Lucarne directly beside Retours. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Retours' **Expanders…** menu; tap the display to see it fullscreen. Lucarne has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
 
 ---
 

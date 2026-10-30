@@ -109,7 +109,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Color:** stereo position, from blue (left) through white to orange (right). With **Density** counter-clockwise and the attenurandomizers at noon, every grain is centered and white; turning Density clockwise or adding randomness fans the colors out.
 - **Brightness:** each grain's envelope (**Shape**). A cursor runs along each line as the grain plays.
 
-In VCV Rack, place Lucarne directly to the right of Particules. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Particules' **Expanders…** menu; tap the display to see it fullscreen. Lucarne has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
+In VCV Rack, place Lucarne directly beside Particules. On MetaModule (firmware 2.4 or later), add Lucarne and attach it from Particules' **Expanders…** menu; tap the display to see it fullscreen. Lucarne has no effect on the sound. See the [Lucarne manual](Lucarne.md) for details.
 
 ---
 

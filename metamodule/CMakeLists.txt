@@ -29,6 +29,7 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/Ondes.cpp
     ${SRC}/src/Vespid.cpp
     ${SRC}/src/Lucarne.cpp
+    ${SRC}/src/Brume.cpp
     ${SRC}/src/lucarne/GrainLayout.cpp
     ${SRC}/src/lucarne/ScopeLayout.cpp
     # Shape modulators: Skylark, Weaver, Lyrebird
@@ -47,8 +48,8 @@ target_sources(RobotBoy PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
     ${SRC}/src/loooop/dsp/LoopEngine.cpp
     ${SRC}/src/loooop/display/LoopWaveformRenderer.cpp
-    # Mutable Instruments Beads (vendored) + RobotBoy host adapter:
-    # Particules, Retours and Ondes (see src/beads/vendor/NOTICE.md)
+    # Mutable Instruments Beads and Clouds (vendored) + RobotBoy host adapter:
+    # Particules, Retours, Ondes and Brume (see src/beads/vendor/NOTICE.md)
     ${SRC}/src/beads/vendor/beads/dsp/delay_clock.cc
     ${SRC}/src/beads/vendor/beads/dsp/delay_controller.cc
     ${SRC}/src/beads/vendor/beads/dsp/mu_law.cc
@@ -60,6 +61,8 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/beads/host/engine_host.cpp
     ${SRC}/src/beads/host/grain_capture.cpp
     ${SRC}/src/beads/host/gain_control.cpp
+    ${SRC}/src/beads/host/brume_engine.cpp
+    ${SRC}/src/beads/host/envelope_follower.cpp
 )
 target_include_directories(RobotBoy PRIVATE
     ${SRC}/src
@@ -72,7 +75,7 @@ target_include_directories(RobotBoy PRIVATE
 target_compile_definitions(RobotBoy PRIVATE METAMODULE_BUILTIN ROBOTBOY_COMBINED)
 # Vendored Beads: portable stmlib code paths (TEST) and a private stmlib
 # namespace, so it can't collide with the simulator's own Mutable ports.
-target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib)
+target_compile_definitions(RobotBoy PRIVATE TEST stmlib=robotboy_stmlib clouds=robotboy_clouds)
 # The headless simulator builds us as a built-in like the GUI simulator does,
 # but (unlike the GUI build) does not define SIMULATOR globally. register.cc
 # relies on SIMULATOR to suppress its init()/pluginInstance definitions, which

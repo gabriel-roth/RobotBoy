@@ -29,24 +29,40 @@
 #ifndef BEADS_DSP_FX_REVERB_H_
 #define BEADS_DSP_FX_REVERB_H_
 
+#include <type_traits>  // RobotBoy
+
 #include "stmlib/stmlib.h"
 #include "stmlib/dsp/parameter_interpolator.h"
 
+// RobotBoy: FxEngine's STATIC_ASSERTs expand to unused local typedefs.
+// (Clang honors the GCC pragma and spelling.)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-local-typedefs"
 #include "beads/dsp/fx/fx_engine.h"
+#pragma GCC diagnostic pop
 
 namespace beads {
 
-class Reverb {
+// RobotBoy: the memory size, in words, is a template parameter. Particules
+// and Retours use Reverb (upstream's 32768); Brume uses SizedReverb<65536>,
+// whose custom layout has room for 2x size.
+template<int32_t memory_size>
+class SizedReverb {
  public:
-  Reverb() { }
-  ~Reverb() { }
+  SizedReverb() { }
+  ~SizedReverb() { }
   
   void Init(uint16_t* buffer, float sample_rate) {
     engine_.Init(buffer);
     Reset(sample_rate);
     sleep_enabled_ = true;  // RobotBoy
     asleep_ = false;  // RobotBoy
-    silent_samples_ = E::kSize;  // RobotBoy: the memory was just cleared.
+    silent_samples_ = Engine::kSize;  // RobotBoy: the memory was just cleared.
+    diffusion_ = 0.625f;  // RobotBoy
+    mod_depth_ = 1.0f;  // RobotBoy
+    size_ = 1.0f;  // RobotBoy
+    size_now_ = 1.0f;  // RobotBoy
+    force_custom_ = false;  // RobotBoy
   }
   
   void Reset(float sample_rate) {
@@ -61,7 +77,24 @@ class Reverb {
     send_ = 0.0f;
   }
   
+  // RobotBoy: at the default diffusion, modulation depth and size the tank
+  // runs the stock code with its constants, so the output stays bit-identical
+  // (with -funsafe-math-optimizations, variables in place of the constants
+  // would change the rounding). Anything else, or set_force_custom(true),
+  // takes the variable-driven instance, whose delay layout has room for 2x
+  // size and 4x modulation.
   void Process(FloatFrame* in_out, size_t size) {
+    if (!force_custom_ && diffusion_ == 0.625f && mod_depth_ == 1.0f &&
+        size_ == 1.0f && size_now_ == 1.0f) {
+      ProcessTank<false>(in_out, size);
+    } else {
+      ProcessTank<true>(in_out, size);
+    }
+  }
+  
+ private:
+  template<bool custom>
+  void ProcessTank(FloatFrame* in_out, size_t size) {
     // This is the Griesinger topology described in the Dattorro paper
     // (4 AP diffusers on the input, then a loop of 2x 2AP+1Delay).
     // Modulation is applied in the loop of the first diffuser AP for additional
@@ -75,7 +108,25 @@ class Reverb {
       E::Reserve<4501,
       E::Reserve<2525,
       E::Reserve<2197,
-      E::Reserve<6312> > > > > > > > > > Memory;
+      E::Reserve<6312> > > > > > > > > > StockMemory;
+    // RobotBoy: the custom layout makes room for kMaxSize and kMaxModDepth.
+    // Every delay is read at its stock length times the size, interpolated
+    // (exact at size 1, where the offsets are whole). ap1's smear tap is
+    // re-written further along the line, and its tail moves with it, so at
+    // size 1 the allpass keeps its stock delay; del1 and del2 are only read
+    // through their modulated taps.
+    typedef E::Reserve<kAp1Length,
+      E::Reserve<213 * kMaxSize + 2,
+      E::Reserve<318 * kMaxSize + 2,
+      E::Reserve<526 * kMaxSize + 2,
+      E::Reserve<2181 * kMaxSize + 2,
+      E::Reserve<2689 * kMaxSize + 2,
+      E::Reserve<kDel1Length,
+      E::Reserve<2524 * kMaxSize + 2,
+      E::Reserve<2196 * kMaxSize + 2,
+      E::Reserve<kDel2Length> > > > > > > > > > CustomMemory;
+    typedef typename std::conditional<
+        custom, CustomMemory, StockMemory>::type Memory;
     E::DelayLine<Memory, 0> ap1;
     E::DelayLine<Memory, 1> ap2;
     E::DelayLine<Memory, 2> ap3;
@@ -86,9 +137,41 @@ class Reverb {
     E::DelayLine<Memory, 7> dap2a;
     E::DelayLine<Memory, 8> dap2b;
     E::DelayLine<Memory, 9> del2;
-    E::Context c;
+    typename Engine::Context c;  // RobotBoy
+    // RobotBoy: the furthest word each custom read reaches (its offset at
+    // kMaxSize, plus the modulation, plus one for the interpolation) lies
+    // inside its line.
+    static_assert(!custom || kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 1 <
+                  int(decltype(ap1)::length), "ap1 tail");
+    static_assert(!custom || 213 * kMaxSize + 1 < int(decltype(ap2)::length),
+                  "ap2");
+    static_assert(!custom || 318 * kMaxSize + 1 < int(decltype(ap3)::length),
+                  "ap3");
+    static_assert(!custom || 526 * kMaxSize + 1 < int(decltype(ap4)::length),
+                  "ap4");
+    static_assert(!custom || 2181 * kMaxSize + 1 <
+                  int(decltype(dap1a)::length), "dap1a");
+    static_assert(!custom || 2689 * kMaxSize + 1 <
+                  int(decltype(dap1b)::length), "dap1b");
+    static_assert(!custom || 4460 * kMaxSize + 40 * kMaxModDepth + 1 <
+                  int(decltype(del1)::length), "del1");
+    static_assert(!custom || 2524 * kMaxSize + 1 <
+                  int(decltype(dap2a)::length), "dap2a");
+    static_assert(!custom || 2196 * kMaxSize + 1 <
+                  int(decltype(dap2b)::length), "dap2b");
+    static_assert(!custom || 6261 * kMaxSize + 50 * kMaxModDepth + 1 <
+                  int(decltype(del2)::length), "del2");
 
-    const float kap = 0.625f;
+    const float kap = custom ? diffusion_ : 0.625f;  // RobotBoy
+    const float mod_depth = custom ? mod_depth_ : 1.0f;  // RobotBoy
+    // RobotBoy: the size glides linearly across the block to its new value.
+    // The stock path keeps the constant 1.
+    float scale = custom ? size_now_ : 1.0f;
+    const float scale_step = custom && size ?
+        (size_ - size_now_) / static_cast<float>(size) : 0.0f;
+    if (custom) {
+      size_now_ = size_;
+    }
     const float klp = lp_;
     const float krt = reverb_time_;
 
@@ -116,7 +199,7 @@ class Reverb {
     // glides, the write pointer and the LFOs moving exactly as the full path
     // would, so the output stays bit-identical and waking needs no handover.
     asleep_ = sleep_enabled_ && mix_ == 0.0f && send_ == 0.0f &&
-        lp_1_ == 0.0f && lp_2_ == 0.0f && silent_samples_ >= E::kSize;
+        lp_1_ == 0.0f && lp_2_ == 0.0f && silent_samples_ >= Engine::kSize;
     if (asleep_) {
       engine_.Advance(size);
       while (size--) {
@@ -143,31 +226,44 @@ class Reverb {
       float wet;
       float apout = 0.0f;
       engine_.Start(&c);
+      if (custom) {
+        scale += scale_step;  // RobotBoy
+      }
       
       // Smear AP1 inside the loop.
-      c.Interpolate(ap1, 10.0f, LFO_1, 80.0f, 1.0f);
-      c.Write(ap1, 100, 0.0f);
+      c.Interpolate(ap1, 10.0f * scale, LFO_1, 80.0f * mod_depth, 1.0f);  // RobotBoy
+      c.Write(ap1, custom ? kAp1SmearWrite : 100, 0.0f);  // RobotBoy
       
       c.Read(in_out->l + in_out->r, send_amount);
       
       // Diffuse through 4 allpasses.
-      c.Read(ap1 TAIL, kap);
+      // RobotBoy: the custom path reads each tail at its stock offset times
+      // the size; ap1's tail sits kAp1SmearToTail (scaled) past the smear.
+      if (custom) {
+        c.Interpolate(
+            ap1,
+            static_cast<float>(kAp1SmearWrite) +
+                static_cast<float>(kAp1SmearToTail) * scale,
+            kap);
+      } else {
+        c.Read(ap1 TAIL, kap);
+      }
       c.WriteAllPass(ap1, -kap);
-      c.Read(ap2 TAIL, kap);
+      ReadTail<custom>(&c, ap2, 213.0f * scale, kap);
       c.WriteAllPass(ap2, -kap);
-      c.Read(ap3 TAIL, kap);
+      ReadTail<custom>(&c, ap3, 318.0f * scale, kap);
       c.WriteAllPass(ap3, -kap);
-      c.Read(ap4 TAIL, kap);
+      ReadTail<custom>(&c, ap4, 526.0f * scale, kap);
       c.WriteAllPass(ap4, -kap);
       c.Write(apout);
       
       // Main reverb loop.
       c.Load(apout);
-      c.Interpolate(del2, 6261.0f, LFO_2, 50.0f, krt);
+      c.Interpolate(del2, 6261.0f * scale, LFO_2, 50.0f * mod_depth, krt);  // RobotBoy
       c.Lp(lp_1_, klp);
-      c.Read(dap1a TAIL, -kap);
+      ReadTail<custom>(&c, dap1a, 2181.0f * scale, -kap);
       c.WriteAllPass(dap1a, kap);
-      c.Read(dap1b TAIL, kap);
+      ReadTail<custom>(&c, dap1b, 2689.0f * scale, kap);
       c.WriteAllPass(dap1b, -kap);
       c.Write(del1, 1.0f);
       c.Write(wet);
@@ -175,11 +271,11 @@ class Reverb {
       in_out->l = in_out->l * dry_amount + wet * wet_amount;
 
       c.Load(apout);
-      c.Interpolate(del1, 4460.0f, LFO_1, 40.0f, krt);
+      c.Interpolate(del1, 4460.0f * scale, LFO_1, 40.0f * mod_depth, krt);  // RobotBoy
       c.Lp(lp_2_, klp);
-      c.Read(dap2a TAIL, kap);
+      ReadTail<custom>(&c, dap2a, 2524.0f * scale, kap);
       c.WriteAllPass(dap2a, -kap);
-      c.Read(dap2b TAIL, -kap);
+      ReadTail<custom>(&c, dap2b, 2196.0f * scale, -kap);
       c.WriteAllPass(dap2b, kap);
       c.Write(del2, 1.0f);
       c.Write(wet);
@@ -190,7 +286,7 @@ class Reverb {
       // RobotBoy: count the samples whose memory writes all truncated to 0
       // (FORMAT_16_BIT stores (int32_t)(x * 32768)).
       if (c.peak() * 32768.0f < 1.0f) {
-        if (silent_samples_ < E::kSize) {
+        if (silent_samples_ < Engine::kSize) {
           ++silent_samples_;
         }
       } else {
@@ -199,6 +295,7 @@ class Reverb {
     }
   }
   
+ public:
   inline void set_mix(float mix) {
     mix_ = mix;
   }
@@ -213,17 +310,83 @@ class Reverb {
   
   inline void Clear() {
     engine_.Clear();
-    silent_samples_ = E::kSize;  // RobotBoy
+    silent_samples_ = Engine::kSize;  // RobotBoy
   }
   
+  // RobotBoy: Brume's controls. Defaults reproduce the stock reverb exactly.
+  // set_lfo_rate scales the 0.5 and 0.3 Hz LFOs without restarting their
+  // phase; set_mod_depth scales the delay-line modulation excursions.
+  inline void set_diffusion(float diffusion) { diffusion_ = diffusion; }
+  // Reset(sample_rate) restarts the LFOs at multiplier 1: re-apply the rate.
+  inline void set_lfo_rate(float multiplier, float sample_rate) {
+    engine_.SetLFOFrequencyKeepPhase(LFO_1, 0.5f * multiplier / sample_rate);
+    engine_.SetLFOFrequencyKeepPhase(LFO_2, 0.3f * multiplier / sample_rate);
+  }
+  // Clamped to 0 .. kMaxModDepth, which the custom layout has room for.
+  inline void set_mod_depth(float depth) {
+    const float max_depth = static_cast<float>(kMaxModDepth);
+    mod_depth_ = depth < 0.0f ? 0.0f : (depth > max_depth ? max_depth : depth);
+  }
+  // Scales every delay length, kMinSize .. kMaxSize (clamped; 2 or 1). It
+  // glides linearly to a new value over the next Process() block; the custom
+  // path only.
+  inline void set_size(float size) {
+    const float lo = kMinSize, hi = static_cast<float>(kMaxSize);
+    size_ = size > hi ? hi : (size > lo ? size : lo);
+  }
+  // Always take the custom path, so that changing the depth, diffusion or
+  // size never switches delay layouts under a ringing tail.
+  inline void set_force_custom(bool force) { force_custom_ = force; }
+  inline float lfo_value(int index) const {
+    return engine_.lfo_value(index ? LFO_2 : LFO_1);
+  }
+
   // RobotBoy: sleep can be turned off (for comparison tests); asleep() says
   // whether the last Process() skipped the tank.
   inline void set_sleep_enabled(bool enabled) { sleep_enabled_ = enabled; }
   inline bool asleep() const { return asleep_; }
   
  private:
+  // RobotBoy: the engine is memory_size words. E keeps upstream's type for
+  // the delay layouts: Reserve and DelayLine don't depend on the engine's
+  // size, and naming them through a non-dependent type leaves the stock code
+  // as it was.
   typedef FxEngine<32768, FORMAT_16_BIT> E;
-  E engine_;
+  typedef FxEngine<memory_size, FORMAT_16_BIT> Engine;
+  Engine engine_;
+  
+  // RobotBoy: the custom layout. Each read reaches its stock offset times
+  // the size, plus, for the modulated ones, amplitude * depth * lfo with lfo
+  // in [0, 1] (the excursions do not scale with the size), plus one for the
+  // interpolation. It must stay short of the line's end (or, for ap1's smear
+  // tap, of the smear write, beyond which it would read its own output).
+  // The size goes up to 2 with 65536 words, and only to 1 with 32768.
+  enum {
+    kMaxSize = memory_size >= 65536 ? 2 : 1,
+    kMaxModDepth = 4,
+    kAp1SmearWrite = 345,  // stock: 100
+    kAp1SmearToTail = 49,  // stock: 149 - 100
+    kAp1Length = kAp1SmearWrite + kAp1SmearToTail * kMaxSize + 2,
+    kDel1Length = 4460 * kMaxSize + 170,
+    kDel2Length = 6261 * kMaxSize + 209
+  };
+  static constexpr float kMinSize = 0.5f;
+  // The smear tap's furthest word stays short of the smear write. (Each
+  // line's own room is checked in ProcessTank.)
+  static_assert(10 * kMaxSize + 80 * kMaxModDepth + 1 < kAp1SmearWrite,
+                "ap1 smear");
+  
+  // RobotBoy: a tail read. The stock path reads the line's last word; the
+  // custom path reads at `offset` (the stock offset times the size).
+  template<bool custom, typename D>
+  static inline void ReadTail(
+      typename Engine::Context* c, D& d, float offset, float gain) {
+    if (custom) {
+      c->Interpolate(d, offset, gain);
+    } else {
+      c->Read(d TAIL, gain);
+    }
+  }
   
   float mix_;
   float wet_;
@@ -235,12 +398,20 @@ class Reverb {
   float lp_1_;
   float lp_2_;
   
+  float diffusion_;  // RobotBoy
+  float mod_depth_;  // RobotBoy
+  float size_;  // RobotBoy: target
+  float size_now_;  // RobotBoy: at the end of the last block
+  bool force_custom_;  // RobotBoy
+  
   bool sleep_enabled_;  // RobotBoy
   bool asleep_;  // RobotBoy
   int32_t silent_samples_;  // RobotBoy
   
-  DISALLOW_COPY_AND_ASSIGN(Reverb);
+  DISALLOW_COPY_AND_ASSIGN(SizedReverb);
 };
+
+typedef SizedReverb<32768> Reverb;  // RobotBoy
 
 }  // namespace beads
 
