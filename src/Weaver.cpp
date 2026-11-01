@@ -835,8 +835,9 @@ static void upperCase(char* out, size_t size, const char* in) {
 }
 
 // One cycle of the result (after range and treatment, before slew) over the
-// operators as dashed lines, with a playhead, the A B C legend, the preset
-// the settings match, and the tempo with SPEED beside it.
+// operators as dashed lines, with a playhead, the A B C legend (on MetaModule
+// followed by the algorithm), the preset the settings match, and the tempo with
+// SPEED beside it.
 struct WeaverMainDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
@@ -867,6 +868,13 @@ struct WeaverMainDisplay : shapeui::Screen {
 				nvgFillColor(vg, shapeui::screenColor(f.traceOn[i] ? shapeui::operatorColor(i) : shapeui::dividerColor()));
 				nvgText(vg, gx + mm2px(3.4f) * i, baseline, letter, nullptr);
 			}
+#ifdef METAMODULE
+			// Full screen hides the algorithm display, so name it here too
+			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+			shapeui::fontSize(vg, mm2px(2.2f));
+			nvgText(vg, gx + mm2px(10.2f), baseline,
+			        shapes::algorithmName((shapes::Algorithm) clamp(f.algorithm, 0, shapes::kNumAlgorithms - 1)), nullptr);
+#endif
 			if (f.preset >= 0 && f.preset < shapes::kNumWeaverPresets) {
 				char name[40], title[48];
 				upperCase(name, sizeof(name), shapes::kWeaverPresets[f.preset].name);
