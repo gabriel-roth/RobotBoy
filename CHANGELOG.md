@@ -4,7 +4,6 @@ What's new in Robot Boy, newest first. For how anything works, see the module ma
 
 ## [Unreleased]
 
-- New module: Brume, a stereo reverb with an envelope follower, built on the Beads and Clouds reverbs.
 
 ## [2.4.1] — 2026-10-23
 
