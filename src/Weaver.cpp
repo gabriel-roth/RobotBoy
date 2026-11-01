@@ -846,16 +846,14 @@ struct WeaverMainDisplay : shapeui::Screen {
 		radiusMm = 2.f;
 	}
 
-	// The header's text scale: MetaModule's screen shows it too small to read.
-	// At that size the preset's name no longer fits in the header, so it moves
-	// to a band below the grid (mm).
+	// At MetaModule's text size the preset's name no longer fits in the
+	// header, so it moves to a band below the grid (mm)
 #ifdef METAMODULE
-	static constexpr float kText = 1.5f;
 	static constexpr float kPresetBand = 4.f;
 #else
-	static constexpr float kText = 1.f;
 	static constexpr float kPresetBand = 0.f;
 #endif
+	static constexpr float kText = shapeui::kTextScale;
 
 	void drawScreen(NVGcontext* vg) override {
 		const WeaverFrame& f = frameOf(module);

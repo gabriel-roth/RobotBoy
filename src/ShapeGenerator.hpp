@@ -69,6 +69,14 @@ NVGcolor screenColor(NVGcolor c);
 // below 12 px, so those sizes are shrunk to match VCV.
 void fontSize(NVGcontext* vg, float px);
 
+// The displays' text scale: MetaModule's screen shows the VCV sizes too small
+// to read
+#ifdef METAMODULE
+constexpr float kTextScale = 1.5f;
+#else
+constexpr float kTextScale = 1.f;
+#endif
+
 // Samples between publishes of a display's state to its widget.
 #ifdef METAMODULE
 constexpr int kPublishInterval = 2048;

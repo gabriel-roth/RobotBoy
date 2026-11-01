@@ -424,12 +424,21 @@ struct SkylarkDisplay : shapeui::Screen {
 		return preview;
 	}
 
+	// At MetaModule's text size the shape's name doesn't fit beside the
+	// settings, so it moves to a band below the grid (mm)
+#ifdef METAMODULE
+	static constexpr float kNameBand = 4.f;
+#else
+	static constexpr float kNameBand = 0.f;
+#endif
+	static constexpr float kText = shapeui::kTextScale;
+
 	void drawScreen(NVGcontext* vg) override {
 		const SkylarkFrame& f = frame();
 		float pos = module ? module->displayPos.load(std::memory_order_relaxed) : 0.62f;
 
 		const float pad = mm2px(2.f);
-		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(9.f);
+		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(9.f + kNameBand);
 		shapeui::drawGrid(vg, gx, gy, gw, gh);
 
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
@@ -444,12 +453,18 @@ struct SkylarkDisplay : shapeui::Screen {
 			snprintf(right, sizeof(right), "VAR %d%%  %.2f BPM", (int) std::round(f.variation * 100.f), f.bpm);
 
 			nvgFontFaceId(vg, font->handle);
-			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-			shapeui::fontSize(vg, mm2px(2.6f));
+			shapeui::fontSize(vg, mm2px(2.6f * kText));
 			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-			nvgText(vg, gx, mm2px(4.6f), title, nullptr);
+			if (kNameBand > 0.f) {
+				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+				nvgText(vg, gx + gw / 2, box.size.y - mm2px(1.6f), title, nullptr);
+			}
+			else {
+				nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
+				nvgText(vg, gx, mm2px(4.6f), title, nullptr);
+			}
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-			shapeui::fontSize(vg, mm2px(2.2f));
+			shapeui::fontSize(vg, mm2px(2.2f * kText));
 			float end = gx + gw;
 			// SPEED, away from x1: the chosen one, dim and blinking (as
 			// Lyrebird's ARMED) until it takes over
@@ -460,7 +475,7 @@ struct SkylarkDisplay : shapeui::Screen {
 				if (!waiting || std::fmod(system::getTime(), 0.5) < 0.25)
 					nvgText(vg, end, mm2px(4.6f), label, nullptr);
 				// Share Tech Mono advances 0.54 em; one space between
-				end -= mm2px((strlen(label) + 1) * 0.54f * 2.2f);
+				end -= mm2px((strlen(label) + 1) * 0.54f * 2.2f * kText);
 			}
 			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 			nvgText(vg, end, mm2px(4.6f), right, nullptr);
