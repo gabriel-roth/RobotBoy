@@ -7,6 +7,12 @@
 //     src/beads/host/*.cpp src/beads/vendor/beads/dsp/{delay_clock,delay_controller,mu_law,processor,trigger_generator}.cc \
 //     src/beads/vendor/beads/resources.cc src/beads/vendor/stmlib/dsp/units.cc src/beads/vendor/stmlib/utils/random.cc
 // Each case runs 10 s of 48 kHz audio and prints ns/sample and % of a 48 kHz sample budget.
+// --worst runs only the worst-case modulation cases instead: every control on a
+// slow LFO plus knob-sized noise, timed per 64-sample block, as MetaModule's
+// deadline is per block; --still runs the same cases with the controls held.
+// Then --hash prints a hash of each case's output instead of timing it, and a
+// last argument runs only the cases whose names contain it.
+// Add -DMETAMODULE for the MetaModule constants.
 #include "shapes/Combine.hpp"
 #include "shapes/LyrebirdEngine.hpp"
 #include "shapes/Timebase.hpp"
@@ -16,7 +22,9 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 #include <functional>
+#include <new>
 
 #ifdef BENCH_PARTICULES
 #include "host/engine_host.h"
@@ -159,6 +167,233 @@ static void lyrebird() {
 	});
 }
 
+
+// ---- Worst case: every control moving ----
+
+// MetaModule knobs and CV inputs jitter by a few thousandths of their range
+static constexpr double kJitter = 0.003;
+static constexpr int kBlock = 64;
+
+struct Noise {
+	uint32_t s = 12345;
+	double next() {  // uniform in [-1, 1)
+		s = s * 1664525u + 1013904223u;
+		return (double) (s >> 8) / 8388608.0 - 1.0;
+	}
+};
+
+// --still holds every control at its base value, for the static cost
+static bool gStill = false;
+
+// base + an LFO of the given depth and rate + jitter, clamped to [lo, hi]
+static double moving(Noise& nz, int i, double base, double depth, double hz, double lo = 0.0, double hi = 1.0) {
+	if (gStill)
+		return std::clamp(base, lo, hi);
+	// A triangle LFO: a sine here would cost more than some of the engines
+	double ph = hz * i / kSr;
+	double tri = 4.0 * std::fabs(ph - std::floor(ph + 0.5)) - 1.0;
+	double v = base + depth * tri + kJitter * (hi - lo) * nz.next();
+	return std::clamp(v, lo, hi);
+}
+
+// Runs body(i) per sample, timed per block; prints the average and the
+// slowest block. Each case runs three times and keeps the smallest slowest
+// block: the OS preempting the bench lands at random, a real burst every time.
+static const char* gFilter = nullptr;
+// --hash (with --worst or --still): print a hash of each case's output instead
+// of timing it, to check a change is bit-identical
+static bool gHash = false;
+
+static void worstCase(const char* name, const std::function<void()>& setup, const std::function<double(int)>& body) {
+	if (gFilter && !strstr(name, gFilter))
+		return;
+	if (gHash) {
+		setup();
+		uint64_t h = 1469598103934665603ull;
+		for (int i = 0; i < kN; i++) {
+			double v = body(i);
+			uint64_t bits;
+			memcpy(&bits, &v, sizeof bits);
+			h = (h ^ bits) * 1099511628211ull;
+		}
+		printf("%-52s %016llx\n", name, (unsigned long long) h);
+		return;
+	}
+	double worst = 1e30, avgNs = 1e30;
+	for (int rep = 0; rep < 3; rep++) {
+		setup();
+		for (int i = 0; i < kN / 10; i++) sink = body(i);
+		setup();
+		double acc = 0, repWorst = 0, total = 0;
+		for (int b = 0; b < kN / kBlock; b++) {
+			auto t0 = std::chrono::steady_clock::now();
+			for (int k = 0; k < kBlock; k++)
+				acc += body(b * kBlock + k);
+			double us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - t0).count();
+			total += us;
+			repWorst = std::max(repWorst, us);
+		}
+		sink = acc;
+		worst = std::min(worst, repWorst);
+		avgNs = std::min(avgNs, total * 1000.0 / kN);
+	}
+	printf("%-52s %7.1f ns/sample  worst block %6.1f us (%5.1fx average)\n", name, avgNs, worst, worst * 1000.0 / kBlock / avgNs);
+}
+
+static void skylarkWorst(const char* name, int shape, double drift, double variationHz) {
+	static SkylarkEngine e, snapshot;
+	static Timebase tb;
+	static TimebaseInput in;
+	static Noise nz;
+	static int since;
+	worstCase(name, [&] {
+		e = SkylarkEngine();
+		e.setScanSpread(1);
+		tb = Timebase();
+		tb.setSampleRate(kSr);
+		in = TimebaseInput();
+		in.bpm = 120.0;
+		nz = Noise();
+		since = 0;
+	}, [&](int i) {
+		SkylarkControls c;
+		c.shape = shape;
+		c.variation = moving(nz, i, 0.5, 0.45, variationHz);
+		// Away from 0, where the transforms could skip work
+		c.timing = moving(nz, i, 0.3, 0.5, 0.13, -1.0, 1.0);
+		c.lift = moving(nz, i, -0.2, 0.5, 0.17, -1.0, 1.0);
+		c.symmetry = moving(nz, i, 0.25, 0.5, 0.11, -1.0, 1.0);
+		c.tilt = moving(nz, i, 0.15, 0.5, 0.19, -1.0, 1.0);
+		c.drift = drift > 0.0 ? moving(nz, i, drift, 0.0, 0.0) : 0.0;
+		Timebase::Step s = tb.process(in);
+		e.setControls(c);
+		double v = toVolts(treat(e.raw(s.pos, s.cycle), Treat::Fit, e.peak()), Range::Bipolar5);
+		if (++since >= kPublishInterval) {
+			since = 0;
+			snapshot = e;
+			v += snapshot.peak();
+		}
+		return v;
+	});
+}
+
+static void weaverWorst(const char* name, CombineControls base) {
+	static CombineEngine e, snapshot;
+	static Timebase tb;
+	static TimebaseInput in;
+	static Noise nz;
+	static int since;
+	worstCase(name, [&] {
+		e = CombineEngine();
+		e.setSampleRate(kSr);
+		e.setScanSpread(1);
+		tb = Timebase();
+		tb.setSampleRate(kSr);
+		in = TimebaseInput();
+		nz = Noise();
+		since = 0;
+	}, [&](int i) {
+		CombineControls c = base;
+		for (int k = 0; k < 3; k++) {
+			OperatorControls& o = c.op[k];
+			o.param = moving(nz, i, 0.5, 0.4, 0.1 + 0.07 * k);
+			o.phase = moving(nz, i, 0.25, 0.2, 0.05 + 0.03 * k);
+			o.level = moving(nz, i, 0.7, 0.25, 0.09 + 0.04 * k);
+			if (o.wave == Input)
+				o.inputVolts = moving(nz, i, 0.0, 2.0, 3 + k, -5.0, 5.0);
+		}
+		c.window = moving(nz, i, 0.5, 0.4, 0.07);
+		Timebase::Step s = tb.process(in);
+		if (s.wrapped)
+			e.cycleWrapped();
+		CombineFrame f = e.process(c, (double) s.cycle + s.pos, false);
+		double v = toVolts(treat(f.result, Treat::Fit, e.peak()), Range::Bipolar5);
+		if (++since >= kPublishInterval) {
+			since = 0;
+			snapshot = e;
+			v += snapshot.peak();
+		}
+		return v;
+	});
+}
+
+static void lyrebirdWorst(const char* name, double smoothBase, bool loop) {
+	static LyrebirdEngine e;
+	static Timebase tb;
+	static TimebaseInput in;
+	static Noise nz;
+	static int since;
+	static std::vector<float> raw(kTracePoints), out(kTracePoints);
+	worstCase(name, [&] {
+		e.~LyrebirdEngine();
+		new (&e) LyrebirdEngine();
+		e.setSampleRate(kSr);
+		tb = Timebase();
+		tb.setSampleRate(kSr);
+		in = TimebaseInput();
+		in.bpm = 120.0;
+		nz = Noise();
+		since = 0;
+		Take& t = e.spare();
+		t.clear();
+		t.mode = TakeMode::Sync;
+		t.bars = 4.0;
+		t.bpm = 120.0;
+		t.seconds = 4 * 240.0 / 120.0;
+		t.length = (int) (t.seconds * kTakeRate);
+		for (int i = 0; i < t.length; i++)
+			t.samples[i] = (float) (4.0 * std::sin(2.0 * M_PI * 5.0 * i / t.length) + std::sin(2.0 * M_PI * 37.0 * i / t.length));
+		e.requestLoad();
+		LyrebirdControls c;
+		c.lengthIndex = 4;
+		e.process(c, Timebase::Step{0.0, 0, false, false});
+	}, [&](int i) {
+		LyrebirdControls c;
+		c.lengthIndex = 4;
+		c.loop = loop;
+		c.source = moving(nz, i, 0.0, 4.0, 0.3, -10.0, 10.0);
+		c.speedOct = moving(nz, i, 0.0, 1.0, 0.05, -4.0, 4.0);
+		// The module's cubic Smooth law, the knob moving under it
+		double k = moving(nz, i, smoothBase, smoothBase > 0.0 ? 0.15 : 0.0, 0.08);
+		c.smoothMs = smoothBase > 0.0 ? 1000.0 * k * k * k : 0.0;
+		LyrebirdStep s = e.process(c, tb.process(in));
+		double v = s.volts;
+		if (++since >= kPublishInterval) {
+			since = 0;
+			e.renderTrace(c, raw.data(), out.data(), kTracePoints);
+			v += out[3];
+		}
+		return v;
+	});
+}
+
+static void worstCases() {
+#ifdef METAMODULE
+	printf("MetaModule constants (-DMETAMODULE)\n");
+#else
+	printf("Desktop constants (no -DMETAMODULE)\n");
+#endif
+	char name[96];
+	for (int shape = 0; shape < kNumRecipes; shape++) {
+		snprintf(name, sizeof(name), "Skylark %s, all moving", recipeName(shape));
+		skylarkWorst(name, shape, 0.0, 0.2);
+	}
+	skylarkWorst("Skylark Bounce, all moving, Variation 5 Hz", 0, 0.0, 5.0);
+	skylarkWorst("Skylark Bounce, all moving, Drift 0.5", 0, 0.5, 0.2);
+	for (int p = 0; p < kNumWeaverPresets; p++) {
+		snprintf(name, sizeof(name), "Weaver preset %d, all moving", p + 1);
+		weaverWorst(name, kWeaverPresets[p].controls);
+	}
+	CombineControls in3 = kWeaverPresets[0].controls;
+	for (int i = 0; i < 3; i++)
+		in3.op[i].wave = Input;
+	weaverWorst("Weaver three Input operators, all moving", in3);
+	lyrebirdWorst("Lyrebird Smooth off, all moving", 0.0, true);
+	lyrebirdWorst("Lyrebird Smooth ~40 ms, all moving, loop", 0.34, true);
+	lyrebirdWorst("Lyrebird Smooth ~300 ms, all moving, loop", 0.67, true);
+	lyrebirdWorst("Lyrebird Smooth ~300 ms, all moving, once", 0.67, false);
+}
+
 #ifdef BENCH_PARTICULES
 namespace {
 beads::RandomizedParameter Knob(float base) {
@@ -185,6 +420,20 @@ struct FixedControls : robotboy_beads::ControlSource {
 };
 }  // namespace
 
+static void particulesWorst() {
+	static FixedControls controls;
+	static robotboy_beads::EngineHost* host;
+	worstCase("Particules granular, Bright (reference)", [&] {
+		delete host;
+		host = new robotboy_beads::EngineHost();
+		host->Init(beads::Processor::MODE_GRANULAR, true, (float) kSr);
+		host->SetQuality(robotboy_beads::Quality::kBright);
+		host->SetInputs(true, false);
+	}, [&](int i) {
+		return host->Process({(float) (0.5 * std::sin(2.0 * M_PI * 330.0 * i / kSr)), 0.0f, false, false}, &controls).l;
+	});
+}
+
 static void particules() {
 	run("Particules granular, Quality Bright (reference)", [&](int n) {
 		FixedControls controls;
@@ -200,7 +449,21 @@ static void particules() {
 }
 #endif
 
-int main() {
+int main(int argc, char** argv) {
+	if (argc > 1 && (!strcmp(argv[1], "--worst") || !strcmp(argv[1], "--still"))) {
+		gStill = !strcmp(argv[1], "--still");
+		int a = 2;
+		if (argc > a && !strcmp(argv[a], "--hash")) {
+			gHash = true;
+			a++;
+		}
+		gFilter = argc > a ? argv[a] : nullptr;
+		worstCases();
+#ifdef BENCH_PARTICULES
+		particulesWorst();
+#endif
+		return 0;
+	}
 	skylark("Skylark Bounce, static", false, 0);
 	skylark("Skylark Bounce, Variation 1 Hz sine", true, 0);
 	skylark("Skylark Bounce, Variation swept, spread 1 (MM)", true, 1);
