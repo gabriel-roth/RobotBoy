@@ -62,7 +62,7 @@ int clampRatio(int index) {
 	return std::clamp(index, 0, kNumRatios - 1);
 }
 
-// The algorithm and Window, given the operators' raw values, A bent by B
+// The algorithm and the envelope, given the operators' raw values, A bent by B
 // (Bend) and A's held value (S&H).
 double mix(const CombineControls& c, const double* r, double bentA, double heldA, double t) {
 	const OperatorControls& A = c.op[0];
@@ -88,9 +88,10 @@ double mix(const CombineControls& c, const double* r, double bentA, double heldA
 		case Gate: y = (B.level == 0.0 || r[1] * B.level > 0.0 ? sa : 0.0) + sc; break;
 		default: y = sa + sb + sc;
 	}
-	if (c.window > 0.0) {
+	if (c.attack > 0.0 || c.decay > 0.0) {
 		double p = frac(t);
-		double w = std::min(1.0, p / (0.3 * c.window)) * std::min(1.0, (1.0 - p) / (0.7 * c.window));
+		// Fades that overlap (attack + decay > 1) lower the peak
+		double w = (c.attack > 0.0 ? std::min(1.0, p / c.attack) : 1.0) * (c.decay > 0.0 ? std::min(1.0, (1.0 - p) / c.decay) : 1.0);
 		w = w * w * (3.0 - 2.0 * w);
 		y *= w;
 	}
@@ -395,7 +396,7 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 bool CombineEngine::scanCurrent(const CombineControls& c, int64_t cycle) const {
 	if (!scanValid && !scanning)
 		return false;
-	if (c.algorithm != scanControls.algorithm || !near(c.window, scanControls.window))
+	if (c.algorithm != scanControls.algorithm || !near(c.attack, scanControls.attack) || !near(c.decay, scanControls.decay))
 		return false;
 	for (int i = 0; i < 3; i++)
 		if (!sameFormula(c.op[i], scanControls.op[i]) || offset[i] != scanOffset[i])

@@ -1,6 +1,7 @@
 #include "plugin.hpp"
 #include "ShapeGenerator.hpp"
 #include "shapes/Combine.hpp"
+#include "shapes/CycleSpeed.hpp"
 #include "shapes/OutputStage.hpp"
 #include "shapes/Timebase.hpp"
 #include "shapes/WeaverPresets.hpp"
@@ -10,7 +11,8 @@
 
 // Weaver: a shape modulator. Three operators (a wave each, or an outside CV)
 // are woven together by one of eleven algorithms and faded by a per-cycle
-// envelope. Fifteen factory presets; the first is the default state.
+// envelope. SPEED runs the cycle at 1/4x to 4x the tempo. Fifteen factory
+// presets; the first is the default state.
 
 static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
@@ -48,6 +50,8 @@ struct WeaverFrame {
 	int algorithm = 0;  // the one running
 	int preset = 0;  // -1 when the settings match none
 	float bpm = 120.f;
+	int speed = 0;  // SPEED in octaves, running and chosen
+	int speedTarget = 0;
 };
 
 // What the audio thread hands the displays: little enough to copy each
@@ -62,6 +66,8 @@ struct WeaverSnapshot {
 	bool traceOn[3] = {true, true, true};
 	int preset = 0;
 	float bpm = 120.f;
+	int speed = 0;
+	int speedTarget = 0;
 	// The last cycle as it played, one slot per point of the open trace, for
 	// the traces that have no formula: Input operators and a result using
 	// them. Copied only when an operator is an Input.
@@ -120,6 +126,8 @@ static void buildFrame(WeaverFrame& f, const WeaverSnapshot& s) {
 		std::copy(s.historyResult, s.historyResult + kTracePoints, f.result);
 	f.preset = s.preset;
 	f.bpm = s.bpm;
+	f.speed = s.speed;
+	f.speedTarget = s.speedTarget;
 }
 
 struct Weaver : Module {
@@ -152,7 +160,9 @@ struct Weaver : Module {
 		C_PHASE_CV_PARAM,
 		C_LEVEL_CV_PARAM,
 		ALGORITHM_PARAM,
-		WINDOW_PARAM,
+		// The single ENVELOPE knob before ATTACK and DECAY: no control, kept
+		// so old patches load (see migrateEnvelope())
+		LEGACY_ENVELOPE_PARAM,
 		PRESET_PREV_PARAM,
 		PRESET_NEXT_PARAM,
 		BPM_PARAM,
@@ -160,6 +170,10 @@ struct Weaver : Module {
 		A_TRACE_PARAM,
 		B_TRACE_PARAM,
 		C_TRACE_PARAM,
+		ATTACK_PARAM,
+		DECAY_PARAM,
+		SPEED_DOWN_PARAM,
+		SPEED_UP_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -218,10 +232,11 @@ struct Weaver : Module {
 	std::atomic<bool> algorithmNow{true};
 
 	shapes::Timebase timebase;
+	shapes::CycleSpeed speed;
 	shapes::CombineEngine engine;
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
-	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger;
+	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger, speedDownTrigger, speedUpTrigger;
 #ifdef METAMODULE
 	// MetaModule has no widget events, so the PRESET buttons are read here
 	dsp::BooleanTrigger presetPrevTrigger, presetNextTrigger;
@@ -300,6 +315,7 @@ struct Weaver : Module {
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
 		loadPreset(0);
+		speed.jumpTo(0);
 		settings.reset();
 		algorithmAtCycleEnd = false;
 		newLoopOnReset = false;
@@ -337,7 +353,8 @@ struct Weaver : Module {
 			o.level = params[param(i, A_LEVEL_PARAM)].getValue();
 		}
 		c.algorithm = (shapes::Algorithm) algorithm;
-		c.window = params[WINDOW_PARAM].getValue();
+		c.attack = params[ATTACK_PARAM].getValue();
+		c.decay = params[DECAY_PARAM].getValue();
 		return c;
 	}
 
@@ -352,7 +369,8 @@ struct Weaver : Module {
 			params[param(i, A_LEVEL_PARAM)].setValue((float) o.level);
 		}
 		algorithm = p.algorithm;
-		params[WINDOW_PARAM].setValue((float) p.window);
+		params[ATTACK_PARAM].setValue((float) p.attack);
+		params[DECAY_PARAM].setValue((float) p.decay);
 		algorithmNow.store(true, std::memory_order_release);
 	}
 
@@ -392,7 +410,8 @@ struct Weaver : Module {
 				o.param = std::clamp(modulated(param(i, A_PARAM_PARAM), input(i, A_PARAM_INPUT), param(i, A_PARAM_CV_PARAM), 1.0), 0.0, 1.0);
 			}
 		}
-		c.window = clamp(params[WINDOW_PARAM].getValue(), 0.f, 1.f);
+		c.attack = clamp(params[ATTACK_PARAM].getValue(), 0.f, 1.f);
+		c.decay = clamp(params[DECAY_PARAM].getValue(), 0.f, 1.f);
 		return c;
 	}
 
@@ -401,6 +420,19 @@ struct Weaver : Module {
 		double algorithmCv = clamp(cv(ALGORITHM_INPUT), -100.f, 100.f);
 		int a = algorithm + (int) std::round(algorithmCv / 10.0 * (int) shapes::kNumAlgorithms);
 		return ((a % shapes::kNumAlgorithms) + shapes::kNumAlgorithms) % shapes::kNumAlgorithms;
+	}
+
+	// A patch from before ATTACK and DECAY loads its ENVELOPE value w into
+	// the legacy param: the same fades are attack 0.3 w, decay 0.7 w. Done
+	// here rather than on load, which needn't see the params first.
+	void migrateEnvelope() {
+		float w = params[LEGACY_ENVELOPE_PARAM].getValue();
+		if (w == 0.f)
+			return;
+		w = clamp(w, 0.f, 1.f);
+		params[ATTACK_PARAM].setValue(0.3f * w);
+		params[DECAY_PARAM].setValue(0.7f * w);
+		params[LEGACY_ENVELOPE_PARAM].setValue(0.f);
 	}
 
 	float output(int index, double x) {
@@ -417,43 +449,46 @@ struct Weaver : Module {
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
 		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
+		// From here on a cycle is SPEED's
+		shapes::CycleSpeed::Step sped = speed.process(step.cycle, step.pos, step.reset, step.wrapped);
 		if (step.reset) {
 			engine.reset();
 			if (newLoopOnReset)
 				newLoops();
 		}
 		// The Input peak rolls over here, before this sample is processed
-		if (step.wrapped)
+		if (sped.wrapped)
 			engine.cycleWrapped();
 		// Reset starts a cycle too, so a waiting algorithm lands there
-		bool cycleStart = step.wrapped || step.reset;
+		bool cycleStart = sped.wrapped || step.reset;
 
 		// A cycle start is worked out on its own sample, so the algorithm
 		// held for it lands there
 		if (cycleStart || --untilEval <= 0) {
 			untilEval = shapes::kControlInterval;
-			evaluate(step, cycleStart);
+			evaluate(sped.t, cycleStart);
 		}
 
 		float out = output(0, ramps[0].next());
 		outputs[MAIN_OUTPUT].setVoltage(out);
 		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
-		if (step.wrapped)
+		if (sped.wrapped)
 			eoc.fire();
 		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
 		for (int i = 0; i < 3; i++)
 			outputs[A_OUTPUT + i].setVoltage(output(1 + i, ramps[1 + i].next()));
 
-		displayPos.store((float) step.pos, std::memory_order_relaxed);
+		double cycle = std::floor(sped.t);
+		displayPos.store((float) (sped.t - cycle), std::memory_order_relaxed);
 		if (++sincePublish >= shapeui::kPublishInterval) {
 			sincePublish = 0;
-			publish(evalControls, (double) step.cycle);
+			publish(evalControls, cycle);
 		}
 	}
 
 	// The buttons, controls, engine, display history and lights, at control
-	// rate: sets the outputs' next ramps
-	void evaluate(const shapes::Timebase::Step& step, bool cycleStart) {
+	// rate, at t cycles since reset: sets the outputs' next ramps
+	void evaluate(double t, bool cycleStart) {
 #ifdef METAMODULE
 		if (presetPrevTrigger.process(params[PRESET_PREV_PARAM].getValue() > 0.5f))
 			stepPreset(-1);
@@ -477,6 +512,11 @@ struct Weaver : Module {
 #endif
 		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
+		if (speedDownTrigger.process(params[SPEED_DOWN_PARAM].getValue() > 0.5f))
+			speed.setTarget(speed.targetOctaves() - 1);
+		if (speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f))
+			speed.setTarget(speed.targetOctaves() + 1);
+		migrateEnvelope();
 		if (settings.slewMs != appliedSlewMs) {
 			for (shapes::Slew& s : slew)
 				s.set(settings.slewMs, sampleRate);
@@ -489,7 +529,6 @@ struct Weaver : Module {
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
 		evalControls = c;
 
-		double t = (double) step.cycle + step.pos;
 		shapes::CombineFrame f = engine.process(c, t, false);
 
 		double v[4];
@@ -512,7 +551,7 @@ struct Weaver : Module {
 		}
 		rampStarted = true;
 
-		historyWrite = clamp((int) std::lround(step.pos * (kTracePoints - 1)), 0, kTracePoints - 1);
+		historyWrite = clamp((int) std::lround((t - std::floor(t)) * (kTracePoints - 1)), 0, kTracePoints - 1);
 		historyResult[historyWrite] = (float) v[0];
 		for (int i = 0; i < 3; i++) {
 			historyScaled[i][historyWrite] = (float) f.scaled[i];
@@ -550,6 +589,8 @@ struct Weaver : Module {
 		s.historyWrite = historyWrite;
 		s.preset = shapes::presetMatches(panelControls());
 		s.bpm = (float) timebase.tempoBpm();
+		s.speed = speed.octaves();
+		s.speedTarget = speed.targetOctaves();
 		frontSnapshot.store(back, std::memory_order_release);
 		publishCount.fetch_add(1, std::memory_order_release);
 	}
@@ -571,6 +612,7 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
 		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
+		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		return rootJ;
 	}
 
@@ -607,6 +649,8 @@ struct Weaver : Module {
 		newLoopOnReset = j && json_is_true(j);
 		j = json_object_get(rootJ, "hideZeroLevelTraces");
 		hideZeroLevelTraces = j && json_is_true(j);
+		j = json_object_get(rootJ, "speed");
+		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
 	}
 };
 
@@ -671,9 +715,13 @@ Weaver::Weaver() {
 		configLight(A_WAVE_LIGHT + 3 * i, op + " wave");
 	}
 	configButton<AlgorithmQuantity>(ALGORITHM_PARAM, "Algorithm");
-	configParam(WINDOW_PARAM, 0.f, 1.f, 0.f, "Envelope", "%", 0.f, 100.f);
+	configParam(LEGACY_ENVELOPE_PARAM, 0.f, 1.f, 0.f, "Envelope (old patches)")->randomizeEnabled = false;
+	configParam(ATTACK_PARAM, 0.f, 1.f, 0.f, "Envelope attack", "% of cycle", 0.f, 100.f);
+	configParam(DECAY_PARAM, 0.f, 1.f, 0.f, "Envelope decay", "% of cycle", 0.f, 100.f);
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
+	configButton(SPEED_DOWN_PARAM, "Half speed");
+	configButton(SPEED_UP_PARAM, "Double speed");
 	shapeui::configBpm(this, BPM_PARAM);
 	configButton(RESET_PARAM, "Reset");
 	for (int i = 0; i < 3; i++) {
@@ -731,7 +779,7 @@ static void upperCase(char* out, size_t size, const char* in) {
 
 // One cycle of the result (after range and treatment, before slew) over the
 // operators as dashed lines, with a playhead, the A B C legend, the preset
-// the settings match and the tempo.
+// the settings match, and the tempo with SPEED beside it.
 struct WeaverMainDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
@@ -771,12 +819,21 @@ struct WeaverMainDisplay : shapeui::Screen {
 				nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 				nvgText(vg, gx + gw / 2, baseline, title, nullptr);
 			}
-			char right[24];
-			snprintf(right, sizeof(right), "%.2f BPM", f.bpm);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(2.2f));
+			float right = gx + gw;
+			// SPEED, away from x1: the chosen one, dim until it takes over
+			if (f.speed != 0 || f.speedTarget != 0) {
+				const char* label = shapes::CycleSpeed::label(f.speedTarget);
+				nvgFillColor(vg, shapeui::screenColor(f.speed == f.speedTarget ? shapeui::inkColor() : shapeui::dividerColor()));
+				nvgText(vg, right, baseline, label, nullptr);
+				// Share Tech Mono advances 0.54 em; one space between
+				right -= mm2px((strlen(label) + 1) * 0.54f * 2.2f);
+			}
+			char bpm[24];
+			snprintf(bpm, sizeof(bpm), "%.2f BPM", f.bpm);
 			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
-			nvgText(vg, gx + gw, baseline, right, nullptr);
+			nvgText(vg, right, baseline, bpm, nullptr);
 		}
 
 		shapeui::TraceStyle dashed;
@@ -1081,21 +1138,26 @@ struct WeaverWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
 		// Algorithm, envelope and presets
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(42.13, 71.9)), module, Weaver::ALGORITHM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(51.13, 71.9)), module, Weaver::ALGORITHM_INPUT));
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(71.61, 71.9)), module, Weaver::WINDOW_PARAM));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(38.86, 71.9)), module, Weaver::ALGORITHM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.86, 71.9)), module, Weaver::ALGORITHM_INPUT));
+		addParam(createParamCentered<RoundSmallBlackKnob>(mm2px(Vec(64.36, 71.9)), module, Weaver::ATTACK_PARAM));
+		addParam(createParamCentered<RoundSmallBlackKnob>(mm2px(Vec(74.36, 71.9)), module, Weaver::DECAY_PARAM));
 #ifdef METAMODULE
 		// Plain buttons: process() steps the presets, as PresetButton never gets events here
-		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 88.8)), module, Weaver::PRESET_NEXT_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 88.8)), module, Weaver::PRESET_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 88.45)), module, Weaver::PRESET_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 88.45)), module, Weaver::PRESET_PREV_PARAM));
 #else
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 88.8)), module, Weaver::PRESET_NEXT_PARAM);
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 88.45)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 88.8)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 88.45)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 #endif
+
+		// SPEED: plain buttons, read in process() like ALGORITHM
+		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 98.5)), module, Weaver::SPEED_DOWN_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 98.5)), module, Weaver::SPEED_UP_PARAM));
 
 		// Clock row
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.3, 92.0)), module, Weaver::BPM_PARAM));
@@ -1103,16 +1165,16 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(31.865, 92.0)), module, Weaver::RESET_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(40.365, 92.0)), module, Weaver::RESET_INPUT));
 
-		// Outputs, and each operator's trace button over its output
+		// Outputs, and each operator's output over its trace button
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(11.215, 112.1)), module, Weaver::MAIN_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(24.955, 112.1)), module, Weaver::INV_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.695, 112.1)), module, Weaver::EOC_OUTPUT));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 103.0)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 103.0)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
-		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 103.0)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.59, 112.1)), module, Weaver::A_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(69.81, 112.1)), module, Weaver::B_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 112.1)), module, Weaver::C_OUTPUT));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 118.68)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 118.68)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
+		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 118.68)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.59, 110.18)), module, Weaver::A_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(69.81, 110.18)), module, Weaver::B_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 110.18)), module, Weaver::C_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {

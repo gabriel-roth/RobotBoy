@@ -4,23 +4,29 @@
 #  - Left column (1.50-89.24): display (full column width, 17-62.7; not
 #    4:3, about 1.9:1), then three 18.1 mm rows (control row top + 7.2,
 #    labels below at + 15.7). The plates on the right of the lower two rows
-#    are L-shaped, so they're opaque: each fill is its old 55% tint
-#    composited over the panel.
+#    interlock, so they're opaque: each fill is its old 55% tint composited
+#    over the panel.
 #    - Globals plate: a display naming the algorithm at its left end (26 x
 #      13.3, inset 2.4); then ALGORITHM (the button that pops up the
 #      algorithms + its CV jack, 9.0 apart, labelled together) and ENVELOPE
-#      (the WINDOW knob, knob-end marks above its sides), gaps after the
-#      display equalized by label width. The plate reaches down on the right
-#      (50.37-89.24, to 94.85, over half the clock row) for PRESET: a label
-#      and previous / next buttons side by side, chevrons beside.
-#    - Clock plate (1.50-48.37): CLOCK (BPM knob + CLOCK jack, 10.5 apart)
-#      and RESET (button + jack, 8.5 apart), 4.0 gaps.
-#    - Output plate: OUT, INV, EOC spread over the clock plate's width, OUT
-#      circled by a thin ring in the display's signal orange (the main
-#      trace's color). On the right the plate reaches up (from 96.85) for A,
-#      B, C: 10 mm tabs in their operator colors, each a lit latching button
-#      that shows or hides the operator's trace on the display, over the
-#      operator's output.
+#      (small ATTACK and DECAY knobs 10.0 apart, a rise mark 5.5 left of
+#      ATTACK and a fall mark 5.5 right of DECAY, level with the knobs), the
+#      three gaps after the display equal (5.91) with the marks counted in
+#      ENVELOPE's width. The plate reaches down on the right (50.37-89.24,
+#      to 92.1) for PRESET: a label and previous / next buttons side by
+#      side, chevrons beside, centered in 84.8-92.1.
+#    - Clock plate: an L. On the left (1.50-48.37, 84.8-102.9) CLOCK (BPM
+#      knob + CLOCK jack, 10.5 apart) and RESET (button + jack, 8.5 apart),
+#      4.0 gaps; it reaches right under PRESET (50.37-89.24, from 94.1) for
+#      SPEED, laid out like PRESET and centered in 94.1-102.9. Its bottom
+#      edge runs straight across; the inner corner round PRESET's plate is
+#      cut like the one above it.
+#    - Output plate: a plain rectangle. OUT, INV, EOC spread over the clock
+#      plate's width, OUT circled by a thin ring in the display's signal
+#      orange (the main trace's color). On the right, full-height stripes
+#      (10 mm wide) in the operator colors, unlabelled, each holding the
+#      operator's output over a lit latching button that shows or hides its
+#      trace on the display, 8.5 apart, centered in the stripe.
 #  - Operator rows (91.24-176.30): one plate per operator in the original JS
 #    prototype's operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
 #    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (heading size) in
@@ -57,26 +63,32 @@ zones:
   - {x: 91.24, y: 57.33, w: 85.06, h: 32.83, rx: 0, fill: "#235f5d", opacity: 1.0}
   - {x: 91.24, y: 90.16, w: 85.06, h: 32.83, rx: 2, fill: "#713957", opacity: 1.0}
   - {x: 91.24, y: 90.16, w: 85.06, h: 3.0, rx: 0, fill: "#713957", opacity: 1.0}
-  # Globals plate, reaching down on the right for PRESET (#b98f6a at 55%).
+  # Globals plate's row (#b98f6a at 55%); its right-hand part comes later.
   - {x: 1.50, y: 64.7, w: 87.74, h: 18.1, rx: 2, fill: "#816a56", opacity: 1.0}
-  - {x: 50.37, y: 64.7, w: 38.87, h: 30.15, rx: 2, fill: "#816a56", opacity: 1.0}
-  # Output plate, reaching up on the right for A, B, C (#9a9a9a at 55%).
+  # Output plate (#9a9a9a at 55%).
   - {x: 1.50, y: 104.9, w: 87.74, h: 18.1, rx: 2, fill: "#707070", opacity: 1.0}
-  - {x: 50.37, y: 96.85, w: 38.87, h: 26.15, rx: 2, fill: "#707070", opacity: 1.0}
-  # Rounded inner corners where the two L-shaped plates wrap the clock plate:
-  # fill each corner (overlapping the plates, so no seam), then cut it back with a panel-colored circle centered on
-  # the clock plate's corner arc (radius 2 + the 2 mm gap), so the gap stays
-  # 2 mm all the way round. The clock plate is drawn over the circles.
+  # Rounded inner corners: fill each corner (overlapping the plates, so no
+  # seam), then cut it back with a panel-colored circle centered on the
+  # wrapped plate's corner arc (radius 2 + the 2 mm gap), so the gap stays
+  # 2 mm all the way round. First, the globals plate round the clock plate's
+  # top right; the clock plate is drawn over its circle.
   - {x: 46.37, y: 81.8, w: 5.0, h: 5.0, rx: 0, fill: "#816a56", opacity: 1.0}
-  - {x: 46.37, y: 100.9, w: 5.0, h: 5.0, rx: 0, fill: "#707070", opacity: 1.0}
   - {x: 42.37, y: 82.8, w: 8.0, h: 8.0, rx: 4.0, fill: "#3d3d3d", opacity: 1.0}
-  - {x: 42.37, y: 96.9, w: 8.0, h: 8.0, rx: 4.0, fill: "#3d3d3d", opacity: 1.0}
-  - {x: 1.50, y: 84.8, w: 46.87, h: 18.1, rx: 2, fill: "#9aa883", opacity: 0.55}
+  # Clock plate (#9aa883 at 55%): the left part, the part under PRESET, a
+  # bridge between them (square, so the bottom edge runs straight), then
+  # its inner corner round the globals plate's bottom left, which the
+  # globals plate's right-hand part is drawn over.
+  - {x: 1.50, y: 84.8, w: 46.87, h: 18.1, rx: 2, fill: "#707864", opacity: 1.0}
+  - {x: 50.37, y: 94.1, w: 38.87, h: 8.8, rx: 2, fill: "#707864", opacity: 1.0}
+  - {x: 46.37, y: 94.1, w: 6.0, h: 8.8, rx: 0, fill: "#707864", opacity: 1.0}
+  - {x: 46.37, y: 89.1, w: 5.0, h: 5.0, rx: 0, fill: "#707864", opacity: 1.0}
+  - {x: 48.37, y: 86.1, w: 8.0, h: 8.0, rx: 4.0, fill: "#3d3d3d", opacity: 1.0}
+  - {x: 50.37, y: 64.7, w: 38.87, h: 27.4, rx: 2, fill: "#816a56", opacity: 1.0}
   - {x: 5.865, y: 106.75, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
   - {x: 6.615, y: 107.50, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
-  - {x: 52.59, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#785b24", opacity: 1.0}
-  - {x: 64.81, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#235f5d", opacity: 1.0}
-  - {x: 77.03, y: 98.35, w: 10.00, h: 23.35, rx: 1.5, fill: "#713957", opacity: 1.0}
+  - {x: 52.59, y: 104.9, w: 10.00, h: 18.1, rx: 0, fill: "#785b24", opacity: 1.0}
+  - {x: 64.81, y: 104.9, w: 10.00, h: 18.1, rx: 0, fill: "#235f5d", opacity: 1.0}
+  - {x: 77.03, y: 104.9, w: 10.00, h: 18.1, rx: 0, fill: "#713957", opacity: 1.0}
   - {x: 91.24, y: 17.0, w: 17.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
   - {x: 91.24, y: 20.75, w: 17.02, h: 3.75, rx: 0, fill: "#707070", opacity: 1.0}
   - {x: 108.26, y: 17.0, w: 34.02, h: 7.5, rx: 1.5, fill: "#707070", opacity: 1.0}
@@ -162,32 +174,35 @@ elements:
   # ALGORITHM: a display naming the algorithm at the plate's left end, inset 2.4 like the controls; the
   # button that pops up the algorithms and its CV jack carry the ALGORITHM label.
   - {name: ALGORITHM_SCREEN, kind: widget, rect: {x: 3.9, y: 67.10, w: 26.0, h: 13.3}}
-  - {name: ALGORITHM_PARAM, widget: VCVButton, x: 42.13, y: 71.9}
-  - {name: ALGORITHM_INPUT, x: 51.13, y: 71.9}
-  - {name: WINDOW_PARAM, x: 71.61, y: 71.9}
-  - {text: ALGORITHM, x: 46.63, y: 80.4, size: 3.175}
-  - {text: ENVELOPE, x: 71.61, y: 80.4, size: 3.175}   # the WINDOW control
+  - {name: ALGORITHM_PARAM, widget: VCVButton, x: 38.86, y: 71.9}
+  - {name: ALGORITHM_INPUT, x: 47.86, y: 71.9}
+  - {name: ATTACK_PARAM, widget: RoundSmallBlackKnob, x: 64.36, y: 71.9}
+  - {name: DECAY_PARAM, widget: RoundSmallBlackKnob, x: 74.36, y: 71.9}
+  - {text: ALGORITHM, x: 43.36, y: 80.4, size: 3.175}
+  - {text: ENVELOPE, x: 69.36, y: 80.4, size: 3.175}
   # PRESET steps through the factory presets (the original JS prototype's examples), previous / next.
-  - {text: PRESET, x: 60.70, y: 89.9, size: 3.175}
-  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 74.00, y: 88.8}
-  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 80.60, y: 88.8}
+  - {text: PRESET, x: 60.70, y: 89.55, size: 3.175}
+  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 74.00, y: 88.45}
+  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 80.60, y: 88.45}
 
-  # --- Output plate: the main outputs, then each operator's trace button over its output.
+  # --- Clock plate's right-hand part: SPEED halves / doubles the cycle's speed, laid out like PRESET.
+  - {text: SPEED, x: 60.70, y: 99.6, size: 3.175}
+  - {name: SPEED_DOWN_PARAM, widget: TL1105, x: 74.00, y: 98.5}
+  - {name: SPEED_UP_PARAM, widget: TL1105, x: 80.60, y: 98.5}
+
+  # --- Output plate: the main outputs, then each operator's output over its trace button.
   - {name: MAIN_OUTPUT, x: 11.215, y: 112.1}
   - {text: OUT, x: 11.215, y: 120.6, size: 3.175}
   - {name: INV_OUTPUT, x: 24.955, y: 112.1}
   - {text: INV, x: 24.955, y: 120.6, size: 3.175}
   - {name: EOC_OUTPUT, x: 38.695, y: 112.1}
   - {text: EOC, x: 38.695, y: 120.6, size: 3.175}
-  - {name: A_TRACE_PARAM, widget: VCVButton, x: 57.59, y: 103.0}
-  - {name: B_TRACE_PARAM, widget: VCVButton, x: 69.81, y: 103.0}
-  - {name: C_TRACE_PARAM, widget: VCVButton, x: 82.03, y: 103.0}
-  - {name: A_OUTPUT, x: 57.59, y: 112.1}
-  - {text: A, x: 57.59, y: 120.6, size: 3.175}
-  - {name: B_OUTPUT, x: 69.81, y: 112.1}
-  - {text: B, x: 69.81, y: 120.6, size: 3.175}
-  - {name: C_OUTPUT, x: 82.03, y: 112.1}
-  - {text: C, x: 82.03, y: 120.6, size: 3.175}
+  - {name: A_TRACE_PARAM, widget: VCVButton, x: 57.59, y: 118.68}
+  - {name: B_TRACE_PARAM, widget: VCVButton, x: 69.81, y: 118.68}
+  - {name: C_TRACE_PARAM, widget: VCVButton, x: 82.03, y: 118.68}
+  - {name: A_OUTPUT, x: 57.59, y: 110.18}
+  - {name: B_OUTPUT, x: 69.81, y: 110.18}
+  - {name: C_OUTPUT, x: 82.03, y: 110.18}
 
 connectors:
   - [A_RATIO_PARAM, A_RATIO_INPUT]
@@ -213,12 +228,14 @@ connectors:
   - [C_LEVEL_ATTEN_PARAM, C_LEVEL_INPUT]
 
 glyphs:
-  # WINDOW's ends, above the knob's sides (its label sits below).
-  - {src: glyphs/weaver/window-off.svg,  at: [65.11, 67.30]}
-  - {src: glyphs/weaver/window-full.svg, at: [78.11, 67.30]}
-  # PRESET's directions, beside its buttons.
-  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 88.8]}
-  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 88.8]}
+  # ENVELOPE: a rise beside ATTACK and a fall beside DECAY, outside the pair.
+  - {src: glyphs/weaver/attack.svg, at: [58.86, 71.9]}
+  - {src: glyphs/weaver/decay.svg,  at: [79.86, 71.9]}
+  # PRESET's and SPEED's directions, beside their buttons.
+  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 88.45]}
+  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 88.45]}
+  - {src: glyphs/weaver/step-back.svg,    at: [69.50, 98.5]}
+  - {src: glyphs/weaver/step-forward.svg, at: [85.10, 98.5]}
   # Arrows from each Wave display's PARAM name to the PARAM knob, level with both.
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 31.59]}
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 64.42]}
