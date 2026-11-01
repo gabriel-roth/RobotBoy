@@ -75,6 +75,13 @@ public:
 	// Drops the phase offsets left by ratio changes, so every operator lines
 	// up with the cycle again (a preset load). The output may jump.
 	void realign();
+	// The next process() takes any ratio change as made at master position t
+	// (a cycle start just behind it) rather than at its own: whole-number
+	// ratios changed at a cycle start then stay lined up with the cycle.
+	void ratioChangesAt(double t) {
+		changeAt = t;
+		haveChangeAt = true;
+	}
 	// Points of the formula peak scan done per sample. 0, the default, does
 	// each scan in one sample; a spread scan takes 256 / pointsPerSample
 	// samples, during which Fit uses the last scan's peak as well.
@@ -102,6 +109,8 @@ private:
 
 	// Per operator
 	double offset[3] = {};
+	double changeAt = 0.0;
+	bool haveChangeAt = false;
 	double lastRatio[3] = {};
 	bool haveRatio[3] = {};
 	Slew slew[3];

@@ -302,10 +302,12 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 	double te = mirror(t, reverse);
 
 	// A ratio change moves the offset so the phase carries on from where it was
+	double tc = haveChangeAt ? mirror(sanitize(changeAt, te), reverse) : te;
+	haveChangeAt = false;
 	for (int i = 0; i < 3; i++) {
 		double ratio = ratioValue(c.op[i].ratio);
 		if (haveRatio[i] && ratio != lastRatio[i])
-			offset[i] += te * (lastRatio[i] - ratio);
+			offset[i] += tc * (lastRatio[i] - ratio);
 		lastRatio[i] = ratio;
 		haveRatio[i] = true;
 	}

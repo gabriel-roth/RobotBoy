@@ -18,6 +18,8 @@ static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
 // Operator traces on the main display are clamped to this.
 static constexpr float kOperatorLimit = 1.2f;
+// How long the outputs take to glide to a newly loaded preset's shape.
+static constexpr float kRealignGlideS = 0.01f;
 
 static const char* const kWaveNames[shapes::kNumWaves] = {
 	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Stepped random loop", "Smooth random loop", "Input",
@@ -44,7 +46,8 @@ struct WeaverFrame {
 	float scaled[3][kTracePoints] = {};  // each operator times its LEVEL
 	float wave[3][kWavePoints] = {};  // one cycle of each operator's wave
 	int waves[3] = {};
-	int ratios[3] = {};
+	int ratios[3] = {};  // running
+	int ratioTargets[3] = {};  // chosen (knob + CV), waiting for a cycle start
 	bool shown[3] = {};  // LEVEL != 0
 	bool traceOn[3] = {true, true, true};  // the TRACE buttons
 	int algorithm = 0;  // the one running
@@ -68,6 +71,7 @@ struct WeaverSnapshot {
 	float bpm = 120.f;
 	int speed = 0;
 	int speedTarget = 0;
+	int ratioTargets[3] = {};
 	// The last cycle as it played, one slot per point of the open trace, for
 	// the traces that have no formula: Input operators and a result using
 	// them. Copied only when an operator is an Input.
@@ -103,6 +107,7 @@ static void renderFormulas(WeaverFrame& f, const shapes::CombineEngine& e, const
 		}
 		f.waves[i] = c.op[i].wave;
 		f.ratios[i] = c.op[i].ratio;
+		f.ratioTargets[i] = c.op[i].ratio;
 		f.shown[i] = c.op[i].level != 0.0;
 	}
 	f.algorithm = c.algorithm;
@@ -128,6 +133,8 @@ static void buildFrame(WeaverFrame& f, const WeaverSnapshot& s) {
 	f.bpm = s.bpm;
 	f.speed = s.speed;
 	f.speedTarget = s.speedTarget;
+	for (int i = 0; i < 3; i++)
+		f.ratioTargets[i] = s.ratioTargets[i];
 }
 
 struct Weaver : Module {
@@ -224,6 +231,11 @@ struct Weaver : Module {
 	bool newLoopOnReset = false;
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
+	// A new ratio waits for a cycle start where it stays lined up with the
+	// cycle (see holdRatios())
+	bool ratioAtCycleEnd = true;
+	int heldRatios[3] = {};
+	int chosenRatios[3] = {};
 	// The main display leaves out operators at LEVEL 0
 	bool hideZeroLevelTraces = false;
 	int heldAlgorithm = 0;
@@ -233,6 +245,11 @@ struct Weaver : Module {
 	// Line the operators up with the cycle again (a preset load), dropping
 	// the phase offsets that keep ratio changes smooth. Set like algorithmNow.
 	std::atomic<bool> realignNow{false};
+	// Take the chosen ratios now (load, undo), without realigning
+	std::atomic<bool> ratiosNow{true};
+	// After a realign the outputs glide to the new shape over this many
+	// samples, counting down
+	int glideLeft = 0;
 
 	shapes::Timebase timebase;
 	shapes::CycleSpeed speed;
@@ -322,6 +339,7 @@ struct Weaver : Module {
 		speed.jumpTo(0);
 		settings.reset();
 		algorithmAtCycleEnd = false;
+		ratioAtCycleEnd = true;
 		newLoopOnReset = false;
 		hideZeroLevelTraces = false;
 	}
@@ -472,6 +490,37 @@ struct Weaver : Module {
 		}
 	}
 
+	// With ratioAtCycleEnd, each operator keeps its running ratio until a
+	// cycle start where the change leaves a whole-number phase offset, so the
+	// operator stays lined up with the cycle: the next one for the whole-number
+	// ratios, up to 8 cycles for 1/2, 1/4 and 1/8. Otherwise, or on a preset
+	// load, a change is taken at once.
+	void holdRatios(shapes::CombineControls& c, double t, bool cycleStart, bool now) {
+		double start = std::floor(t);
+		bool aligned = false;
+		for (int i = 0; i < 3; i++) {
+			int chosen = c.op[i].ratio;
+			chosenRatios[i] = chosen;
+			if (chosen == heldRatios[i])
+				continue;
+			if (now || !ratioAtCycleEnd) {
+				heldRatios[i] = chosen;
+				continue;
+			}
+			if (!cycleStart)
+				continue;
+			double turns = start * (shapes::ratioValue(heldRatios[i]) - shapes::ratioValue(chosen));
+			if (turns == std::floor(turns)) {
+				heldRatios[i] = chosen;
+				aligned = true;
+			}
+		}
+		for (int i = 0; i < 3; i++)
+			c.op[i].ratio = heldRatios[i];
+		if (aligned)
+			engine.ratioChangesAt(start);
+	}
+
 	// The buttons, controls, engine, display history and lights, at control
 	// rate, at t cycles since reset: sets the outputs' next ramps
 	void evaluate(double t, bool cycleStart) {
@@ -519,10 +568,14 @@ struct Weaver : Module {
 		if (algorithmNow.exchange(false, std::memory_order_acquire) || !algorithmAtCycleEnd || cycleStart)
 			heldAlgorithm = targetAlgorithm();
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
+		bool realign = realignNow.exchange(false, std::memory_order_acquire);
+		holdRatios(c, t, cycleStart, realign || ratiosNow.exchange(false, std::memory_order_acquire));
 		evalControls = c;
 
-		if (realignNow.exchange(false, std::memory_order_acquire))
+		if (realign) {
 			engine.realign();
+			glideLeft = (int) (kRealignGlideS * sampleRate);
+		}
 		shapes::CombineFrame f = engine.process(c, t, false);
 
 		double v[4];
@@ -538,12 +591,14 @@ struct Weaver : Module {
 			v[1 + i] = shapes::treat(r, opMode, 1.0);
 		}
 		for (int i = 0; i < 4; i++) {
+			// A realign's jump becomes a glide that lands on the new shape
 			if (rampStarted)
-				ramps[i].target(v[i], shapes::kControlInterval);
+				ramps[i].target(v[i], std::max(shapes::kControlInterval, glideLeft));
 			else
 				ramps[i].jump(v[i]);
 		}
 		rampStarted = true;
+		glideLeft = std::max(glideLeft - shapes::kControlInterval, 0);
 
 		historyWrite = clamp((int) std::lround((t - std::floor(t)) * (kTracePoints - 1)), 0, kTracePoints - 1);
 		historyResult[historyWrite] = (float) v[0];
@@ -585,6 +640,8 @@ struct Weaver : Module {
 		s.bpm = (float) timebase.tempoBpm();
 		s.speed = speed.octaves();
 		s.speedTarget = speed.targetOctaves();
+		for (int i = 0; i < 3; i++)
+			s.ratioTargets[i] = chosenRatios[i];
 		frontSnapshot.store(back, std::memory_order_release);
 		publishCount.fetch_add(1, std::memory_order_release);
 	}
@@ -605,6 +662,7 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "newLoopOnReset", json_boolean(newLoopOnReset));
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
+		json_object_set_new(rootJ, "ratioAtCycleEnd", json_boolean(ratioAtCycleEnd));
 		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		return rootJ;
@@ -639,12 +697,16 @@ struct Weaver : Module {
 			algorithm = (int) json_integer_value(j);
 		j = json_object_get(rootJ, "algorithmAtCycleEnd");
 		algorithmAtCycleEnd = j && json_is_true(j);
+		// Missing (a patch from before the option): the default
+		j = json_object_get(rootJ, "ratioAtCycleEnd");
+		ratioAtCycleEnd = !j || json_is_true(j);
 		j = json_object_get(rootJ, "newLoopOnReset");
 		newLoopOnReset = j && json_is_true(j);
 		j = json_object_get(rootJ, "hideZeroLevelTraces");
 		hideZeroLevelTraces = j && json_is_true(j);
 		j = json_object_get(rootJ, "speed");
 		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
+		ratiosNow.store(true, std::memory_order_release);
 	}
 };
 
@@ -969,7 +1031,9 @@ struct RatioDisplay : shapeui::Screen {
 	void drawScreen(NVGcontext* vg) override {
 		const WeaverFrame& f = frameOf(module);
 		int wave = f.waves[op];
-		int ratio = clamp(f.ratios[op], 0, shapes::kNumRatios - 1);
+		// The chosen ratio, dim until it takes over
+		int ratio = clamp(f.ratioTargets[op], 0, shapes::kNumRatios - 1);
+		bool waiting = wave != shapes::Input && ratio != f.ratios[op];
 		const char* text = wave == shapes::Input ? "IN" : shapes::ratioLabel(ratio);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
@@ -977,7 +1041,7 @@ struct RatioDisplay : shapeui::Screen {
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
 		shapeui::fontSize(vg, mm2px(3.2f));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+		nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::inkColor()));
 		nvgText(vg, box.size.x / 2, box.size.y / 2 + mm2px(1.1f), text, nullptr);
 	}
 };
@@ -1183,6 +1247,11 @@ struct WeaverWidget : ModuleWidget {
 			[=]() { return module->algorithmAtCycleEnd ? 1 : 0; },
 			[=](int i) {
 				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Ratio changes", {"Immediately", "At end of cycle"},
+			[=]() { return module->ratioAtCycleEnd ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "set ratio change timing", [=]() { module->ratioAtCycleEnd = i == 1; });
 			}));
 		menu->addChild(createBoolMenuItem("New random loops on reset", "",
 			[=]() { return module->newLoopOnReset; },

@@ -542,6 +542,25 @@ static void realignLinesUpWithTheCycle() {
 		check(std::fabs(e.resultAt(c, 2.0 + p, false) - clean.resultAt(c, p, false)) <= 1e-12, "realigned", (int) (p * 100));
 }
 
+// A ratio change applied at a cycle start, with ratioChangesAt() given that
+// exact start, leaves a whole-number offset: the operators stay lined up with
+// the cycle, though the sample processed is just past the start.
+static void ratioChangeAtCycleStartStaysAligned() {
+	CombineControls c = kWeaverPresets[7].controls;
+	CombineEngine e;
+	e.setSampleRate(48000.0);
+	double t = 0.0;
+	for (; t < 3.0; t += 0.000731)
+		e.process(c, t, false);
+	c.op[0].ratio = 5;
+	c.op[1].ratio = 6;
+	e.ratioChangesAt(3.0);
+	e.process(c, t, false);
+	CombineEngine clean;
+	for (double p : {0.0, 0.13, 0.5, 0.77})
+		check(std::fabs(e.resultAt(c, 4.0 + p, false) - clean.resultAt(c, p, false)) <= 1e-9, "aligned at cycle start", (int) (p * 100));
+}
+
 int main() {
 	ratioTable();
 	wavesMatch();
@@ -560,6 +579,7 @@ int main() {
 	presetMatchFindsDefault();
 	loopWavesRepeatEachCycle();
 	realignLinesUpWithTheCycle();
+	ratioChangeAtCycleStartStaysAligned();
 	if (failures) {
 		std::printf("test_combine: %d failures\n", failures);
 		return 1;
