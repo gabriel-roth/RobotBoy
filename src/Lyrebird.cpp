@@ -1468,12 +1468,12 @@ struct LyrebirdWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set knob range", [=]() { module->knobRange = (Lyrebird::KnobRange) i; });
 			}));
-		menu->addChild(createIndexSubmenuItem("Record buttons", {"Toggle", "Hold"},
+		menu->addChild(createIndexSubmenuItem("Record buttons", {"Latch", "Press"},
 			[=]() { return (int) module->recordButtons; },
 			[=](int i) {
 				withMenuUndo(module, "set record buttons", [=]() { module->recordButtons = (shapes::RecordButtons) i; });
 			}));
-		menu->addChild(createIndexSubmenuItem("Reverse button", {"Toggle", "Hold"},
+		menu->addChild(createIndexSubmenuItem("Reverse button", {"Latch", "Press"},
 			[=]() { return (int) module->reverseButton; },
 			[=](int i) {
 				// Switching starts forward, rather than in a state left over from Toggle
