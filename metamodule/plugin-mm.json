@@ -27,7 +27,8 @@
                 "Shape CV In", "Feedback CV In", "Reverb CV In", "Dry/wet CV In",
                 "Audio L Out", "Audio R Out", "Grain gate Out"]
     },
-    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes" },
+    { "slug": "Ondes", "name": "Ondes", "displayName": "Ondes",
+      "names": { "Display 0": "Display" } },
     { "slug": "Vespid", "name": "Vespid", "displayName": "Vespid" },
     { "slug": "Retours", "name": "Retours", "displayName": "Retours",
       "order": ["Slice", "Quality", "Tap tempo",
@@ -39,7 +40,8 @@
                 "Shape CV In", "Feedback CV In", "Reverb CV In", "Dry/wet CV In",
                 "Audio L Out", "Audio R Out", "Repeat gate Out"]
     },
-    { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne" },
+    { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne",
+      "names": { "Display 0": "Display" } },
     { "slug": "Brume", "name": "Brume", "displayName": "Brume",
       "order": ["Rise", "Fall", "Follower source", "Sidechain In", "Envelope Out",
                 "Send", "Wow & flutter", "Filter", "Smear", "Pre-delay",
@@ -55,12 +57,13 @@
                 "Audio L In", "Audio R In", "Mode", "Quality", "Clear", "Clear trigger In",
                 "Audio L Out", "Audio R Out"]
     },
-    { "slug": "Skylark", "name": "Skylark", "displayName": "Skylark" },
+    { "slug": "Skylark", "name": "Skylark", "displayName": "Skylark",
+      "names": { "Display 0": "Display" } },
     { "slug": "Weaver", "name": "Weaver", "displayName": "Weaver",
       "groups": {
-        "Operator A": ["A ratio", "A wave", "A param", "A phase", "A level", "A param CV amount (Input: gain)", "A phase CV amount", "A level CV amount", "A trace on the display", "A ratio CV In", "A param CV (Input: the signal) In", "A phase CV In", "A level CV In", "Operator A Out"],
-        "Operator B": ["B ratio", "B wave", "B param", "B phase", "B level", "B param CV amount (Input: gain)", "B phase CV amount", "B level CV amount", "B trace on the display", "B ratio CV In", "B param CV (Input: the signal) In", "B phase CV In", "B level CV In", "Operator B Out"],
-        "Operator C": ["C ratio", "C wave", "C param", "C phase", "C level", "C param CV amount (Input: gain)", "C phase CV amount", "C level CV amount", "C trace on the display", "C ratio CV In", "C param CV (Input: the signal) In", "C phase CV In", "C level CV In", "Operator C Out"]
+        "Operator A": ["A ratio", "A wave", "A param", "A phase", "A level", "A param CV amount (Input: gain)", "A phase CV amount", "A level CV amount", "A trace on the display", "A ratio CV In", "A param CV (Input: the signal) In", "A phase CV In", "A level CV In", "Operator A Out", "Display 2", "Display 5"],
+        "Operator B": ["B ratio", "B wave", "B param", "B phase", "B level", "B param CV amount (Input: gain)", "B phase CV amount", "B level CV amount", "B trace on the display", "B ratio CV In", "B param CV (Input: the signal) In", "B phase CV In", "B level CV In", "Operator B Out", "Display 3", "Display 6"],
+        "Operator C": ["C ratio", "C wave", "C param", "C phase", "C level", "C param CV amount (Input: gain)", "C phase CV amount", "C level CV amount", "C trace on the display", "C ratio CV In", "C param CV (Input: the signal) In", "C phase CV In", "C level CV In", "Operator C Out", "Display 4", "Display 7"]
       },
       "names": {
         "A ratio": "Ratio",
@@ -104,10 +107,19 @@
         "C param CV (Input: the signal) In": "Param CV (Input: the signal) In",
         "C phase CV In": "Phase CV In",
         "C level CV In": "Level CV In",
-        "Operator C Out": "Out"
+        "Operator C Out": "Out",
+        "Display 0": "Display",
+        "Display 1": "Algorithm display",
+        "Display 2": "Wave display",
+        "Display 3": "Wave display",
+        "Display 4": "Wave display",
+        "Display 5": "Ratio display",
+        "Display 6": "Ratio display",
+        "Display 7": "Ratio display"
       }
     },
-    { "slug": "Lyrebird", "name": "Lyrebird", "displayName": "Lyrebird" }
+    { "slug": "Lyrebird", "name": "Lyrebird", "displayName": "Lyrebird",
+      "names": { "Display 0": "Display" } }
 
   ]
 }
