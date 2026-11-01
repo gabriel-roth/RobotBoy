@@ -49,6 +49,10 @@ title:
   x: 36.995
   dy: 2.75
 
+theme:
+  # Softer than the white labels: white at 88% over the #3d3d3d panel, as a flat color.
+  title_color: "#e8e8e8"
+
 zones:
   # Display background.
   - {x: 1.5, y: 17.0, w: 62.88, h: 47.16, rx: 2, fill: "#0c0e10", opacity: 1.0}

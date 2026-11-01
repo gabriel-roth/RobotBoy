@@ -34,6 +34,10 @@ title:
   x: 36.103
   dy: 2.75
 
+theme:
+  # Softer than the white labels: white at 88% over the #3d3d3d panel, as a flat color.
+  title_color: "#e8e8e8"
+
 zones:
   # Under the display (hidden by it): only its arrow shows, pointing into the
   # top plate's notch at the VARIATION jack, for the output->VARIATION feedback.
