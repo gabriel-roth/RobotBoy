@@ -28,11 +28,7 @@ struct Rig {
 	LyrebirdStep step() {
 		last = tb.process(in);
 		in.resetButton = false;
-		LyrebirdStep s = eng.process(c, last);
-		// As the module does
-		if (s.restartTransport)
-			tb.reset();
-		return s;
+		return eng.process(c, last);
 	}
 	double bars() const {
 		return (double) last.cycle + last.pos;
@@ -130,8 +126,9 @@ static void syncOnceTakeStartsAtPress() {
 	int n = 0;
 	r.c.source = 0.5 / 96000.0;
 	LyrebirdStep s = r.pressRec();
-	assert(s.status == Status::Recording && s.restartTransport);
-	assert(r.tb.position() == 0.0);
+	assert(s.status == Status::Recording);
+	// The transport carries on: the take is placed by time since the press
+	assert(r.tb.position() > 2.5);
 	s = r.run(96000 + 200, [&](int) {
 		n++;
 		r.c.source = (n + 0.5) / 96000.0;
@@ -147,13 +144,38 @@ static void syncOnceTakeStartsAtPress() {
 	// once the declick has settled, it tracks the take's opening
 	s = r.run(2400);
 	assert(std::fabs(s.volts - 2401.0 / 96000.0) < 0.002);
+}
 
-	// In LOOP, REC leaves the transport alone
-	Rig l;
-	l.runTo(0.5);
-	s = l.pressRec();
-	assert(s.status == Status::Recording && !s.restartTransport);
-	assert(l.tb.position() > 0.5);
+static void syncOnceWithClockKeepsStart() {
+	// With a clock in, the take still starts at the press: nothing pulls the
+	// transport back to the next pulse and writes over the opening
+	Rig r;
+	r.c.loop = false;
+	r.c.lengthIndex = 2;  // 1 bar
+	r.in.clockConnected = true;
+	const long pulse = 24000;  // 4 per bar at 120 BPM
+	long n = 0;
+	auto clock = [&](int) {
+		r.in.clockVoltage = (n % pulse) < 48 ? 10.f : 0.f;
+		r.c.source = n / kSr;
+		n++;
+	};
+	r.run(8 * pulse + 7000, clock);
+	long pressAt = n;
+	clock(0);
+	LyrebirdStep s = r.pressRec();
+	assert(s.status == Status::Recording);
+	int recording = 1;
+	for (int i = 0; i < 120000; i++) {
+		clock(0);
+		if (r.step().status == Status::Recording)
+			recording++;
+	}
+	assert(std::abs(recording - 96000) <= 2);
+	const Take& t = r.eng.take();
+	assert(t.length == 2000);
+	for (int i = 0; i < 2000; i++)
+		assert(std::fabs(t.samples[i] - (pressAt / kSr + i / 1000.0)) < 0.002);
 }
 
 static void syncTakeStopsItself() {
@@ -801,6 +823,7 @@ static void versionsUniqueAcrossBuffers() {
 int main() {
 	syncTakeStartsMidBarAndWraps();
 	syncOnceTakeStartsAtPress();
+	syncOnceWithClockKeepsStart();
 	syncTakeStopsItself();
 	syncTakeFullUnderTempoChange();
 	syncEarlyStopHoldsLast();

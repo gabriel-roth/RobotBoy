@@ -141,6 +141,11 @@ int LyrebirdEngine::syncIndex(double x) const {
 	return k >= t.length ? k - t.length : std::max(k, 0);
 }
 
+int LyrebirdEngine::elapsedIndex(const Take& t) const {
+	int k = (int) std::floor(recElapsed_ / t.bars * t.length + 0.5);
+	return k >= t.length ? k - t.length : std::max(k, 0);
+}
+
 void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 	if (status_ == Status::Punching || punchTail_)
 		endPunch();
@@ -160,6 +165,10 @@ void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 		recElapsed_ = 0.0;
 		recSegX_ = x;
 		recSegBase_ = 0.0;
+		// ONCE plays from TRIG, not from the bar, so its take starts at the
+		// press: placed by transport travelled since then, the gesture isn't
+		// rotated by wherever the bar happened to be
+		recByElapsed_ = !c.loop;
 	}
 	else {
 		t->mode = TakeMode::Free;
@@ -191,7 +200,7 @@ void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Ste
 			endRec(true);
 			return;
 		}
-		int k = syncIndex(x);
+		int k = recByElapsed_ ? elapsedIndex(t) : syncIndex(x);
 		if (blockIdx_ < 0)
 			recStart_ = k;
 		else if (k != blockIdx_) {
@@ -459,13 +468,6 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			break;
 		default:
 			break;
-	}
-	// A Sync ONCE take starts its pass where it starts, as TRIG would, so the
-	// gesture isn't rotated by wherever the bar happened to be
-	if (status_ == Status::Recording && statusIn != Status::Recording && c.sync && !c.loop) {
-		x = 0.0;
-		recSegX_ = 0.0;
-		out.restartTransport = true;
 	}
 	// A press used by REC above mustn't also start a punch below
 	if (status_ != statusIn || recByPunch_)

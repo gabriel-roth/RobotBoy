@@ -39,7 +39,6 @@ struct LyrebirdStep {
 	double playhead = 0;  // 0..1 within the take
 	Status status = Status::Idle;
 	bool hitLimit = false;  // a Free take reached 3 min this sample
-	bool restartTransport = false;  // a Sync ONCE take started: the host resets the transport, as on TRIG
 };
 
 // Records and plays back one gesture. The UI thread never touches the audio
@@ -128,6 +127,8 @@ private:
 	void endRec(bool full);
 	void abandonRec();
 	int syncIndex(double x) const;
+	// Sync ONCE: the index recElapsed_ has reached
+	int elapsedIndex(const Take& t) const;
 	// Punch-in
 	void startPunch(double raw);
 	void punchSample(const LyrebirdControls& c, Take& t, double ph, int maxStep);
@@ -190,6 +191,7 @@ private:
 	double recElapsed_ = 0.0;  // Sync: bars of transport so far
 	double recSegX_ = 0.0;  // Sync: transport position where counting last restarted
 	double recSegBase_ = 0.0;
+	bool recByElapsed_ = false;  // Sync: placed by time since the press (ONCE), not by bar position
 	int64_t recSamples_ = 0;  // Free: audio samples recorded
 	std::vector<uint8_t> written_;  // Sync: indices written, so stop can fill the rest
 
