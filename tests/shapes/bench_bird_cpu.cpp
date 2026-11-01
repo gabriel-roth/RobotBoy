@@ -183,6 +183,11 @@ struct Noise {
 	}
 };
 
+// The worst cases run the engines as the modules do, every kControlInterval
+// samples with the outputs ramped between; --per-sample (before the mode)
+// runs them every sample, as before control rate
+static int gRate = kControlInterval;
+
 // --still holds every control at its base value, for the static cost;
 // --jitter holds them too, but with the noise
 static bool gStill = false;
@@ -249,9 +254,11 @@ static void skylarkWorst(const char* name, int shape, double drift, double varia
 	static TimebaseInput in;
 	static Noise nz;
 	static int since;
+	static Ramp ramp;
 	worstCase(name, [&] {
 		e = SkylarkEngine();
-		e.setScanSpread(1);
+		e.setScanSpread(gRate > 1 ? 2 : 1);
+		ramp = Ramp();
 		tb = Timebase();
 		tb.setSampleRate(kSr);
 		in = TimebaseInput();
@@ -259,18 +266,22 @@ static void skylarkWorst(const char* name, int shape, double drift, double varia
 		nz = Noise();
 		since = 0;
 	}, [&](int i) {
-		SkylarkControls c;
-		c.shape = shape;
-		c.variation = moving(nz, i, 0.5, 0.45, variationHz);
-		// Away from 0, where the transforms could skip work
-		c.timing = moving(nz, i, 0.3, 0.5, 0.13, -1.0, 1.0);
-		c.lift = moving(nz, i, -0.2, 0.5, 0.17, -1.0, 1.0);
-		c.symmetry = moving(nz, i, 0.25, 0.5, 0.11, -1.0, 1.0);
-		c.tilt = moving(nz, i, 0.15, 0.5, 0.19, -1.0, 1.0);
-		c.drift = drift > 0.0 ? moving(nz, i, drift, 0.0, 0.0) : 0.0;
 		Timebase::Step s = tb.process(in);
-		e.setControls(c);
-		double v = toVolts(treat(e.raw(s.pos, s.cycle), Treat::Fit, e.peak()), Range::Bipolar5);
+		double v = 0.0;
+		if (i % gRate == 0) {
+			SkylarkControls c;
+			c.shape = shape;
+			c.variation = moving(nz, i, 0.5, 0.45, variationHz);
+			// Away from 0, where the transforms could skip work
+			c.timing = moving(nz, i, 0.3, 0.5, 0.13, -1.0, 1.0);
+			c.lift = moving(nz, i, -0.2, 0.5, 0.17, -1.0, 1.0);
+			c.symmetry = moving(nz, i, 0.25, 0.5, 0.11, -1.0, 1.0);
+			c.tilt = moving(nz, i, 0.15, 0.5, 0.19, -1.0, 1.0);
+			c.drift = drift > 0.0 ? moving(nz, i, drift, 0.0, 0.0) : 0.0;
+			e.setControls(c);
+			ramp.target(toVolts(treat(e.raw(s.pos, s.cycle), Treat::Fit, e.peak()), Range::Bipolar5), gRate);
+		}
+		v += ramp.next();
 		if (++since >= kPublishInterval) {
 			since = 0;
 			snapshot = e;
@@ -286,31 +297,39 @@ static void weaverWorst(const char* name, CombineControls base) {
 	static TimebaseInput in;
 	static Noise nz;
 	static int since;
+	static Ramp ramps[4];
 	worstCase(name, [&] {
 		e = CombineEngine();
-		e.setSampleRate(kSr);
+		e.setSampleRate(kSr / gRate);
 		e.setScanSpread(1);
+		for (Ramp& r : ramps)
+			r = Ramp();
 		tb = Timebase();
 		tb.setSampleRate(kSr);
 		in = TimebaseInput();
 		nz = Noise();
 		since = 0;
 	}, [&](int i) {
-		CombineControls c = base;
-		for (int k = 0; k < 3; k++) {
-			OperatorControls& o = c.op[k];
-			o.param = moving(nz, i, 0.5, 0.4, 0.1 + 0.07 * k);
-			o.phase = moving(nz, i, 0.25, 0.2, 0.05 + 0.03 * k);
-			o.level = moving(nz, i, 0.7, 0.25, 0.09 + 0.04 * k);
-			if (o.wave == Input)
-				o.inputVolts = moving(nz, i, 0.0, 2.0, 3 + k, -5.0, 5.0);
-		}
-		c.window = moving(nz, i, 0.5, 0.4, 0.07);
 		Timebase::Step s = tb.process(in);
 		if (s.wrapped)
 			e.cycleWrapped();
-		CombineFrame f = e.process(c, (double) s.cycle + s.pos, false);
-		double v = toVolts(treat(f.result, Treat::Fit, e.peak()), Range::Bipolar5);
+		if (i % gRate == 0) {
+			CombineControls c = base;
+			for (int k = 0; k < 3; k++) {
+				OperatorControls& o = c.op[k];
+				o.param = moving(nz, i, 0.5, 0.4, 0.1 + 0.07 * k);
+				o.phase = moving(nz, i, 0.25, 0.2, 0.05 + 0.03 * k);
+				o.level = moving(nz, i, 0.7, 0.25, 0.09 + 0.04 * k);
+				if (o.wave == Input)
+					o.inputVolts = moving(nz, i, 0.0, 2.0, 3 + k, -5.0, 5.0);
+			}
+			c.window = moving(nz, i, 0.5, 0.4, 0.07);
+			CombineFrame f = e.process(c, (double) s.cycle + s.pos, false);
+			ramps[0].target(toVolts(treat(f.result, Treat::Fit, e.peak()), Range::Bipolar5), gRate);
+			for (int k = 0; k < 3; k++)
+				ramps[1 + k].target(toVolts(treat(f.raw[k], Treat::Clip, 1.0), Range::Bipolar5), gRate);
+		}
+		double v = ramps[0].next() + ramps[1].next() + ramps[2].next() + ramps[3].next();
 		if (++since >= kPublishInterval) {
 			since = 0;
 			snapshot = e;
@@ -331,6 +350,7 @@ static void lyrebirdWorst(const char* name, double smoothBase, bool loop) {
 		e.~LyrebirdEngine();
 		new (&e) LyrebirdEngine();
 		e.setSampleRate(kSr);
+		e.setControlInterval(gRate);
 		tb = Timebase();
 		tb.setSampleRate(kSr);
 		in = TimebaseInput();
@@ -453,6 +473,11 @@ static void particules() {
 #endif
 
 int main(int argc, char** argv) {
+	if (argc > 1 && !strcmp(argv[1], "--per-sample")) {
+		gRate = 1;
+		argc--;
+		argv++;
+	}
 	if (argc > 1 && (!strcmp(argv[1], "--worst") || !strcmp(argv[1], "--still") || !strcmp(argv[1], "--jitter"))) {
 		gStill = !strcmp(argv[1], "--still");
 		gJitter = !strcmp(argv[1], "--jitter");
