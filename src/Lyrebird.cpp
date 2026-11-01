@@ -1338,7 +1338,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 		shapeui::fontSize(vg, headerPx);
-		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::playTextColor()));
 		nvgText(vg, gx + gw, mm2px(4.6f), play.c_str(), nullptr);
 
 		// The name gives way to the play settings
@@ -1364,7 +1364,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			float sourceX = kCompact ? gx : gx + mm2px(9.5f);
 			if (!status.empty())
 				sourceX = std::max(sourceX, gx + shapeui::textWidth(footerPx, status.size()) + mm2px(1.5f));
-			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+			nvgFillColor(vg, shapeui::screenColor(shapeui::infoTextColor()));
 			nvgText(vg, sourceX, fy, f.cv ? "IN: CV" : "IN: KNOB", nullptr);
 		}
 
@@ -1383,7 +1383,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		}
 		else
 			length = f.empty ? "FREE" : string::f("%.1f S", f.seconds);
-		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+		nvgFillColor(vg, shapeui::screenColor(shapeui::timeTextColor()));
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 		nvgText(vg, gx + gw, fy, length.c_str(), nullptr);
 	}

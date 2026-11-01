@@ -449,8 +449,9 @@ struct SkylarkDisplay : shapeui::Screen {
 			for (; name[n] && n < sizeof(title) - 1; n++)
 				title[n] = (char) std::toupper((unsigned char) name[n]);
 			title[n] = 0;
-			char right[40];
-			snprintf(right, sizeof(right), "VAR %d%%  %.2f BPM", (int) std::round(f.variation * 100.f), f.bpm);
+			char bpm[24], var[16];
+			snprintf(bpm, sizeof(bpm), "%.2f BPM", f.bpm);
+			snprintf(var, sizeof(var), "VAR %d%%", (int) std::round(f.variation * 100.f));
 
 			nvgFontFaceId(vg, font->handle);
 			shapeui::fontSize(vg, mm2px(2.6f * kText));
@@ -471,14 +472,23 @@ struct SkylarkDisplay : shapeui::Screen {
 			if (f.speed != 0 || f.speedTarget != 0) {
 				const char* label = shapes::CycleSpeed::label(f.speedTarget);
 				bool waiting = f.speed != f.speedTarget;
-				nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::inkColor()));
+#ifdef METAMODULE
+				NVGcolor active = shapeui::playTextColor();
+#else
+				NVGcolor active = shapeui::inkColor();
+#endif
+				nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : active));
 				if (!waiting || std::fmod(system::getTime(), 0.5) < 0.25)
 					nvgText(vg, end, mm2px(4.6f), label, nullptr);
 				// Share Tech Mono advances 0.54 em; one space between
 				end -= mm2px((strlen(label) + 1) * 0.54f * 2.2f * kText);
 			}
-			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
-			nvgText(vg, end, mm2px(4.6f), right, nullptr);
+			nvgFillColor(vg, shapeui::screenColor(shapeui::timeTextColor()));
+			nvgText(vg, end, mm2px(4.6f), bpm, nullptr);
+			// Two spaces before the tempo
+			end -= mm2px((strlen(bpm) + 2) * 0.54f * 2.2f * kText);
+			nvgFillColor(vg, shapeui::screenColor(shapeui::infoTextColor()));
+			nvgText(vg, end, mm2px(4.6f), var, nullptr);
 		}
 
 		shapeui::TraceStyle style;

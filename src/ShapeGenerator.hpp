@@ -54,6 +54,32 @@ inline NVGcolor inkColor() {
 inline NVGcolor signalColor() {
 	return nvgRGB(0xff, 0xff, 0xff);
 }
+// Skylark's and Lyrebird's small text: on MetaModule each kind of reading
+// has its own colour, so they're told apart at a glance; VCV keeps them muted.
+// Tempo and length:
+inline NVGcolor timeTextColor() {
+#ifdef METAMODULE
+	return nvgRGB(0xe0, 0xb0, 0x4a);
+#else
+	return mutedColor();
+#endif
+}
+// How it plays (SPEED, LOOP/ONCE and the speed ratio):
+inline NVGcolor playTextColor() {
+#ifdef METAMODULE
+	return nvgRGB(0x3f, 0xc6, 0xbf);
+#else
+	return mutedColor();
+#endif
+}
+// Other settings (VAR, the source):
+inline NVGcolor infoTextColor() {
+#ifdef METAMODULE
+	return nvgRGB(0xa9, 0x9c, 0xf0);
+#else
+	return mutedColor();
+#endif
+}
 // Weaver's operators A, B, C
 inline NVGcolor operatorColor(int i) {
 	static const NVGcolor colors[3] = {nvgRGB(0xe0, 0xb0, 0x4a), nvgRGB(0x3f, 0xc6, 0xbf), nvgRGB(0xe5, 0x7d, 0xb8)};
