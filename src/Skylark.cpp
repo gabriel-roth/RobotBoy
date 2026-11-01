@@ -177,7 +177,7 @@ struct Skylark : Module {
 		for (int i = 0; i < NUM_TRIMMED; i++) {
 			ParamQuantity* trim = configParam(kTrimmed[i].trim, -1.f, 1.f, 0.f, string::f("%s CV amount", kTrimmedNames[i]));
 			trim->description = "With the jack empty: clockwise feeds OUT back, counter-clockwise adds a random offset each cycle";
-			configInput(kTrimmed[i].input, string::f("%s CV (OUT when unpatched)", kTrimmedNames[i]));
+			configInput(kTrimmed[i].input, string::f("%s CV", kTrimmedNames[i]));
 		}
 		shapeui::configBpm(this, BPM_PARAM);
 		configButton(RESET_PARAM, "Reset");
