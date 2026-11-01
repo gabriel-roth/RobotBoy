@@ -328,8 +328,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		configButton(FILE_NEXT_PARAM, "Next file");
 		configInput(RECORD_INPUT, "Record gate");
 		configInput(PUNCH_INPUT, "Punch gate");
-		configInput(CV_INPUT, "CV (recorded instead of Gesture when connected)");
-		configInput(SPEED_INPUT, "Speed CV (1 V/oct)");
+		configInput(CV_INPUT, "CV");
+		configInput(SPEED_INPUT, "Speed CV");
 		configInput(SMOOTH_INPUT, "Smooth CV");
 		configInput(REVERSE_INPUT, "Reverse gate");
 		configInput(CLOCK_INPUT, "Clock");
