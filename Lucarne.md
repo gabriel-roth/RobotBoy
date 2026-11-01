@@ -8,7 +8,7 @@
 
 **The buffer.** A waveform band across the middle of the display shows Particules' buffer as a ring. The write head is a bright vertical line sweeping left to right, overwriting the picture as it goes, just as it overwrites the audio. When Freeze is on, the line dims and stops.
 
-**The grains.** Each grain is a line above or below the band, covering the stretch of buffer that grain plays. A grain pitched up plays through the buffer faster, so its line is longer.
+**The grains.** Each grain is a line above or below the band, covering the stretch of buffer that grain plays. Size sets how long a grain lasts, not how much buffer it covers. A grain pitched up plays through the buffer faster, so in the same time it covers more buffer: its line is longer, and its cursor crosses it faster.
 
 - *Height shows pitch.* Unison sits just above the band; higher pitches sit further up, and lower pitches go below the band. The display covers ±2 octaves; anything beyond that pins to the edge.
 - *A brighter cursor* moves along the line as the grain plays.
