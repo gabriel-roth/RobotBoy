@@ -4,7 +4,7 @@
 #include <cstdint>
 
 // Combine: three operators (a wave each, or external CV) mixed by one of
-// eleven algorithms and faded in and out over each cycle. Rack-free; process()
+// eleven algorithms. Rack-free; process()
 // never allocates or locks.
 namespace shapes {
 
@@ -43,9 +43,6 @@ struct OperatorControls {
 struct CombineControls {
 	OperatorControls op[3];
 	Algorithm algorithm = Mix;
-	// The envelope's fade in and fade out, each a fraction of the cycle (0: none)
-	double attack = 0.0;
-	double decay = 0.0;
 };
 
 struct CombineFrame {

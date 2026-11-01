@@ -10,9 +10,9 @@
 #include <cctype>
 
 // Weaver: a shape modulator. Three operators (a wave each, or an outside CV)
-// are woven together by one of eleven algorithms and faded by a per-cycle
-// envelope. SPEED runs the cycle at 1/4x to 4x the tempo. Fifteen factory
-// presets; the first is the default state.
+// are woven together by one of eleven algorithms. SPEED runs the cycle at
+// 1/4x to 4x the tempo. Fifteen factory presets; the first is the default
+// state.
 
 static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
@@ -160,9 +160,8 @@ struct Weaver : Module {
 		C_PHASE_CV_PARAM,
 		C_LEVEL_CV_PARAM,
 		ALGORITHM_PARAM,
-		// The single ENVELOPE knob before ATTACK and DECAY: no control, kept
-		// so old patches load (see migrateEnvelope())
-		LEGACY_ENVELOPE_PARAM,
+		// The old ENVELOPE knob: no control, its slot kept so old patches load
+		UNUSED_ENVELOPE_PARAM,
 		PRESET_PREV_PARAM,
 		PRESET_NEXT_PARAM,
 		BPM_PARAM,
@@ -170,10 +169,9 @@ struct Weaver : Module {
 		A_TRACE_PARAM,
 		B_TRACE_PARAM,
 		C_TRACE_PARAM,
-		ATTACK_PARAM,
-		DECAY_PARAM,
 		SPEED_DOWN_PARAM,
 		SPEED_UP_PARAM,
+		SPEED_RESET_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -192,6 +190,8 @@ struct Weaver : Module {
 		ALGORITHM_INPUT,
 		CLOCK_INPUT,
 		RESET_INPUT,
+		SPEED_DOWN_INPUT,
+		SPEED_UP_INPUT,
 		INPUTS_LEN
 	};
 	enum OutputId {
@@ -236,7 +236,8 @@ struct Weaver : Module {
 	shapes::CombineEngine engine;
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
-	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger, speedDownTrigger, speedUpTrigger;
+	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger, speedDownTrigger, speedUpTrigger, speedResetTrigger;
+	dsp::SchmittTrigger speedDownCv, speedUpCv;
 #ifdef METAMODULE
 	// MetaModule has no widget events, so the PRESET buttons are read here
 	dsp::BooleanTrigger presetPrevTrigger, presetNextTrigger;
@@ -353,8 +354,6 @@ struct Weaver : Module {
 			o.level = params[param(i, A_LEVEL_PARAM)].getValue();
 		}
 		c.algorithm = (shapes::Algorithm) algorithm;
-		c.attack = params[ATTACK_PARAM].getValue();
-		c.decay = params[DECAY_PARAM].getValue();
 		return c;
 	}
 
@@ -369,8 +368,6 @@ struct Weaver : Module {
 			params[param(i, A_LEVEL_PARAM)].setValue((float) o.level);
 		}
 		algorithm = p.algorithm;
-		params[ATTACK_PARAM].setValue((float) p.attack);
-		params[DECAY_PARAM].setValue((float) p.decay);
 		algorithmNow.store(true, std::memory_order_release);
 	}
 
@@ -410,8 +407,6 @@ struct Weaver : Module {
 				o.param = std::clamp(modulated(param(i, A_PARAM_PARAM), input(i, A_PARAM_INPUT), param(i, A_PARAM_CV_PARAM), 1.0), 0.0, 1.0);
 			}
 		}
-		c.attack = clamp(params[ATTACK_PARAM].getValue(), 0.f, 1.f);
-		c.decay = clamp(params[DECAY_PARAM].getValue(), 0.f, 1.f);
 		return c;
 	}
 
@@ -420,19 +415,6 @@ struct Weaver : Module {
 		double algorithmCv = clamp(cv(ALGORITHM_INPUT), -100.f, 100.f);
 		int a = algorithm + (int) std::round(algorithmCv / 10.0 * (int) shapes::kNumAlgorithms);
 		return ((a % shapes::kNumAlgorithms) + shapes::kNumAlgorithms) % shapes::kNumAlgorithms;
-	}
-
-	// A patch from before ATTACK and DECAY loads its ENVELOPE value w into
-	// the legacy param: the same fades are attack 0.3 w, decay 0.7 w. Done
-	// here rather than on load, which needn't see the params first.
-	void migrateEnvelope() {
-		float w = params[LEGACY_ENVELOPE_PARAM].getValue();
-		if (w == 0.f)
-			return;
-		w = clamp(w, 0.f, 1.f);
-		params[ATTACK_PARAM].setValue(0.3f * w);
-		params[DECAY_PARAM].setValue(0.7f * w);
-		params[LEGACY_ENVELOPE_PARAM].setValue(0.f);
 	}
 
 	float output(int index, double x) {
@@ -512,11 +494,17 @@ struct Weaver : Module {
 #endif
 		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
-		if (speedDownTrigger.process(params[SPEED_DOWN_PARAM].getValue() > 0.5f))
+		// SPEED's jacks do what their buttons do
+		bool down = speedDownTrigger.process(params[SPEED_DOWN_PARAM].getValue() > 0.5f);
+		down |= speedDownCv.process(cv(SPEED_DOWN_INPUT), 0.1f, 1.f);
+		bool up = speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f);
+		up |= speedUpCv.process(cv(SPEED_UP_INPUT), 0.1f, 1.f);
+		if (down)
 			speed.setTarget(speed.targetOctaves() - 1);
-		if (speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f))
+		if (up)
 			speed.setTarget(speed.targetOctaves() + 1);
-		migrateEnvelope();
+		if (speedResetTrigger.process(params[SPEED_RESET_PARAM].getValue() > 0.5f))
+			speed.setTarget(0);
 		if (settings.slewMs != appliedSlewMs) {
 			for (shapes::Slew& s : slew)
 				s.set(settings.slewMs, sampleRate);
@@ -689,8 +677,8 @@ Weaver::Weaver() {
 #ifdef METAMODULE
 	std::vector<std::string> waveNames(kWaveNames, kWaveNames + shapes::kNumWaves);
 #endif
-	// Double-clicking a knob gives these neutral values (x1, 50%, no phase, LEVEL 0,
-	// no envelope); the module itself starts on the first preset
+	// Double-clicking a knob gives these neutral values (x1, 50%, no phase, LEVEL 0);
+	// the module itself starts on the first preset
 	const shapes::OperatorControls neutral;
 	for (int i = 0; i < 3; i++) {
 		std::string op(1, (char) ('A' + i));
@@ -715,13 +703,12 @@ Weaver::Weaver() {
 		configLight(A_WAVE_LIGHT + 3 * i, op + " wave");
 	}
 	configButton<AlgorithmQuantity>(ALGORITHM_PARAM, "Algorithm");
-	configParam(LEGACY_ENVELOPE_PARAM, 0.f, 1.f, 0.f, "Envelope (old patches)")->randomizeEnabled = false;
-	configParam(ATTACK_PARAM, 0.f, 1.f, 0.f, "Envelope attack", "% of cycle", 0.f, 100.f);
-	configParam(DECAY_PARAM, 0.f, 1.f, 0.f, "Envelope decay", "% of cycle", 0.f, 100.f);
+	configParam(UNUSED_ENVELOPE_PARAM, 0.f, 1.f, 0.f, "Unused")->randomizeEnabled = false;
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
 	configButton(SPEED_DOWN_PARAM, "Half speed");
 	configButton(SPEED_UP_PARAM, "Double speed");
+	configButton(SPEED_RESET_PARAM, "Speed x1");
 	shapeui::configBpm(this, BPM_PARAM);
 	configButton(RESET_PARAM, "Reset");
 	for (int i = 0; i < 3; i++) {
@@ -733,6 +720,8 @@ Weaver::Weaver() {
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
 	configInput(CLOCK_INPUT, "Clock");
 	configInput(RESET_INPUT, "Reset");
+	configInput(SPEED_DOWN_INPUT, "Half speed trigger");
+	configInput(SPEED_UP_INPUT, "Double speed trigger");
 	configOutput(MAIN_OUTPUT, "Main");
 	configOutput(INV_OUTPUT, "Inverted");
 	configOutput(EOC_OUTPUT, "End of cycle");
@@ -1086,8 +1075,8 @@ struct WeaverWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-		addScreen<WeaverMainDisplay>(module, 1.5, 17.0, 87.74, 45.7);
-		addScreen<AlgorithmDisplay>(module, 3.9, 67.1, 26.0, 13.3);
+		addScreen<WeaverMainDisplay>(module, 1.5, 17.0, 87.74, 37.7);
+		addScreen<AlgorithmDisplay>(module, 3.9, 59.1, 26.0, 13.3);
 		addScreen<WaveDisplay>(module, 110.35, 28.39, 14.0, 17.0)->op = 0;
 		addScreen<WaveDisplay>(module, 110.35, 61.22, 14.0, 17.0)->op = 1;
 		addScreen<WaveDisplay>(module, 110.35, 94.05, 14.0, 17.0)->op = 2;
@@ -1137,38 +1126,39 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(167.79, 107.36)), module, Weaver::C_LEVEL_CV_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
-		// Algorithm, envelope and presets
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(38.86, 71.9)), module, Weaver::ALGORITHM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.86, 71.9)), module, Weaver::ALGORITHM_INPUT));
-		addParam(createParamCentered<RoundSmallBlackKnob>(mm2px(Vec(64.36, 71.9)), module, Weaver::ATTACK_PARAM));
-		addParam(createParamCentered<RoundSmallBlackKnob>(mm2px(Vec(74.36, 71.9)), module, Weaver::DECAY_PARAM));
+		// Algorithm and presets
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(38.86, 63.9)), module, Weaver::ALGORITHM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.86, 63.9)), module, Weaver::ALGORITHM_INPUT));
 #ifdef METAMODULE
 		// Plain buttons: process() steps the presets, as PresetButton never gets events here
-		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 88.45)), module, Weaver::PRESET_NEXT_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 88.45)), module, Weaver::PRESET_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(72.66, 63.9)), module, Weaver::PRESET_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(66.06, 63.9)), module, Weaver::PRESET_PREV_PARAM));
 #else
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(80.6, 88.45)), module, Weaver::PRESET_NEXT_PARAM);
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(72.66, 63.9)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(74.0, 88.45)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(66.06, 63.9)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 #endif
 
-		// SPEED: plain buttons, read in process() like ALGORITHM
-		addParam(createParamCentered<TL1105>(mm2px(Vec(74.0, 98.5)), module, Weaver::SPEED_DOWN_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(80.6, 98.5)), module, Weaver::SPEED_UP_PARAM));
-
 		// Clock row
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.3, 92.0)), module, Weaver::BPM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.8, 92.0)), module, Weaver::CLOCK_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(31.865, 92.0)), module, Weaver::RESET_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(40.365, 92.0)), module, Weaver::RESET_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.575, 88.0)), module, Weaver::BPM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.075, 88.0)), module, Weaver::CLOCK_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(36.415, 88.0)), module, Weaver::RESET_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(44.915, 88.0)), module, Weaver::RESET_INPUT));
+
+		// SPEED: plain buttons, read in process() like ALGORITHM, down and up over their trigger jacks
+		addParam(createParamCentered<TL1105>(mm2px(Vec(60.385, 87.65)), module, Weaver::SPEED_DOWN_PARAM));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(69.085, 87.65)), module, Weaver::SPEED_RESET_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(77.785, 87.65)), module, Weaver::SPEED_UP_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(60.385, 96.35)), module, Weaver::SPEED_DOWN_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.785, 96.35)), module, Weaver::SPEED_UP_INPUT));
 
 		// Outputs, and each operator's output over its trace button
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(11.215, 112.1)), module, Weaver::MAIN_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(24.955, 112.1)), module, Weaver::INV_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(38.695, 112.1)), module, Weaver::EOC_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(12.93, 112.1)), module, Weaver::MAIN_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(28.375, 112.1)), module, Weaver::INV_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(42.49, 112.1)), module, Weaver::EOC_OUTPUT));
 		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<0>>>>(mm2px(Vec(57.59, 118.68)), module, Weaver::A_TRACE_PARAM, Weaver::TRACE_LIGHT + 0));
 		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<1>>>>(mm2px(Vec(69.81, 118.68)), module, Weaver::B_TRACE_PARAM, Weaver::TRACE_LIGHT + 1));
 		addParam(createLightParamCentered<VCVLightLatch<MediumSimpleLight<OperatorLight<2>>>>(mm2px(Vec(82.03, 118.68)), module, Weaver::C_TRACE_PARAM, Weaver::TRACE_LIGHT + 2));

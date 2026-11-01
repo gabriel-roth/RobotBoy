@@ -63,9 +63,9 @@ static void wavesMatch() {
 
 // The reference keeps the prototype's preset order and its "\xC3\x97" for
 // "x"; Weaver puts the random presets last, and has retuned some presets
-// for a wider range, so those have no reference
+// for a wider range or dropped their window, so those have no reference
 static int referencePreset(const char* name) {
-	for (const char* retuned : {"Envelope + triangle x16", "Swell with gated ripple", "Sampled ramp in a window", "Random accents, fading"})
+	for (const char* retuned : {"Envelope + triangle x16", "Swell with gated ripple", "Sampled falling ramp", "Random accents, fading", "Random swell"})
 		if (std::strcmp(name, retuned) == 0)
 			return -1;
 	for (int m = 0; m < 15; m++) {
@@ -95,8 +95,7 @@ static void presetsMatchReference() {
 			check(c.op[i].param == v[i * 5 + 4], "preset param", n, i);
 		}
 		check(c.algorithm == (Algorithm) (int) v[15], "preset algorithm", n);
-		// The prototype's single window value w is attack 0.3 w, decay 0.7 w
-		check(std::fabs(c.attack - 0.3 * v[16]) <= 1e-12 && std::fabs(c.decay - 0.7 * v[16]) <= 1e-12, "preset envelope", n);
+		check(v[16] == 0.0, "preset window", n);
 
 		CombineEngine e;
 		e.setSampleRate(48000.0);
@@ -123,8 +122,6 @@ static CombineControls quiet() {
 		c.op[i].level = 0.0;
 	}
 	c.algorithm = Mix;
-	c.attack = 0.0;
-	c.decay = 0.0;
 	return c;
 }
 
@@ -523,28 +520,6 @@ static void loopWavesRepeatEachCycle() {
 	check(std::fabs(evalOperator(sm, 1.0 - 1e-9, 0) - evalOperator(sm, 0.0, 0)) < 1e-6, "smooth loop joins up");
 }
 
-// ATTACK and DECAY fade independently: each scales the result by a
-// smoothstep over its own share of the cycle, and 0 leaves its end alone.
-static void envelopeFadesAreIndependent() {
-	CombineControls flat = quiet();
-	flat.op[0].level = 1.0;
-	auto weight = [](double x) { return x * x * (3.0 - 2.0 * x); };
-	CombineEngine e;
-	e.setSampleRate(48000.0);
-	for (double attack : {0.0, 0.25, 0.6}) {
-		for (double decay : {0.0, 0.1, 0.7}) {
-			CombineControls c = flat;
-			c.attack = attack;
-			c.decay = decay;
-			for (double p : {0.05, 0.2, 0.45, 0.8, 0.97}) {
-				double plain = e.resultAt(flat, p, false), faded = e.resultAt(c, p, false);
-				double w = (attack > 0.0 ? std::min(1.0, p / attack) : 1.0) * (decay > 0.0 ? std::min(1.0, (1.0 - p) / decay) : 1.0);
-				check(std::fabs(faded - plain * weight(w)) <= 1e-12, "envelope fade", (int) (attack * 10), (int) (decay * 10));
-			}
-		}
-	}
-}
-
 int main() {
 	ratioTable();
 	wavesMatch();
@@ -562,7 +537,6 @@ int main() {
 	presetsAreAscii();
 	presetMatchFindsDefault();
 	loopWavesRepeatEachCycle();
-	envelopeFadesAreIndependent();
 	if (failures) {
 		std::printf("test_combine: %d failures\n", failures);
 		return 1;

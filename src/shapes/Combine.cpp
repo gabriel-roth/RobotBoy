@@ -62,9 +62,9 @@ int clampRatio(int index) {
 	return std::clamp(index, 0, kNumRatios - 1);
 }
 
-// The algorithm and the envelope, given the operators' raw values, A bent by B
+// The algorithm, given the operators' raw values, A bent by B
 // (Bend) and A's held value (S&H).
-double mix(const CombineControls& c, const double* r, double bentA, double heldA, double t) {
+double mix(const CombineControls& c, const double* r, double bentA, double heldA) {
 	const OperatorControls& A = c.op[0];
 	const OperatorControls& B = c.op[1];
 	const OperatorControls& C = c.op[2];
@@ -87,13 +87,6 @@ double mix(const CombineControls& c, const double* r, double bentA, double heldA
 		case SampleHold: y = heldA * A.level + sc; break;
 		case Gate: y = (B.level == 0.0 || r[1] * B.level > 0.0 ? sa : 0.0) + sc; break;
 		default: y = sa + sb + sc;
-	}
-	if (c.attack > 0.0 || c.decay > 0.0) {
-		double p = frac(t);
-		// Fades that overlap (attack + decay > 1) lower the peak
-		double w = (c.attack > 0.0 ? std::min(1.0, p / c.attack) : 1.0) * (c.decay > 0.0 ? std::min(1.0, (1.0 - p) / c.decay) : 1.0);
-		w = w * w * (3.0 - 2.0 * w);
-		y *= w;
 	}
 	return y;
 }
@@ -234,7 +227,7 @@ double CombineEngine::formulaRaw(const CombineControls& c, double t) const {
 		double k = std::floor(t * rb + ph);
 		heldA = evalOperator(c.op[0], opAbs(c, 0, (k - c.op[1].phase - offset[1]) / rb), 0);
 	}
-	return mix(c, r, bentA, heldA, t);
+	return mix(c, r, bentA, heldA);
 }
 
 double CombineEngine::inputValue(const CombineControls& c, int i) {
@@ -337,7 +330,7 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 	}
 	updateHold(c, te, f.raw);
 
-	double y = sanitize(mix(c, f.raw, bentA, heldA, te), 0.0);
+	double y = sanitize(mix(c, f.raw, bentA, heldA), 0.0);
 	f.result = y;
 
 	double a = std::fabs(y);
@@ -396,7 +389,7 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 bool CombineEngine::scanCurrent(const CombineControls& c, int64_t cycle) const {
 	if (!scanValid && !scanning)
 		return false;
-	if (c.algorithm != scanControls.algorithm || !near(c.attack, scanControls.attack) || !near(c.decay, scanControls.decay))
+	if (c.algorithm != scanControls.algorithm)
 		return false;
 	for (int i = 0; i < 3; i++)
 		if (!sameFormula(c.op[i], scanControls.op[i]) || offset[i] != scanOffset[i])

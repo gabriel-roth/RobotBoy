@@ -323,9 +323,6 @@ static void weaverWorst(const char* name, CombineControls base) {
 				if (o.wave == Input)
 					o.inputVolts = moving(nz, i, 0.0, 2.0, 3 + k, -5.0, 5.0);
 			}
-			double env = moving(nz, i, 0.5, 0.4, 0.07);
-			c.attack = 0.3 * env;
-			c.decay = 0.7 * env;
 			CombineFrame f = e.process(c, (double) s.cycle + s.pos, false);
 			ramps[0].target(toVolts(treat(f.result, Treat::Fit, e.peak()), Range::Bipolar5), gRate);
 			for (int k = 0; k < 3; k++)
