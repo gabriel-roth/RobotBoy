@@ -403,8 +403,14 @@ struct SkylarkDisplay : shapeui::Screen {
 			uint32_t count = module->publishCount.load(std::memory_order_acquire);
 			if (count != module->uiCount) {
 				module->uiSnapshot = module->snapshots[module->frontSnapshot.load(std::memory_order_acquire)];
-				buildFrame(module->uiFrame, module->uiSnapshot);
-				module->uiCount = count;
+				// A publish since then may have been writing the slot copied (a
+				// shape from one build and tables from another can crash the
+				// render): keep the last frame and try again next time
+				std::atomic_thread_fence(std::memory_order_acquire);
+				if (module->publishCount.load(std::memory_order_relaxed) == count) {
+					buildFrame(module->uiFrame, module->uiSnapshot);
+					module->uiCount = count;
+				}
 			}
 			return module->uiFrame;
 		}
