@@ -846,11 +846,15 @@ struct WeaverMainDisplay : shapeui::Screen {
 		radiusMm = 2.f;
 	}
 
-	// The header's text scale: MetaModule's screen shows it too small to read
+	// The header's text scale: MetaModule's screen shows it too small to read.
+	// At that size the preset's name no longer fits in the header, so it moves
+	// to a band below the grid (mm).
 #ifdef METAMODULE
 	static constexpr float kText = 1.5f;
+	static constexpr float kPresetBand = 4.f;
 #else
 	static constexpr float kText = 1.f;
+	static constexpr float kPresetBand = 0.f;
 #endif
 
 	void drawScreen(NVGcontext* vg) override {
@@ -860,7 +864,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 			pos = 0.f;
 
 		const float pad = mm2px(2.f);
-		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(9.f);
+		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(9.f + kPresetBand);
 		shapeui::drawGrid(vg, gx, gy, gw, gh);
 
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
@@ -889,7 +893,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
 				shapeui::fontSize(vg, mm2px(2.6f * kText));
 				nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-				nvgText(vg, gx + gw / 2, baseline, title, nullptr);
+				nvgText(vg, gx + gw / 2, kPresetBand > 0.f ? box.size.y - mm2px(1.6f) : baseline, title, nullptr);
 			}
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(2.2f * kText));
