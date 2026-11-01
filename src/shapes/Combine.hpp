@@ -72,6 +72,9 @@ public:
 	// Call on each cycle wrap, before that sample's process().
 	void cycleWrapped();
 	void reset();
+	// Drops the phase offsets left by ratio changes, so every operator lines
+	// up with the cycle again (a preset load). The output may jump.
+	void realign();
 	// Points of the formula peak scan done per sample. 0, the default, does
 	// each scan in one sample; a spread scan takes 256 / pointsPerSample
 	// samples, during which Fit uses the last scan's peak as well.

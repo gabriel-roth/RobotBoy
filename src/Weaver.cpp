@@ -230,6 +230,9 @@ struct Weaver : Module {
 	// Take the algorithm now even when waiting (preset, load). Set from the
 	// UI thread after the choices it publishes.
 	std::atomic<bool> algorithmNow{true};
+	// Line the operators up with the cycle again (a preset load), dropping
+	// the phase offsets that keep ratio changes smooth. Set like algorithmNow.
+	std::atomic<bool> realignNow{false};
 
 	shapes::Timebase timebase;
 	shapes::CycleSpeed speed;
@@ -369,6 +372,7 @@ struct Weaver : Module {
 		}
 		algorithm = p.algorithm;
 		algorithmNow.store(true, std::memory_order_release);
+		realignNow.store(true, std::memory_order_release);
 	}
 
 	// Steps through the presets; from settings that match none, Next starts
@@ -517,6 +521,8 @@ struct Weaver : Module {
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
 		evalControls = c;
 
+		if (realignNow.exchange(false, std::memory_order_acquire))
+			engine.realign();
 		shapes::CombineFrame f = engine.process(c, t, false);
 
 		double v[4];

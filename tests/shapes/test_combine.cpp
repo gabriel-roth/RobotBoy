@@ -520,6 +520,28 @@ static void loopWavesRepeatEachCycle() {
 	check(std::fabs(evalOperator(sm, 1.0 - 1e-9, 0) - evalOperator(sm, 0.0, 0)) < 1e-6, "smooth loop joins up");
 }
 
+// A preset loaded mid-cycle changes ratios, which the engine carries on
+// smoothly with phase offsets; realign() drops them, so the operators line
+// up with the cycle as if the preset had played from reset.
+static void realignLinesUpWithTheCycle() {
+	CombineEngine e;
+	e.setSampleRate(48000.0);
+	double t = 0.0;
+	for (int k = 0; k < 1000; k++, t += 0.000731)
+		e.process(kWeaverPresets[0].controls, t, false);
+	const CombineControls& c = kWeaverPresets[7].controls;
+	e.process(c, t, false);
+	CombineEngine clean;
+	double before = 0.0;
+	for (double p : {0.0, 0.13, 0.5, 0.77})
+		before = std::max(before, std::fabs(e.resultAt(c, 2.0 + p, false) - clean.resultAt(c, p, false)));
+	check(before > 0.1, "offset before realign");
+	e.realign();
+	e.process(c, t, false);
+	for (double p : {0.0, 0.13, 0.5, 0.77})
+		check(std::fabs(e.resultAt(c, 2.0 + p, false) - clean.resultAt(c, p, false)) <= 1e-12, "realigned", (int) (p * 100));
+}
+
 int main() {
 	ratioTable();
 	wavesMatch();
@@ -537,6 +559,7 @@ int main() {
 	presetsAreAscii();
 	presetMatchFindsDefault();
 	loopWavesRepeatEachCycle();
+	realignLinesUpWithTheCycle();
 	if (failures) {
 		std::printf("test_combine: %d failures\n", failures);
 		return 1;

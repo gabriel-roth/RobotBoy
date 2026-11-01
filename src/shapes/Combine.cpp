@@ -419,6 +419,14 @@ void CombineEngine::cycleWrapped() {
 	runningPeak = 0.0;
 }
 
+void CombineEngine::realign() {
+	for (int i = 0; i < 3; i++) {
+		offset[i] = 0.0;
+		haveRatio[i] = false;
+	}
+	holdValid = false;
+}
+
 void CombineEngine::reset() {
 	for (int i = 0; i < 3; i++) {
 		offset[i] = 0.0;
