@@ -16,8 +16,8 @@
 #    (TIMING, LIFT, SYMMETRY, TILT: glide). No display arrow: the glyphs say it.
 #  - Transform plate (1.5-115.34, 63.5-100): TIMING, LIFT, SYMMETRY, TILT, DRIFT in five
 #    columns 22.768 apart, half a column from each edge, each a stack of label, knob
-#    (end-of-travel glyphs 5.8 either side, 3.6 above the knob centre, at about 10 and
-#    2 o'clock: below the knob they crowded the CV trim glyphs), CV trimpot and CV jack. Rows are
+#    (end-of-travel glyphs 7.0 either side, level with the knob centre: below the knob
+#    they crowded the CV trim glyphs, and at its top corners they were unclear), CV trimpot and CV jack. Rows are
 #    the 38.5 mm plate's (5.5 / 14.1 / 23.5 / 32.5 from its top) scaled to 36.5.
 #  - Bottom row (102-123, 21 tall), units CLOCK 19.315 / RESET 15.565 / SPEED 30.5 (chevron to
 #    chevron) / EOC 8.03 / OUT ring 10.7 in equal 3.961 gaps across both plates. CLOCK, RESET,
@@ -141,16 +141,16 @@ connectors:
   - [DRIFT_CV_PARAM, DRIFT_INPUT]
 
 glyphs:
-  - {src: glyphs/skylark/timing-earlier.svg, at: [7.084, 73.268]}
-  - {src: glyphs/skylark/timing-later.svg, at: [18.684, 73.268]}
-  - {src: glyphs/skylark/lift-down.svg, at: [29.852, 73.268]}
-  - {src: glyphs/skylark/lift-up.svg, at: [41.452, 73.268]}
-  - {src: glyphs/skylark/symmetry-off.svg, at: [52.620, 73.268]}
-  - {src: glyphs/skylark/symmetry-mirrored.svg, at: [64.220, 73.268]}
-  - {src: glyphs/skylark/tilt-falling.svg, at: [75.388, 73.268]}
-  - {src: glyphs/skylark/tilt-rising.svg, at: [86.988, 73.268]}
-  - {src: glyphs/skylark/drift-steady.svg, at: [98.156, 73.268]}
-  - {src: glyphs/skylark/drift-wander.svg, at: [109.756, 73.268]}
+  - {src: glyphs/skylark/timing-earlier.svg, at: [5.884, 76.868]}
+  - {src: glyphs/skylark/timing-later.svg, at: [19.884, 76.868]}
+  - {src: glyphs/skylark/lift-down.svg, at: [28.652, 76.868]}
+  - {src: glyphs/skylark/lift-up.svg, at: [42.652, 76.868]}
+  - {src: glyphs/skylark/symmetry-off.svg, at: [51.420, 76.868]}
+  - {src: glyphs/skylark/symmetry-mirrored.svg, at: [65.420, 76.868]}
+  - {src: glyphs/skylark/tilt-falling.svg, at: [74.188, 76.868]}
+  - {src: glyphs/skylark/tilt-rising.svg, at: [88.188, 76.868]}
+  - {src: glyphs/skylark/drift-steady.svg, at: [96.956, 76.868]}
+  - {src: glyphs/skylark/drift-wander.svg, at: [110.956, 76.868]}
   # CV trims: random (counter-clockwise) and feedback (clockwise) at the ends of travel.
   - {src: glyphs/skylark/trim-random-jump.svg, at: [84.560, 55.744]}
   - {src: glyphs/skylark/trim-feedback.svg, at: [92.560, 55.744]}
