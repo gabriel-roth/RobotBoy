@@ -505,7 +505,7 @@ int main(int argc, char** argv) {
 	weaver("Weaver preset 1, scan spread 1 (MM)", kWeaverPresets[0].controls, 1);
 	weaver("Weaver preset 1, PARAM swept", kWeaverPresets[0].controls, 0, true);
 	weaver("Weaver preset 1, PARAM swept, spread 1 (MM)", kWeaverPresets[0].controls, 1, true);
-	weaver("Weaver preset 5 (random steps), spread 1 (MM)", kWeaverPresets[4].controls, 1);
+	weaver("Weaver preset 12 (random steps), spread 1 (MM)", kWeaverPresets[11].controls, 1);
 	CombineControls in3 = kWeaverPresets[0].controls;
 	for (int i = 0; i < 3; i++) {
 		in3.op[i].wave = Input;

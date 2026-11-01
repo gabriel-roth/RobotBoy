@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <string>
 
 using namespace shapes;
 
@@ -60,14 +61,32 @@ static void wavesMatch() {
 	}
 }
 
+// The reference keeps the prototype's preset order and its "\xC3\x97" for
+// "x"; Weaver puts the random presets last
+static int referencePreset(const char* name) {
+	for (int m = 0; m < 15; m++) {
+		std::string r = ref::presetNames[m];
+		size_t times = r.find("\xC3\x97");
+		if (times != std::string::npos)
+			r.replace(times, 2, "x");
+		if (r == name)
+			return m;
+	}
+	return -1;
+}
+
 static void presetsMatchReference() {
 	check(std::strcmp(ref::presetNames[0], "Envelope + triangle \xC3\x97" "16") == 0, "reference name 0");
 	for (int n = 0; n < 15; n++) {
 		const CombineControls& c = kWeaverPresets[n].controls;
-		const double* v = ref::presetValues[n];
+		const int m = referencePreset(kWeaverPresets[n].name);
+		check(m >= 0, "preset in reference", n);
+		if (m < 0)
+			continue;
+		const double* v = ref::presetValues[m];
 		for (int i = 0; i < 3; i++) {
 			check(c.op[i].wave == (Wave) (int) v[i * 5], "preset wave", n, i);
-			check(ratioValue(c.op[i].ratio) == ref::presetRatios[n][i], "preset ratio", n, i);
+			check(ratioValue(c.op[i].ratio) == ref::presetRatios[m][i], "preset ratio", n, i);
 			check(c.op[i].level == v[i * 5 + 2], "preset level", n, i);
 			check(c.op[i].phase == v[i * 5 + 3], "preset phase", n, i);
 			check(c.op[i].param == v[i * 5 + 4], "preset param", n, i);
@@ -79,13 +98,13 @@ static void presetsMatchReference() {
 		e.setSampleRate(48000.0);
 		for (int k = 0; k < 129; k++) {
 			CombineFrame f = e.process(c, k / 64.0 * T, false);
-			if (!(std::fabs(f.result - ref::presetRaw[n][k]) <= 1e-6)) {
+			if (!(std::fabs(f.result - ref::presetRaw[m][k]) <= 1e-6)) {
 				if (failures < 20)
-					std::printf("  preset %d k %d: got %.17g want %.17g\n", n, k, f.result, ref::presetRaw[n][k]);
+					std::printf("  preset %d k %d: got %.17g want %.17g\n", n, k, f.result, ref::presetRaw[m][k]);
 				failures++;
 			}
 			for (int i = 0; i < 3; i++)
-				check(std::fabs(f.raw[i] - ref::presetParts[n][k][i]) <= 1e-6, "preset part", n, k * 3 + i);
+				check(std::fabs(f.raw[i] - ref::presetParts[m][k][i]) <= 1e-6, "preset part", n, k * 3 + i);
 		}
 	}
 }
@@ -313,7 +332,7 @@ static void peakFollowsControlsAndCycles() {
 }
 
 static void outputsAreFinite() {
-	CombineControls c = kWeaverPresets[3].controls;
+	CombineControls c = kWeaverPresets[10].controls;
 	c.op[0].wave = Input;
 	c.op[0].inputVolts = NAN;
 	c.op[0].inputGain = INFINITY;
@@ -328,7 +347,7 @@ static void outputsAreFinite() {
 }
 
 static void reverseMirrorsTime() {
-	const CombineControls& c = kWeaverPresets[6].controls;
+	const CombineControls& c = kWeaverPresets[4].controls;
 	CombineEngine fwd, rev;
 	fwd.setSampleRate(48000.0);
 	rev.setSampleRate(48000.0);
@@ -338,7 +357,7 @@ static void reverseMirrorsTime() {
 
 	// At a cycle start reverse stays in that cycle (p = 0 maps to 0, not 1).
 	// Stepped random draws a new value each cycle, so the next cycle differs.
-	const CombineControls& r = kWeaverPresets[4].controls;
+	const CombineControls& r = kWeaverPresets[11].controls;
 	bool nextDiffers = false;
 	for (int k = 1; k <= 5; k++) {
 		CombineEngine f, b2, n;
@@ -395,7 +414,7 @@ static void hotInputDoesNotOvershoot() {
 
 static void displayAccessorsMatchProcess() {
 	// After a ratio change the offsets move; the display accessors follow them
-	CombineControls c = kWeaverPresets[6].controls;
+	CombineControls c = kWeaverPresets[4].controls;
 	CombineEngine e;
 	e.setSampleRate(1000.0);
 	for (int i = 0; i < 800; i++) {
@@ -421,7 +440,7 @@ static void presetsAreAscii() {
 	for (int n = 0; n < 15; n++)
 		check(isAscii(kWeaverPresets[n].name), "ascii preset name", n);
 	check(std::strcmp(kWeaverPresets[0].name, "Envelope + triangle x16") == 0, "preset 0 name");
-	check(std::strcmp(kWeaverPresets[12].name, "Random stutter") == 0, "preset 12 name");
+	check(std::strcmp(kWeaverPresets[13].name, "Random stutter") == 0, "preset 13 name");
 	for (int w = 0; w < kNumWaves; w++)
 		check(isAscii(paramName((Wave) w)), "ascii param name", w);
 	for (int a = 0; a < kNumAlgorithms; a++)
@@ -438,14 +457,14 @@ static void presetMatchFindsDefault() {
 	check(presetMatches(kWeaverPresets[0].controls) == 0, "default preset matches");
 	for (int n = 0; n < 15; n++)
 		check(presetMatches(kWeaverPresets[n].controls) == n, "each preset matches itself", n);
-	CombineControls c = kWeaverPresets[4].controls;
+	CombineControls c = kWeaverPresets[11].controls;
 	c.op[1].param += 5e-5;
 	c.op[0].inputVolts = 3.0;
 	c.op[2].inputGain = 1.7;
-	check(presetMatches(c) == 4, "tolerance and input fields ignored");
+	check(presetMatches(c) == 11, "tolerance and input fields ignored");
 	c.op[1].param += 1e-3;
 	check(presetMatches(c) == -1, "edited settings match nothing");
-	c = kWeaverPresets[4].controls;
+	c = kWeaverPresets[11].controls;
 	c.algorithm = Ring;
 	check(presetMatches(c) == -1, "algorithm must match");
 }
