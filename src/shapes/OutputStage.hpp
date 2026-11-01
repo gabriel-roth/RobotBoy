@@ -7,6 +7,11 @@ namespace shapes {
 enum class Range { Bipolar5, Unipolar10 };
 enum class Treat { Fit, Clip, Soft, Fold, Wrap };
 
+// A coefficient that follows a moving control (a slew time) is recomputed at
+// most this often, in samples, so a jittering knob doesn't cost a libm call
+// every sample
+constexpr int kCoefInterval = 32;
+
 inline double sanitize(double x, double fallback) {
 	return std::isfinite(x) ? x : fallback;
 }

@@ -9,7 +9,8 @@
 // Each case runs 10 s of 48 kHz audio and prints ns/sample and % of a 48 kHz sample budget.
 // --worst runs only the worst-case modulation cases instead: every control on a
 // slow LFO plus knob-sized noise, timed per 64-sample block, as MetaModule's
-// deadline is per block; --still runs the same cases with the controls held.
+// deadline is per block; --still runs the same cases with the controls held,
+// --jitter held but with the noise, as a mapped knob nobody is turning.
 // Then --hash prints a hash of each case's output instead of timing it, and a
 // last argument runs only the cases whose names contain it.
 // Add -DMETAMODULE for the MetaModule constants.
@@ -182,8 +183,10 @@ struct Noise {
 	}
 };
 
-// --still holds every control at its base value, for the static cost
+// --still holds every control at its base value, for the static cost;
+// --jitter holds them too, but with the noise
 static bool gStill = false;
+static bool gJitter = false;
 
 // base + an LFO of the given depth and rate + jitter, clamped to [lo, hi]
 static double moving(Noise& nz, int i, double base, double depth, double hz, double lo = 0.0, double hi = 1.0) {
@@ -192,7 +195,7 @@ static double moving(Noise& nz, int i, double base, double depth, double hz, dou
 	// A triangle LFO: a sine here would cost more than some of the engines
 	double ph = hz * i / kSr;
 	double tri = 4.0 * std::fabs(ph - std::floor(ph + 0.5)) - 1.0;
-	double v = base + depth * tri + kJitter * (hi - lo) * nz.next();
+	double v = base + (gJitter ? 0.0 : depth * tri) + kJitter * (hi - lo) * nz.next();
 	return std::clamp(v, lo, hi);
 }
 
@@ -450,8 +453,9 @@ static void particules() {
 #endif
 
 int main(int argc, char** argv) {
-	if (argc > 1 && (!strcmp(argv[1], "--worst") || !strcmp(argv[1], "--still"))) {
+	if (argc > 1 && (!strcmp(argv[1], "--worst") || !strcmp(argv[1], "--still") || !strcmp(argv[1], "--jitter"))) {
 		gStill = !strcmp(argv[1], "--still");
+		gJitter = !strcmp(argv[1], "--jitter");
 		int a = 2;
 		if (argc > a && !strcmp(argv[a], "--hash")) {
 			gHash = true;

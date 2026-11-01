@@ -108,9 +108,18 @@ bool anyInput(const CombineControls& c) {
 }
 
 // Everything formulaRaw() reads from an operator
+// MetaModule knobs and CV jitter, so knob values within this fraction of
+// their range count as the same: the scan only sets Fit's peak, and the live
+// value keeps Fit in range meanwhile
+constexpr double kScanDeadband = 0.02;
+
+bool near(double a, double b, double range = 1.0) {
+	return std::fabs(a - b) <= kScanDeadband * range;
+}
+
 bool sameFormula(const OperatorControls& a, const OperatorControls& b) {
-	return a.wave == b.wave && a.ratio == b.ratio && a.param == b.param && a.phase == b.phase && a.level == b.level &&
-	       a.loopSeed == b.loopSeed;
+	return a.wave == b.wave && a.ratio == b.ratio && near(a.param, b.param) && near(a.phase, b.phase)
+	       && near(a.level, b.level, 2.0) && a.loopSeed == b.loopSeed;
 }
 
 // Whether one cycle of the formulas can differ from the next: a ratio below
@@ -231,10 +240,13 @@ double CombineEngine::inputValue(const CombineControls& c, int i) {
 	const OperatorControls& op = c.op[i];
 	double v = sanitize(sanitize(op.inputVolts, 0.0) / 5.0 * sanitize(op.inputGain, 1.0), 0.0);
 	double p = std::clamp(sanitize(op.param, 0.0), 0.0, 1.0);
-	if (p != slewParam[i]) {
-		// PARAM sweeps the time constant exponentially from 1 ms to 1 s; 0 is off
-		slew[i].set(p > 0.0 ? std::pow(1000.0, p) : 0.0, sampleRate);
-		slewParam[i] = p;
+	if (--slewCountdown[i] <= 0 || slewParam[i] < 0.0) {
+		slewCountdown[i] = kCoefInterval;
+		if (p != slewParam[i]) {
+			// PARAM sweeps the time constant exponentially from 1 ms to 1 s; 0 is off
+			slew[i].set(p > 0.0 ? std::pow(1000.0, p) : 0.0, sampleRate);
+			slewParam[i] = p;
+		}
 	}
 	if (!slewActive[i]) {
 		slew[i].reset(v);
@@ -383,7 +395,7 @@ CombineFrame CombineEngine::process(const CombineControls& c, double t, bool rev
 bool CombineEngine::scanCurrent(const CombineControls& c, int64_t cycle) const {
 	if (!scanValid && !scanning)
 		return false;
-	if (c.algorithm != scanControls.algorithm || c.window != scanControls.window)
+	if (c.algorithm != scanControls.algorithm || !near(c.window, scanControls.window))
 		return false;
 	for (int i = 0; i < 3; i++)
 		if (!sameFormula(c.op[i], scanControls.op[i]) || offset[i] != scanOffset[i])

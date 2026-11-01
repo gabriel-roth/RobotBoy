@@ -164,6 +164,8 @@ private:
 	bool recByPunch_ = false;  // PUNCH with no take records, and owns the stop
 	double armValue_ = 0.0;
 	Slew monitor_;
+	double monitorMs_ = -1.0;  // Smooth time monitor_ was last set for
+	int monitorCountdown_ = 0;
 	double lastRaw_ = 0.0;  // last playback value before the clamp
 
 	// One 1 ms input block being averaged, centred on take sample blockIdx_

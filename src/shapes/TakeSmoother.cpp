@@ -63,11 +63,19 @@ double TakeSmoother::rawAt(const Take& take, int n, int i, bool wrap) const {
 	return take.samples[i];
 }
 
+// floor(n / N): the window seldom reaches more than a take length past either
+// end, so those cases skip the divide
+static inline long wraps(long n, long N) {
+	if (n >= 0)
+		return n < N ? 0 : n < 2 * N ? 1 : n / N;
+	return n >= -N ? -1 : -((-n + N - 1) / N);
+}
+
 // P(n) = sum of shifted samples [0, n), the take extended past both ends
 double TakeSmoother::prefix(long n, bool wrap) const {
 	const long N = n_;
 	if (wrap) {
-		long c = n >= 0 ? n / N : -((-n + N - 1) / N);
+		long c = wraps(n, N);
 		long r = n - c * N;
 		return p_[r] + (double) c * p_[N];
 	}
@@ -82,7 +90,7 @@ double TakeSmoother::prefix(long n, bool wrap) const {
 double TakeSmoother::prefix2(long n, bool wrap) const {
 	const long N = n_;
 	if (wrap) {
-		long c = n >= 0 ? n / N : -((-n + N - 1) / N);
+		long c = wraps(n, N);
 		long r = n - c * N;
 		double dc = (double) c;
 		return q_[r] + dc * q_[N] + 0.5 * dc * (dc - 1.0) * (double) N * p_[N] + (double) r * dc * p_[N];

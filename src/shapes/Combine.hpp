@@ -104,6 +104,7 @@ private:
 	bool haveRatio[3] = {};
 	Slew slew[3];
 	double slewParam[3] = {-1.0, -1.0, -1.0};
+	int slewCountdown[3] = {};
 	bool slewActive[3] = {};
 
 	// S&H

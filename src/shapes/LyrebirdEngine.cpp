@@ -23,6 +23,7 @@ LyrebirdEngine::LyrebirdEngine() {
 
 void LyrebirdEngine::setSampleRate(double sr) {
 	sampleRate_ = sr > 1.0 ? sr : 1.0;
+	monitorMs_ = -1.0;
 }
 
 double LyrebirdEngine::syncRatio(double speedOct) {
@@ -396,7 +397,15 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	LyrebirdStep out;
 	double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
 	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
-	monitor_.set(std::clamp(sanitize(c.smoothMs, 0.0), 0.0, 1e4), sampleRate_);
+	// The monitor's time constant follows Smooth at control rate
+	if (--monitorCountdown_ <= 0 || monitorMs_ < 0.0) {
+		monitorCountdown_ = kCoefInterval;
+		double smoothMs = std::clamp(sanitize(c.smoothMs, 0.0), 0.0, 1e4);
+		if (smoothMs != monitorMs_) {
+			monitor_.set(smoothMs, sampleRate_);
+			monitorMs_ = smoothMs;
+		}
+	}
 
 	// Toggle reacts to presses (rising edges), Hold to the level
 	bool recEdge = c.rec && !prevRec_;
