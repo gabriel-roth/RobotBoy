@@ -105,6 +105,11 @@ struct Skylark : Module {
 	float lastOut = 0.f;
 	float heldVariationCv = 0.f;
 	bool started = false;
+	// The shape is worked out every kControlInterval samples, and OUT ramps between
+	shapes::Ramp ramp;
+	bool rampStarted = false;
+	int untilEval = 0;
+	double evalVariation = 0.5;
 	int sincePublish = shapeui::kPublishInterval;
 
 	SkylarkSnapshot snapshots[2];
@@ -151,8 +156,9 @@ struct Skylark : Module {
 		configOutput(INV_OUTPUT, "Inverted");
 		configOutput(EOC_OUTPUT, "End of cycle");
 #ifdef METAMODULE
-		// One step a sample: the peak scan at once was a burst in one sample
-		engine.setScanSpread(1);
+		// Two build or scan steps an evaluation: doing them all at once was a
+		// burst; a new shape lands about 45 ms after a change (Chirp 65)
+		engine.setScanSpread(2);
 #endif
 		setRate(APP->engine->getSampleRate());
 	}
@@ -190,15 +196,6 @@ struct Skylark : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
-		if (prevTrigger.process(params[SHAPE_PREV_PARAM].getValue() > 0.5f))
-			stepShape(-1);
-		if (nextTrigger.process(params[SHAPE_NEXT_PARAM].getValue() > 0.5f))
-			stepShape(1);
-		if (settings.slewMs != appliedSlewMs) {
-			slew.set(settings.slewMs, sampleRate);
-			appliedSlewMs = settings.slewMs;
-		}
-
 		shapes::TimebaseInput tin;
 		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
 		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
@@ -210,6 +207,40 @@ struct Skylark : Module {
 		// Reset starts a cycle too
 		bool cycleStart = step.wrapped || step.reset || !started;
 		started = true;
+
+		// A cycle start is worked out on its own sample, so a shape or
+		// Variation held for it lands there
+		if (cycleStart || --untilEval <= 0) {
+			untilEval = shapes::kControlInterval;
+			evaluate(step, cycleStart);
+		}
+
+		double volts = slew.process(ramp.next());
+		float out = (float) shapes::sanitize(volts, 0.0);
+		lastOut = out;
+		outputs[MAIN_OUTPUT].setVoltage(out);
+		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
+		if (step.wrapped)
+			eoc.fire();
+		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
+
+		displayPos.store((float) step.pos, std::memory_order_relaxed);
+		if (++sincePublish >= shapeui::kPublishInterval) {
+			sincePublish = 0;
+			publish(evalVariation);
+		}
+	}
+
+	// The controls and the shape, at control rate: sets OUT's next ramp
+	void evaluate(const shapes::Timebase::Step& step, bool cycleStart) {
+		if (prevTrigger.process(params[SHAPE_PREV_PARAM].getValue() > 0.5f))
+			stepShape(-1);
+		if (nextTrigger.process(params[SHAPE_NEXT_PARAM].getValue() > 0.5f))
+			stepShape(1);
+		if (settings.slewMs != appliedSlewMs) {
+			slew.set(settings.slewMs, sampleRate);
+			appliedSlewMs = settings.slewMs;
+		}
 
 		float variationCv = inputs[VARIATION_INPUT].isConnected() ? cv(VARIATION_INPUT) : lastOut;
 		if (!variationPerCycle || cycleStart)
@@ -232,27 +263,20 @@ struct Skylark : Module {
 		c.tilt = control(TILT_PARAM, TILT_INPUT, TILT_CV_PARAM, -1.f, 1.f);
 		c.drift = control(DRIFT_PARAM, DRIFT_INPUT, DRIFT_CV_PARAM, 0.f, 1.f);
 		engine.setControls(c);
+		evalVariation = c.variation;
 
 		double raw = engine.raw(step.pos, step.cycle);
 		double y = shapes::treat(raw, settings.treatMode, engine.peak());
-		// The peak is rescanned every 64 samples while the transforms apply
-		// every sample, so Fit can briefly overshoot: keep it in range
+		// The peak is rescanned now and then while the transforms apply at
+		// every evaluation, so Fit can briefly overshoot: keep it in range
 		if (settings.treatMode == shapes::Treat::Fit)
 			y = std::clamp(y, -1.0, 1.0);
-		double volts = shapes::toVolts(y, settings.range);
-		volts = slew.process(shapes::sanitize(volts, 0.0));
-		float out = (float) shapes::sanitize(volts, 0.0);
-		lastOut = out;
-		outputs[MAIN_OUTPUT].setVoltage(out);
-		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
-		if (step.wrapped)
-			eoc.fire();
-		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
-
-		displayPos.store((float) step.pos, std::memory_order_relaxed);
-		if (++sincePublish >= shapeui::kPublishInterval) {
-			sincePublish = 0;
-			publish(c.variation);
+		double volts = shapes::sanitize(shapes::toVolts(y, settings.range), 0.0);
+		if (rampStarted)
+			ramp.target(volts, shapes::kControlInterval);
+		else {
+			ramp.jump(volts);
+			rampStarted = true;
 		}
 	}
 

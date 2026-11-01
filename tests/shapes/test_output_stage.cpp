@@ -1,4 +1,4 @@
-// Output stage tests: out-of-range treatment, volts, inversion, slew, trigger.
+// Output stage tests: out-of-range treatment, volts, inversion, slew, trigger, ramp.
 #include "reference.hpp"
 #include "shapes/OutputStage.hpp"
 #include <cassert>
@@ -67,6 +67,24 @@ static void sanitizeReplacesNonFinite() {
 	assert(sanitize(1.5, 2.0) == 1.5);
 }
 
+static void rampReachesEachTarget() {
+	Ramp r;
+	r.jump(1.0);
+	assert(r.next() == 1.0);
+	r.target(3.0, 4);
+	assert(std::fabs(r.next() - 1.5) < 1e-12);
+	assert(std::fabs(r.next() - 2.0) < 1e-12);
+	assert(std::fabs(r.next() - 2.5) < 1e-12);
+	assert(r.next() == 3.0);
+	assert(r.next() == 3.0);
+	// A new target mid-ramp starts from where the ramp is
+	r.target(5.0, 4);
+	r.next();
+	r.target(1.0, 2);
+	assert(std::fabs(r.next() - 2.25) < 1e-12);
+	assert(r.next() == 1.0);
+}
+
 int main() {
 	treatMatchesReference();
 	toVoltsRanges();
@@ -75,6 +93,7 @@ int main() {
 	slew5msSettles();
 	triggerIsOneMs();
 	sanitizeReplacesNonFinite();
+	rampReachesEachTarget();
 	printf("test_output_stage OK\n");
 	return 0;
 }

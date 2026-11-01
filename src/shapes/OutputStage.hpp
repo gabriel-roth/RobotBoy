@@ -8,9 +8,14 @@ enum class Range { Bipolar5, Unipolar10 };
 enum class Treat { Fit, Clip, Soft, Fold, Wrap };
 
 // A coefficient that follows a moving control (a slew time) is recomputed at
-// most this often, in samples, so a jittering knob doesn't cost a libm call
-// every sample
+// most this often, in calls, so a jittering knob doesn't cost a libm call
+// every time
 constexpr int kCoefInterval = 32;
+
+// The modules work out their outputs every this many samples and ramp in
+// between (Ramp): a modulator doesn't need more, and it costs a fraction.
+// An instant jump becomes a ramp this long, and outputs lag by one less.
+constexpr int kControlInterval = 8;
 
 inline double sanitize(double x, double fallback) {
 	return std::isfinite(x) ? x : fallback;
@@ -74,6 +79,35 @@ public:
 private:
 	double coef = 1.0;
 	double y = 0.0;
+};
+
+// Steps from one control-rate value to the next: target() starts a ramp
+// that reaches v after n calls to next().
+class Ramp {
+public:
+	void target(double v, int n) {
+		to = v;
+		left = n > 0 ? n : 1;
+		step = (v - value) / left;
+	}
+
+	// Lands on v at once
+	void jump(double v) {
+		value = to = v;
+		left = 0;
+	}
+
+	double next() {
+		if (left > 0)
+			value = --left == 0 ? to : value + step;
+		return value;
+	}
+
+private:
+	double value = 0.0;
+	double to = 0.0;
+	double step = 0.0;
+	int left = 0;
 };
 
 // 10 V pulse lasting 1 ms; re-firing restarts it.

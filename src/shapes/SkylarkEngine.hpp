@@ -57,15 +57,15 @@ public:
 	}
 
 private:
-	// The expensive work (rebuild, peak rescan) runs at most this often, and
-	// not while a spread scan is running; the transforms themselves apply
-	// every sample.
+	// The expensive work (rebuild, peak rescan) is checked for at most this
+	// often, in calls to raw(), and not while a spread scan is running; the
+	// transforms themselves apply every call. The module calls raw() every
+	// kControlInterval samples, so these are every 256 samples on MetaModule
+	// and every 64 in VCV.
 #ifdef METAMODULE
-	// Modulated Variation made this check dominate the cost (about 10x static
-	// on the desktop bench), so the MetaModule build runs it less often.
-	static constexpr int kCheckInterval = 256;
+	static constexpr int kCheckInterval = 32;
 #else
-	static constexpr int kCheckInterval = 64;
+	static constexpr int kCheckInterval = 8;
 #endif
 
 	// The instance at p with the transforms in v applied, Lift's as the
