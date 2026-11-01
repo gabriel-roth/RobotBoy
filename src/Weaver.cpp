@@ -228,7 +228,7 @@ struct Weaver : Module {
 	// Each operator's loop pattern: new when a loop wave is chosen, saved
 	uint32_t loopSeeds[3] = {};
 	// A reset also makes new loop patterns
-	bool newLoopOnReset = false;
+	bool newLoopOnReset = true;
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
 	// A new ratio waits for a cycle start where it stays lined up with the
@@ -340,7 +340,7 @@ struct Weaver : Module {
 		settings.reset();
 		algorithmAtCycleEnd = false;
 		ratioAtCycleEnd = true;
-		newLoopOnReset = false;
+		newLoopOnReset = true;
 		hideZeroLevelTraces = false;
 	}
 
@@ -701,7 +701,7 @@ struct Weaver : Module {
 		j = json_object_get(rootJ, "ratioAtCycleEnd");
 		ratioAtCycleEnd = !j || json_is_true(j);
 		j = json_object_get(rootJ, "newLoopOnReset");
-		newLoopOnReset = j && json_is_true(j);
+		newLoopOnReset = !j || json_is_true(j);
 		j = json_object_get(rootJ, "hideZeroLevelTraces");
 		hideZeroLevelTraces = j && json_is_true(j);
 		j = json_object_get(rootJ, "speed");
