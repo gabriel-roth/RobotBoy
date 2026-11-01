@@ -1365,7 +1365,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			if (!status.empty())
 				sourceX = std::max(sourceX, gx + shapeui::textWidth(footerPx, status.size()) + mm2px(1.5f));
 			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
-			nvgText(vg, sourceX, fy, f.cv ? "CV" : "KNOB", nullptr);
+			nvgText(vg, sourceX, fy, f.cv ? "IN: CV" : "IN: KNOB", nullptr);
 		}
 
 		// LENGTH shows only here: the setting with no take or just after it's
