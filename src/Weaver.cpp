@@ -879,11 +879,14 @@ struct WeaverMainDisplay : shapeui::Screen {
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(2.2f));
 			float right = gx + gw;
-			// SPEED, away from x1: the chosen one, dim until it takes over
+			// SPEED, away from x1: the chosen one, dim and blinking (as
+			// Lyrebird's ARMED) until it takes over
 			if (f.speed != 0 || f.speedTarget != 0) {
 				const char* label = shapes::CycleSpeed::label(f.speedTarget);
-				nvgFillColor(vg, shapeui::screenColor(f.speed == f.speedTarget ? shapeui::inkColor() : shapeui::dividerColor()));
-				nvgText(vg, right, baseline, label, nullptr);
+				bool waiting = f.speed != f.speedTarget;
+				nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::inkColor()));
+				if (!waiting || std::fmod(system::getTime(), 0.5) < 0.25)
+					nvgText(vg, right, baseline, label, nullptr);
 				// Share Tech Mono advances 0.54 em; one space between
 				right -= mm2px((strlen(label) + 1) * 0.54f * 2.2f);
 			}
