@@ -59,7 +59,8 @@ inline NVGcolor signalColor() {
 // Tempo and length:
 inline NVGcolor timeTextColor() {
 #ifdef METAMODULE
-	return nvgRGB(0xe0, 0xb0, 0x4a);
+	// A dull sand: there's a lot of it
+	return nvgRGB(0xa3, 0x93, 0x72);
 #else
 	return mutedColor();
 #endif
