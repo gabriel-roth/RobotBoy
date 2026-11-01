@@ -210,6 +210,8 @@ struct Weaver : Module {
 	bool newLoopOnReset = false;
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
+	// The main display leaves out operators at LEVEL 0
+	bool hideZeroLevelTraces = false;
 	int heldAlgorithm = 0;
 	// Take the algorithm now even when waiting (preset, load). Set from the
 	// UI thread after the choices it publishes.
@@ -301,6 +303,7 @@ struct Weaver : Module {
 		settings.reset();
 		algorithmAtCycleEnd = false;
 		newLoopOnReset = false;
+		hideZeroLevelTraces = false;
 	}
 
 	// Picks new waves and loop patterns too; never Input, which needs a cable to be heard
@@ -567,6 +570,7 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "newLoopOnReset", json_boolean(newLoopOnReset));
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
+		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
 		return rootJ;
 	}
 
@@ -601,6 +605,8 @@ struct Weaver : Module {
 		algorithmAtCycleEnd = j && json_is_true(j);
 		j = json_object_get(rootJ, "newLoopOnReset");
 		newLoopOnReset = j && json_is_true(j);
+		j = json_object_get(rootJ, "hideZeroLevelTraces");
+		hideZeroLevelTraces = j && json_is_true(j);
 	}
 };
 
@@ -778,7 +784,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 		dashed.gapMm = 0.6f;
 		dashed.closed = false;
 		for (int i = 0; i < 3; i++) {
-			if (!f.shown[i] || !f.traceOn[i])
+			if (!f.traceOn[i] || (!f.shown[i] && module && module->hideZeroLevelTraces))
 				continue;
 			dashed.color = shapeui::operatorColor(i);
 			shapeui::drawTrace(vg, f.scaled[i], kTracePoints, gx, gy, gw, gh, dashed);
@@ -1122,6 +1128,11 @@ struct WeaverWidget : ModuleWidget {
 			[=]() { return module->newLoopOnReset; },
 			[=](bool on) {
 				withMenuUndo(module, "set new random loops on reset", [=]() { module->newLoopOnReset = on; });
+			}));
+		menu->addChild(createBoolMenuItem("Hide traces when operator level at 0", "",
+			[=]() { return module->hideZeroLevelTraces; },
+			[=](bool on) {
+				withMenuUndo(module, "set hide traces at level 0", [=]() { module->hideZeroLevelTraces = on; });
 			}));
 #ifdef METAMODULE
 		// No per-param right-click menus here, so list the algorithms in this
