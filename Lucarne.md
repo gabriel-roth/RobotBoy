@@ -13,7 +13,7 @@
 - *Height shows pitch.* Unison sits just above the band; higher pitches sit further up, and lower pitches go below the band. The display covers ±2 octaves; anything beyond that pins to the edge.
 - *A brighter cursor* moves along the line as the grain plays.
 - *Color shows stereo position.* Each grain is colored by where Particules pans it. In the default color scheme that is blue for hard left, warm white for center, orange for hard right. Beads picks a random pan for each grain, within a range that widens as more grains overlap and as you add randomness (the attenurandomizers, or Density clockwise of 12 o'clock). With a steady pulse of grains and no randomness, every grain is centered and the display is all white; as you add randomness, the colors fan out.
-- *Brightness and fade.* Lines brighten with the grain's envelope. After a grain ends, its line fades out over a moment. Very short grains still flash briefly.
+- *Brightness.* Lines brighten with the grain's envelope, and a line vanishes the moment its grain ends. Very short grains still flash briefly.
 - *Direction.* Reversed grains (Size turned counter-clockwise of about 10 o'clock) run right to left.
 
 In VCV, a key under the display sums this up. Until Lucarne is attached to Particules or Retours, the key area shows where to place it instead, and the screen stays blank. On MetaModule the display is smaller (4:3, to fill the screen when you tap it) and the faceplate has no key.
