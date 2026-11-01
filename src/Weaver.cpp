@@ -299,7 +299,7 @@ struct Weaver : Module {
 
 	void onReset(const ResetEvent& e) override {
 		Module::onReset(e);
-		resetChoices();
+		loadPreset(0);
 		settings.reset();
 		algorithmAtCycleEnd = false;
 		newLoopOnReset = false;
@@ -645,19 +645,21 @@ Weaver::Weaver() {
 #ifdef METAMODULE
 	std::vector<std::string> waveNames(kWaveNames, kWaveNames + shapes::kNumWaves);
 #endif
+	// Double-clicking a knob gives these neutral values (x1, 50%, no phase, LEVEL 0,
+	// no envelope); the module itself starts on the first preset
+	const shapes::OperatorControls neutral;
 	for (int i = 0; i < 3; i++) {
-		const shapes::OperatorControls& d = defaults().op[i];
 		std::string op(1, (char) ('A' + i));
-		configSwitch(param(i, A_RATIO_PARAM), 0.f, shapes::kNumRatios - 1, (float) d.ratio, op + " ratio", ratioNames);
+		configSwitch(param(i, A_RATIO_PARAM), 0.f, shapes::kNumRatios - 1, (float) neutral.ratio, op + " ratio", ratioNames);
 #ifdef METAMODULE
 		// A knob that names the wave; randomize picks waves itself, never Input
-		configSwitch(param(i, A_WAVE_PARAM), 0.f, shapes::kNumWaves - 1, (float) d.wave, op + " wave", waveNames)->randomizeEnabled = false;
+		configSwitch(param(i, A_WAVE_PARAM), 0.f, shapes::kNumWaves - 1, (float) defaults().op[i].wave, op + " wave", waveNames)->randomizeEnabled = false;
 #else
 		configButton<WaveQuantity>(param(i, A_WAVE_PARAM), op + " wave");
 #endif
-		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) d.param, op + " param", "%", 0.f, 100.f);
-		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) d.phase, op + " phase", " deg", 0.f, 360.f);
-		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, (float) d.level, op + " level", "%", 0.f, 100.f);
+		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) neutral.param, op + " param", "%", 0.f, 100.f);
+		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) neutral.phase, op + " phase", " deg", 0.f, 360.f);
+		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, 0.f, op + " level", "%", 0.f, 100.f);
 		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount (Input: gain)");
 		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount");
 		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount");
@@ -669,7 +671,7 @@ Weaver::Weaver() {
 		configLight(A_WAVE_LIGHT + 3 * i, op + " wave");
 	}
 	configButton<AlgorithmQuantity>(ALGORITHM_PARAM, "Algorithm");
-	configParam(WINDOW_PARAM, 0.f, 1.f, (float) defaults().window, "Envelope", "%", 0.f, 100.f);
+	configParam(WINDOW_PARAM, 0.f, 1.f, 0.f, "Envelope", "%", 0.f, 100.f);
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
 	shapeui::configBpm(this, BPM_PARAM);
@@ -686,7 +688,7 @@ Weaver::Weaver() {
 	configOutput(MAIN_OUTPUT, "Main");
 	configOutput(INV_OUTPUT, "Inverted");
 	configOutput(EOC_OUTPUT, "End of cycle");
-	resetChoices();
+	loadPreset(0);
 	for (int i = 0; i < 3; i++)
 		loopSeeds[i] = random::u32();
 #ifdef METAMODULE
