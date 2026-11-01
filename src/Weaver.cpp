@@ -846,6 +846,13 @@ struct WeaverMainDisplay : shapeui::Screen {
 		radiusMm = 2.f;
 	}
 
+	// The header's text scale: MetaModule's screen shows it too small to read
+#ifdef METAMODULE
+	static constexpr float kText = 1.5f;
+#else
+	static constexpr float kText = 1.f;
+#endif
+
 	void drawScreen(NVGcontext* vg) override {
 		const WeaverFrame& f = frameOf(module);
 		float pos = module ? module->displayPos.load(std::memory_order_relaxed) : 0.62f;
@@ -861,18 +868,18 @@ struct WeaverMainDisplay : shapeui::Screen {
 			const float baseline = mm2px(4.6f);
 			nvgFontFaceId(vg, font->handle);
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-			shapeui::fontSize(vg, mm2px(2.4f));
+			shapeui::fontSize(vg, mm2px(2.4f * kText));
 			for (int i = 0; i < 3; i++) {
 				char letter[2] = {(char) ('A' + i), 0};
 				// Dimmed while its trace is hidden
 				nvgFillColor(vg, shapeui::screenColor(f.traceOn[i] ? shapeui::operatorColor(i) : shapeui::dividerColor()));
-				nvgText(vg, gx + mm2px(3.4f) * i, baseline, letter, nullptr);
+				nvgText(vg, gx + mm2px(3.4f * kText) * i, baseline, letter, nullptr);
 			}
 #ifdef METAMODULE
 			// Full screen hides the algorithm display, so name it here too
 			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-			shapeui::fontSize(vg, mm2px(2.2f));
-			nvgText(vg, gx + mm2px(10.2f), baseline,
+			shapeui::fontSize(vg, mm2px(2.2f * kText));
+			nvgText(vg, gx + mm2px(10.2f * kText), baseline,
 			        shapes::algorithmName((shapes::Algorithm) clamp(f.algorithm, 0, shapes::kNumAlgorithms - 1)), nullptr);
 #endif
 			if (f.preset >= 0 && f.preset < shapes::kNumWeaverPresets) {
@@ -880,12 +887,12 @@ struct WeaverMainDisplay : shapeui::Screen {
 				upperCase(name, sizeof(name), shapes::kWeaverPresets[f.preset].name);
 				snprintf(title, sizeof(title), "%02d %s", f.preset + 1, name);
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-				shapeui::fontSize(vg, mm2px(2.6f));
+				shapeui::fontSize(vg, mm2px(2.6f * kText));
 				nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
 				nvgText(vg, gx + gw / 2, baseline, title, nullptr);
 			}
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-			shapeui::fontSize(vg, mm2px(2.2f));
+			shapeui::fontSize(vg, mm2px(2.2f * kText));
 			float right = gx + gw;
 			// SPEED, away from x1: the chosen one, dim and blinking (as
 			// Lyrebird's ARMED) until it takes over
@@ -896,7 +903,7 @@ struct WeaverMainDisplay : shapeui::Screen {
 				if (!waiting || std::fmod(system::getTime(), 0.5) < 0.25)
 					nvgText(vg, right, baseline, label, nullptr);
 				// Share Tech Mono advances 0.54 em; one space between
-				right -= mm2px((strlen(label) + 1) * 0.54f * 2.2f);
+				right -= mm2px((strlen(label) + 1) * 0.54f * 2.2f * kText);
 			}
 			char bpm[24];
 			snprintf(bpm, sizeof(bpm), "%.2f BPM", f.bpm);
