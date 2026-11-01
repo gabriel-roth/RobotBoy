@@ -1135,12 +1135,13 @@ struct LyrebirdDisplay : shapeui::Screen {
 	int lastLengthIndex = -1;
 	double lengthShownUntil = 0.0;
 
-	// At MetaModule's text size the take's name doesn't fit beside the play
-	// settings, so it gets a line of its own above the footer (mm)
+	// At MetaModule's text size the take's name doesn't fit beside all the play
+	// settings, so SMOOTH moves to the footer, and the source takes the
+	// footer's corner, giving way to a status
 #ifdef METAMODULE
-	static constexpr float kNameBand = 4.3f;
+	static constexpr bool kCompact = true;
 #else
-	static constexpr float kNameBand = 0.f;
+	static constexpr bool kCompact = false;
 #endif
 	static constexpr float kText = shapeui::kTextScale;
 
@@ -1188,7 +1189,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 		bool blinkOn = std::fmod(now, 0.5) < 0.25;
 
 		const float pad = mm2px(2.f);
-		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(13.f + kNameBand);
+		const float gx = pad, gy = mm2px(7.f), gw = box.size.x - 2 * pad, gh = box.size.y - mm2px(13.f);
 		shapeui::drawGrid(vg, gx, gy, gw, gh);
 
 		// Bar lines, where a take played in Sync has more than one bar
@@ -1307,17 +1308,10 @@ struct LyrebirdDisplay : shapeui::Screen {
 		std::string smooth = f.smoothMs < 0.05f ? "OFF"
 		                     : f.smoothMs < 10.f ? string::f("%.1fms", f.smoothMs)
 		                                         : string::f("%dms", (int) std::lround(f.smoothMs));
-		std::string play = string::f("%s  %s  SMOOTH %s", f.loop ? "LOOP" : "ONCE", ratioText(f.ratio).c_str(), smooth.c_str());
+		std::string play = string::f("%s  %s", f.loop ? "LOOP" : "ONCE", ratioText(f.ratio).c_str());
+		if (!kCompact)
+			play += "  SMOOTH " + smooth;
 
-		nvgFontFaceId(vg, font->handle);
-		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
-		shapeui::fontSize(vg, mm2px(2.2f * kText));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
-		nvgText(vg, gx + gw, mm2px(4.6f), play.c_str(), nullptr);
-
-		// Footer: status or a message, the source, and the take's length and tempo
-		float fy = box.size.y - mm2px(2.f);
-		const bool nameLine = kNameBand > 0.f;
 		using shapes::Status;
 		std::string status;
 		NVGcolor statusColor = recColor();
@@ -1330,9 +1324,8 @@ struct LyrebirdDisplay : shapeui::Screen {
 		else if (module) {
 			char text[kMessageChars + 1];
 			if (module->message.get(text, now)) {
-				// With a name line, a message stands in for the name there,
-				// where it has the room
-				if (nameLine)
+				// Compact, a message stands in for the name, where it has the room
+				if (kCompact)
 					title = text;
 				else {
 					status = text;
@@ -1341,30 +1334,43 @@ struct LyrebirdDisplay : shapeui::Screen {
 			}
 		}
 
-		shapeui::fontSize(vg, mm2px(2.6f * kText));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-		if (nameLine) {
-			nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-			nvgText(vg, gx + gw / 2, fy - mm2px(kNameBand), title.c_str(), nullptr);
-		}
-		else {
-			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-			nvgText(vg, gx, mm2px(4.6f), title.c_str(), nullptr);
-		}
+		const float headerPx = mm2px(2.2f * kText), titlePx = mm2px(2.6f * kText), footerPx = mm2px(2.2f * kText);
+		nvgFontFaceId(vg, font->handle);
+		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
+		shapeui::fontSize(vg, headerPx);
+		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+		nvgText(vg, gx + gw, mm2px(4.6f), play.c_str(), nullptr);
 
+		// The name gives way to the play settings
+		float titleRoom = gw - shapeui::textWidth(headerPx, play.size()) - mm2px(1.5f);
+		size_t titleChars = (size_t) std::max(0.f, titleRoom / shapeui::textWidth(titlePx, 1));
+		if (title.size() > titleChars)
+			title.resize(titleChars);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-		const float footerPx = mm2px(2.2f * kText);
+		shapeui::fontSize(vg, titlePx);
+		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+		nvgText(vg, gx, mm2px(4.6f), title.c_str(), nullptr);
+
+		// Footer: status or a message, the source, and the take's length and
+		// tempo; compact, the status replaces the source, and SMOOTH sits between
+		float fy = box.size.y - mm2px(2.f);
 		shapeui::fontSize(vg, footerPx);
+		float leftEnd = gx;
 		if (!status.empty()) {
 			nvgFillColor(vg, shapeui::screenColor(statusColor));
 			nvgText(vg, gx, fy, status.c_str(), nullptr);
+			leftEnd = gx + shapeui::textWidth(footerPx, status.size());
 		}
-		// Messages are longer than a status, so the source moves along for them
-		float sourceX = gx + mm2px(9.5f * kText);
-		if (!status.empty())
-			sourceX = std::max(sourceX, gx + shapeui::textWidth(footerPx, status.size()) + mm2px(1.5f));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
-		nvgText(vg, sourceX, fy, f.cv ? "CV" : "KNOB", nullptr);
+		if (!kCompact || status.empty()) {
+			// Messages are longer than a status, so the source moves along for them
+			float sourceX = kCompact ? gx : gx + mm2px(9.5f);
+			if (!status.empty())
+				sourceX = std::max(sourceX, leftEnd + mm2px(1.5f));
+			const char* source = f.cv ? "CV" : "KNOB";
+			nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+			nvgText(vg, sourceX, fy, source, nullptr);
+			leftEnd = sourceX + shapeui::textWidth(footerPx, strlen(source));
+		}
 
 		// LENGTH shows only here: the setting with no take or just after it's
 		// turned, otherwise the take's length as it plays
@@ -1381,8 +1387,21 @@ struct LyrebirdDisplay : shapeui::Screen {
 		}
 		else
 			length = f.empty ? "FREE" : string::f("%.1f S", f.seconds);
+		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
 		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 		nvgText(vg, gx + gw, fy, length.c_str(), nullptr);
+
+		if (kCompact) {
+			// SMOOTH, centred in the gap, shortened or left out when it's narrow
+			float gapL = leftEnd + mm2px(1.5f), gapR = gx + gw - shapeui::textWidth(footerPx, length.size()) - mm2px(1.5f);
+			for (std::string text : {"SMOOTH " + smooth, "SM " + smooth}) {
+				if (shapeui::textWidth(footerPx, text.size()) <= gapR - gapL) {
+					nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+					nvgText(vg, (gapL + gapR) / 2, fy, text.c_str(), nullptr);
+					break;
+				}
+			}
+		}
 	}
 };
 
