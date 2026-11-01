@@ -4,7 +4,25 @@
 
 namespace shapes {
 
-enum class Range { Bipolar5, Unipolar10 };
+// Saved by index, so new ranges go at the end
+enum class Range { Bipolar5, Unipolar10, Unipolar5, Bipolar10, kNumRanges };
+
+inline bool isUnipolar(Range range) {
+	return range == Range::Unipolar10 || range == Range::Unipolar5;
+}
+
+// Volts from the centre of the range to either edge
+inline double halfSpan(Range range) {
+	switch (range) {
+		case Range::Unipolar5: return 2.5;
+		case Range::Bipolar10: return 10.0;
+		default: return 5.0;
+	}
+}
+
+inline double centreVolts(Range range) {
+	return isUnipolar(range) ? halfSpan(range) : 0.0;
+}
 enum class Treat { Fit, Clip, Soft, Fold, Wrap };
 
 // A coefficient that follows a moving control (a slew time) is recomputed at
@@ -46,12 +64,17 @@ inline double treat(double x, Treat mode, double peak) {
 }
 
 inline double toVolts(double x, Range range) {
-	return range == Range::Bipolar5 ? 5.0 * x : 5.0 * (x + 1.0);
+	return centreVolts(range) + halfSpan(range) * x;
+}
+
+// Volts back to -1..1 within the range.
+inline double fromVolts(double v, Range range) {
+	return (v - centreVolts(range)) / halfSpan(range);
 }
 
 // Mirrors about the centre of the range.
 inline double invertVolts(double v, Range range) {
-	return range == Range::Bipolar5 ? -v : 10.0 - v;
+	return 2.0 * centreVolts(range) - v;
 }
 
 // One-pole lowpass; 0 ms passes the input through.

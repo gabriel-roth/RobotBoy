@@ -21,11 +21,19 @@ static void toVoltsRanges() {
 	assert(toVolts(1.0, Range::Bipolar5) == 5.0);
 	assert(toVolts(-1.0, Range::Unipolar10) == 0.0);
 	assert(toVolts(1.0, Range::Unipolar10) == 10.0);
+	assert(toVolts(-1.0, Range::Unipolar5) == 0.0);
+	assert(toVolts(1.0, Range::Unipolar5) == 5.0);
+	assert(toVolts(-1.0, Range::Bipolar10) == -10.0);
+	assert(toVolts(1.0, Range::Bipolar10) == 10.0);
+	for (int r = 0; r < (int) Range::kNumRanges; r++)
+		assert(std::fabs(fromVolts(toVolts(0.3, (Range) r), (Range) r) - 0.3) < 1e-12);
 }
 
 static void invertMirrorsWithinRange() {
 	assert(invertVolts(3.0, Range::Bipolar5) == -3.0);
 	assert(invertVolts(3.0, Range::Unipolar10) == 7.0);
+	assert(invertVolts(1.0, Range::Unipolar5) == 4.0);
+	assert(invertVolts(3.0, Range::Bipolar10) == -3.0);
 }
 
 static void slewOffIsPassthrough() {

@@ -36,9 +36,8 @@ struct SkylarkSnapshot {
 static void buildFrame(SkylarkFrame& f, const SkylarkSnapshot& s) {
 	s.engine.renderCycle(f.trace, kTracePoints, s.treatMode, s.range);
 	// Volts back to -1..1 for drawing
-	float offset = s.range == shapes::Range::Bipolar5 ? 0.f : 1.f;
 	for (int i = 0; i < kTracePoints; i++)
-		f.trace[i] = f.trace[i] * 0.2f - offset;
+		f.trace[i] = (float) shapes::fromVolts(f.trace[i], s.range);
 	f.shape = s.engine.activeShape();
 	f.variation = s.variation;
 	f.bpm = s.bpm;

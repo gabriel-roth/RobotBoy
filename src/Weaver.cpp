@@ -496,8 +496,8 @@ struct Weaver : Module {
 		shapes::Treat opMode = settings.treatMode == shapes::Treat::Fit ? shapes::Treat::Clip : settings.treatMode;
 		for (int i = 0; i < 3; i++) {
 			double r = f.raw[i];
-			// An Envelope is 0..1: in 0-10 V it spans the full range like the others
-			if (settings.range == shapes::Range::Unipolar10 && c.op[i].wave == shapes::Envelope)
+			// An Envelope is 0..1: in a unipolar range it spans the full range like the others
+			if (shapes::isUnipolar(settings.range) && c.op[i].wave == shapes::Envelope)
 				r = 2.0 * r - 1.0;
 			v[1 + i] = shapes::treat(r, opMode, 1.0);
 		}

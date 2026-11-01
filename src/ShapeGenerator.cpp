@@ -7,6 +7,8 @@ namespace shapeui {
 
 static const float kSlewMs[] = {0.f, 2.f, 5.f, 20.f};
 static const int kPulseChoices[] = {1, 2, 4, 8, 16, 24, 32, 48, 96};
+// The output ranges in menu order
+static const shapes::Range kRangeChoices[] = {shapes::Range::Bipolar5, shapes::Range::Bipolar10, shapes::Range::Unipolar5, shapes::Range::Unipolar10};
 
 void Settings::toJson(json_t* rootJ) const {
 	json_object_set_new(rootJ, "range", json_integer((int) range));
@@ -17,7 +19,8 @@ void Settings::toJson(json_t* rootJ) const {
 
 void Settings::fromJson(json_t* rootJ) {
 	json_t* j = json_object_get(rootJ, "range");
-	range = j && json_integer_value(j) == 1 ? shapes::Range::Unipolar10 : shapes::Range::Bipolar5;
+	int r = j ? (int) json_integer_value(j) : 0;
+	range = r >= 0 && r < (int) shapes::Range::kNumRanges ? (shapes::Range) r : shapes::Range::Bipolar5;
 	j = json_object_get(rootJ, "treat");
 	int t = j ? (int) json_integer_value(j) : 0;
 	treatMode = t >= 0 && t <= (int) shapes::Treat::Wrap ? (shapes::Treat) t : shapes::Treat::Fit;
@@ -53,10 +56,15 @@ MenuItem* createPulsesMenuItem(Module* module, int* ppc) {
 }
 
 void appendSettingsMenu(Menu* menu, Module* module, Settings* s) {
-	menu->addChild(createIndexSubmenuItem("Output range", {"+-5 V", "0-10 V"},
-		[=]() { return (int) s->range; },
+	menu->addChild(createIndexSubmenuItem("Output range", {"+-5 V", "+-10 V", "0-5 V", "0-10 V"},
+		[=]() {
+			for (int i = 0; i < 4; i++)
+				if (s->range == kRangeChoices[i])
+					return i;
+			return 0;
+		},
 		[=](int i) {
-			withMenuUndo(module, "set output range", [=]() { s->range = (shapes::Range) i; });
+			withMenuUndo(module, "set output range", [=]() { s->range = kRangeChoices[i]; });
 		}));
 	menu->addChild(createIndexSubmenuItem("When out of range", {"Fit", "Clip", "Soft clip", "Fold", "Wrap"},
 		[=]() { return (int) s->treatMode; },
