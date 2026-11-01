@@ -760,11 +760,11 @@ Weaver::Weaver() {
 		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) neutral.param, op + " param", "%", 0.f, 100.f);
 		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) neutral.phase, op + " phase", " deg", 0.f, 360.f);
 		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, 0.f, op + " level", "%", 0.f, 100.f);
-		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount (Input: gain)");
+		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount")->description = "With the Input wave: the signal's gain";
 		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount");
 		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount");
 		configInput(input(i, A_RATIO_INPUT), op + " ratio CV");
-		configInput(input(i, A_PARAM_INPUT), op + " param CV (Input: the signal)");
+		configInput(input(i, A_PARAM_INPUT), op + " param CV")->description = "With the Input wave: the signal";
 		configInput(input(i, A_PHASE_INPUT), op + " phase CV");
 		configInput(input(i, A_LEVEL_INPUT), op + " level CV");
 		configOutput(A_OUTPUT + i, "Operator " + op);
@@ -788,8 +788,8 @@ Weaver::Weaver() {
 	configInput(ALGORITHM_INPUT, "Algorithm CV");
 	configInput(CLOCK_INPUT, "Clock");
 	configInput(RESET_INPUT, "Reset");
-	configInput(SPEED_DOWN_INPUT, "Half speed trigger");
-	configInput(SPEED_UP_INPUT, "Double speed trigger");
+	configInput(SPEED_DOWN_INPUT, "Half speed");
+	configInput(SPEED_UP_INPUT, "Double speed");
 	configOutput(MAIN_OUTPUT, "Main");
 	configOutput(INV_OUTPUT, "Inverted");
 	configOutput(EOC_OUTPUT, "End of cycle");

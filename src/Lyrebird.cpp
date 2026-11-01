@@ -334,8 +334,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		configInput(REVERSE_INPUT, "Reverse gate");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(TRIG_INPUT, "Trigger");
-		configInput(FILE_PREV_INPUT, "Previous file trigger");
-		configInput(FILE_NEXT_INPUT, "Next file trigger");
+		configInput(FILE_PREV_INPUT, "Previous file");
+		configInput(FILE_NEXT_INPUT, "Next file");
 		configOutput(EOC_OUTPUT, "End of cycle");
 		configOutput(MAIN_OUTPUT, "Main");
 		configLight(RECORD_LIGHT, "Recording");

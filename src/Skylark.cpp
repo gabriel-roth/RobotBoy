@@ -187,8 +187,8 @@ struct Skylark : Module {
 		configInput(SHAPE_INPUT, "Shape CV");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
-		configInput(SPEED_DOWN_INPUT, "Half speed trigger");
-		configInput(SPEED_UP_INPUT, "Double speed trigger");
+		configInput(SPEED_DOWN_INPUT, "Half speed");
+		configInput(SPEED_UP_INPUT, "Double speed");
 		configOutput(MAIN_OUTPUT, "Main");
 		configOutput(EOC_OUTPUT, "End of cycle");
 #ifdef METAMODULE
