@@ -231,6 +231,12 @@ struct Weaver : Module {
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
 	int sincePublish = shapeui::kPublishInterval;
+	// The engine runs every kControlInterval samples, and the outputs (MAIN,
+	// then A, B, C) ramp between
+	shapes::Ramp ramps[4];
+	bool rampStarted = false;
+	int untilEval = 0;
+	shapes::CombineControls evalControls;
 
 	// The last cycle as it played (see WeaverSnapshot)
 	float historyResult[kTracePoints] = {};
@@ -259,7 +265,8 @@ struct Weaver : Module {
 	void setRate(float rate) {
 		sampleRate = rate;
 		timebase.setSampleRate(rate);
-		engine.setSampleRate(rate);
+		// Its Input slews run once an evaluation
+		engine.setSampleRate(rate / shapes::kControlInterval);
 		appliedSlewMs = -1.f;
 	}
 
@@ -399,6 +406,51 @@ struct Weaver : Module {
 	}
 
 	void process(const ProcessArgs& args) override {
+		shapes::TimebaseInput tin;
+		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
+		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
+		tin.clockVoltage = cv(CLOCK_INPUT);
+		tin.resetVoltage = cv(RESET_INPUT);
+		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
+		tin.pulsesPerCycle = settings.pulsesPerCycle;
+		shapes::Timebase::Step step = timebase.process(tin);
+		if (step.reset) {
+			engine.reset();
+			if (newLoopOnReset)
+				newLoops();
+		}
+		// The Input peak rolls over here, before this sample is processed
+		if (step.wrapped)
+			engine.cycleWrapped();
+		// Reset starts a cycle too, so a waiting algorithm lands there
+		bool cycleStart = step.wrapped || step.reset;
+
+		// A cycle start is worked out on its own sample, so the algorithm
+		// held for it lands there
+		if (cycleStart || --untilEval <= 0) {
+			untilEval = shapes::kControlInterval;
+			evaluate(step, cycleStart);
+		}
+
+		float out = output(0, ramps[0].next());
+		outputs[MAIN_OUTPUT].setVoltage(out);
+		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
+		if (step.wrapped)
+			eoc.fire();
+		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
+		for (int i = 0; i < 3; i++)
+			outputs[A_OUTPUT + i].setVoltage(output(1 + i, ramps[1 + i].next()));
+
+		displayPos.store((float) step.pos, std::memory_order_relaxed);
+		if (++sincePublish >= shapeui::kPublishInterval) {
+			sincePublish = 0;
+			publish(evalControls, (double) step.cycle);
+		}
+	}
+
+	// The buttons, controls, engine, display history and lights, at control
+	// rate: sets the outputs' next ramps
+	void evaluate(const shapes::Timebase::Step& step, bool cycleStart) {
 #ifdef METAMODULE
 		if (presetPrevTrigger.process(params[PRESET_PREV_PARAM].getValue() > 0.5f))
 			stepPreset(-1);
@@ -428,53 +480,37 @@ struct Weaver : Module {
 			appliedSlewMs = settings.slewMs;
 		}
 
-		shapes::TimebaseInput tin;
-		tin.bpm = shapeui::bpmOf(params[BPM_PARAM].getValue());
-		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
-		tin.clockVoltage = cv(CLOCK_INPUT);
-		tin.resetVoltage = cv(RESET_INPUT);
-		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
-		tin.pulsesPerCycle = settings.pulsesPerCycle;
-		shapes::Timebase::Step step = timebase.process(tin);
-		if (step.reset) {
-			engine.reset();
-			if (newLoopOnReset)
-				newLoops();
-		}
-		// The Input peak rolls over here, before this sample is processed
-		if (step.wrapped)
-			engine.cycleWrapped();
-		// Reset starts a cycle too, so a waiting algorithm lands there
-		bool cycleStart = step.wrapped || step.reset;
-
 		shapes::CombineControls c = controls();
 		if (algorithmNow.exchange(false, std::memory_order_acquire) || !algorithmAtCycleEnd || cycleStart)
 			heldAlgorithm = targetAlgorithm();
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
+		evalControls = c;
 
 		double t = (double) step.cycle + step.pos;
 		shapes::CombineFrame f = engine.process(c, t, false);
 
-		double x = shapes::sanitize(shapes::treat(f.result, settings.treatMode, engine.peak()), 0.0);
-		float out = output(0, x);
-		outputs[MAIN_OUTPUT].setVoltage(out);
-		outputs[INV_OUTPUT].setVoltage((float) shapes::sanitize(shapes::invertVolts(out, settings.range), 0.0));
-		if (step.wrapped)
-			eoc.fire();
-		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
+		double v[4];
+		v[0] = shapes::sanitize(shapes::treat(f.result, settings.treatMode, engine.peak()), 0.0);
 		// Each operator's own wave at full level. A single wave has no cycle
 		// peak to fit (an Input can be any size), so Fit clips here.
 		shapes::Treat opMode = settings.treatMode == shapes::Treat::Fit ? shapes::Treat::Clip : settings.treatMode;
 		for (int i = 0; i < 3; i++) {
-			double v = f.raw[i];
+			double r = f.raw[i];
 			// An Envelope is 0..1: in 0-10 V it spans the full range like the others
 			if (settings.range == shapes::Range::Unipolar10 && c.op[i].wave == shapes::Envelope)
-				v = 2.0 * v - 1.0;
-			outputs[A_OUTPUT + i].setVoltage(output(1 + i, shapes::treat(v, opMode, 1.0)));
+				r = 2.0 * r - 1.0;
+			v[1 + i] = shapes::treat(r, opMode, 1.0);
 		}
+		for (int i = 0; i < 4; i++) {
+			if (rampStarted)
+				ramps[i].target(v[i], shapes::kControlInterval);
+			else
+				ramps[i].jump(v[i]);
+		}
+		rampStarted = true;
 
 		historyWrite = clamp((int) std::lround(step.pos * (kTracePoints - 1)), 0, kTracePoints - 1);
-		historyResult[historyWrite] = (float) x;
+		historyResult[historyWrite] = (float) v[0];
 		for (int i = 0; i < 3; i++) {
 			historyScaled[i][historyWrite] = (float) f.scaled[i];
 			historyRaw[i][historyWrite] = (float) f.raw[i];
@@ -487,12 +523,6 @@ struct Weaver : Module {
 		}
 		for (int i = 0; i < 3; i++)
 			lights[TRACE_LIGHT + i].setBrightness(params[A_TRACE_PARAM + i].getValue());
-
-		displayPos.store((float) step.pos, std::memory_order_relaxed);
-		if (++sincePublish >= shapeui::kPublishInterval) {
-			sincePublish = 0;
-			publish(c, (double) step.cycle);
-		}
 	}
 
 	void publish(const shapes::CombineControls& c, double cycle) {
@@ -654,7 +684,7 @@ Weaver::Weaver() {
 	for (int i = 0; i < 3; i++)
 		loopSeeds[i] = random::u32();
 #ifdef METAMODULE
-	// One point a sample: the full scan at once dominated the cost
+	// One point an evaluation: the full scan at once dominated the cost
 	engine.setScanSpread(1);
 #endif
 	setRate(APP->engine->getSampleRate());
