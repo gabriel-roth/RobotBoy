@@ -5,6 +5,7 @@
 #include "shapes/Recipes.hpp"
 #include "shapes/SkylarkEngine.hpp"
 #include "shapes/Timebase.hpp"
+#include "shapes/TrimMod.hpp"
 
 #include <atomic>
 #include <cctype>
@@ -100,9 +101,31 @@ struct Skylark : Module {
 		LIGHTS_LEN
 	};
 
+	// The six controls with a CV trim. With the jack empty the trim feeds OUT
+	// back (clockwise) or adds a random offset each cycle (counter-clockwise).
+	// Variation and Drift pick the shape, so their random values jump at the
+	// cycle start; the transforms' glide across the cycle. Symmetry and Drift
+	// rest at the bottom of their range, so theirs only push upward.
+	struct TrimmedControl {
+		int param, input, trim;
+		float lo, hi, fallback;
+		shapes::TrimSpread spread;
+		bool glide;
+	};
+	enum { VARIATION, TIMING, LIFT, SYMMETRY, TILT, DRIFT, NUM_TRIMMED };
+	static constexpr TrimmedControl kTrimmed[NUM_TRIMMED] = {
+		{VARIATION_PARAM, VARIATION_INPUT, VARIATION_CV_PARAM, 0.f, 1.f, 0.5f, shapes::TrimSpread::Bipolar, false},
+		{TIMING_PARAM, TIMING_INPUT, TIMING_CV_PARAM, -1.f, 1.f, -1.f, shapes::TrimSpread::Bipolar, true},
+		{LIFT_PARAM, LIFT_INPUT, LIFT_CV_PARAM, -1.f, 1.f, -1.f, shapes::TrimSpread::Bipolar, true},
+		{SYMMETRY_PARAM, SYMMETRY_INPUT, SYMMETRY_CV_PARAM, 0.f, 1.f, 0.f, shapes::TrimSpread::Upward, true},
+		{TILT_PARAM, TILT_INPUT, TILT_CV_PARAM, -1.f, 1.f, -1.f, shapes::TrimSpread::Bipolar, true},
+		{DRIFT_PARAM, DRIFT_INPUT, DRIFT_CV_PARAM, 0.f, 1.f, 0.f, shapes::TrimSpread::Upward, false},
+	};
+
 	// Context menu settings
 	shapeui::Settings settings;
-	bool variationPerCycle = false;
+	// CV and feedback are read once at the start of each cycle
+	bool cvPerCycle = false;
 	// A new shape waits for the end of the cycle
 	bool shapeAtCycleEnd = false;
 	int heldShape = 0;
@@ -116,9 +139,9 @@ struct Skylark : Module {
 	dsp::SchmittTrigger speedDownCv, speedUpCv;
 	float sampleRate = 48000.f;
 	float appliedSlewMs = -1.f;
-	// OUT on the previous sample: Variation's feedback when its jack is empty
+	// OUT on the previous sample: the feedback into an empty CV jack
 	float lastOut = 0.f;
-	float heldVariationCv = 0.f;
+	float heldCv[NUM_TRIMMED] = {};
 	bool started = false;
 	// The shape is worked out every kControlInterval samples, and OUT ramps between
 	shapes::Ramp ramp;
@@ -145,29 +168,23 @@ struct Skylark : Module {
 		configSwitch(SHAPE_PARAM, 0.f, shapes::kNumRecipes - 1, 0.f, "Shape", names);
 		configButton(SHAPE_PREV_PARAM, "Previous shape");
 		configButton(SHAPE_NEXT_PARAM, "Next shape");
-		configParam(VARIATION_CV_PARAM, -1.f, 1.f, 0.f, "Variation CV amount");
 		configParam(TIMING_PARAM, -1.f, 1.f, 0.f, "Timing");
 		configParam(LIFT_PARAM, -1.f, 1.f, 0.f, "Lift");
 		configParam(SYMMETRY_PARAM, 0.f, 1.f, 0.f, "Symmetry", "%", 0.f, 100.f);
 		configParam(TILT_PARAM, -1.f, 1.f, 0.f, "Tilt");
 		configParam(DRIFT_PARAM, 0.f, 1.f, 0.f, "Drift", "%", 0.f, 100.f);
-		configParam(TIMING_CV_PARAM, -1.f, 1.f, 0.f, "Timing CV amount");
-		configParam(LIFT_CV_PARAM, -1.f, 1.f, 0.f, "Lift CV amount");
-		configParam(SYMMETRY_CV_PARAM, -1.f, 1.f, 0.f, "Symmetry CV amount");
-		configParam(TILT_CV_PARAM, -1.f, 1.f, 0.f, "Tilt CV amount");
-		configParam(DRIFT_CV_PARAM, -1.f, 1.f, 0.f, "Drift CV amount");
+		static const char* const kTrimmedNames[NUM_TRIMMED] = {"Variation", "Timing", "Lift", "Symmetry", "Tilt", "Drift"};
+		for (int i = 0; i < NUM_TRIMMED; i++) {
+			ParamQuantity* trim = configParam(kTrimmed[i].trim, -1.f, 1.f, 0.f, string::f("%s CV amount", kTrimmedNames[i]));
+			trim->description = "With the jack empty: clockwise feeds OUT back, counter-clockwise adds a random offset each cycle";
+			configInput(kTrimmed[i].input, string::f("%s CV (OUT when unpatched)", kTrimmedNames[i]));
+		}
 		shapeui::configBpm(this, BPM_PARAM);
 		configButton(RESET_PARAM, "Reset");
 		configButton(SPEED_DOWN_PARAM, "Half speed");
 		configButton(SPEED_UP_PARAM, "Double speed");
 		configButton(SPEED_RESET_PARAM, "Speed x1");
-		configInput(VARIATION_INPUT, "Variation CV (OUT when unpatched)");
 		configInput(SHAPE_INPUT, "Shape CV");
-		configInput(TIMING_INPUT, "Timing CV");
-		configInput(LIFT_INPUT, "Lift CV");
-		configInput(SYMMETRY_INPUT, "Symmetry CV");
-		configInput(TILT_INPUT, "Tilt CV");
-		configInput(DRIFT_INPUT, "Drift CV");
 		configInput(CLOCK_INPUT, "Clock");
 		configInput(RESET_INPUT, "Reset");
 		configInput(SPEED_DOWN_INPUT, "Half speed trigger");
@@ -196,7 +213,7 @@ struct Skylark : Module {
 		Module::onReset(e);
 		speed.jumpTo(0);
 		settings.reset();
-		variationPerCycle = false;
+		cvPerCycle = false;
 		shapeAtCycleEnd = false;
 	}
 
@@ -204,10 +221,29 @@ struct Skylark : Module {
 		return (float) shapes::sanitize(inputs[input].getVoltage(), 0.0);
 	}
 
-	// Knob plus attenuverted CV (10 V spans the knob's range), clamped.
-	double control(int param, int input, int trim, float lo, float hi) {
-		double v = params[param].getValue() + cv(input) * 0.2 * params[trim].getValue() * (hi - lo);
-		return std::clamp(shapes::sanitize(v, lo), (double) lo, (double) hi);
+	// One of the trimmed controls at t cycles since reset, clamped. A patched
+	// CV is attenuverted (10 V spans the knob's range). With the jack empty,
+	// clockwise feeds OUT in as if it were patched (Upward controls take OUT's
+	// place in its range, bottom to top, instead), and counter-clockwise adds
+	// a random offset.
+	double control(int i, double t, bool cycleStart) {
+		const TrimmedControl& k = kTrimmed[i];
+		bool patched = inputs[k.input].isConnected();
+		float in = patched ? cv(k.input) : lastOut;
+		if (!cvPerCycle || cycleStart)
+			heldCv[i] = in;
+		double trim = params[k.trim].getValue();
+		double span = k.hi - k.lo;
+		double v = params[k.param].getValue();
+		if (patched || (trim > 0.0 && k.spread == shapes::TrimSpread::Bipolar))
+			v += heldCv[i] * 0.2 * trim * span;
+		else if (trim > 0.0) {
+			double place = std::clamp((shapes::fromVolts(heldCv[i], settings.range) + 1.0) / 2.0, 0.0, 1.0);
+			v += place * trim * span;
+		}
+		else if (trim < 0.0)
+			v += -trim * span * shapes::trimRandomOffset((uint32_t) i, t, k.spread, k.glide);
+		return std::clamp(shapes::sanitize(v, k.fallback), (double) k.lo, (double) k.hi);
 	}
 
 	void stepShape(int delta) {
@@ -275,10 +311,6 @@ struct Skylark : Module {
 			appliedSlewMs = settings.slewMs;
 		}
 
-		float variationCv = inputs[VARIATION_INPUT].isConnected() ? cv(VARIATION_INPUT) : lastOut;
-		if (!variationPerCycle || cycleStart)
-			heldVariationCv = variationCv;
-
 		shapes::SkylarkControls c;
 		// 10 V of Shape CV spans all the recipes; huge voltages are clamped
 		// first so the rounding can't overflow
@@ -288,13 +320,12 @@ struct Skylark : Module {
 		if (!shapeAtCycleEnd || cycleStart)
 			heldShape = shape;
 		c.shape = heldShape;
-		double variation = params[VARIATION_PARAM].getValue() + heldVariationCv * 0.2 * params[VARIATION_CV_PARAM].getValue();
-		c.variation = std::clamp(shapes::sanitize(variation, 0.5), 0.0, 1.0);
-		c.timing = control(TIMING_PARAM, TIMING_INPUT, TIMING_CV_PARAM, -1.f, 1.f);
-		c.lift = control(LIFT_PARAM, LIFT_INPUT, LIFT_CV_PARAM, -1.f, 1.f);
-		c.symmetry = control(SYMMETRY_PARAM, SYMMETRY_INPUT, SYMMETRY_CV_PARAM, 0.f, 1.f);
-		c.tilt = control(TILT_PARAM, TILT_INPUT, TILT_CV_PARAM, -1.f, 1.f);
-		c.drift = control(DRIFT_PARAM, DRIFT_INPUT, DRIFT_CV_PARAM, 0.f, 1.f);
+		c.variation = control(VARIATION, t, cycleStart);
+		c.timing = control(TIMING, t, cycleStart);
+		c.lift = control(LIFT, t, cycleStart);
+		c.symmetry = control(SYMMETRY, t, cycleStart);
+		c.tilt = control(TILT, t, cycleStart);
+		c.drift = control(DRIFT, t, cycleStart);
 		engine.setControls(c);
 		evalVariation = c.variation;
 
@@ -331,7 +362,7 @@ struct Skylark : Module {
 	json_t* dataToJson() override {
 		json_t* rootJ = json_object();
 		settings.toJson(rootJ);
-		json_object_set_new(rootJ, "variationPerCycle", json_boolean(variationPerCycle));
+		json_object_set_new(rootJ, "cvPerCycle", json_boolean(cvPerCycle));
 		json_object_set_new(rootJ, "shapeAtCycleEnd", json_boolean(shapeAtCycleEnd));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		return rootJ;
@@ -339,8 +370,11 @@ struct Skylark : Module {
 
 	void dataFromJson(json_t* rootJ) override {
 		settings.fromJson(rootJ);
-		json_t* j = json_object_get(rootJ, "variationPerCycle");
-		variationPerCycle = j && json_is_true(j);
+		// Before all six controls shared it, the option was Variation's alone
+		json_t* j = json_object_get(rootJ, "cvPerCycle");
+		if (!j)
+			j = json_object_get(rootJ, "variationPerCycle");
+		cvPerCycle = j && json_is_true(j);
 		j = json_object_get(rootJ, "shapeAtCycleEnd");
 		shapeAtCycleEnd = j && json_is_true(j);
 		j = json_object_get(rootJ, "speed");
@@ -499,10 +533,10 @@ struct SkylarkWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		shapeui::appendSettingsMenu(menu, module, &module->settings);
-		menu->addChild(createIndexSubmenuItem("Variation CV", {"Continuous", "Sample once per cycle"},
-			[=]() { return module->variationPerCycle ? 1 : 0; },
+		menu->addChild(createIndexSubmenuItem("CV and feedback", {"Continuous", "Sample once per cycle"},
+			[=]() { return module->cvPerCycle ? 1 : 0; },
 			[=](int i) {
-				withMenuUndo(module, "set Variation CV mode", [=]() { module->variationPerCycle = i == 1; });
+				withMenuUndo(module, "set CV and feedback mode", [=]() { module->cvPerCycle = i == 1; });
 			}));
 		menu->addChild(createIndexSubmenuItem("Shape changes", {"Immediately", "At end of cycle"},
 			[=]() { return module->shapeAtCycleEnd ? 1 : 0; },

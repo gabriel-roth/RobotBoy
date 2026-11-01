@@ -7,12 +7,13 @@
 #    15.15 apart (88.56 / 103.71), centered in the plate. Rows are the 46.5 mm plate's
 #    (labels 24.5, knobs 33.5, jacks 46.0, trim 55.5) scaled to 44.5: 24.178 / 32.791 /
 #    44.753 / 53.844.
-#    VARIATION has an attenuverter under its jack: with nothing patched, the output is
-#    normalled to the VARIATION input and the attenuverter sets the feedback depth. An arrow
-#    from the display (the output) meets a notch in the plate's left edge at the VARIATION
-#    jack, as Brume marks its normalled follower; the arrow is display-colored so it reads as
-#    part of the display. SHAPE previous / next buttons (6.6 apart) sit in the attenuverter
-#    row, chevrons 4.5 outside.
+#    VARIATION has a CV trim under its jack. SHAPE previous / next buttons (6.6 apart) sit in
+#    the trim row, chevrons 4.5 outside.
+#  - CV trims (VARIATION and the five transforms): with the jack empty, clockwise feeds OUT back
+#    and counter-clockwise adds a random offset each cycle. Glyphs mark the two ends of travel,
+#    4.0 out and 1.9 down from each trim (clear of the knob glyphs above): a clockwise loop on
+#    the right; on the left random steps (VARIATION, DRIFT: jump each cycle) or a smooth wander
+#    (TIMING, LIFT, SYMMETRY, TILT: glide). No display arrow: the glyphs say it.
 #  - Transform plate (1.5-115.34, 63.5-100): TIMING, LIFT, SYMMETRY, TILT, DRIFT in five
 #    columns 22.768 apart, half a column from each edge, each a stack of label, knob
 #    (end-of-travel glyphs 4.762 either side, 4.762 below), CV trimpot and CV jack. Rows are
@@ -46,12 +47,7 @@ theme:
   title_color: "#e8e8e8"
 
 zones:
-  # Under the display (hidden by it): only its arrow shows, pointing into the
-  # top plate's notch at the VARIATION jack, for the output->VARIATION feedback.
-  - {x: 1.5, y: 17.0, w: 73.43, h: 44.5, rx: 2, fill: "#0c0e10", opacity: 1.0,
-     arrows: [{side: right, at: 44.753}]}
-  - {x: 76.93, y: 17.0, w: 38.41, h: 44.5, rx: 2, fill: "#b98f6a", opacity: 0.55,
-     notches: [{side: left, at: 44.753}]}
+  - {x: 76.93, y: 17.0, w: 38.41, h: 44.5, rx: 2, fill: "#b98f6a", opacity: 0.55}
   - {x: 1.5, y: 63.5, w: 113.84, h: 36.5, rx: 2, fill: "#7f9fb3", opacity: 0.55}
   - {x: 1.5, y: 102.0, w: 81.226, h: 21.0, rx: 2, fill: "#9aa883", opacity: 0.55}
   - {x: 84.726, y: 102.0, w: 30.614, h: 21.0, rx: 2, fill: "#9a9a9a", opacity: 0.55}
@@ -154,6 +150,19 @@ glyphs:
   - {src: glyphs/skylark/tilt-rising.svg, at: [85.950, 81.630]}
   - {src: glyphs/skylark/drift-steady.svg, at: [99.194, 81.630]}
   - {src: glyphs/skylark/drift-wander.svg, at: [108.718, 81.630]}
+  # CV trims: random (counter-clockwise) and feedback (clockwise) at the ends of travel.
+  - {src: glyphs/skylark/trim-random-jump.svg, at: [84.560, 55.744]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [92.560, 55.744]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [8.884, 87.679]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [16.884, 87.679]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [31.652, 87.679]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [39.652, 87.679]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [54.420, 87.679]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [62.420, 87.679]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [77.188, 87.679]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [85.188, 87.679]}
+  - {src: glyphs/skylark/trim-random-jump.svg, at: [99.956, 87.679]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [107.956, 87.679]}
   # SHAPE previous / next and SPEED down / up, 4.5 outside their buttons.
   - {src: glyphs/weaver/step-back.svg,    at: [95.91, 53.844]}
   - {src: glyphs/weaver/step-forward.svg, at: [111.51, 53.844]}
