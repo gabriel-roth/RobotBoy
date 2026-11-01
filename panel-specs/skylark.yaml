@@ -24,7 +24,8 @@
 #      unpatched, and the CLOCK jack, 10.5 apart), RESET (button + jack, 8.5 apart), SPEED
 #      (center 63.514): down / x1 / up buttons 8.7 apart as on Weaver (107.692), chevrons 4.5
 #      outside, down / up trigger jacks 20 apart (115.892, 8.2 under the buttons and 1.3
-#      outside them), the label between the jacks. No beat light; the display shows the tempo.
+#      outside them), the label between the jacks at the other labels' height (118.6). No
+#      beat light; the display shows the tempo.
 #    - Output plate (84.726-115.34, gray as Brume's output column): EOC, OUT, OUT circled by a
 #      ring in the display's signal orange.
 slug: Skylark
@@ -103,7 +104,7 @@ elements:
   - {name: SPEED_UP_PARAM, widget: TL1105, x: 72.214, y: 107.692}
   - {name: SPEED_DOWN_INPUT, x: 53.514, y: 115.892}
   - {name: SPEED_UP_INPUT, x: 73.514, y: 115.892}
-  - {text: SPEED, x: 63.514, y: 116.992, size: 3.175}
+  - {text: SPEED, x: 63.514, y: 118.6, size: 3.175}
 
   # --- Output plate.
   - {name: EOC_OUTPUT, x: 92.702, y: 110.6}
