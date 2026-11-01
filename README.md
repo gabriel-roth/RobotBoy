@@ -6,8 +6,12 @@
 	* **[Particules](Particules.md):** A granular texture processor.
 	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
 	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
+	* **[Lucarne](Lucarne.md):** A display expander for Particules' and Retours' buffers, grains and delay taps.
 
-* **[Lucarne](Lucarne.md):** A display expander for Particules' and Retours' buffers, grains and delay taps.
+* Three complex modulators:
+	* **[Skylark](Skylark.md):** A looping shape generator with 18 families of gestures.
+	* **[Weaver](Weaver.md):** A modulator that weaves three waves into one shape.
+	* **[Lyrebird](Lyrebird.md):** A gesture and CV recorder.
 
 * **[Loooop](Loooop.md):** A stereo looper with four independent playheads, and its smaller sibling **[Löp](Loooop.md#löp)**.
 
@@ -16,11 +20,6 @@
 	* **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** A Polivoks-style multimode filter.
 	* **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** An emulation of the EDP Wasp state-variable filter.
 
-* Three complex modulators:
-	* **[Skylark](Skylark.md):** A looping shape generator with 18 families of gestures.
-	* **[Weaver](Weaver.md):** A modulator that weaves three waves into one shape.
-	* **[Lyrebird](Lyrebird.md):** A gesture and CV recorder.
-
 ---
 
 ## Beads, in three modules
@@ -28,18 +27,26 @@
 <img src="screenshots/Particules.png" alt="Particules module" height="300">
 <img src="screenshots/Retours.png" alt="Retours module" height="300">
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
+<img src="screenshots/Lucarne.png" alt="Lucarne module" height="300">
 
-Mutable Instruments Beads, split into three modules and running on Beads’s own source code.
+Mutable Instruments Beads, split into three modules and running on Beads’s own source code, plus a display expander for two of them.
 
 - **[Particules](Particules.md):** Beads’s granular texture processor: it records your input and plays back a swarm of short overlapping grains, from lush self-generating clouds to tightly clocked rhythmic slicing.
 - **[Retours](Retours.md):** Beads’s hidden delay mode as a standalone delay and beat-slicer, with manual, clocked, or tap-tempo delay times down to audio rates.
 - **[Ondes](Ondes.md):** A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob picks one of 12 banks, another sweeps through its 16 waveforms.
+- **[Lucarne](Lucarne.md):** A display expander for Particules and Retours: it shows the buffer as a waveform with the write head sweeping across it. With Particules it draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position; with Retours it draws each delay tap as a line from where it reads to the write head.
 
-## Lucarne
+## Complex modulators
 
-<img src="screenshots/Lucarne.png" alt="Lucarne module" height="300">
+<img src="screenshots/Skylark.png" alt="Skylark module" height="300">
+<img src="screenshots/Weaver.png" alt="Weaver module" height="300">
+<img src="screenshots/Lyrebird.png" alt="Lyrebird module" height="300">
 
-A display expander for Particules and Retours: it shows the buffer as a waveform with the write head sweeping across it. With Particules it draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position; with Retours it draws each delay tap as a line from where it reads to the write head. [**[Manual]**](Lucarne.md)
+Three tempo-synced modulation sources that keep time together, from their own tempo knob or a patched clock.
+
+- **[Skylark](Skylark.md):** Structured gestures — a bouncing ball, a ratchet, a heartbeat, a chirp — looped once per bar. Each of its 18 shapes is a family of related forms that one knob sweeps through, and five more controls bend its timing, curve, symmetry and slope.
+- **[Weaver](Weaver.md):** Three operators — simple waves, or outside CV — running at whole-number ratios of a shared cycle, woven into one shape by mixing, multiplying, bending, folding, sampling or gating. Fifteen factory presets get you started.
+- **[Lyrebird](Lyrebird.md):** A gesture and CV recorder: perform a movement once on its big knob, or with any CV, and it plays back in time with your patch as a loop or a triggered one-shot.
 
 ## Loooop + Löp
 
@@ -60,18 +67,6 @@ Three characterful stereo filter emulations, each modeled from the behavior of t
 - **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The smooth, throaty Korg MS-20 filter — a high-pass and low-pass in series, switchable between the OTA and Korg35 revisions.
 - **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The wild Soviet Polivoks filter — five modes, with explosive resonance and drive.
 - **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The buzzy EDP Wasp filter, in its original British or reimplemented German flavors.
-
-## Complex modulators
-
-<img src="screenshots/Skylark.png" alt="Skylark module" height="300">
-<img src="screenshots/Weaver.png" alt="Weaver module" height="300">
-<img src="screenshots/Lyrebird.png" alt="Lyrebird module" height="300">
-
-Three tempo-synced modulation sources that keep time together, from their own tempo knob or a patched clock.
-
-- **[Skylark](Skylark.md):** Structured gestures — a bouncing ball, a ratchet, a heartbeat, a chirp — looped once per bar. Each of its 18 shapes is a family of related forms that one knob sweeps through, and five more controls bend its timing, curve, symmetry and slope.
-- **[Weaver](Weaver.md):** Three operators — simple waves, or outside CV — running at whole-number ratios of a shared cycle, woven into one shape by mixing, multiplying, bending, folding, sampling or gating. Fifteen factory presets get you started.
-- **[Lyrebird](Lyrebird.md):** A gesture and CV recorder: perform a movement once on its big knob, or with any CV, and it plays back in time with your patch as a loop or a triggered one-shot.
 
 ## To install
 
