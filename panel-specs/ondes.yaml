@@ -40,6 +40,9 @@ title:
 # Wavetable display: LedDisplay widget drawing the live cyan trace (see
 # WavetableDisplay::drawLayer in Ondes.cpp) — bare rect placeholder here,
 # same as Löp/Loooop's SCREEN.
+theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
+
 elements:
   # Shrinking the logo freed 4.95mm: the display's top follows the wordmark
   # up (keeping the 2.05mm gap under it) and half the gain enlarges the

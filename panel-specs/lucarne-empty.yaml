@@ -30,6 +30,7 @@ name: LUCARNE
 hp: 12
 
 theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
   screws: none    # the module widget draws its own ScrewBlack corners.
 
 title:

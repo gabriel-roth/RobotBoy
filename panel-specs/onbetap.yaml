@@ -37,6 +37,9 @@ title:
 
 # Soviet-red control zone tint behind the whole control cluster; the I/O row
 # sits below it.
+theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
+
 zones:
   - {x: 1.5, y: 15, w: 47.8, h: 92, fill: "#9e2b25", opacity: 0.25}
 

@@ -35,6 +35,9 @@ title:
 # One neutral control-zone tint (white, unified) behind rows 1-2 only;
 # defaults (fill #ffffff, opacity 0.14, rx 2.0) match the shipped panel
 # exactly.
+theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
+
 zones:
   - {x: 1.5, y: 35.15, w: 57.96, h: 46}
 

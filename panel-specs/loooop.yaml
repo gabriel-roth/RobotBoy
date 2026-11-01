@@ -39,6 +39,9 @@ title:
 # H4 purple. Yellow carries its own alpha (0x33 = 0.2) because at the shared
 # 0.14 it renders gold/olive on the dark panel; red/blue/purple use the
 # default 0.14 explicitly for clarity.
+theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
+
 zones:
   - {x: 1.5,    y: 35.15, w: 46.76, h: 73.6, fill: "#ff3b30", opacity: 0.14}
   - {x: 49.26,  y: 35.15, w: 46.76, h: 73.6, fill: "#fff70a", opacity: 0.2}

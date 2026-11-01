@@ -36,6 +36,7 @@ title:
   tracking: 1.17
 
 theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
   screws: none
 
 zones:

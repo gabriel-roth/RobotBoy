@@ -16,6 +16,7 @@ side_margin: 5
 
 # Reference ships silver (not the theme-default dark) screws.
 theme:
+  title_color: "#e8e8e8"  # softer than the white labels (white at 88% over #3d3d3d)
   screws: light
 
 title:
