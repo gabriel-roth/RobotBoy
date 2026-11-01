@@ -50,6 +50,11 @@ public:
 	LyrebirdEngine();
 
 	void setSampleRate(double sr);
+	// The playing take is read (smoothed) every n samples and ramped in
+	// between; 1, the default, reads it every sample
+	void setControlInterval(int n) {
+		controlInterval_ = std::max(n, 1);
+	}
 	LyrebirdStep process(const LyrebirdControls& c, const Timebase::Step& tb);
 
 	// Current take, for display and saving (tear-tolerant)
@@ -166,6 +171,12 @@ private:
 	Slew monitor_;
 	double monitorMs_ = -1.0;  // Smooth time monitor_ was last set for
 	int monitorCountdown_ = 0;
+
+	// Playback at control rate (setControlInterval)
+	int controlInterval_ = 1;
+	int untilRead_ = 0;
+	Ramp playRamp_;
+	bool rampStarted_ = false;
 	double lastRaw_ = 0.0;  // last playback value before the clamp
 
 	// One 1 ms input block being averaged, centred on take sample blockIdx_

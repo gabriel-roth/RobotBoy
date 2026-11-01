@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 using namespace shapes;
 
@@ -365,6 +366,35 @@ static void reverseOnce() {
 	assert(std::fabs(r.step().volts + 5.0) < 1e-4);
 }
 
+// At control rate the output follows the every-sample output, ramped and
+// kControlInterval - 1 samples late, and EOC is unchanged
+static void controlRateFollows() {
+	Rig ref, ctl;
+	ctl.eng.setControlInterval(kControlInterval);
+	for (Rig* r : {&ref, &ctl}) {
+		r->c.smoothMs = 50;
+		r->load(0.f, 0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		Take& t = const_cast<Take&>(r->eng.take());
+		for (int i = 0; i < 2000; i++)
+			t.samples[i] = (float) (4.0 * std::sin(2.0 * M_PI * 3.0 * i / 2000));
+		t.version++;
+	}
+	const int lag = kControlInterval - 1;
+	std::vector<double> want;
+	double worst = 0.0;
+	int eocsRef = 0, eocsCtl = 0;
+	for (int i = 0; i < 3 * 96000; i++) {
+		LyrebirdStep a = ref.step(), b = ctl.step();
+		eocsRef += a.eoc;
+		eocsCtl += b.eoc;
+		want.push_back(a.volts);
+		if (i >= 10000)
+			worst = std::max(worst, std::fabs(b.volts - want[i - lag]));
+	}
+	assert(worst < 1e-3);
+	assert(eocsRef == eocsCtl && eocsRef > 0);
+}
+
 int main() {
 	reversePlayhead();
 	noFalseEoc();
@@ -383,6 +413,7 @@ int main() {
 	outputsNeverNonFinite();
 	loadUndoSnapshot();
 	traceMatches();
+	controlRateFollows();
 	printf("lyrebird playback tests passed\n");
 	return 0;
 }

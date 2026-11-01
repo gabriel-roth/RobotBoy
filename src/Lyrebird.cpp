@@ -190,6 +190,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	dsp::SchmittTrigger recGate, punchGate, reverseGate, prevGate, nextGate;
 	dsp::BooleanTrigger prevButton, saveButton, nextButton, reversePress;
 	float blinkPhase = 0.f;
+	int untilLights = 0;
 	int sincePublish = shapeui::kPublishInterval;
 	shapes::Status lastStatus = shapes::Status::Idle;
 	float spanFrom = 0.f;
@@ -352,6 +353,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	void setRate(float rate) {
 		timebase.setSampleRate(rate);
 		engine.setSampleRate(rate);
+		engine.setControlInterval(shapes::kControlInterval);
 	}
 
 	void onSampleRateChange(const SampleRateChangeEvent& e) override {
@@ -462,14 +464,17 @@ struct Lyrebird : Module, MenuUndoFilter {
 		}
 		lastStatus = step.status;
 
-		// Solid while writing, blinking at 2 Hz while armed
+		// Solid while writing, blinking at 2 Hz while armed; set at control rate
 		blinkPhase += args.sampleTime * 2.f;
 		if (blinkPhase >= 1.f)
 			blinkPhase -= 1.f;
-		float blink = blinkPhase < 0.5f ? 1.f : 0.f;
-		lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
-		lights[REVERSE_LIGHT].setBrightness(c.reverse ? 1.f : 0.f);
-		lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
+		if (--untilLights <= 0) {
+			untilLights = shapes::kControlInterval;
+			float blink = blinkPhase < 0.5f ? 1.f : 0.f;
+			lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
+			lights[REVERSE_LIGHT].setBrightness(c.reverse ? 1.f : 0.f);
+			lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
+		}
 
 		displayPos.store((float) step.playhead, std::memory_order_relaxed);
 		if (++sincePublish >= shapeui::kPublishInterval) {

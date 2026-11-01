@@ -474,6 +474,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	if (status_ == Status::Recording) {
 		// OUT monitors the live source while the take is written
 		recordSample(c, tb, x, out);
+		rampStarted_ = false;
 		lastRaw_ = monitor_.process(src);
 		out.volts = finish(lastRaw_);
 		out.status = status_;
@@ -483,6 +484,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	const Take& t = *cur_.load();
 
 	if (t.empty()) {
+		rampStarted_ = false;
 		lastRaw_ = src;
 		out.volts = finish(src);
 		out.status = status_;
@@ -572,7 +574,6 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	lastRatio_ = ratio;
 	lastBars_ = c.sync ? effectiveBars(t) : 0.0;
 
-	double v;
 	if (resting) {
 		// Rest at the end of the pass in the direction of play
 		switch (c.idle) {
@@ -588,14 +589,30 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		}
 		if (c.reverse)
 			ph = 1.0 - ph;
-		v = c.idle == IdleOutput::Zero ? 0.0 : rawFor(c, before, ph);
 	}
 	else {
 		if (c.reverse)
 			ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
-		v = rawFor(c, before, ph);
 	}
 	out.playhead = ph;
+	bool zero = resting && c.idle == IdleOutput::Zero;
+	double v;
+	if (controlInterval_ <= 1)
+		v = zero ? 0.0 : rawFor(c, before, ph);
+	else {
+		// Read every controlInterval_ samples and on TRIG, ramped between;
+		// the first read after recording or loading lands at once
+		if (!rampStarted_ || tb.reset || --untilRead_ <= 0) {
+			untilRead_ = controlInterval_;
+			double target = zero ? 0.0 : rawFor(c, before, ph);
+			if (rampStarted_)
+				playRamp_.target(target, controlInterval_);
+			else
+				playRamp_.jump(target);
+			rampStarted_ = true;
+		}
+		v = playRamp_.next();
+	}
 
 	// Punch-in: in ONCE only during a pass, and it ends with the pass
 	bool playing = !resting;
