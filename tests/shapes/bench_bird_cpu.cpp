@@ -381,9 +381,12 @@ static void lyrebirdWorst(const char* name, double smoothBase, bool loop) {
 		c.smoothMs = smoothBase > 0.0 ? 1000.0 * k * k * k : 0.0;
 		LyrebirdStep s = e.process(c, tb.process(in));
 		double v = s.volts;
+		// The module draws the trace up a point at a time between publishes
+		constexpr int stride = kPublishInterval / kTracePoints;
+		if (since % stride == 0)
+			e.renderTrace(c, raw.data(), out.data(), kTracePoints, since / stride, since / stride + 1);
 		if (++since >= kPublishInterval) {
 			since = 0;
-			e.renderTrace(c, raw.data(), out.data(), kTracePoints);
 			v += out[3];
 		}
 		return v;

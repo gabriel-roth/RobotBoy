@@ -676,13 +676,16 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 }
 
 // Audio thread only: it reads the smoother's sums, which that thread rebuilds
-void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* out, int n) {
+void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* out, int n, int from, int to) {
 	const Take& t = *cur_.load();
-	if (n <= 0)
+	if (to < 0 || to > n)
+		to = n;
+	from = std::max(from, 0);
+	if (from >= to)
 		return;
 	if (t.empty()) {
 		float v = (float) finish(sanitize(c.source, 0.0));
-		for (int i = 0; i < n; i++) {
+		for (int i = from; i < to; i++) {
 			raw[i] = 0.f;
 			out[i] = v;
 		}
@@ -702,7 +705,7 @@ void LyrebirdEngine::renderTrace(const LyrebirdControls& c, float* raw, float* o
 		return (!partial || written_[k]) ? (double) t.samples[k] : blockSum_ / blockCount_;
 	};
 	const float none = std::numeric_limits<float>::quiet_NaN();
-	for (int i = 0; i < n; i++) {
+	for (int i = from; i < to; i++) {
 		double p = n > 1 ? (double) i / (n - 1) : 0.0;
 		double idx = p * (t.length - 1);
 		int k = std::min((int) idx, t.length - 1);

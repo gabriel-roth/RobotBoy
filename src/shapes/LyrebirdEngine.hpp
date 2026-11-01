@@ -105,7 +105,8 @@ public:
 	double speedRatio(const LyrebirdControls& c) const;
 	// Audio thread only. Points evenly spaced across the take: raw as stored, out as OUT would play it.
 	// While a Sync take is being recorded, points not yet written are NaN in both.
-	void renderTrace(const LyrebirdControls& c, float* raw, float* out, int n);
+	// Fills points [from, to) of the n, so a trace can be built a few points at a time.
+	void renderTrace(const LyrebirdControls& c, float* raw, float* out, int n, int from = 0, int to = -1);
 
 	static double syncRatio(double speedOct);
 	static double freeRatio(double speedOct);

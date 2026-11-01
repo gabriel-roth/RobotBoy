@@ -191,7 +191,13 @@ struct Lyrebird : Module, MenuUndoFilter {
 	dsp::BooleanTrigger prevButton, saveButton, nextButton, reversePress;
 	float blinkPhase = 0.f;
 	int untilLights = 0;
-	int sincePublish = shapeui::kPublishInterval;
+	// The first publish waits for a whole trace
+	int sincePublish = 0;
+	// The trace is drawn up a point at a time between publishes: all at once,
+	// with Smooth up, it was a burst in one sample
+	static constexpr int kTraceStride = shapeui::kPublishInterval / kTracePoints;
+	float traceRaw[kTracePoints] = {};
+	float traceOut[kTracePoints] = {};
 	shapes::Status lastStatus = shapes::Status::Idle;
 	float spanFrom = 0.f;
 
@@ -477,6 +483,10 @@ struct Lyrebird : Module, MenuUndoFilter {
 		}
 
 		displayPos.store((float) step.playhead, std::memory_order_relaxed);
+		if (sincePublish % kTraceStride == 0) {
+			int point = sincePublish / kTraceStride;
+			engine.renderTrace(c, traceRaw, traceOut, kTracePoints, point, point + 1);
+		}
 		if (++sincePublish >= shapeui::kPublishInterval) {
 			sincePublish = 0;
 			publish(c, step, useCv);
@@ -486,7 +496,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	void publish(const shapes::LyrebirdControls& c, const shapes::LyrebirdStep& step, bool useCv) {
 		int back = 1 - frontFrame.load(std::memory_order_relaxed);
 		LyrebirdFrame& f = frames[back];
-		engine.renderTrace(c, f.raw, f.out, kTracePoints);
+		memcpy(f.raw, traceRaw, sizeof f.raw);
+		memcpy(f.out, traceOut, sizeof f.out);
 		const shapes::Take& t = engine.take();
 		f.playhead = (float) step.playhead;
 		f.status = step.status;
