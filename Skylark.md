@@ -1,6 +1,6 @@
 # Skylark
 
-**Skylark** is a clocked shape modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Each cycle it plays one of 18 shapes. **Variation** selects a form within the shape's family; five transforms reshape the result. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
+**Skylark** is a clocked shape modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Each cycle it plays one of 18 shapes; **VARIATION** selects a form within the shape's family, and five transforms reshape the result. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Skylark.png" alt="Skylark module" height="500">
 
@@ -8,12 +8,10 @@
 
 ## Overview
 
-- One cycle = one bar of four beats, from the **CLOCK** knob's tempo or an external clock. **SPEED** scales the cycle from 1/4x to 4x.
-- The shape plays once per cycle and restarts; **EOC** fires at each wrap.
-- **SHAPE** selects the shape; **VARIATION** moves all of the shape's internal parameters along a fixed path.
-- Each shape is normalized so its largest excursion reaches the edge of the output range at every Variation setting.
-- The transforms (**TIMING**, **LIFT**, **SYMMETRY**, **TILT**, **DRIFT**) are applied after the shape. At their defaults (TIMING, LIFT, TILT at center; SYMMETRY, DRIFT fully counter-clockwise) they have no effect.
-- The random shapes (Random nodes, Fractal line, Glitch) are deterministic: the same settings give the same cycle every time. Only DRIFT and the random trimpot mode vary cycles.
+- One cycle is one bar (four beats) at the **CLOCK** tempo, scaled by **SPEED**. The shape restarts each cycle and **EOC** fires.
+- Each shape is normalized to fill the output range at every VARIATION setting.
+- The transforms have no effect at their defaults.
+- The random shapes (Random nodes, Fractal line, Glitch) repeat exactly each cycle. Only DRIFT and the trimpots' random mode vary cycles.
 
 ---
 
@@ -21,57 +19,42 @@
 
 ### SHAPE and VARIATION
 
-- **SHAPE** knob: selects one of 18 shapes (default Bounce). The **‹ ›** buttons step to the previous/next shape, wrapping.
-- **SHAPE** CV: added to the knob; 10 V spans all 18 shapes (0.56 V per shape). Negative voltages step backward. Wraps.
+- **SHAPE**: selects the shape (default Bounce); **‹ ›** step through them. SHAPE CV adds to the knob, 10 V spanning all 18 shapes, wrapping.
 - **VARIATION**: 0–100%, default 50%.
-- **VARIATION** CV: scaled by its trimpot (−1 to +1, default 0). At full trim, 5 V spans the whole range.
-
-A shape change takes effect immediately, or at the next cycle start with **Shape changes → At end of cycle**.
 
 ### Transforms
 
-Each has a knob, a CV trimpot (−1 to +1, default 0) and a CV input. At full trim, 5 V spans the knob's range; the sum is clamped to that range. Transforms apply immediately, mid-cycle.
+Each transform applies immediately.
 
-- **TIMING** (−1 to +1, default 0): moves the shape's midpoint between 2% and 98% of the cycle, compressing one half and stretching the other.
-- **LIFT** (−1 to +1, default 0): power curve on the level, with the top and bottom fixed. Positive raises values toward the top; negative lowers them toward the bottom.
-- **SYMMETRY** (0–100%, default 0%): crossfades the second half of the cycle toward a mirror of the first half. At 100% the cycle ends at its start value.
-- **TILT** (−1 to +1, default 0): adds a ramp across the cycle, rising for positive, falling for negative. At ±1 the ramp alone spans the output range. The excess is handled by **When out of range**.
-- **DRIFT** (0–100%, default 0%): each cycle, offsets the shape's internal parameters by a random amount, up to 30% of each parameter's range at 100%. The offsets are derived from the cycle count, so the sequence repeats after **RESET**. Does not affect Arpeggio's pattern or Chirp's direction.
+- **TIMING**: moves the shape's midpoint earlier or later in the cycle, compressing one half and stretching the other. Default center.
+- **LIFT**: bends levels up or down, with the top and bottom fixed. Default center.
+- **SYMMETRY**: crossfades the second half of the cycle toward a mirror of the first. At 100% the cycle ends where it starts. Default 0%.
+- **TILT**: adds a rising or falling ramp across the cycle, which can push the shape out of range (see **When out of range**). Default center.
+- **DRIFT**: randomly offsets the shape's internal parameters each cycle, by up to 30% of their range. The sequence repeats after RESET. Default 0%.
 
-### Trimpots with no cable
+### CV trimpots
 
-With nothing patched into a CV jack, its trimpot (VARIATION and the five transforms) does one of two things. At center it does nothing.
+VARIATION and each transform have a CV input and trimpot. With a cable patched, the trimpot attenuverts the CV; at full trim, 5 V spans the control's range. With no cable:
 
-- **Clockwise: feedback.** **OUT** is fed into the control, scaled by the trimpot. VARIATION, TIMING, LIFT and TILT receive OUT as if it were patched. SYMMETRY and DRIFT receive only positive offsets, proportional to OUT's position in the output range.
-- **Counter-clockwise: random.** The control gets a random offset per cycle, scaled by the trimpot. At full turn the offset spans ±half the control's range (SYMMETRY and DRIFT: 0 to the full range, upward only).
-  - VARIATION and DRIFT: the value changes at the cycle start.
-  - TIMING, LIFT, SYMMETRY, TILT: the value glides from one cycle's value to the next across the cycle.
-  - The values are derived from the cycle count and repeat after **RESET**.
-
-**CV and feedback → Sample once per cycle** samples CV and feedback at each cycle start instead of continuously.
+- **Clockwise:** feeds **OUT** back into the control.
+- **Counter-clockwise:** adds a random offset each cycle. VARIATION and DRIFT change at the cycle start; the other transforms glide between values. The sequence repeats after RESET.
 
 ### CLOCK, RESET and SPEED
 
-- **CLOCK** knob: 20–300 BPM, default 120, in 0.01 BPM steps. One cycle = 4 beats (12 s at 20 BPM, 0.8 s at 300 BPM). Not affected by Randomize.
-- **CLOCK** input: overrides the knob. **Clock pulses per cycle** sets the pulses per bar (default 4). The first pulse resets the cycle to its start; from the second pulse, the tempo is measured, averaged over one cycle of pulses, and followed with a phase lock. Cycle length with a clock: 0.05–60 s.
-  - If the clock stops, the last tempo continues. The first pulse after a long gap resets the cycle to its start.
-  - CLOCK and RESET inputs trigger above 1 V.
-- **RESET** button and input: restart the cycle. Does not fire EOC. Counts as a cycle start for per-cycle settings and restarts the DRIFT and random sequences. With a clock patched, the next pulse is treated as the downbeat.
-- **SPEED**: the outer buttons halve or double the cycle rate (1/4x, 1/2x, 1x, 2x, 4x); the center button returns to 1x. The jacks under the outer buttons do the same on a rising edge above 1 V. A change waits for the next point where the old and new cycles both start (up to four bars), so the phase stays aligned to the bar; until then the display shows the new speed dimmed and blinking. RESET applies it immediately. Saved with the patch.
+- **CLOCK**: tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
+- **RESET**: the button or a trigger restarts the cycle and the random sequences.
+- **SPEED**: the outer buttons, or triggers at their inputs, halve or double the cycle rate (1/4x to 4x); the center button returns to 1x. A change takes effect at the next point where old and new cycles align, or immediately on RESET.
 
 ### Outputs
 
-- **OUT**: the shape. ±5 V by default; ±10 V, 0–5 V or 0–10 V via **Output range**.
-- **EOC**: 10 V, 1 ms trigger at each cycle wrap (at the SPEED rate).
+- **OUT**: the shape, ±5 V by default.
+- **EOC**: a trigger at the end of each cycle.
 
 ---
 
 ## Display
 
-- One full cycle of the output after Variation, transforms, output range and out-of-range handling, before slew. A vertical playhead and a dot mark the current position.
-- Center line: middle of the output range (0 V, 2.5 V or 5 V).
-- A discontinuity at the loop point is drawn as a vertical line at the left edge.
-- Header: shape name on the left (below the trace on MetaModule). On the right: Variation after CV (`VAR 50%`), tempo in BPM (measured, when a clock is patched), and SPEED when not x1 (dimmed and blinking while a change is pending).
+One cycle of the output, with a playhead. The header shows the shape name (below the trace on MetaModule), VARIATION after CV, the tempo, and SPEED when not x1.
 
 ---
 
@@ -165,25 +148,9 @@ Variation picks the pattern by thirds of its travel: **Up**, **Up-down**, then *
 
 ## Context menu
 
-In VCV Rack, right-click the panel; on MetaModule, open Options.
-
 - **Output range**: ±5 V (default), ±10 V, 0–5 V, 0–10 V.
-- **When out of range**: how values beyond the output range (from TILT) are handled.
-  - **Fit** (default): the whole cycle is scaled down to fit.
-  - **Clip**: hard clip.
-  - **Soft clip**: saturation curve; also rounds values within range.
-  - **Fold**: reflect at the edge.
-  - **Wrap**: wrap to the opposite edge.
-- **Slew**: Off (default), 2 ms, 5 ms, 20 ms. Applied to OUT.
-- **Clock pulses per cycle**: 1, 2, 4 (default), 8, 16, 24, 32, 48, 96. 4 = quarter notes, 16 = sixteenths, 96 = 24 PPQN.
-- **CV and feedback**: **Continuous** (default), or **Sample once per cycle** (sampled at each cycle start or RESET, held for the cycle). Knobs always apply immediately; random offsets change once per cycle in both modes.
-- **Shape changes**: **Immediately** (default), or **At end of cycle** (changes from the knob, buttons or CV wait for the next cycle start or RESET; the display shows the playing shape until then).
-
-Initialize resets the menu settings and SPEED as well as the knobs.
-
----
-
-## MetaModule
-
-- Changes to VARIATION and DRIFT are applied every 256 samples (about 5 ms) instead of every 64.
-- The display refreshes less often than in VCV Rack.
+- **When out of range**: **Fit** (default; scales the whole cycle down to fit), **Clip**, **Soft clip**, **Fold** or **Wrap**.
+- **Slew**: Off (default), 2 ms, 5 ms, 20 ms.
+- **Clock pulses per cycle**: pulses per bar at the CLOCK input, 1–96 (default 4).
+- **CV and feedback**: **Continuous** (default) or **Sample once per cycle**.
+- **Shape changes**: **Immediately** (default) or **At end of cycle**.
