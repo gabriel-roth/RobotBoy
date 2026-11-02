@@ -2,7 +2,7 @@
 
 *Weaverbirds build intricate nests by interlacing strands of grass.*
 
-**Weaver** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) that builds complex shapes from simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and one of eleven algorithms combines them into a single shape. You can also use an external CV for any operator. 
+**Weaver** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) that builds complex shapes from simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and one of eleven algorithms combines them into a single shape. You can also use an external CV for any operator, and the trimpots can feed each operator back into itself or add random movement.
 
 Weaver is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
 
@@ -19,6 +19,8 @@ Weaver is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md
 - **PARAM**: each waveform has a designated parameter modulated by this knob and CV input. See [**Waves**](#waves) for details. 
 - **PHASE**: offsets the wave within its cycle.
 - **LEVEL**: attenuates or inverts the waveform.
+
+### CV trimpots
 
 PARAM, PHASE and LEVEL each have a CV input and trimpot. With a cable patched, the trimpot attenuverts the CV; at full trim, 5 V spans the control's range. With no cable:
 
