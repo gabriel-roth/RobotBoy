@@ -2,26 +2,13 @@
 
 **Robot Boy** is a plugin for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It contains:
 
-* Mutable Instruments Beads, split into three modules and running on Beads' own source code:
-	* **[Particules](Particules.md):** A granular texture processor.
-	* **[Retours](Retours.md):** An unusual delay and beat-slicer.
-	* **[Ondes](Ondes.md):** A morphing wavetable oscillator.
-	* **[Lucarne](Lucarne.md):** A display expander for Particules' and Retours' buffers, grains and delay taps.
-
-* Three complex modulators:
-	* **[Skylark](Skylark.md):** A looping shape generator with 18 families of gestures.
-	* **[Weaver](Weaver.md):** A modulator that weaves three waves into one shape.
-	* **[Lyrebird](Lyrebird.md):** A gesture and CV recorder.
-
-* **[Loooop](Loooop.md):** A stereo looper with four independent playheads, and its smaller sibling **[Löp](Loooop.md#löp)**.
-
-* Three characterful stereo filter emulations:
-	* **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** A Korg MS-20-style filter.
-	* **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** A Polivoks-style multimode filter.
-	* **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** An emulation of the EDP Wasp state-variable filter.
+* [Mutable Instruments Beads](#beads), split into three modules plus a visualizer.
+* Three [complex modulators](#modulators).
+* A [stereo looper](#loopers) with four independent playheads, and its smaller sibling.
+* And three characterful [filter emulations](#filters).
 
 ---
-
+<a id="beads"></a>
 ## Beads, in three modules and a visualizer
 
 <img src="screenshots/Particules.png" alt="Particules module" height="300">
@@ -29,32 +16,35 @@
 <img src="screenshots/Ondes.png" alt="Ondes module" height="300">
 <img src="screenshots/Lucarne.png" alt="Lucarne module" height="300">
 
-Mutable Instruments Beads, split into three modules and running on Beads’s own source code, plus a display expander for two of them.
+These modules split the Mutable Instruments Beads [source code](https://github.com/pichenettes/eurorack/tree/master/beads) into three parts and add a display expander.
 
-- **[Particules](Particules.md):** Beads’s granular texture processor: it records your input and plays back a swarm of short overlapping grains, from lush self-generating clouds to tightly clocked rhythmic slicing.
-- **[Retours](Retours.md):** Beads’s hidden delay mode as a standalone delay and beat-slicer, with manual, clocked, or tap-tempo delay times down to audio rates.
-- **[Ondes](Ondes.md):** A simple VCO built from Beads’s secret morphing wavetable oscillator: one knob picks one of 12 banks, another sweeps through its 16 waveforms.
-- **[Lucarne](Lucarne.md):** A display expander for Particules and Retours: it shows the buffer as a waveform with the write head sweeping across it. With Particules it draws every grain as a line whose height is its pitch, whose length is the stretch of buffer it plays, and whose color is its stereo position; with Retours it draws each delay tap as a line from where it reads to the write head.
+- **[Particules](Particules.md):** Beads’s granular texture processor.
+- **[Retours](Retours.md):** Beads’s hidden delay mode. 
+- **[Ondes](Ondes.md):** Beads’s secret wavetable oscillator. 
+- **[Lucarne](Lucarne.md):** A visualizer for Particules and Retours.
 
+<a id="modulators"></a>
 ## Complex modulators
 
 <img src="screenshots/Skylark.png" alt="Skylark module" height="300">
 <img src="screenshots/Weaver.png" alt="Weaver module" height="300">
 <img src="screenshots/Lyrebird.png" alt="Lyrebird module" height="300">
 
-Three tempo-synced modulation sources that keep time together, from their own tempo knob or a patched clock.
+Three tempo-synced modulation sources.
 
-- **[Skylark](Skylark.md):** Structured gestures — a bouncing ball, a ratchet, a heartbeat, a chirp — looped once per bar. Each of its 18 shapes is a family of related forms that one knob sweeps through, and five more controls bend its timing, curve, symmetry and slope.
-- **[Weaver](Weaver.md):** Three operators — simple waves, or outside CV — running at whole-number ratios of a shared cycle, woven into one shape by mixing, multiplying, bending, folding, sampling or gating. Fifteen factory presets get you started.
-- **[Lyrebird](Lyrebird.md):** A gesture and CV recorder: perform a movement once on its big knob, or with any CV, and it plays back in time with your patch as a loop or a triggered one-shot.
+- **[Skylark](Skylark.md):** Structured gestures — a bouncing ball, a ratchet, a heartbeat, a chirp — looped and tweaked.
+- **[Weaver](Weaver.md):** Three simple operators combined into one shape.
+- **[Lyrebird](Lyrebird.md):** A gesture and CV recorder.
 
+<a id="loopers"></a>
 ## Loooop + Löp
 
 <img src="screenshots/Loooop.png" alt="Loooop module" height="300">
 <img src="screenshots/Lop.png" alt="Löp module" height="300">
 
-A stereo RAM looper: capture a loop, then play it back with four independent playheads, each with its own speed, position, length, and jitter. Löp is the single-playhead version. [**[Manual]**](Loooop.md)
+Capture a loop and play it back with four independent playheads, each with its own speed, position, length, and jitter. Löp is the single-playhead version. [**[Manual]**](Loooop.md)
 
+<a id="filters"></a>
 ## Filters
 
 <img src="screenshots/MF-20.png" alt="MF-20 module" height="300">
@@ -62,10 +52,10 @@ A stereo RAM looper: capture a loop, then play it back with four independent pla
 <img src="screenshots/Vespid-c.png" alt="Vespid module (charcoal)" height="300">
 <img src="screenshots/Vespid-y.png" alt="Vespid module (gold)" height="300">
 
-Three characterful stereo filter emulations, each modeled from the behavior of the original circuit, with added drive. [**[Manual]**](Filters.md).
+Three stereo filters, each modeled on original circuits. [**[Manual]**](Filters.md).
 
-- **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The smooth, throaty Korg MS-20 filter — a high-pass and low-pass in series, switchable between the OTA and Korg35 revisions.
-- **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The wild Soviet Polivoks filter — five modes, with explosive resonance and drive.
+- **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The Korg MS-20 filter, switchable between the OTA and Korg35 revisions.
+- **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The Soviet Polivoks filter.
 - **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The buzzy EDP Wasp filter, in its original British or reimplemented German flavors.
 
 ## To install
