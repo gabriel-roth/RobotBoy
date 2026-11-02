@@ -2,7 +2,7 @@
 
 *The lyrebird is a virtuoso mimic, reproducing the sounds around it in its own song.*
 
-**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), for modulation that is easier to perform than to program. Turn its knob while recording, or record any CV, and it plays the movement back as a loop locked to the bar or as a triggered one-shot. Takes can be edited, transformed and saved as files.
+**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), for modulation that is easier to perform than to program. Turn its knob or input CV while recording and it plays the movement back as a loop locked to the bar or as a triggered one-shot. Takes can be edited, transformed and saved as files.
 
 Lyrebird is one of Robot Boy’s three complex modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md).
 
@@ -14,8 +14,8 @@ Lyrebird is one of Robot Boy’s three complex modulators, with [Skylark](Skylar
 
 ### Recording
 
-- **INPUT**: the big knob is the recording source, ±5 V by default or 0–10 V (see [**Settings**](#settings)). A cable at the jack beside it replaces the knob as the source.
-- **RECORD**: the button or a gate starts recording a new take, replacing the current one; press again to stop. A Sync take stops by itself at LENGTH.
+- **INPUT**: the big knob is the recording source, ±5 V by default (see [**Settings**](#settings)). If a cable is plugged into the jack, incoming voltage replaces the knob as the input source.
+- **RECORD**: starts recording a new take, replacing the current one; press again to stop. A Sync take stops by itself at LENGTH.
 - **PUNCH**: the button or a gate starts overwriting the take at the playhead while it keeps playing; press again to stop. Punch works at any speed and in either direction, with a short crossfade at each end. With no take, PUNCH records a new one.
 - **LENGTH**: the length of a new Sync take, 1/4 to 16 bars, default 1.
 - **SYNC / FREE**: the kind of take RECORD creates.
