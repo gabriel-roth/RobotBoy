@@ -22,7 +22,7 @@
 
 ---
 
-## Beads, in three modules
+## Beads, in three modules and a visualizer
 
 <img src="screenshots/Particules.png" alt="Particules module" height="300">
 <img src="screenshots/Retours.png" alt="Retours module" height="300">
