@@ -499,7 +499,7 @@ struct Weaver : Module {
 	void loadListed(const PresetEntry& p);
 	void quickSave();
 	void saveAs();
-	void saveTo(std::string path);
+	void saveTo(std::string path, bool named);
 	void deletePress();
 	void restoreFactory();
 #ifdef METAMODULE
@@ -1161,9 +1161,35 @@ void Weaver::stepPreset(int delta) {
 	loadListed(presets[i]);
 }
 
-void Weaver::saveTo(std::string path) {
+// Deletes a preset's file. MetaModule can't delete files, so there it's
+// emptied instead, which drops it from the list.
+static bool removePresetFile(const std::string& path) {
+	if (system::remove(path))
+		return true;
+	FILE* f = std::fopen(path.c_str(), "wb");
+	return f && std::fclose(f) == 0;
+}
+
+// Saves the settings to path, unless a preset in the same folder already
+// has them: SAVE then just names it, and Save as (named) renames its file
+// to the name chosen. A built-in can't be renamed.
+void Weaver::saveTo(std::string path, bool named) {
 	if (shapes::lowerCase(system::getExtension(path)) != ".json")
 		path += ".json";
+	scanPresets();
+	auto folderOf = [](const std::string& dir) { return shapes::usableFolder(dir, kOnMetaModule); };
+	int match = folderOf(system::getDirectory(path)) == folderOf(presetsDir) ? matchingPreset() : -1;
+	std::string replaced;
+	if (match >= 0) {
+		const PresetEntry& m = presets[match];
+		if (!named || m.file.empty()) {
+			currentPreset.set(m.name);
+			showMessage("ALREADY SAVED: " + m.name);
+			return;
+		}
+		if (shapes::lowerCase(m.file) != shapes::lowerCase(system::getFilename(path)))
+			replaced = system::join(presetsDir, m.file);
+	}
 	PresetEntry p;
 	p.controls = panelControls();
 	p.hasSeeds = true;
@@ -1173,6 +1199,8 @@ void Weaver::saveTo(std::string path) {
 		showMessage("SAVE FAILED");
 		return;
 	}
+	if (!replaced.empty())
+		removePresetFile(replaced);
 	std::string stem = system::getStem(path);
 	currentPreset.set(stem);
 	showMessage("SAVED " + stem);
@@ -1208,7 +1236,7 @@ void Weaver::saveAs() {
 	std::string chosen = path;
 	std::free(path);
 	folder.set(shapes::usableFolder(system::getDirectory(chosen), kOnMetaModule));
-	saveTo(chosen);
+	saveTo(chosen, true);
 #endif
 }
 
@@ -1222,7 +1250,7 @@ void Weaver::quickSave() {
 	bool usable = ensureDirectory(dir);
 #endif
 	if (usable)
-		saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))));
+		saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))), false);
 	else
 		saveAs();
 }
@@ -1250,13 +1278,7 @@ void Weaver::deletePress() {
 	deleteArmed.clear();
 	std::string path = system::join(presetsDir, p.file);
 	std::string name = p.name;
-	bool ok = system::remove(path);
-	if (!ok) {
-		// MetaModule can't delete files: emptied, it no longer lists
-		if (FILE* f = std::fopen(path.c_str(), "wb"))
-			ok = std::fclose(f) == 0;
-	}
-	if (!ok) {
+	if (!removePresetFile(path)) {
 		showMessage("DELETE FAILED");
 		return;
 	}
@@ -1297,7 +1319,7 @@ void Weaver::serviceFiles() {
 		std::string path = dialogPath;
 		dialogState.store(0, std::memory_order_release);
 		folder.set(shapes::usableFolder(system::getDirectory(path), kOnMetaModule));
-		saveTo(path);
+		saveTo(path, true);
 	}
 	if (dialogRequest.exchange(0) == 2)
 		saveAs();
