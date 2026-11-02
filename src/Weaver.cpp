@@ -1,18 +1,30 @@
 #include "plugin.hpp"
+#include "FolderAccess.hpp"
 #include "ShapeGenerator.hpp"
 #include "shapes/Combine.hpp"
 #include "shapes/CycleSpeed.hpp"
 #include "shapes/OutputStage.hpp"
+#include "shapes/ScreenMessage.hpp"
 #include "shapes/Timebase.hpp"
+#include "shapes/WeaverPresetFiles.hpp"
 #include "shapes/WeaverPresets.hpp"
+
+// On MetaModule only for the file filter; its file browser is the firmware's
+#include <osdialog.h>
+#ifdef METAMODULE
+#include "filesystem/async_filebrowser.hh"
+#include "threads/async_thread.hh"
+#endif
 
 #include <atomic>
 #include <cctype>
+#include <cstdio>
+#include <cstdlib>
 
 // Weaver: a shape modulator. Three operators (a wave each, or an outside CV)
 // are woven together by one of eleven algorithms. SPEED runs the cycle at
-// 1/4x to 4x the tempo. Fifteen factory presets; the first is the default
-// state.
+// 1/4x to 4x the tempo. Presets are files in a folder, the fifteen factory
+// presets written there first; the first is the default state.
 
 static constexpr int kTracePoints = 256;
 static constexpr int kWavePoints = 64;
@@ -20,6 +32,15 @@ static constexpr int kWavePoints = 64;
 static constexpr float kOperatorLimit = 1.2f;
 // How long the outputs take to glide to a newly loaded preset's shape.
 static constexpr float kRealignGlideS = 0.01f;
+static constexpr float kMessageSeconds = 3.f;
+// Characters the display's preset line has room for
+static constexpr size_t kMessageChars = 26;
+
+#ifdef METAMODULE
+static constexpr bool kOnMetaModule = true;
+#else
+static constexpr bool kOnMetaModule = false;
+#endif
 
 static const char* const kWaveNames[shapes::kNumWaves] = {
 	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Stepped random loop", "Smooth random loop", "Input",
@@ -51,7 +72,6 @@ struct WeaverFrame {
 	bool shown[3] = {};  // LEVEL != 0
 	bool traceOn[3] = {true, true, true};  // the TRACE buttons
 	int algorithm = 0;  // the one running
-	int preset = 0;  // -1 when the settings match none
 	float bpm = 120.f;
 	int speed = 0;  // SPEED in octaves, running and chosen
 	int speedTarget = 0;
@@ -67,7 +87,6 @@ struct WeaverSnapshot {
 	double cycle = 0.0;
 	shapes::Treat treatMode = shapes::Treat::Fit;
 	bool traceOn[3] = {true, true, true};
-	int preset = 0;
 	float bpm = 120.f;
 	int speed = 0;
 	int speedTarget = 0;
@@ -129,13 +148,23 @@ static void buildFrame(WeaverFrame& f, const WeaverSnapshot& s) {
 	}
 	if (anyInput)
 		std::copy(s.historyResult, s.historyResult + kTracePoints, f.result);
-	f.preset = s.preset;
 	f.bpm = s.bpm;
 	f.speed = s.speed;
 	f.speedTarget = s.speedTarget;
 	for (int i = 0; i < 3; i++)
 		f.ratioTargets[i] = s.ratioTargets[i];
 }
+
+// A preset as listed for PRESET's buttons: a file in the folder, or one of
+// the factory presets when they aren't there as files.
+struct PresetEntry {
+	std::string name;  // the file's stem, or the factory preset's name
+	std::string file;  // its file name; empty for a built-in
+	shapes::CombineControls controls;
+	// A file saved with a loop wave keeps its patterns
+	bool hasSeeds = false;
+	uint32_t seeds[3] = {};
+};
 
 struct Weaver : Module {
 	// Each operator's params, inputs and lights, in this order, from A_*
@@ -181,6 +210,8 @@ struct Weaver : Module {
 		SPEED_UP_PARAM,
 		SPEED_RESET_PARAM,
 		ALGORITHM_PREV_PARAM,
+		PRESET_SAVE_PARAM,
+		PRESET_DELETE_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -260,6 +291,7 @@ struct Weaver : Module {
 	shapes::Trigger eoc;
 	dsp::BooleanTrigger waveTriggers[3], algorithmPrevTrigger, algorithmNextTrigger, speedDownTrigger, speedUpTrigger, speedResetTrigger;
 	dsp::SchmittTrigger speedDownCv, speedUpCv;
+	dsp::BooleanTrigger presetSaveTrigger, presetDeleteTrigger;
 #ifdef METAMODULE
 	// MetaModule has no widget events, so the PRESET buttons are read here
 	dsp::BooleanTrigger presetPrevTrigger, presetNextTrigger;
@@ -293,6 +325,45 @@ struct Weaver : Module {
 	WeaverFrame uiFrame;
 	uint32_t uiCount = ~0u;
 
+	// Presets. The file service (the UI thread on VCV, a thread of its own on
+	// MetaModule) does all the file work; the rest reaches it through these.
+	// The folder of the last preset file saved as; empty means the default
+	// folder. Saved with the patch.
+	shapes::SharedPath<1023> folder;
+	// The preset last loaded or saved, preferred when several match; saved
+	// with the patch
+	shapes::SharedPath<255> currentPreset;
+	// The preset the settings match, for the display; "" for none
+	shapes::SharedPath<255> presetTitle;
+	// Shown in the preset's place for a while
+	shapes::ScreenMessage<kMessageChars> message;
+	// Button presses (process() and the menus) for the file service
+	std::atomic<int> presetStepRequest{0}, saveRequest{0}, deleteRequest{0};
+	std::atomic<bool> restoreRequest{false};
+	// The folder may have changed (a patch load)
+	std::atomic<bool> rescanRequest{true};
+	// File service only: the presets in order, the folder they're from, and
+	// a DELETE waiting for its second press
+	std::vector<PresetEntry> presets;
+	std::string presetsDir;
+	std::string deleteArmed;
+	double deleteArmedUntil = 0.0;
+
+#ifdef METAMODULE
+	// File service to process(): a preset to load, as the file service can't
+	// set the module's state while process() runs. 0 empty, 1 ready.
+	PresetEntry pendingPreset;
+	std::atomic<int> pendingState{0};
+	// Menu to file service: open the Save as browser (2)
+	std::atomic<int> dialogRequest{0};
+	// File browser (GUI) to file service: the path chosen, in a single slot.
+	// 0 empty, 1 being written, 2 ready.
+	std::atomic<int> dialogState{0};
+	std::string dialogPath;
+	// Runs the file service whether or not the module is on screen
+	MetaModule::AsyncThread fileThread{this, [this]() { serviceFiles(); }};
+#endif
+
 	static int param(int op, int first) {
 		return first + op * kOpParams;
 	}
@@ -301,6 +372,11 @@ struct Weaver : Module {
 	}
 
 	Weaver();
+	~Weaver() {
+#ifdef METAMODULE
+		fileThread.stop();
+#endif
+	}
 
 	void setRate(float rate) {
 		sampleRate = rate;
@@ -381,7 +457,10 @@ struct Weaver : Module {
 	}
 
 	void loadPreset(int n) {
-		const shapes::CombineControls& p = shapes::kWeaverPresets[n].controls;
+		applyControls(shapes::kWeaverPresets[n].controls);
+	}
+
+	void applyControls(const shapes::CombineControls& p) {
 		for (int i = 0; i < 3; i++) {
 			const shapes::OperatorControls& o = p.op[i];
 			waves[i] = o.wave;
@@ -395,17 +474,46 @@ struct Weaver : Module {
 		realignNow.store(true, std::memory_order_release);
 	}
 
-	// Steps through the presets; from settings that match none, Next starts
-	// at the first and Previous at the last. Called from the UI thread in VCV
-	// Rack and from process() on MetaModule.
-	void stepPreset(int delta) {
-		int n = shapes::presetMatches(panelControls());
-		if (n < 0)
-			n = delta > 0 ? 0 : shapes::kNumWeaverPresets - 1;
-		else
-			n = (n + delta + shapes::kNumWeaverPresets) % shapes::kNumWeaverPresets;
-		loadPreset(n);
+	// A listed preset's settings, and its loop patterns if it kept them. On
+	// VCV the UI thread calls it; on MetaModule process() does.
+	void applyPreset(const PresetEntry& p) {
+		applyControls(p.controls);
+		for (int i = 0; i < 3; i++) {
+			if (p.hasSeeds)
+				loopSeeds[i] = p.seeds[i];
+			else if (shapes::isLoop((shapes::Wave) waves[i]))
+				loopSeeds[i] = random::u32();
+		}
 	}
+
+	void showMessage(const std::string& text) {
+		message.set(text, system::getTime() + kMessageSeconds);
+	}
+
+	// The file service's work, below the module
+	void serviceFiles();
+	std::string presetFolder();
+	void scanPresets();
+	int matchingPreset();
+	void stepPreset(int delta);
+	void loadListed(const PresetEntry& p);
+	void quickSave();
+	void saveAs();
+	void saveTo(std::string path);
+	void deletePress();
+	void restoreFactory();
+#ifdef METAMODULE
+	// GUI context: the file browser's choice, for the file service
+	void postDialogPath(const char* path) {
+		int expected = 0;
+		if (!dialogState.compare_exchange_strong(expected, 1)) {
+			showMessage("BUSY");
+			return;
+		}
+		dialogPath = path;
+		dialogState.store(2, std::memory_order_release);
+	}
+#endif
 
 	shapes::CombineControls controls() {
 		shapes::CombineControls c;
@@ -526,11 +634,19 @@ struct Weaver : Module {
 	// The buttons, controls, engine, display history and lights, at control
 	// rate, at t cycles since reset: sets the outputs' next ramps
 	void evaluate(double t, bool cycleStart) {
+		if (presetSaveTrigger.process(params[PRESET_SAVE_PARAM].getValue() > 0.5f))
+			saveRequest.fetch_add(1);
+		if (presetDeleteTrigger.process(params[PRESET_DELETE_PARAM].getValue() > 0.5f))
+			deleteRequest.fetch_add(1);
 #ifdef METAMODULE
 		if (presetPrevTrigger.process(params[PRESET_PREV_PARAM].getValue() > 0.5f))
-			stepPreset(-1);
+			presetStepRequest.fetch_sub(1);
 		if (presetNextTrigger.process(params[PRESET_NEXT_PARAM].getValue() > 0.5f))
-			stepPreset(1);
+			presetStepRequest.fetch_add(1);
+		if (pendingState.load(std::memory_order_acquire) == 1) {
+			applyPreset(pendingPreset);
+			pendingState.store(0, std::memory_order_release);
+		}
 		// The WAVE knobs: turning one picks its wave, and a wave picked any
 		// other way (preset, load, randomize) turns the knob to match
 		for (int i = 0; i < 3; i++) {
@@ -640,7 +756,6 @@ struct Weaver : Module {
 		if (anyInput)
 			std::copy(historyResult, historyResult + kTracePoints, s.historyResult);
 		s.historyWrite = historyWrite;
-		s.preset = shapes::presetMatches(panelControls());
 		s.bpm = (float) timebase.tempoBpm();
 		s.speed = speed.octaves();
 		s.speedTarget = speed.targetOctaves();
@@ -669,6 +784,8 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "ratioAtCycleEnd", json_boolean(ratioAtCycleEnd));
 		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
+		json_object_set_new(rootJ, "presetFolder", json_string(folder.get().c_str()));
+		json_object_set_new(rootJ, "preset", json_string(currentPreset.get().c_str()));
 		return rootJ;
 	}
 
@@ -711,6 +828,12 @@ struct Weaver : Module {
 		j = json_object_get(rootJ, "speed");
 		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
 		ratiosNow.store(true, std::memory_order_release);
+		// The other platform's folder means nothing here: the default instead
+		j = json_object_get(rootJ, "presetFolder");
+		folder.set(shapes::usableFolder(j && json_is_string(j) ? json_string_value(j) : "", kOnMetaModule));
+		j = json_object_get(rootJ, "preset");
+		currentPreset.set(j && json_is_string(j) ? json_string_value(j) : "");
+		rescanRequest.store(true);
 	}
 };
 
@@ -779,6 +902,8 @@ Weaver::Weaver() {
 	configParam(UNUSED_ENVELOPE_PARAM, 0.f, 1.f, 0.f, "Unused")->randomizeEnabled = false;
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
+	configButton(PRESET_SAVE_PARAM, "Save preset");
+	configButton(PRESET_DELETE_PARAM, "Delete preset")->description = "Press twice to delete";
 	configButton(SPEED_DOWN_PARAM, "Half speed");
 	configButton(SPEED_UP_PARAM, "Double speed");
 	configButton(SPEED_RESET_PARAM, "Speed x1");
@@ -806,6 +931,389 @@ Weaver::Weaver() {
 	engine.setScanSpread(1);
 #endif
 	setRate(APP->engine->getSampleRate());
+#ifdef METAMODULE
+	fileThread.start();
+#endif
+}
+
+// File work, all in the file service (on VCV, the UI thread)
+
+// Name to index in a list of names, ignoring case; -1 when it's none of them
+static int indexOfName(const char* name, int count, const char* (*nameOf)(int)) {
+	std::string want = shapes::lowerCase(name);
+	for (int i = 0; i < count; i++)
+		if (shapes::lowerCase(nameOf(i)) == want)
+			return i;
+	return -1;
+}
+
+static const char* waveName(int w) {
+	return kWaveNames[w];
+}
+static const char* algorithmNameOf(int a) {
+	return shapes::algorithmName((shapes::Algorithm) a);
+}
+
+// Waves, ratios and the algorithm go by name, so a file still loads if
+// their order changes
+static bool writePresetFile(const std::string& path, const PresetEntry& p) {
+	json_t* rootJ = json_object();
+	json_object_set_new(rootJ, "weaverPreset", json_integer(1));
+	json_object_set_new(rootJ, "algorithm", json_string(algorithmNameOf(p.controls.algorithm)));
+	json_t* opsJ = json_array();
+	for (int i = 0; i < 3; i++) {
+		const shapes::OperatorControls& o = p.controls.op[i];
+		json_t* opJ = json_object();
+		json_object_set_new(opJ, "wave", json_string(kWaveNames[o.wave]));
+		json_object_set_new(opJ, "ratio", json_string(shapes::ratioLabel(o.ratio)));
+		json_object_set_new(opJ, "param", json_real(o.param));
+		json_object_set_new(opJ, "phase", json_real(o.phase));
+		json_object_set_new(opJ, "level", json_real(o.level));
+		if (p.hasSeeds)
+			json_object_set_new(opJ, "loopSeed", json_integer(p.seeds[i]));
+		json_array_append_new(opsJ, opJ);
+	}
+	json_object_set_new(rootJ, "operators", opsJ);
+	char* text = json_dumps(rootJ, JSON_INDENT(2) | JSON_REAL_PRECISION(9));
+	json_decref(rootJ);
+	if (!text)
+		return false;
+	FILE* f = std::fopen(path.c_str(), "wb");
+	bool ok = false;
+	if (f) {
+		size_t n = strlen(text);
+		ok = std::fwrite(text, 1, n, f) == n;
+		ok = std::fclose(f) == 0 && ok;
+	}
+	std::free(text);
+	return ok;
+}
+
+static double numberIn(json_t* objJ, const char* key, double lo, double hi, bool& ok) {
+	json_t* j = json_object_get(objJ, key);
+	if (!j || !json_is_number(j) || !std::isfinite(json_number_value(j))) {
+		ok = false;
+		return lo;
+	}
+	return std::clamp(json_number_value(j), lo, hi);
+}
+
+static const char* stringIn(json_t* objJ, const char* key) {
+	json_t* j = json_object_get(objJ, key);
+	return j && json_is_string(j) ? json_string_value(j) : "";
+}
+
+// False for anything that isn't a whole preset (a deleted one on MetaModule
+// is an empty file)
+static bool readPresetFile(const std::string& path, PresetEntry& p) {
+	FILE* f = std::fopen(path.c_str(), "rb");
+	if (!f)
+		return false;
+	std::string text;
+	char buf[1024];
+	size_t n;
+	while ((n = std::fread(buf, 1, sizeof buf, f)) > 0 && text.size() < 65536)
+		text.append(buf, n);
+	std::fclose(f);
+	json_error_t error;
+	json_t* rootJ = json_loads(text.c_str(), 0, &error);
+	if (!rootJ)
+		return false;
+	bool ok = json_is_object(rootJ);
+	int a = indexOfName(stringIn(rootJ, "algorithm"), shapes::kNumAlgorithms, algorithmNameOf);
+	ok = ok && a >= 0;
+	p.controls.algorithm = (shapes::Algorithm) std::max(a, 0);
+	json_t* opsJ = json_object_get(rootJ, "operators");
+	ok = ok && opsJ && json_is_array(opsJ) && json_array_size(opsJ) == 3;
+	p.hasSeeds = ok;
+	for (int i = 0; i < 3 && ok; i++) {
+		json_t* opJ = json_array_get(opsJ, i);
+		shapes::OperatorControls& o = p.controls.op[i];
+		int w = indexOfName(stringIn(opJ, "wave"), shapes::kNumWaves, waveName);
+		int r = indexOfName(stringIn(opJ, "ratio"), shapes::kNumRatios, shapes::ratioLabel);
+		ok = w >= 0 && r >= 0;
+		o.wave = (shapes::Wave) std::max(w, 0);
+		o.ratio = std::max(r, 0);
+		o.param = numberIn(opJ, "param", 0.0, 1.0, ok);
+		o.phase = numberIn(opJ, "phase", 0.0, 1.0, ok);
+		o.level = numberIn(opJ, "level", -1.0, 1.0, ok);
+		json_t* seedJ = json_object_get(opJ, "loopSeed");
+		if (seedJ && json_is_integer(seedJ))
+			p.seeds[i] = (uint32_t) json_integer_value(seedJ);
+		else
+			p.hasSeeds = false;
+	}
+	json_decref(rootJ);
+	return ok;
+}
+
+static PresetEntry factoryEntry(int n) {
+	PresetEntry p;
+	p.name = shapes::factoryPresetName(n);
+	p.controls = shapes::kWeaverPresets[n].controls;
+	return p;
+}
+
+// The factory presets as files, and the marker that says they've been written
+static bool writeFactoryPresets(const std::string& dir) {
+	bool ok = true;
+	for (int n = 0; n < shapes::kNumWeaverPresets; n++) {
+		PresetEntry p = factoryEntry(n);
+		ok = writePresetFile(system::join(dir, p.name + ".json"), p) && ok;
+	}
+	FILE* f = std::fopen(system::join(dir, shapes::kFactoryMarker).c_str(), "wb");
+	if (!f)
+		return false;
+	std::fputs("Weaver's factory presets were written to this folder.\n", f);
+	return std::fclose(f) == 0 && ok;
+}
+
+static std::string defaultPresetFolder() {
+#ifdef METAMODULE
+	// MetaModule can't create folders: the first of these that exists,
+	// looked up each time so a card put in later is found. "" when there's none.
+	return shapes::pickFolder(shapes::kWeaverMetaModuleFolders, isFolder);
+#else
+	return asset::user("RobotBoy/Weaver");
+#endif
+}
+
+// The saved folder if it's still there, else the default; "" when there's neither
+std::string Weaver::presetFolder() {
+	std::string f = folder.get();
+	if (!f.empty() && isFolder(f))
+		return f;
+	return defaultPresetFolder();
+}
+
+// Lists the folder's presets. The default folder gets the factory presets
+// as files the first time; a folder without them (a card's root, say) lists
+// them first, built in.
+void Weaver::scanPresets() {
+	std::string dir = presetFolder();
+#ifndef METAMODULE
+	if (dir == defaultPresetFolder() && !ensureDirectory(dir))
+		dir = "";
+#endif
+	std::vector<std::string> names = dir.empty() ? std::vector<std::string>() : fileNames(dir);
+	auto hasMarker = [&]() { return std::find(names.begin(), names.end(), shapes::kFactoryMarker) != names.end(); };
+	if (!dir.empty() && !hasMarker() && !shapes::isVolumeRoot(dir) && dir == defaultPresetFolder()) {
+		writeFactoryPresets(dir);
+		names = fileNames(dir);
+	}
+	presets.clear();
+	if (!hasMarker())
+		for (int n = 0; n < shapes::kNumWeaverPresets; n++)
+			presets.push_back(factoryEntry(n));
+	for (const std::string& file : shapes::sortedPresetNames(names)) {
+		PresetEntry p;
+		if (!readPresetFile(system::join(dir, file), p))
+			continue;
+		p.name = system::getStem(file);
+		p.file = file;
+		presets.push_back(p);
+	}
+	presetsDir = dir;
+}
+
+// The listed preset the settings match, the current one if it does; -1 for none
+int Weaver::matchingPreset() {
+	shapes::CombineControls c = panelControls();
+	std::string current = currentPreset.get();
+	int first = -1;
+	for (int i = 0; i < (int) presets.size(); i++) {
+		if (!shapes::sameSettings(presets[i].controls, c))
+			continue;
+		if (presets[i].name == current)
+			return i;
+		if (first < 0)
+			first = i;
+	}
+	return first;
+}
+
+void Weaver::loadListed(const PresetEntry& p) {
+#ifdef METAMODULE
+	if (pendingState.load(std::memory_order_acquire) != 0) {
+		showMessage("BUSY");
+		return;
+	}
+	pendingPreset = p;
+	pendingState.store(1, std::memory_order_release);
+#else
+	applyPreset(p);
+#endif
+	currentPreset.set(p.name);
+}
+
+// Steps through the presets; from settings that match none, Next starts at
+// the first and Previous at the last. The folder is listed again first, so
+// files added since show up.
+void Weaver::stepPreset(int delta) {
+	scanPresets();
+	if (presets.empty()) {
+		showMessage("NO PRESETS");
+		return;
+	}
+	int n = (int) presets.size();
+	int i = matchingPreset();
+	i = i < 0 ? (delta > 0 ? 0 : n - 1) : ((i + delta) % n + n) % n;
+	loadListed(presets[i]);
+}
+
+void Weaver::saveTo(std::string path) {
+	if (shapes::lowerCase(system::getExtension(path)) != ".json")
+		path += ".json";
+	PresetEntry p;
+	p.controls = panelControls();
+	p.hasSeeds = true;
+	for (int i = 0; i < 3; i++)
+		p.seeds[i] = loopSeeds[i];
+	if (!writePresetFile(path, p)) {
+		showMessage("SAVE FAILED");
+		return;
+	}
+	std::string stem = system::getStem(path);
+	currentPreset.set(stem);
+	showMessage("SAVED " + stem);
+	scanPresets();
+}
+
+#ifdef METAMODULE
+// Opens the firmware's file browser; the path chosen reaches the file
+// service through postDialogPath
+static void presetDialog(Weaver* m, const std::string& dir, const char* name) {
+	osdialog_filters* filters = osdialog_filters_parse("Weaver preset:json");
+	async_osdialog_file(OSDIALOG_SAVE, dir.c_str(), name, filters, [m](char* path) {
+		if (!path)
+			return;
+		m->postDialogPath(path);
+		std::free(path);
+	});
+	osdialog_filters_free(filters);
+}
+#endif
+
+void Weaver::saveAs() {
+	std::string dir = presetFolder();
+	std::string name = shapes::nextPresetName(fileNames(dir));
+#ifdef METAMODULE
+	presetDialog(this, dir, name.c_str());
+#else
+	osdialog_filters* filters = osdialog_filters_parse("Weaver preset:json");
+	char* path = osdialog_file(OSDIALOG_SAVE, dir.c_str(), name.c_str(), filters);
+	osdialog_filters_free(filters);
+	if (!path)
+		return;
+	std::string chosen = path;
+	std::free(path);
+	folder.set(shapes::usableFolder(system::getDirectory(chosen), kOnMetaModule));
+	saveTo(chosen);
+#endif
+}
+
+// SAVE: no dialog, the next free name in the current folder
+void Weaver::quickSave() {
+	std::string dir = presetFolder();
+#ifdef METAMODULE
+	// Nothing to save to (no card, say), and no making a folder here
+	bool usable = !dir.empty();
+#else
+	bool usable = ensureDirectory(dir);
+#endif
+	if (usable)
+		saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))));
+	else
+		saveAs();
+}
+
+// The first press asks for a second within kMessageSeconds; the second
+// deletes the preset the settings match
+void Weaver::deletePress() {
+	int i = matchingPreset();
+	if (i < 0) {
+		showMessage("NO PRESET TO DELETE");
+		return;
+	}
+	const PresetEntry& p = presets[i];
+	if (p.file.empty()) {
+		showMessage("BUILT IN: CAN'T DELETE");
+		return;
+	}
+	double now = system::getTime();
+	if (deleteArmed != p.name || now >= deleteArmedUntil) {
+		deleteArmed = p.name;
+		deleteArmedUntil = now + kMessageSeconds;
+		showMessage("DELETE PRESET? PRESS AGAIN");
+		return;
+	}
+	deleteArmed.clear();
+	std::string path = system::join(presetsDir, p.file);
+	std::string name = p.name;
+	bool ok = system::remove(path);
+	if (!ok) {
+		// MetaModule can't delete files: emptied, it no longer lists
+		if (FILE* f = std::fopen(path.c_str(), "wb"))
+			ok = std::fclose(f) == 0;
+	}
+	if (!ok) {
+		showMessage("DELETE FAILED");
+		return;
+	}
+	if (currentPreset.get() == name)
+		currentPreset.set("");
+	showMessage("DELETED " + name);
+	scanPresets();
+}
+
+// Writes the factory presets back, over any of the same name, leaving the
+// rest alone
+void Weaver::restoreFactory() {
+	std::string dir = presetFolder();
+#ifndef METAMODULE
+	if (!ensureDirectory(dir))
+		dir = "";
+#endif
+	if (dir.empty()) {
+		showMessage(kOnMetaModule ? "NO CARD" : "NO FOLDER");
+		return;
+	}
+	if (shapes::isVolumeRoot(dir)) {
+		// They're listed built in, and can't be deleted there
+		showMessage("FACTORY PRESETS BUILT IN");
+		return;
+	}
+	showMessage(writeFactoryPresets(dir) ? "FACTORY PRESETS RESTORED" : "RESTORE FAILED");
+	scanPresets();
+}
+
+// All the file work: VCV's widget calls it each frame; MetaModule's file
+// thread calls it whether or not the module is on screen
+void Weaver::serviceFiles() {
+	if (rescanRequest.exchange(false))
+		scanPresets();
+#ifdef METAMODULE
+	if (dialogState.load(std::memory_order_acquire) == 2) {
+		std::string path = dialogPath;
+		dialogState.store(0, std::memory_order_release);
+		folder.set(shapes::usableFolder(system::getDirectory(path), kOnMetaModule));
+		saveTo(path);
+	}
+	if (dialogRequest.exchange(0) == 2)
+		saveAs();
+#endif
+	if (restoreRequest.exchange(false))
+		restoreFactory();
+	if (saveRequest.exchange(0) > 0)
+		quickSave();
+	if (deleteRequest.exchange(0) > 0)
+		deletePress();
+	// Presses on both cancel out
+	int delta = presetStepRequest.exchange(0);
+	if (delta != 0)
+		stepPreset(delta);
+	int i = matchingPreset();
+	presetTitle.set(i >= 0 ? presets[i].name : "");
 }
 
 // The module's latest frame, drawn up once per publish, or, in the module
@@ -826,7 +1334,6 @@ static const WeaverFrame& frameOf(Weaver* module) {
 		shapes::CombineEngine e;
 		e.process(defaults(), 0.0, false);
 		renderFormulas(preview, e, defaults(), 0.0, shapes::Treat::Fit);
-		preview.preset = 0;
 		built = true;
 	}
 	return preview;
@@ -889,14 +1396,18 @@ struct WeaverMainDisplay : shapeui::Screen {
 			nvgText(vg, gx + mm2px(10.2f * kText), baseline,
 			        shapes::algorithmName((shapes::Algorithm) clamp(f.algorithm, 0, shapes::kNumAlgorithms - 1)), nullptr);
 #endif
-			if (f.preset >= 0 && f.preset < shapes::kNumWeaverPresets) {
-				char name[40], title[48];
-				upperCase(name, sizeof(name), shapes::kWeaverPresets[f.preset].name);
-				snprintf(title, sizeof(title), "%02d %s", f.preset + 1, name);
+			// The preset the settings match, or for a while a message in its place
+			char text[kMessageChars + 1];
+			std::string title;
+			if (module && module->message.get(text, system::getTime()))
+				title = text;
+			else
+				title = shapes::screenText(module ? module->presetTitle.get() : shapes::factoryPresetName(0), kMessageChars);
+			if (!title.empty()) {
 				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
 				shapeui::fontSize(vg, mm2px(2.6f * kText));
 				nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-				nvgText(vg, gx + gw / 2, kPresetBand > 0.f ? box.size.y - mm2px(1.6f) : baseline, title, nullptr);
+				nvgText(vg, gx + gw / 2, kPresetBand > 0.f ? box.size.y - mm2px(1.6f) : baseline, title.c_str(), nullptr);
 			}
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(2.2f * kText));
@@ -1085,6 +1596,15 @@ struct PresetButton : TL1105 {
 	}
 };
 
+// DELETE: a small red button
+struct DeleteButton : app::SvgSwitch {
+	DeleteButton() {
+		momentary = true;
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/DeleteButton_0.svg")));
+		addFrame(Svg::load(asset::plugin(pluginInstance, "res/DeleteButton_1.svg")));
+	}
+};
+
 // Clicking WAVE steps to the next wave, and ALGORITHM's buttons to the
 // previous or next algorithm; right-clicking lists them all below the usual
 // parameter menu.
@@ -1172,7 +1692,7 @@ struct WeaverWidget : ModuleWidget {
 		addChild(createWidget<ScrewBlack>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
 		addScreen<WeaverMainDisplay>(module, 1.5, 17.0, 87.74, 37.7);
-		addScreen<AlgorithmDisplay>(module, 3.9, 59.1, 26.0, 13.3);
+		addScreen<AlgorithmDisplay>(module, 3.9, 59.1, 16.38, 13.3);
 		addScreen<WaveDisplay>(module, 110.35, 28.39, 14.0, 17.0)->op = 0;
 		addScreen<WaveDisplay>(module, 110.35, 61.22, 14.0, 17.0)->op = 1;
 		addScreen<WaveDisplay>(module, 110.35, 94.05, 14.0, 17.0)->op = 2;
@@ -1223,21 +1743,24 @@ struct WeaverWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
 		// Algorithm and presets
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(39.64, 63.9)), module, Weaver::ALGORITHM_PREV_PARAM));
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(46.24, 63.9)), module, Weaver::ALGORITHM_NEXT_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(56.74, 63.9)), module, Weaver::ALGORITHM_INPUT));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(28.96, 63.9)), module, Weaver::ALGORITHM_PREV_PARAM));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(35.56, 63.9)), module, Weaver::ALGORITHM_NEXT_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(46.06, 63.9)), module, Weaver::ALGORITHM_INPUT));
 #ifdef METAMODULE
 		// Plain buttons: process() steps the presets, as PresetButton never gets events here
-		addParam(createParamCentered<TL1105>(mm2px(Vec(77.1, 63.9)), module, Weaver::PRESET_NEXT_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(70.5, 63.9)), module, Weaver::PRESET_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(73.96, 63.9)), module, Weaver::PRESET_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(58.76, 63.9)), module, Weaver::PRESET_PREV_PARAM));
 #else
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(77.1, 63.9)), module, Weaver::PRESET_NEXT_PARAM);
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(73.96, 63.9)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(70.5, 63.9)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(58.76, 63.9)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 #endif
+		// SAVE and DELETE are read in process(), and their files written by the file service
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(66.36, 63.9)), module, Weaver::PRESET_SAVE_PARAM));
+		addParam(createParamCentered<DeleteButton>(mm2px(Vec(84.24, 63.9)), module, Weaver::PRESET_DELETE_PARAM));
 
 		// Clock row
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.575, 88.0)), module, Weaver::BPM_PARAM));
@@ -1262,6 +1785,15 @@ struct WeaverWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(57.59, 110.18)), module, Weaver::A_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(69.81, 110.18)), module, Weaver::B_OUTPUT));
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 110.18)), module, Weaver::C_OUTPUT));
+	}
+
+	// MetaModule runs the file service on its own thread
+	void step() override {
+		ModuleWidget::step();
+#ifndef METAMODULE
+		if (Weaver* module = getModule<Weaver>())
+			module->serviceFiles();
+#endif
 	}
 
 	void appendContextMenu(Menu* menu) override {
@@ -1301,6 +1833,16 @@ struct WeaverWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set algorithm", [=]() { module->algorithm = i; });
 			}));
+#endif
+
+		menu->addChild(new MenuSeparator);
+#ifdef METAMODULE
+		// Save as needs the folder listed first, so the file thread opens its browser
+		menu->addChild(createMenuItem("Save preset as...", "", [=]() { module->dialogRequest.store(2); }));
+		menu->addChild(createMenuItem("Restore factory presets", "", [=]() { module->restoreRequest.store(true); }));
+#else
+		menu->addChild(createMenuItem("Save preset as...", "", [=]() { module->saveAs(); }));
+		menu->addChild(createMenuItem("Restore factory presets", "", [=]() { module->restoreFactory(); }));
 #endif
 	}
 };

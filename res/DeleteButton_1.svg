@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Weaver's DELETE button, pressed: a red cap in a dark ring, TL1105-sized (5.2 mm) -->
+<svg xmlns="http://www.w3.org/2000/svg" width="5.2mm" height="5.2mm" viewBox="0 0 5.2 5.2">
+  <defs>
+    <radialGradient id="cap" cx="0.4" cy="0.35" r="0.7">
+      <stop offset="0" stop-color="#d9493d"/>
+      <stop offset="1" stop-color="#8f1b14"/>
+    </radialGradient>
+  </defs>
+  <circle cx="2.6" cy="2.6" r="2.6" fill="#1b1b1b"/>
+  <circle cx="2.6" cy="2.6" r="2.25" fill="#3a3a3a"/>
+  <circle cx="2.6" cy="2.6" r="1.95" fill="url(#cap)"/>
+</svg>

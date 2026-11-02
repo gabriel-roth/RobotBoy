@@ -39,21 +39,24 @@ inline constexpr WeaverPreset kWeaverPresets[kNumWeaverPresets] = {
 	{"Random swell", {{detail::op(SmoothRandom, 6, 0.0, 1), detail::op(SteppedRandom, 4, 0.2, 0.5), detail::op(Sine, 12, 0.5, 0.2)}, Mix}},
 };
 
-// Index of the preset these settings match, or -1. Input-only fields are ignored.
-inline int presetMatches(const CombineControls& c) {
+// Whether two presets' settings are the same. Input-only fields are ignored.
+inline bool sameSettings(const CombineControls& p, const CombineControls& c) {
 	constexpr double eps = 1e-4;
-	for (int n = 0; n < kNumWeaverPresets; n++) {
-		const CombineControls& p = kWeaverPresets[n].controls;
-		bool same = p.algorithm == c.algorithm;
-		for (int i = 0; i < 3 && same; i++) {
-			const OperatorControls& a = p.op[i];
-			const OperatorControls& b = c.op[i];
-			same = a.wave == b.wave && a.ratio == b.ratio && std::fabs(a.param - b.param) <= eps &&
-			       std::fabs(a.phase - b.phase) <= eps && std::fabs(a.level - b.level) <= eps;
-		}
-		if (same)
-			return n;
+	bool same = p.algorithm == c.algorithm;
+	for (int i = 0; i < 3 && same; i++) {
+		const OperatorControls& a = p.op[i];
+		const OperatorControls& b = c.op[i];
+		same = a.wave == b.wave && a.ratio == b.ratio && std::fabs(a.param - b.param) <= eps &&
+		       std::fabs(a.phase - b.phase) <= eps && std::fabs(a.level - b.level) <= eps;
 	}
+	return same;
+}
+
+// Index of the factory preset these settings match, or -1
+inline int presetMatches(const CombineControls& c) {
+	for (int n = 0; n < kNumWeaverPresets; n++)
+		if (sameSettings(kWeaverPresets[n].controls, c))
+			return n;
 	return -1;
 }
 
