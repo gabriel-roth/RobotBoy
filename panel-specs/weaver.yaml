@@ -30,9 +30,9 @@
 #      stripe.
 #  - Operator rows (91.24-176.30): one plate per operator in the original JS
 #    prototype's operator colors, 32.83 mm tall (A, B, C from 24.50 / 57.33 / 90.16, ending at 123), under
-#    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (heading size) in
-#    the bottom-right corner of each plate (2 mm in from its right edge), 18% darker than the plate (as Lyrebird's REC / PLAY / IN / OUT
-#    plate names).
+#    a row of gray heading tabs (17-24.5, one per column, full column width, joined to plate A), the letter (3.6) in
+#    the bottom-right corner of each plate (centred 2.3 mm in from its right edge, so A's ink ends 0.98 in, as it did at 2.9), in
+#    the plate colour mixed with 20% white (local/panel-mockups/weaver-letters/ round 2).
 #    Five equal 17.01 cells from 91.24: 99.75 / 116.76 / 133.77 / 150.78 / 167.79.
 #    Columns, left to right: RATIO, WAVE, PARAM, PHASE, LEVEL.
 #    WAVE: a lit bezel button stepping through the waves (right-click lists them; light color shows
@@ -99,7 +99,7 @@ elements:
   - {text: LEVEL, x: 167.79, y: 21.85, size: 2.9}
 
   # --- Operator A.
-  - {text: "A", x: 174.30, y: 55.93, size: 2.9, color: "#624b1e"}
+  - {text: "A", x: 174.00, y: 55.93, size: 3.6, color: "#937c50"}
   - {name: A_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 51.03}
   - {name: A_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 28.39, w: 14.0, h: 17.0}}
   - {name: A_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 26.80, w: 11.0, h: 6.0}}
@@ -116,7 +116,7 @@ elements:
   - {name: A_LEVEL_INPUT, x: 167.79, y: 51.03}
 
   # --- Operator B.
-  - {text: "B", x: 174.30, y: 88.76, size: 2.9, color: "#1d4e4c"}
+  - {text: "B", x: 174.00, y: 88.76, size: 3.6, color: "#4f7f7d"}
   - {name: B_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 83.86}
   - {name: B_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 61.22, w: 14.0, h: 17.0}}
   - {name: B_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 59.63, w: 11.0, h: 6.0}}
@@ -133,7 +133,7 @@ elements:
   - {name: B_LEVEL_INPUT, x: 167.79, y: 83.86}
 
   # --- Operator C.
-  - {text: "C", x: 174.30, y: 121.59, size: 2.9, color: "#5d2f47"}
+  - {text: "C", x: 174.00, y: 121.59, size: 3.6, color: "#8d6179"}
   - {name: C_WAVE_PARAM, widget: VCVBezel, x: 117.35, y: 116.69}
   - {name: C_WAVE_SCREEN, kind: widget, rect: {x: 110.35, y: 94.05, w: 14.0, h: 17.0}}
   - {name: C_RATIO_SCREEN, kind: widget, rect: {x: 94.25, y: 92.46, w: 11.0, h: 6.0}}
