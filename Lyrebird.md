@@ -1,14 +1,8 @@
 # Lyrebird
 
-**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It records one lane of voltage from its knob or a CV input and plays it back as a loop or one-shot, synced to the bar or at its recorded speed. Takes can be punched in, sped up, reversed, smoothed, and saved as WAV files. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md).
+**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Turn its knob while recording, or record any CV, and it plays the movement back as a loop locked to the bar or as a one-shot envelope fired by a trigger. It is for modulation that is easier to perform than to program: filter sweeps, swells, irregular curves, or a stretch of random CV frozen into a repeating pattern. Takes can be punched in, played faster, slower or backward, smoothed, and saved as WAV files. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md).
 
 <img src="screenshots/Lyrebird.png" alt="Lyrebird module" height="500">
-
----
-
-## Overview
-
-Lyrebird captures a hand-played movement, or any CV, and plays it back as modulation. Turn its knob while recording and the gesture becomes a loop locked to the bar, or a one-shot envelope fired by a trigger. It is for modulation that is easier to perform than to program: filter sweeps, swells, irregular curves, or a stretch of random CV frozen into a repeating pattern. Takes can be edited by punching in, played faster, slower or backward, smoothed, and saved as WAV files to recall later.
 
 ---
 

@@ -1,14 +1,8 @@
 # Skylark
 
-**Skylark** is a clocked shape modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Each cycle it plays one of 18 shapes; **VARIATION** selects a form within the shape's family, and five transforms reshape the result. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
+**Skylark** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), built from recognizable gestures: a bouncing ball, a ratchet, a heartbeat, a spring, an arpeggio. Instead of a plain LFO wave, each bar it plays one of 18 shapes with internal structure, which suits it to clocked envelopes, accents and movement that sound performed rather than mechanical. Each shape has a family of variations, five transforms bend it further, and DRIFT or the random trimpots make successive bars differ. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Skylark.png" alt="Skylark module" height="500">
-
----
-
-## Overview
-
-Skylark is a source of rhythmic, tempo-synced modulation built from recognizable gestures: a bouncing ball, a ratchet, a heartbeat, a spring, an arpeggio. Instead of a plain LFO wave, each bar it plays a shape with internal structure, which suits it to clocked envelopes, accents and movement that sound performed rather than mechanical. Each shape has a family of variations to choose from, the transforms bend it further, and DRIFT or the random trimpots make successive bars differ.
 
 ---
 

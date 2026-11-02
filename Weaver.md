@@ -1,14 +1,8 @@
 # Weaver
 
-**Weaver** is a clocked three-operator modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Three operators (waves or external CV) run at whole-number ratios of a shared cycle and are combined by one of eleven algorithms. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
+**Weaver** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) that builds complex shapes by combining simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and one of eleven algorithms mixes, multiplies, folds, samples or gates them into a single shape, suited to evolving rhythmic patterns, envelope-like shapes and polyrhythmic movement. Any operator can also take an external CV, so Weaver can process modulation from elsewhere in the patch, and its operators are available as synced outputs of their own. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Weaver.png" alt="Weaver module" height="500">
-
----
-
-## Overview
-
-Weaver builds complex modulation by combining simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and an algorithm mixes, multiplies, folds, samples or gates them into a single shape. The result is a tempo-synced modulator with much more character than a single wave, useful for evolving rhythmic patterns, envelope-like shapes and polyrhythmic movement. Any operator can also take an external CV, so Weaver can process modulation from elsewhere in the patch, and its three operators are available as synced outputs of their own.
 
 ---
 
