@@ -156,6 +156,8 @@ Each picture shows one cycle of the shape with **Variation** at 0%, 50% and 100%
 
 <img src="images/skylark-shapes/13-arpeggio.svg" alt="Arpeggio at Variation 0%, 50% and 100%" width="620">
 
+Variation picks the pattern by thirds of its travel: **Up**, **Up-down**, then **Down**.
+
 **14. Ringing steps**
 
 <img src="images/skylark-shapes/14-ringing-steps.svg" alt="Ringing steps at Variation 0%, 50% and 100%" width="620">
