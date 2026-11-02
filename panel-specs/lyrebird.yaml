@@ -26,14 +26,14 @@
 #        ink 1.3 above the plate bottom (baseline 99.56) and 2.2 in from its right edge (x 57.776,
 #        the text centre; ink right edge 62.18). Round 8 card 03 of local/panel-mockups/lyrebird-modes/.
 #    - SOURCE plate, plain opaque magenta #b8466a, 102.86-123: GESTURE (big knob, the knob you
-#      record) and CV IN, the two sources, side by side on the plate's centre line (112.93). Knob
-#      left edge 2.88 in from the plate (x 12.0), jack 16 to its right (28.0). INPUT (5.0, larger
-#      than the rest) centred in the plain area right of the jack: between the jack's edge (32.015)
-#      and a right margin mirroring the knob's (61.5), so x 46.758; cap height centred on the
-#      controls' line, baseline 114.833 (local/panel-mockups/lyrebird-input/rings/make7.py,
-#      round 8 card 04). The display's punch-in trace is the brighter #ff5f95 (mock-lyrebird.py).
+#      record) and CV IN, the two sources, side by side on the plate's centre line (112.93), 16
+#      apart, the pair centred on the plate (32.94): knob 26.74, jack 42.74. The display's
+#      punch-in trace is the brighter #ff5f95 (mock-lyrebird.py).
+#      - IN plate name (as REC, #973957: 18% darker than the plate), top-right, mirroring REC
+#        across the plate gap: cap top 1.3 below the plate top (baseline 108.0), ink right edge
+#        62.18 (x 59.784). local/panel-mockups/lyrebird-io/ round 4 card 01.
 #  - Signal-flow arrows (Brume's style, zone defaults 3.0 x 1.4): SOURCE up into PERFORM (over
-#    the knob/jack pair's midpoint, x 20.0), PERFORM across into PLAYBACK, PLAYBACK down into the
+#    the knob/jack pair's midpoint, x 34.74), PERFORM across into PLAYBACK, PLAYBACK down into the
 #    output plate (those two centered on their edge).
 #  - Right column (66.38-105.18): as narrow as two 13.4 label-width columns (77.08 / 94.48)
 #    with 4.0 gaps.
@@ -48,8 +48,11 @@
 #        gate jack (10 apart, connector); labels 77.86, buttons 82.61, jacks 92.61.
 #      - PLAY plate name (as REC, #505e67), bottom-left: ink 1.3 above the plate bottom and 2.2 in
 #        from its left edge (x 73.939; ink left edge 68.58).
-#    - Output plate (102.86-123): EOC and OUT (in a white ring) 4.5 apart, centered, the ring
+#    - Output plate (102.86-123): EOC and OUT (in a white ring) 4.5 apart, the ring's right edge
+#      2.88 in from the plate (as the GESTURE knob's old margin): EOC 83.085, OUT 96.95; the ring
 #      and labels centered vertically (2.9 above the ring); controls 111.11, labels 120.11.
+#      - OUT plate name (as PLAY, #5c5c5c), top-left, mirroring PLAY across the plate gap:
+#        baseline 108.0 (as IN), ink left edge 68.58 (x 73.603).
 slug: Lyrebird
 name: LYREBIRD
 hp: 21
@@ -73,15 +76,15 @@ zones:
      arrows: [{side: right, at: 83.51}]}
   # SOURCE plate.
   - {x: 1.5, y: 102.86, w: 62.88, h: 20.14, rx: 2, fill: "#b8466a", opacity: 1.0,
-     arrows: [{side: top, at: 20.0}]}
+     arrows: [{side: top, at: 34.74}]}
   # PLAYBACK plate.
   - {x: 66.38, y: 17.0, w: 38.8, h: 83.86, rx: 2, fill: "#7f9fb3", opacity: 0.55,
      arrows: [{side: bottom, at: 85.78}]}
   # Output plate.
   - {x: 66.38, y: 102.86, w: 38.8, h: 20.14, rx: 2, fill: "#9a9a9a", opacity: 0.55}
   # OUT ring, as on Skylark and Weaver.
-  - {x: 86.695, y: 105.755, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
-  - {x: 87.445, y: 106.505, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
+  - {x: 91.6, y: 105.755, w: 10.70, h: 10.70, rx: 5.35, fill: "#ffffff", opacity: 1.0}
+  - {x: 92.35, y: 106.505, w: 9.20, h: 9.20, rx: 4.60, fill: "#707070", opacity: 1.0}
 
 elements:
   - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 62.88, h: 47.16}}
@@ -104,9 +107,9 @@ elements:
   - {text: REC, x: 57.776, y: 99.56, size: 5.0, color: "#545c52"}
 
   # --- SOURCE plate.
-  - {name: GESTURE_PARAM, widget: RoundBigBlackKnob, x: 12.0, y: 112.93}
-  - {name: CV_INPUT, x: 28.0, y: 112.93}
-  - {text: INPUT, x: 46.758, y: 114.833, size: 5.0}
+  - {name: GESTURE_PARAM, widget: RoundBigBlackKnob, x: 26.74, y: 112.93}
+  - {name: CV_INPUT, x: 42.74, y: 112.93}
+  - {text: IN, x: 59.784, y: 108.0, size: 5.0, color: "#973957"}
 
   # --- PLAYBACK plate.
   - {text: FILE, x: 85.78, y: 23.525}
@@ -133,10 +136,11 @@ elements:
   - {text: PLAY, x: 73.939, y: 99.56, size: 5.0, color: "#505e67"}
 
   # --- Output plate.
-  - {name: EOC_OUTPUT, x: 78.18, y: 111.105}
-  - {text: EOC, x: 78.18, y: 120.105, size: 3.175}
-  - {name: MAIN_OUTPUT, x: 92.045, y: 111.105}
-  - {text: OUT, x: 92.045, y: 120.105, size: 3.175}
+  - {name: EOC_OUTPUT, x: 83.085, y: 111.105}
+  - {text: EOC, x: 83.085, y: 120.105, size: 3.175}
+  - {name: MAIN_OUTPUT, x: 96.95, y: 111.105}
+  - {text: OUT, x: 96.95, y: 120.105, size: 3.175}
+  - {text: OUT, x: 73.603, y: 108.0, size: 5.0, color: "#5c5c5c"}
 
 grids:
   playback:

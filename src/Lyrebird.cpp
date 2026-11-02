@@ -1371,8 +1371,8 @@ struct LyrebirdWidget : ModuleWidget {
 		addParam(createParamCentered<CKSS>(mm2px(Vec(56.68, 83.51)), module, Lyrebird::TIME_PARAM));
 
 		// SOURCE plate
-		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(12.0, 112.93)), module, Lyrebird::GESTURE_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(28.0, 112.93)), module, Lyrebird::CV_INPUT));
+		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(26.74, 112.93)), module, Lyrebird::GESTURE_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(42.74, 112.93)), module, Lyrebird::CV_INPUT));
 
 		// PLAYBACK plate
 		addParam(createParamCentered<CKSS>(mm2px(Vec(74.08, 83.51)), module, Lyrebird::PLAY_PARAM));
@@ -1391,8 +1391,8 @@ struct LyrebirdWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(97.48, 92.605)), module, Lyrebird::REVERSE_INPUT));
 
 		// Output plate
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(78.18, 111.105)), module, Lyrebird::EOC_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(92.045, 111.105)), module, Lyrebird::MAIN_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(83.085, 111.105)), module, Lyrebird::EOC_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(96.95, 111.105)), module, Lyrebird::MAIN_OUTPUT));
 	}
 
 	// MetaModule has no history, and runs the file service on its own thread
