@@ -1144,6 +1144,10 @@ void Weaver::loadListed(const PresetEntry& p) {
 	applyPreset(p);
 #endif
 	currentPreset.set(p.name);
+	// The new preset's name shows at once, and a DELETE waiting for its
+	// second press is called off
+	message.set("", 0.0);
+	deleteArmed.clear();
 }
 
 // Steps through the presets; from settings that match none, Next starts at
