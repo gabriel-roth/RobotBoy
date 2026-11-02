@@ -14,12 +14,14 @@ constexpr double kTau = 2.0 * M_PI;
 
 const double kRatioValues[kNumRatios] = {0.125, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32};
 const char* const kRatioLabels[kNumRatios] = {"1/8", "1/4", "1/2", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x12", "x16", "x24", "x32"};
-// Steps (segments, for Smooth) per cycle of the loop waves. Fewer sound like
+// Steps (segments, for Smooth) per cycle of the random waves. Fewer sound like
 // a square or a sine rather than a random pattern; smoothing hides more, so
-// Smooth needs more segments.
+// Smooth needs more segments. The loop waves repeat each cycle, so Stepped
+// loop needs more steps than Stepped random, which changes every cycle.
+constexpr int kMinSteppedRandomSteps = 2;
 constexpr int kMinSteppedLoopSteps = 4;
-constexpr int kMinSmoothLoopSteps = 6;
-constexpr int kMaxLoopSteps = 16;
+constexpr int kMinSmoothSteps = 6;
+constexpr int kMaxRandomSteps = 16;
 const char* const kParamNames[kNumWaves] = {"SKEW", "SYMMETRY", "CURVE", "CURVE", "WIDTH", "ATTACK", "STEPS", "DENSITY", "STEPS", "DENSITY", "SLEW"};
 const char* const kAlgorithmNames[kNumAlgorithms] = {"MIX", "SCALE", "SCALE 2", "RING", "BEND", "MAX", "MIN", "XFADE", "FOLD", "S&H", "GATE"};
 const char* const kAlgorithmFormulas[kNumAlgorithms] = {
@@ -170,25 +172,25 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 			return p < a ? 1.0 - std::pow(1.0 - p / a, 2.0) : std::pow(1.0 - (p - a) / (1.0 - a), 3.0);
 		}
 		case SteppedRandom: {
-			double n = 1.0 + std::round(sh * 7.0);
+			double n = kMinSteppedRandomSteps + std::round(sh * (kMaxRandomSteps - kMinSteppedRandomSteps));
 			return hash3(seed, std::floor(abs * n), 77) * 2.0 - 1.0;
 		}
 		case SmoothRandom: {
-			double u = abs * (1.0 + sh * 7.0);
+			double u = abs * (kMinSmoothSteps + sh * (kMaxRandomSteps - kMinSmoothSteps));
 			double i = std::floor(u);
 			double f = u - i;
 			double s = f * f * (3.0 - 2.0 * f);
 			return lerp(hash3(seed, i, 31), hash3(seed, i + 1.0, 31), s) * 2.0 - 1.0;
 		}
 		// As the two above, but within one operator cycle, so the pattern
-		// repeats, and with more steps
+		// repeats
 		case SteppedLoop: {
-			double n = kMinSteppedLoopSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxLoopSteps - kMinSteppedLoopSteps));
+			double n = kMinSteppedLoopSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSteppedLoopSteps));
 			return hash3Bits(op.loopSeed, toInt32(std::floor(p * n)), 77) / 4294967296.0 * 2.0 - 1.0;
 		}
 		case SmoothLoop: {
 			// A whole number of segments, so the loop joins up
-			int n = kMinSmoothLoopSteps + (int) std::round(std::clamp(sh, 0.0, 1.0) * (kMaxLoopSteps - kMinSmoothLoopSteps));
+			int n = kMinSmoothSteps + (int) std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSmoothSteps));
 			double u = std::isfinite(p) ? p * n : 0.0;
 			int i = std::clamp((int) u, 0, n - 1);
 			double f = u - i;

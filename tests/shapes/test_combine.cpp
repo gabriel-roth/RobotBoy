@@ -4,6 +4,7 @@
 #include "reference.hpp"
 #include "shapes/Combine.hpp"
 #include "shapes/OutputStage.hpp"
+#include "shapes/Prng.hpp"
 #include "shapes/WeaverPresets.hpp"
 #include <cmath>
 #include <cstdio>
@@ -40,8 +41,10 @@ static void ratioTable() {
 	check(ratioValue(14) == 32.0, "x32 value");
 }
 
+// The random waves have a wider range than the reference's, so only the
+// deterministic waves are compared
 static void wavesMatch() {
-	for (int w = 0; w < 8; w++) {
+	for (int w = 0; w < SteppedRandom; w++) {
 		for (int s = 0; s < 2; s++) {
 			OperatorControls op{};
 			op.wave = (Wave) w;
@@ -63,9 +66,11 @@ static void wavesMatch() {
 
 // The reference keeps the prototype's preset order and its "\xC3\x97" for
 // "x"; Weaver puts the random presets last, and has retuned some presets
-// for a wider range or dropped their window, so those have no reference
+// for a wider range or dropped their window, or for the random waves' wider
+// range, so those have no reference
 static int referencePreset(const char* name) {
-	for (const char* retuned : {"Envelope + triangle x16", "Swell with gated ripple", "Sampled falling ramp", "Random accents, fading", "Random swell"})
+	for (const char* retuned : {"Envelope + triangle x16", "Swell with gated ripple", "Sampled falling ramp", "Random accents, fading", "Random swell",
+	                            "Phase-bent sine", "Max with random steps", "Random stutter"})
 		if (std::strcmp(name, retuned) == 0)
 			return -1;
 	for (int m = 0; m < 15; m++) {
@@ -511,6 +516,25 @@ static void loopWavesRepeatEachCycle() {
 			changes += evalOperator(st, k / 960.0, 0) != evalOperator(st, (k - 1) / 960.0, 0);
 		int steps = 4 + (int) std::round(param * 12.0);
 		check(changes == steps - 1, "step count", steps, changes);
+	}
+	// Stepped random: 2 + round(14 * param) steps per cycle
+	OperatorControls sr{};
+	sr.wave = SteppedRandom;
+	for (double param : {0.0, 0.5, 1.0}) {
+		sr.param = param;
+		int changes = 0;
+		for (int k = 1; k < 960; k++)
+			changes += evalOperator(sr, k / 960.0, 0) != evalOperator(sr, (k - 1) / 960.0, 0);
+		int steps = 2 + (int) std::round(param * 14.0);
+		check(changes == steps - 1, "stepped random step count", steps, changes);
+	}
+	// Smooth random: 6 to 16 points per cycle, at the hashed integers
+	OperatorControls smr{};
+	smr.wave = SmoothRandom;
+	for (double param : {0.0, 1.0}) {
+		smr.param = param;
+		double n = param == 0.0 ? 6.0 : 16.0;
+		check(evalOperator(smr, 1.0 / n, 0) == hash3('A', 1.0, 31) * 2.0 - 1.0, "smooth random density", (int) n);
 	}
 	// Smooth: continuous through the loop point
 	OperatorControls sm{};
