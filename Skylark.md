@@ -96,37 +96,87 @@ Along the top: the shape's name on the left (below the trace on MetaModule); on 
 
 ## The shapes
 
-Variation sweeps every setting named here together; which way each one goes depends on the shape.
+Each picture shows one cycle of the shape with **Variation** at 0%, 50% and 100%, and the other controls at their defaults.
 
 ### Gestures
 
-1. **Bounce** — a dropped ball: a run of arcs, each lower and shorter than the last, settling at the bottom. Variation changes the bounciness, the number of bounces (3–12) and how squashed (flat-topped) each arc is.
-2. **Spring** — a struck spring ringing down: a decaying oscillation that starts at full swing, from the center, or anywhere between. Variation changes the ringing speed (from 1.5 to 14 swings per cycle), the damping and the starting kick.
-3. **Ratchet** — a burst of 3–16 sharp hits that speed up or slow down across the cycle, each a little quieter than the last. Variation also changes how quickly each hit dies away.
-4. **Flam** — one to three quiet grace hits just ahead of a main hit, which then decays. Variation changes the gap between hits, their number and level, and the decay.
-5. **Bowed** — a bowed note: smooth swell, a sustain with vibrato that fades in, smooth release. Variation changes the attack, vibrato speed and depth, and where the release begins.
-6. **Stutter** — 4–24 gated pulses under a decaying envelope. Variation changes the number of pulses, their width and the decay.
-7. **Heartbeat** — an ECG trace around a center baseline: a small bump, a sharp spike that swings both ways, then a broad hump. Variation changes the size and width of each part and the timing of the last hump.
+**1. Bounce**
+
+<img src="images/skylark-shapes/01-bounce.svg" alt="Bounce at Variation 0%, 50% and 100%" width="620">
+
+**2. Spring**
+
+<img src="images/skylark-shapes/02-spring.svg" alt="Spring at Variation 0%, 50% and 100%" width="620">
+
+**3. Ratchet**
+
+<img src="images/skylark-shapes/03-ratchet.svg" alt="Ratchet at Variation 0%, 50% and 100%" width="620">
+
+**4. Flam**
+
+<img src="images/skylark-shapes/04-flam.svg" alt="Flam at Variation 0%, 50% and 100%" width="620">
+
+**5. Bowed**
+
+<img src="images/skylark-shapes/05-bowed.svg" alt="Bowed at Variation 0%, 50% and 100%" width="620">
+
+**6. Stutter**
+
+<img src="images/skylark-shapes/06-stutter.svg" alt="Stutter at Variation 0%, 50% and 100%" width="620">
+
+**7. Heartbeat**
+
+<img src="images/skylark-shapes/07-heartbeat.svg" alt="Heartbeat at Variation 0%, 50% and 100%" width="620">
 
 ### Cycles
 
-8. **Harmonics** — a fundamental with a ripple of overtones whose brightness opens and closes across the cycle (or the other way round). Variation changes the number of partials, where their peak sits, odd-against-even balance and the sweep.
-9. **Folded sine** — two sines through a wavefolder, swelling two to four times a cycle: plain between swells, folded at each one. Variation changes the drive, the second sine's pitch and level, the swell depth and lean.
-10. **FM** — a cascaded FM wave whose brightness and level decay or grow across the cycle, like a struck or bowed FM tone. Variation changes the ratios, the depths and the direction of the sweep.
-11. **Chirp** — a wave that changes speed across the cycle, under a gentle swell. Variation sweeps it from speeding up, through fastest in the middle, to slowing down, and changes the range of speeds.
-12. **Beating** — three closely tuned waves whose interference makes a slow beat with a faster one inside it, rectified at times into separate pulses. Variation changes the tunings, depths and how pulse-like it gets.
+**8. Harmonics**
+
+<img src="images/skylark-shapes/08-harmonics.svg" alt="Harmonics at Variation 0%, 50% and 100%" width="620">
+
+**9. Folded sine**
+
+<img src="images/skylark-shapes/09-folded-sine.svg" alt="Folded sine at Variation 0%, 50% and 100%" width="620">
+
+**10. FM**
+
+<img src="images/skylark-shapes/10-fm.svg" alt="FM at Variation 0%, 50% and 100%" width="620">
+
+**11. Chirp**
+
+<img src="images/skylark-shapes/11-chirp.svg" alt="Chirp at Variation 0%, 50% and 100%" width="620">
+
+**12. Beating**
+
+<img src="images/skylark-shapes/12-beating.svg" alt="Beating at Variation 0%, 50% and 100%" width="620">
 
 ### Steps
 
-13. **Arpeggio** — 3–12 stepped notes. Variation picks the pattern in thirds of its travel — **Up**, **Up-down**, **Down** — and within each third sweeps the number of notes, their span and an optional glide between them. Patch it through a quantizer for melodies.
-14. **Ringing steps** — two to six levels in turn, each change ringing like a struck object before it settles. Variation changes the number of steps, the ringing speed and how fast it dies away.
-15. **Devil's staircase** — a fractal staircase rising in flat steps of many sizes. Variation changes the step pattern, its depth (2–6 levels of detail) and the height of the middle step.
+**13. Arpeggio**
+
+<img src="images/skylark-shapes/13-arpeggio.svg" alt="Arpeggio at Variation 0%, 50% and 100%" width="620">
+
+**14. Ringing steps**
+
+<img src="images/skylark-shapes/14-ringing-steps.svg" alt="Ringing steps at Variation 0%, 50% and 100%" width="620">
+
+**15. Devil's staircase**
+
+<img src="images/skylark-shapes/15-devils-staircase.svg" alt="Devil's staircase at Variation 0%, 50% and 100%" width="620">
 
 ### Chaos
 
-16. **Random nodes** — 3–24 random points joined into a looping line. Variation changes the number of points, how evenly they're spaced, and how they're joined: steps, straight lines or smooth curves.
-17. **Fractal line** — a jagged, mountain-range line. Variation changes its roughness and its depth of detail.
-18. **Glitch** — 6–24 segments of random length, some holding a level, others breaking into bursts of rapid random steps. Variation changes the number of segments, how many burst and how fast.
+**16. Random nodes**
+
+<img src="images/skylark-shapes/16-random-nodes.svg" alt="Random nodes at Variation 0%, 50% and 100%" width="620">
+
+**17. Fractal line**
+
+<img src="images/skylark-shapes/17-fractal-line.svg" alt="Fractal line at Variation 0%, 50% and 100%" width="620">
+
+**18. Glitch**
+
+<img src="images/skylark-shapes/18-glitch.svg" alt="Glitch at Variation 0%, 50% and 100%" width="620">
 
 ---
 
