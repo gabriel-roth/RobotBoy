@@ -359,7 +359,7 @@ struct Weaver : Module {
 		return (float) shapes::sanitize(inputs[in].getVoltage(), 0.0);
 	}
 
-	// Knob plus attenuverted CV (10 V spans the knob's range), unclamped.
+	// Knob plus attenuverted CV (5 V spans the knob's range), unclamped.
 	double modulated(int knob, int in, int trim, double span) {
 		double v = params[knob].getValue() + cv(in) * 0.2 * params[trim].getValue() * span;
 		return shapes::sanitize(v, params[knob].getValue());
