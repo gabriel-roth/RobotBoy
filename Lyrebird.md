@@ -1,6 +1,6 @@
 # Lyrebird
 
-*The lyrebird is a virtuoso mimic: it hears a sound once, from another bird's call to a camera shutter, and reproduces it faithfully in its own song.*
+*The lyrebird is a virtuoso mimic: it copies the sounds around it, from other birds' calls to camera shutters, and reproduces them faithfully in its own song.*
 
 **Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Turn its knob while recording, or record any CV, and it plays the movement back as a loop locked to the bar or as a triggered one-shot. Takes can be punched in, sped up, reversed, smoothed and saved as WAV files. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md).
 
