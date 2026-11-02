@@ -27,7 +27,7 @@ const char* const kAlgorithmNames[kNumAlgorithms] = {"MIX", "SCALE", "SCALE 2", 
 const char* const kAlgorithmFormulas[kNumAlgorithms] = {
 	"A+B+C",
 	"(A scaled by B) + C",
-	"A*B*C",
+	"A scaled by B and C",
 	"(A*B)+C",
 	"(A bent by B) + C",
 	"max(A,B)+C",

@@ -1,8 +1,10 @@
 # Weaver
 
-*Weaverbirds build intricate nests by knotting and interlacing single strands of grass into one structure.*
+*Weaverbirds build intricate nests by interlacing strands of grass.*
 
-**Weaver** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) that builds complex shapes from simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and one of eleven algorithms mixes, multiplies, folds, samples or gates them into a single shape. Any operator can also take an external CV. It is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
+**Weaver** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) that builds complex shapes from simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and one of eleven algorithms combines them into a single shape. You can also use an external CV for any operator. 
+
+Weaver is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Weaver.png" alt="Weaver module" height="500">
 
@@ -12,12 +14,13 @@
 
 ### Operators
 
-- **RATIO**: repetitions per cycle, from 1/8 to x32. A change waits for a cycle start that keeps the operator aligned (see **Ratio changes**).
-- **WAVE**: the button steps through the waves; its color shows the current one. In VCV Rack, right-click to choose from a list.
-- **PARAM**: reshapes the wave (see **Waves**). Default 50%.
-- **PHASE**: offsets the wave within its cycle, 0–360°.
-- **LEVEL**: −100% to +100%; negative inverts. In some algorithms LEVEL acts as a modulation depth.
-- PARAM, PHASE and LEVEL each have a CV input and an attenuverter, centered (off) by default. At full trim, 5 V spans the control's range.
+- **RATIO**: repetitions per cycle, from 1/8 to x32. By default, changes take effect at the start of a new cycle (see [**Settings**](#settings)).
+- **WAVE**: sets the operator’s waveform (see [**Waves**](#waves)).
+- **PARAM**: each waveform has a designated parameter modulated by this knob and CV input. See [**Waves**](#waves) for details. 
+- **PHASE**: offsets the wave within its cycle.
+- **LEVEL**: attenuates or inverts the waveform.
+
+PARAM, PHASE and LEVEL each have a CV input and an attenuverter. With the attenuverter fully clockwise, 5 V spans the control's range.
 
 ### Waves
 
@@ -29,35 +32,38 @@
 | Ramp down | violet | CURVE: exponential to logarithmic |
 | Square | red | WIDTH: pulse width |
 | Envelope | orange | ATTACK: attack time. Unipolar. |
-| Stepped random | white | STEPS: 1–8 random levels per cycle |
-| Smooth random | pale blue | DENSITY: 1–8 interpolated points per cycle |
+| Stepped random | white | STEPS: 2–16 random levels per cycle |
+| Smooth random | pale blue | DENSITY: 6–16 interpolated points per cycle |
 | Stepped random loop | pink | STEPS: 4–16 steps, repeating each cycle |
 | Smooth random loop | aqua | DENSITY: 6–16 points, repeating each cycle |
-| Input | magenta | SLEW: see **Input operators** |
+| Input | magenta | SLEW: see [**Input operators**](#input-operators) |
 
-The random waves restart identically on RESET. Choosing a loop wave generates a new pattern, saved with the patch.
-
+<a id="input-operators"></a>
 ### Input operators
 
-With WAVE set to **Input**, the operator plays the signal at its PARAM jack (±5 V = full scale). The PARAM trimpot sets the input gain (0–2x) and the PARAM knob a slew of up to 1 s. RATIO and PHASE have no effect.
+With WAVE set to **Input**, the operator passes through whatever comes into its PARAM jack. Some things worth noting about this mode: 
+- The PARAM trimpot behaves as an amplifier: at center, the input voltage is passed through unmodified; turned clockwise, the voltage is amplified up to a maximum of 2x; turned counter-clockwise it’s attenuated to a minimum of 0. 
+- At ±5 V, the input voltage reaches full scale. 
+- The PARAM knob adds a slew of up to 1 s. 
+- RATIO and PHASE have no effect. 
 
 ### Algorithms
 
-The **ALGORITHM** **‹ ›** buttons step through the algorithms; in VCV Rack, right-click either to choose from a list. ALGORITHM CV offsets the selection, 10 V spanning all eleven.
+The **ALGORITHM** **‹ ›** buttons step through the algorithms that combine the operators. ALGORITHM CV offsets the selection, with 10 V spanning all eleven.
 
 | Algorithm | Formula | Function |
 |---|---|---|
 | MIX | A+B+C | Sum. |
-| SCALE | (A scaled by B) + C | B is a VCA on A, with B's LEVEL as depth. Negative LEVEL inverts the response. |
-| SCALE 2 | A\*B\*C | A scaled by both B and C, each LEVEL a depth. |
-| RING | (A\*B)+C | Product of A and B. |
-| BEND | (A bent by B) + C | B modulates A's phase, up to half a cycle. |
-| MAX | max(A,B)+C | Higher of A and B. |
-| MIN | min(A,B)+C | Lower of A and B. |
-| XFADE | (A,B) xfaded by C | C crossfades from A to B; C's LEVEL is the depth. |
-| FOLD | fold(A+B)+C | A+B wavefolded. |
-| S&H | (A sampled by B) + C | A sampled at the start of each B cycle, or at B's rising zero crossings if B is an Input. |
-| GATE | (A gated by B) + C | A passes while B is positive. |
+| SCALE | (A scaled by B) + C | B sets A’s amplitude, offset by C. |
+| SCALE 2 | A scaled by B and C | B and C set A's amplitude. |
+| RING | (A\*B)+C | A times B, offset by C. |
+| BEND | (A bent by B) + C | B pushes A's phase, up to half a cycle, offset by C. |
+| MAX | max(A,B)+C | Higher of A and B, offset by C. |
+| MIN | min(A,B)+C | Lower of A and B, offset by C. |
+| XFADE | (A,B) xfaded by C | C crossfades between A and B. (When C’s LEVEL is at 0, the output is an even mix of A and B.) |
+| FOLD | fold(A+B)+C | A+B wavefolded, offset by C. |
+| S&H | (A sampled by B) + C | A held each time B starts a cycle, offset by C. (An Input's cycle starts at each rising zero crossing.) |
+| GATE | (A gated by B) + C | A passes while B is positive, or when B’s LEVEL is at 0. |
 
 ### Presets
 
@@ -105,7 +111,7 @@ The **PRESET** buttons step through 15 factory presets, which set every operator
 
 ---
 
-## Context menu
+## Settings
 
 - **Output range**: ±5 V (default), ±10 V, 0–5 V, 0–10 V.
 - **When out of range**: **Fit** (default; scales the whole cycle down to fit), **Clip**, **Soft clip**, **Fold** or **Wrap**.
