@@ -532,12 +532,12 @@ struct SkylarkWidget : ModuleWidget {
 		display->module = module;
 		addChild(display);
 
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(103.71, 32.791)), module, Skylark::VARIATION_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(103.71, 44.753)), module, Skylark::VARIATION_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(88.56, 44.753)), module, Skylark::SHAPE_INPUT));
-		addParam(createParamCentered<Trimpot>(mm2px(Vec(103.71, 53.844)), module, Skylark::VARIATION_CV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(85.26, 32.791)), module, Skylark::SHAPE_PREV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(91.86, 32.791)), module, Skylark::SHAPE_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(87.79, 31.6)), module, Skylark::SHAPE_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(94.39, 31.6)), module, Skylark::SHAPE_NEXT_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(105.64, 31.6)), module, Skylark::SHAPE_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(85.343, 51.3)), module, Skylark::VARIATION_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(96.468, 51.3)), module, Skylark::VARIATION_INPUT));
+		addParam(createParamCentered<Trimpot>(mm2px(Vec(107.343, 51.3)), module, Skylark::VARIATION_CV_PARAM));
 
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.884, 76.868)), module, Skylark::TIMING_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(35.652, 76.868)), module, Skylark::LIFT_PARAM));

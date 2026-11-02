@@ -3,12 +3,14 @@
 #  - Title centered in a 17 mm band (rows start at 17.0), still at its 20 HP width and tracking
 #    (flush with the old 62 mm display's left edge); refit for the wider display.
 #  - Display (73.43 x 44.5, no longer 4:3) on the bare panel, top left (1.5-74.93, 17-61.5).
-#  - Top plate (76.93-115.34, 17-61.5): SHAPE (picks the recipe) and VARIATION in two columns
-#    15.15 apart (88.56 / 103.71), centered in the plate. Rows are the 46.5 mm plate's
-#    (labels 24.5, knobs 33.5, jacks 46.0, trim 55.5) scaled to 44.5: 24.178 / 32.791 /
-#    44.753 / 53.844.
-#    VARIATION has a CV trim under its jack. SHAPE has no knob: its previous / next buttons
-#    (6.6 apart) sit in the knob row, chevrons 4.5 outside, over its jack.
+#  - Top plate (76.93-115.34, 17-61.5, center 96.135): SHAPE (picks the recipe) stacked over
+#    VARIATION, each a centered label over one row, in equal 5.4 gaps (label 24.7 / row 31.6,
+#    label 43.3 / row 51.3).
+#    SHAPE: previous / next buttons 6.6 apart, chevrons 4.5 outside, then its CV jack 11.25
+#    after the next button, as Weaver's ALGORITHM; the group centered (prev 87.79).
+#    VARIATION: knob, CV jack, CV trim, 11.125 and 10.875 apart (the jack 0.375 left of the
+#    knob-trim midpoint, clear of the trim's left glyph); the knob edge to the trim's right
+#    glyph centered (knob 85.343).
 #  - CV trims (VARIATION and the five transforms): with the jack empty, clockwise feeds OUT back
 #    and counter-clockwise adds a random offset each cycle. Glyphs mark the two ends of travel,
 #    4.0 out and 1.9 down from each trim (clear of the knob glyphs above): a clockwise loop on
@@ -60,15 +62,14 @@ elements:
   - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 73.43, h: 44.5}}
 
   # --- Top plate.
-  - row: {grid: top, at: labels}
-    place: [SHAPE, VARIATION]
-  - {name: VARIATION_PARAM, x: 103.71, y: 32.791}
-  - row: {grid: top, at: jacks}
-    place: [{name: SHAPE_INPUT}, {name: VARIATION_INPUT}]
-  - {name: VARIATION_CV_PARAM, widget: Trimpot, x: 103.71, y: 53.844}
-  # SHAPE previous / next in the knob row, previous left, next right.
-  - {name: SHAPE_PREV_PARAM, widget: TL1105, x: 85.26, y: 32.791}
-  - {name: SHAPE_NEXT_PARAM, widget: TL1105, x: 91.86, y: 32.791}
+  - {text: SHAPE, x: 96.135, y: 24.7}
+  - {name: SHAPE_PREV_PARAM, widget: TL1105, x: 87.79, y: 31.6}
+  - {name: SHAPE_NEXT_PARAM, widget: TL1105, x: 94.39, y: 31.6}
+  - {name: SHAPE_INPUT, x: 105.64, y: 31.6}
+  - {text: VARIATION, x: 96.135, y: 43.3}
+  - {name: VARIATION_PARAM, x: 85.343, y: 51.3}
+  - {name: VARIATION_INPUT, x: 96.468, y: 51.3}
+  - {name: VARIATION_CV_PARAM, widget: Trimpot, x: 107.343, y: 51.3}
 
   # --- Transform plate.
   - row: {grid: mid, at: labels}
@@ -107,13 +108,6 @@ elements:
   - {text: OUT, x: 106.029, y: 118.6, size: 3.175}
 
 grids:
-  top:
-    cols: [88.56, 103.71]
-    rows:
-      labels: 24.178
-      knobs: 32.791
-      jacks: 44.753
-      trim: 53.844
   mid:
     cols: [12.884, 35.652, 58.42, 81.188, 103.956]
     rows:
@@ -123,8 +117,6 @@ grids:
       jacks: 94.312
 
 connectors:
-  - [VARIATION_PARAM, VARIATION_INPUT]
-  - [VARIATION_INPUT, VARIATION_CV_PARAM]
   - [TIMING_PARAM, TIMING_CV_PARAM]
   - [TIMING_CV_PARAM, TIMING_INPUT]
   - [LIFT_PARAM, LIFT_CV_PARAM]
@@ -148,8 +140,8 @@ glyphs:
   - {src: glyphs/skylark/drift-steady.svg, at: [96.956, 76.868]}
   - {src: glyphs/skylark/drift-wander.svg, at: [110.956, 76.868]}
   # CV trims: random (counter-clockwise) and feedback (clockwise) at the ends of travel.
-  - {src: glyphs/skylark/trim-random-jump.svg, at: [99.710, 55.744]}
-  - {src: glyphs/skylark/trim-feedback.svg, at: [107.710, 55.744]}
+  - {src: glyphs/skylark/trim-random-jump.svg, at: [103.343, 53.2]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [111.343, 53.2]}
   - {src: glyphs/skylark/trim-random-glide.svg, at: [8.884, 87.679]}
   - {src: glyphs/skylark/trim-feedback.svg, at: [16.884, 87.679]}
   - {src: glyphs/skylark/trim-random-glide.svg, at: [31.652, 87.679]}
@@ -161,7 +153,7 @@ glyphs:
   - {src: glyphs/skylark/trim-random-jump.svg, at: [99.956, 87.679]}
   - {src: glyphs/skylark/trim-feedback.svg, at: [107.956, 87.679]}
   # SHAPE previous / next and SPEED down / up, 4.5 outside their buttons.
-  - {src: glyphs/weaver/step-back.svg,    at: [80.76, 32.791]}
-  - {src: glyphs/weaver/step-forward.svg, at: [96.36, 32.791]}
+  - {src: glyphs/weaver/step-back.svg,    at: [83.29, 31.6]}
+  - {src: glyphs/weaver/step-forward.svg, at: [98.89, 31.6]}
   - {src: glyphs/weaver/step-back.svg,    at: [50.314, 107.692]}
   - {src: glyphs/weaver/step-forward.svg, at: [76.714, 107.692]}
