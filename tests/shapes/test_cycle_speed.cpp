@@ -86,6 +86,36 @@ static void changeWaitsAndStaysContinuous() {
 	}
 }
 
+// Immediate: the change is taken on the next step, with no jump
+static void immediateChangeIsContinuous() {
+	const int pairs[][2] = {{0, 1}, {0, -2}, {2, -1}, {-1, 2}};
+	for (const auto& pr : pairs) {
+		CycleSpeed s;
+		s.setImmediate(true);
+		s.jumpTo(pr[0]);
+		Clock c;
+		double prev = 0.0;
+		int sinceSet = -1;
+		for (int i = 0; i < 4 * 64; i++) {
+			if (c.cycle == 1 && c.k == 10) {
+				s.setTarget(pr[1]);
+				sinceSet = 0;
+			}
+			CycleSpeed::Step st = c.step(s);
+			if (sinceSet == 0)
+				assert(s.octaves() == pr[1]);
+			if (i > 0) {
+				// The step that takes the change still covers its interval at the old rate
+				int oct = sinceSet > 0 ? pr[1] : pr[0];
+				assert(std::fabs(st.t - prev - std::ldexp(1.0, oct) / 64) < 1e-9);
+			}
+			if (sinceSet >= 0)
+				sinceSet++;
+			prev = st.t;
+		}
+	}
+}
+
 static void backwardAlignDoesNotRefire() {
 	CycleSpeed s;
 	s.jumpTo(1);
@@ -106,6 +136,7 @@ static void labels() {
 int main() {
 	scalesAndWraps();
 	changeWaitsAndStaysContinuous();
+	immediateChangeIsContinuous();
 	backwardAlignDoesNotRefire();
 	labels();
 	std::printf("test_cycle_speed: all passed\n");

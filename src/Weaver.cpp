@@ -266,7 +266,8 @@ struct Weaver : Module {
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
 	// A new ratio waits for a cycle start where it stays lined up with the
-	// cycle (see holdRatios())
+	// cycle (see holdRatios()), and a new SPEED for one the clock shares.
+	// Saved as "ratioAtCycleEnd", its name before it covered SPEED.
 	bool ratioAtCycleEnd = true;
 	int heldRatios[3] = {};
 	int chosenRatios[3] = {};
@@ -693,6 +694,7 @@ struct Weaver : Module {
 		down |= speedDownCv.process(cv(SPEED_DOWN_INPUT), 0.1f, 1.f);
 		bool up = speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f);
 		up |= speedUpCv.process(cv(SPEED_UP_INPUT), 0.1f, 1.f);
+		speed.setImmediate(!ratioAtCycleEnd);
 		if (down)
 			speed.setTarget(speed.targetOctaves() - 1);
 		if (up)
@@ -1855,10 +1857,10 @@ struct WeaverWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
 			}));
-		menu->addChild(createIndexSubmenuItem("Ratio changes", {"Immediately", "At end of cycle"},
+		menu->addChild(createIndexSubmenuItem("Speed and ratio changes", {"Immediately", "At end of cycle"},
 			[=]() { return module->ratioAtCycleEnd ? 1 : 0; },
 			[=](int i) {
-				withMenuUndo(module, "set ratio change timing", [=]() { module->ratioAtCycleEnd = i == 1; });
+				withMenuUndo(module, "set speed and ratio change timing", [=]() { module->ratioAtCycleEnd = i == 1; });
 			}));
 		menu->addChild(createBoolMenuItem("New random loops on reset", "",
 			[=]() { return module->newLoopOnReset; },

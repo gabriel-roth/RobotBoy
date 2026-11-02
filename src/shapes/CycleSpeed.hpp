@@ -7,7 +7,9 @@
 // octaves. Each speed's cycles start on multiples of 1 / speed timebase
 // cycles since reset, so a change waits for a timebase cycle start that
 // both speeds share: the shape stays in step with the clock and carries on
-// from where it was, with no jump.
+// from where it was, with no jump. Set immediate and a change is taken at
+// once instead: the position still carries on, but cycle starts leave the
+// clock's grid until a reset.
 namespace shapes {
 
 class CycleSpeed {
@@ -20,7 +22,7 @@ public:
 		bool wrapped;  // crossed a cycle start this sample (never on reset)
 	};
 
-	// Takes effect at the next shared cycle start.
+	// Takes effect at the next shared cycle start, or at once when immediate.
 	void setTarget(int octaves) {
 		target = std::clamp(octaves, kMin, kMax);
 	}
@@ -31,6 +33,10 @@ public:
 		applied = target;
 		offset = 0.0;
 		resync = true;
+	}
+
+	void setImmediate(bool on) {
+		immediate = on;
 	}
 
 	int octaves() const {
@@ -47,6 +53,11 @@ public:
 			applied = target;
 			offset = 0.0;
 			resync = true;
+		}
+		else if (immediate && target != applied) {
+			// Keeps t where it is at the new rate
+			offset += (scale(applied) - scale(target)) * ((double) cycle + pos);
+			applied = target;
 		}
 		else if (wrapped && target != applied) {
 			// The slower speed's cycle is the longer one
@@ -80,6 +91,7 @@ private:
 	int applied = 0;
 	int target = 0;
 	double offset = 0.0;
+	bool immediate = false;
 	int64_t last = 0;
 	bool resync = true;
 };
