@@ -419,6 +419,44 @@ static void hotInputDoesNotOvershoot() {
 	check(std::fabs(g.process(x, 0.25, false).result - sa2) <= 1e-12, "xfade clamped at A");
 }
 
+static void xfadeAndGateFollowLevelSign() {
+	// A = +1 and B = -1 nearly all cycle; the controlling operator is a ramp,
+	// so its 0..1 value at time t is t
+	CombineControls c = quiet();
+	c.op[0].wave = Square;
+	c.op[0].param = 1.0;
+	c.op[0].level = 1.0;
+	c.op[1].wave = Square;
+	c.op[1].param = 0.0;
+	c.op[1].level = 1.0;
+	c.op[2].wave = RampUp;
+	c.algorithm = Xfade;
+	CombineEngine e;
+	c.op[2].level = 1.0;
+	check(std::fabs(e.resultAt(c, 0.9, false) + 0.8) <= 1e-9, "xfade toward B");
+	c.op[2].level = -1.0;
+	check(std::fabs(e.resultAt(c, 0.9, false) - 0.8) <= 1e-9, "negative level reverses xfade");
+	c.op[2].level = 0.0;
+	check(std::fabs(e.resultAt(c, 0.9, false)) <= 1e-9, "xfade level 0 is an even mix");
+
+	c = quiet();
+	c.op[0].wave = Square;
+	c.op[0].param = 1.0;
+	c.op[0].level = 1.0;
+	c.op[1].wave = RampUp;
+	c.algorithm = Gate;
+	c.op[1].level = 0.5;
+	check(e.resultAt(c, 0.4, false) == 0.0, "gate closed below threshold");
+	check(e.resultAt(c, 0.6, false) == 1.0, "gate open above threshold");
+	c.op[1].level = -0.5;
+	check(e.resultAt(c, 0.4, false) == 1.0, "negative level opens below");
+	check(e.resultAt(c, 0.6, false) == 0.0, "negative level closes above");
+	c.op[1].level = 0.0;
+	check(e.resultAt(c, 0.01, false) == 1.0, "gate level 0 always open");
+	c.op[1].level = 1.0;
+	check(e.resultAt(c, 0.9, false) == 0.0, "gate level 1 opens only at B's peak");
+}
+
 static void displayAccessorsMatchProcess() {
 	// After a ratio change the offsets move; the display accessors follow them
 	CombineControls c = kWeaverPresets[4].controls;
@@ -598,6 +636,7 @@ int main() {
 	outputsAreFinite();
 	reverseMirrorsTime();
 	hotInputDoesNotOvershoot();
+	xfadeAndGateFollowLevelSign();
 	displayAccessorsMatchProcess();
 	presetsAreAscii();
 	presetMatchFindsDefault();

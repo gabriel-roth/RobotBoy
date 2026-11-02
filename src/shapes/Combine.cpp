@@ -80,14 +80,17 @@ double mix(const CombineControls& c, const double* r, double bentA, double heldA
 		case Bend: y = bentA * A.level + sc; break;
 		case Max: y = std::max(sa, sb) + sc; break;
 		case Min: y = std::min(sa, sb) + sc; break;
-		case Xfade: {
-			double d = std::fabs(C.level);
-			y = lerp(sa, sb, uni(r[2], C.wave) * d + (1.0 - d) * 0.5);
-			break;
-		}
+		// C's LEVEL narrows the sweep around the midpoint; negative reverses it
+		case Xfade: y = lerp(sa, sb, uni(r[2], C.wave) * C.level + (1.0 - C.level) * 0.5); break;
 		case Fold: y = foldTri(sa + sb) + sc; break;
 		case SampleHold: y = heldA * A.level + sc; break;
-		case Gate: y = (B.level == 0.0 || r[1] * B.level > 0.0 ? sa : 0.0) + sc; break;
+		// B's LEVEL is a threshold across B's range: A passes while B is at or
+		// above it, or with negative LEVEL at or below its mirror; 0 always passes
+		case Gate: {
+			double u = uni(r[1], B.wave);
+			y = ((B.level >= 0.0 ? u : 1.0 - u) >= std::fabs(B.level) ? sa : 0.0) + sc;
+			break;
+		}
 		default: y = sa + sb + sc;
 	}
 	return y;
