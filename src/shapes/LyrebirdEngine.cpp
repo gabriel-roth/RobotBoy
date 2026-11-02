@@ -133,19 +133,40 @@ void LyrebirdEngine::abandonRec() {
 	restart();
 }
 
-int LyrebirdEngine::syncIndex(double x) const {
-	const Take& t = *cur_.load();
-	double p = x / t.bars;
-	p -= std::floor(p);
-	int k = (int) std::floor(p * t.length + 0.5);
-	return k >= t.length ? k - t.length : std::max(k, 0);
-}
-
 int LyrebirdEngine::elapsedIndex(const Take& t) const {
 	int k = (int) std::floor(recElapsed_ / t.bars * t.length + 0.5);
 	return k >= t.length ? k - t.length : std::max(k, 0);
 }
 
+// A REC press: Sync waits for the grid, Free starts now or on movement
+void LyrebirdEngine::beginRec(const LyrebirdControls& c, const Timebase::Step& tb, double x, double prevX, double src) {
+	if (c.sync)
+		cue(c, tb, x, prevX);
+	else if (c.startOn == StartOn::Movement) {
+		status_ = Status::Armed;
+		armValue_ = src;
+	}
+	else
+		startRec(c, x);
+}
+
+// Sync: recording starts where the transport crosses the next grid point (a
+// bar, or the take's own length when that is shorter), or at a TRIG. Called
+// on the press and then every sample while cued.
+void LyrebirdEngine::cue(const LyrebirdControls& c, const Timebase::Step& tb, double x, double prevX) {
+	status_ = Status::Cued;
+	if (tb.reset) {
+		startRec(c, 0.0);
+		return;
+	}
+	double q = std::min(kLengthBars[std::clamp(c.lengthIndex, 0, 6)], 1.0);
+	double g = std::floor(x / q + 1e-9);
+	// Forward only: a clock pulling the transport back hasn't reached the grid
+	if (x > prevX && g > std::floor(prevX / q + 1e-9))
+		startRec(c, g * q);
+}
+
+// x: Sync, the grid point the take starts at; it becomes the playback origin
 void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 	if (status_ == Status::Punching || punchTail_)
 		endPunch();
@@ -165,10 +186,7 @@ void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 		recElapsed_ = 0.0;
 		recSegX_ = x;
 		recSegBase_ = 0.0;
-		// ONCE plays from TRIG, not from the bar, so its take starts at the
-		// press: placed by transport travelled since then, the gesture isn't
-		// rotated by wherever the bar happened to be
-		recByElapsed_ = !c.loop;
+		origin_ = x;
 	}
 	else {
 		t->mode = TakeMode::Free;
@@ -189,10 +207,13 @@ void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Ste
 	Take& t = *cur_.load();
 	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
 	if (t.mode == TakeMode::Sync) {
-		// Counted as transport travelled, so TRIG mid-take doesn't stretch or cut it
+		// Counted as transport travelled, so TRIG mid-take doesn't stretch or
+		// cut it. The origin moves back by what is already recorded, so the
+		// take plays on in step with how it was performed.
 		if (tb.reset) {
 			recSegBase_ = recElapsed_;
 			recSegX_ = x;
+			origin_ = x - recElapsed_;
 		}
 		else
 			recElapsed_ = recSegBase_ + std::max(x - recSegX_, 0.0);
@@ -200,7 +221,7 @@ void LyrebirdEngine::recordSample(const LyrebirdControls& c, const Timebase::Ste
 			endRec(true);
 			return;
 		}
-		int k = recByElapsed_ ? elapsedIndex(t) : syncIndex(x);
+		int k = elapsedIndex(t);
 		if (blockIdx_ < 0)
 			recStart_ = k;
 		else if (k != blockIdx_) {
@@ -406,6 +427,12 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	LyrebirdStep out;
 	double x = (double) tb.cycle + sanitize(tb.pos, 0.0);
 	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
+	double prevX = prevX_;
+	prevX_ = x;
+	// The transport restarts at 0, so takes play from there; a recording
+	// under way moves it again below
+	if (tb.reset)
+		origin_ = 0.0;
 	// The monitor's time constant follows Smooth at control rate
 	if (--monitorCountdown_ <= 0 || monitorMs_ < 0.0) {
 		monitorCountdown_ = kCoefInterval;
@@ -431,19 +458,20 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 		case Status::Idle:
 			if (recEdge || (punchEdge && cur_.load()->empty())) {
 				recByPunch_ = !recEdge;
-				if (c.startOn == StartOn::Movement) {
-					status_ = Status::Armed;
-					armValue_ = src;
-				}
-				else
-					startRec(c, x);
+				beginRec(c, tb, x, prevX, src);
 			}
 			break;
 		case Status::Armed:
+		case Status::Cued:
 			if (ownStop) {
 				status_ = Status::Idle;
 				recByPunch_ = false;
 			}
+			// Waits the way Time says now, so switching it while waiting carries over
+			else if (c.sync)
+				cue(c, tb, x, prevX);
+			else if (status_ == Status::Cued)
+				beginRec(c, tb, x, prevX, src);
 			else if (std::fabs(src - armValue_) > kMoveThreshold)
 				startRec(c, x);
 			break;
@@ -456,14 +484,9 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			// REC takes over from a punch: the punch ends as it would on release
 			if (recEdge) {
 				recByPunch_ = false;
-				if (c.startOn == StartOn::Movement) {
-					if (status_ == Status::Punching)
-						punchTail_ = true;
-					status_ = Status::Armed;
-					armValue_ = src;
-				}
-				else
-					startRec(c, x);
+				if (status_ == Status::Punching)
+					punchTail_ = true;
+				beginRec(c, tb, x, prevX, src);
 			}
 			break;
 		default:
@@ -521,7 +544,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	bool resting = false;
 	if (c.sync) {
 		double bars = effectiveBars(t);
-		double xt = x * ratio / bars;  // through the take
+		double xt = (x - origin_) * ratio / bars;  // through the take
 		if (c.loop) {
 			double wraps = std::floor(xt + 1e-9);
 			// A new take, TRIG, a mode change or a SPEED change moves xt without

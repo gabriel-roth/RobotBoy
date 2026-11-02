@@ -1,6 +1,6 @@
 # Lyrebird (gesture/CV recorder, shape modulator family).
-# LOOP/ONCE and SYNC/FREE are menu items, not panel controls. A cable in CV IN records CV
-# instead of GESTURE. No LENGTH readout: the display's footer shows LENGTH and BPM.
+# TIME (SYNC/FREE) and PLAY (LOOP/ONCE) are CKSS switches, lever up = SYNC / LOOP (value 1).
+# A cable in CV IN records CV instead of GESTURE. No LENGTH readout: the display's footer shows LENGTH and BPM.
 # FILE_PREV_INPUT / FILE_NEXT_INPUT: a trigger steps to the previous / next file, as the
 # button above each jack does.
 #
@@ -12,10 +12,19 @@
 #    - Display (4:3, 62.88 x 47.16, 17-64.16).
 #    - PERFORM plate, sage (#8a9a83 at 55%; magenta's muted complement), 66.16-100.86, rows and
 #      margins evenly spaced (2.7):
-#      - CLOCK (BPM knob + jack, 10.5 apart) and LENGTH (snapped knob); labels 71.16, controls
-#        77.66.
-#      - RECORD and PUNCH, each a lit button with its gate jack beside (8.5 apart, one label
-#        above the pair); labels 87.45, controls 94.15.
+#      - Bottom row: RECORD and PUNCH, each a lit button with its gate jack beside (8.5 apart,
+#        one label above the pair), then the TIME switch. Three equal gaps (6.65) from the plate's
+#        left edge to the switch's label column (x 56.68, which mirrors PLAY about the plate gap):
+#        RECORD 11.75 / 20.25 (label 16.0), PUNCH 34.515 / 43.015 (label 38.765). Labels 87.45,
+#        controls 94.15.
+#      - Top row follows the bottom row's columns: CLOCK (BPM knob + jack, 10.5 apart, label
+#        16.0) and LENGTH (snapped knob, 38.765); labels 71.16, controls 77.66.
+#      - TIME switch (x 56.68) centred vertically on the plate (83.51), spanning both rows. SYNC
+#        above, FREE below (2.5): SYNC's cap top level with TRIG's (75.571), so baselines 77.474 and
+#        91.449, 2.54 between each word and the switch.
+#      - REC plate name (Futura 5.0, #545c52: 18% darker than the plate over the panel), bottom-right:
+#        ink 1.3 above the plate bottom (baseline 99.56) and 2.2 in from its right edge (x 57.776,
+#        the text centre; ink right edge 62.18). Round 8 card 03 of local/panel-mockups/lyrebird-modes/.
 #    - SOURCE plate, plain opaque magenta #b8466a, 102.86-123: GESTURE (big knob, the knob you
 #      record) and CV IN, the two sources, side by side on the plate's centre line (112.93). Knob
 #      left edge 2.88 in from the plate (x 12.0), jack 16 to its right (28.0). INPUT (5.0, larger
@@ -34,8 +43,11 @@
 #        28.28, jacks 38.28.
 #      - SPEED and SMOOTH: knob over CV jack (12 apart, connector); labels 48.82, knobs 55.32,
 #        jacks 67.32.
-#      - TRIG and REVERSE: button over gate jack (10 apart, connector); labels 77.86, buttons
-#        82.61, jacks 92.61.
+#      - Bottom row in three columns 74.08 / 85.78 / 97.48 (gaps equal for three jacks): the PLAY
+#        switch (LOOP above, ONCE below, same heights as TIME), then TRIG and REVERSE, button over
+#        gate jack (10 apart, connector); labels 77.86, buttons 82.61, jacks 92.61.
+#      - PLAY plate name (as REC, #505e67), bottom-left: ink 1.3 above the plate bottom and 2.2 in
+#        from its left edge (x 73.939; ink left edge 68.58).
 #    - Output plate (102.86-123): EOC and OUT (in a white ring) 4.5 apart, centered, the ring
 #      and labels centered vertically (2.9 above the ring); controls 111.11, labels 120.11.
 slug: Lyrebird
@@ -75,17 +87,21 @@ elements:
   - {name: SCREEN, kind: widget, rect: {x: 1.5, y: 17.0, w: 62.88, h: 47.16}}
 
   # --- PERFORM plate.
-  - {text: CLOCK, x: 20.167, y: 71.16}
-  - {name: BPM_PARAM, x: 14.917, y: 77.66}
-  - {name: CLOCK_INPUT, x: 25.417, y: 77.66}
-  - {text: LENGTH, x: 46.107, y: 71.16}
-  - {name: LENGTH_PARAM, widget: RoundBlackSnapKnob, x: 46.107, y: 77.66}
-  - {text: RECORD, x: 19.567, y: 87.45}
-  - {name: RECORD_PARAM, widget: VCVBezel, x: 15.317, y: 94.15}
-  - {name: RECORD_INPUT, x: 23.817, y: 94.15}
-  - {text: PUNCH, x: 45.899, y: 87.45}
-  - {name: PUNCH_PARAM, widget: VCVBezel, x: 41.649, y: 94.15}
-  - {name: PUNCH_INPUT, x: 50.149, y: 94.15}
+  - {text: CLOCK, x: 16.0, y: 71.16}
+  - {name: BPM_PARAM, x: 10.75, y: 77.66}
+  - {name: CLOCK_INPUT, x: 21.25, y: 77.66}
+  - {text: LENGTH, x: 38.765, y: 71.16}
+  - {name: LENGTH_PARAM, widget: RoundBlackSnapKnob, x: 38.765, y: 77.66}
+  - {text: RECORD, x: 16.0, y: 87.45}
+  - {name: RECORD_PARAM, widget: VCVBezel, x: 11.75, y: 94.15}
+  - {name: RECORD_INPUT, x: 20.25, y: 94.15}
+  - {text: PUNCH, x: 38.765, y: 87.45}
+  - {name: PUNCH_PARAM, widget: VCVBezel, x: 34.515, y: 94.15}
+  - {name: PUNCH_INPUT, x: 43.015, y: 94.15}
+  - {text: SYNC, x: 56.68, y: 77.474, size: 2.5}
+  - {name: TIME_PARAM, widget: CKSS, x: 56.68, y: 83.51}
+  - {text: FREE, x: 56.68, y: 91.449, size: 2.5}
+  - {text: REC, x: 57.776, y: 99.56, size: 5.0, color: "#545c52"}
 
   # --- SOURCE plate.
   - {name: GESTURE_PARAM, widget: RoundBigBlackKnob, x: 12.0, y: 112.93}
@@ -105,12 +121,16 @@ elements:
     place: [{name: SPEED_PARAM}, {name: SMOOTH_PARAM}]
   - row: {grid: playback, at: cv}
     place: [{name: SPEED_INPUT}, {name: SMOOTH_INPUT}]
-  - row: {grid: playback, at: btn_labels}
-    place: [TRIG, REVERSE]
-  - row: {grid: playback, at: buttons, widget: VCVButton}
-    place: [{name: TRIG_PARAM}, {name: REVERSE_PARAM}]
-  - row: {grid: playback, at: gates}
-    place: [{name: TRIG_INPUT}, {name: REVERSE_INPUT}]
+  - row: {grid: bottom, at: btn_labels}
+    place: [~, TRIG, REVERSE]
+  - row: {grid: bottom, at: buttons, widget: VCVButton}
+    place: [~, {name: TRIG_PARAM}, {name: REVERSE_PARAM}]
+  - row: {grid: bottom, at: gates}
+    place: [~, {name: TRIG_INPUT}, {name: REVERSE_INPUT}]
+  - {text: LOOP, grid: bottom, col: 1, y: 77.474, size: 2.5}
+  - {name: PLAY_PARAM, widget: CKSS, grid: bottom, col: 1, y: 83.51}
+  - {text: ONCE, grid: bottom, col: 1, y: 91.449, size: 2.5}
+  - {text: PLAY, x: 73.939, y: 99.56, size: 5.0, color: "#505e67"}
 
   # --- Output plate.
   - {name: EOC_OUTPUT, x: 78.18, y: 111.105}
@@ -125,6 +145,11 @@ grids:
       labels: 48.815
       knobs: 55.315
       cv: 67.315
+  # PLAYBACK's bottom row: the PLAY switch, TRIG and REVERSE, gaps equal for three jacks
+  # ((38.8 - 3 x 8.03) / 4 = 3.68)
+  bottom:
+    cols: [74.08, 85.78, 97.48]
+    rows:
       btn_labels: 77.855
       buttons: 82.605
       gates: 92.605

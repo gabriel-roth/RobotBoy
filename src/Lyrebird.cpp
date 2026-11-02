@@ -75,7 +75,7 @@ struct LyrebirdFrame {
 	float spanFrom = 0.f, spanTo = 0.f;
 	shapes::Status status = shapes::Status::Idle;
 	bool empty = true;
-	bool sync = true;  // how the take plays (the Time menu)
+	bool sync = true;  // how the take plays (the TIME switch)
 	bool loop = true;
 	bool reverse = false;
 	bool cv = false;  // the source in use
@@ -104,6 +104,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		FILE_PREV_PARAM,
 		SAVE_PARAM,
 		FILE_NEXT_PARAM,
+		TIME_PARAM,
+		PLAY_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -140,8 +142,6 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::StartOn startOn = shapes::StartOn::Press;
 	shapes::IdleOutput idleOutput = shapes::IdleOutput::Last;
 	int pulsesPerCycle = 4;
-	bool sync = true;  // Time: Sync / Free
-	bool loop = true;  // Play: Loop / Once
 	bool reversed = false;  // REVERSE's latched state when its button toggles
 	// The folder of the last file opened or saved; empty until one is
 	// chosen, which means the default folder. The file service writes it
@@ -238,7 +238,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	struct SpeedQuantity : ParamQuantity {
 		bool sync() {
 			Lyrebird* m = dynamic_cast<Lyrebird*>(module);
-			return !m || m->sync;
+			return !m || m->sync();
 		}
 		std::string getDisplayValueString() override {
 			double oct = getValue();
@@ -290,6 +290,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		configButton(FILE_PREV_PARAM, "Previous file");
 		configButton(SAVE_PARAM, "Save");
 		configButton(FILE_NEXT_PARAM, "Next file");
+		configSwitch(TIME_PARAM, 0.f, 1.f, 1.f, "Time", {"Free", "Sync"});
+		configSwitch(PLAY_PARAM, 0.f, 1.f, 1.f, "Play", {"Once", "Loop"});
 		configInput(RECORD_INPUT, "Record gate");
 		configInput(PUNCH_INPUT, "Punch gate");
 		configInput(CV_INPUT, "CV");
@@ -340,8 +342,14 @@ struct Lyrebird : Module, MenuUndoFilter {
 		startOn = shapes::StartOn::Press;
 		idleOutput = shapes::IdleOutput::Last;
 		pulsesPerCycle = 4;
-		sync = true;
-		loop = true;
+	}
+
+	bool sync() {
+		return params[TIME_PARAM].getValue() > 0.5f;
+	}
+
+	bool loop() {
+		return params[PLAY_PARAM].getValue() > 0.5f;
 	}
 
 	float cv(int input) {
@@ -385,8 +393,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		c.source = useCv ? clamp(cv(CV_INPUT), -10.f, 10.f) : knobVolts();
 		c.bpm = timebase.tempoBpm();
 		c.sourceIsKnob = !useCv;
-		c.sync = sync;
-		c.loop = loop;
+		c.sync = sync();
+		c.loop = loop();
 		c.lengthIndex = clamp((int) std::round(params[LENGTH_PARAM].getValue()), 0, 6);
 		c.speedOct = params[SPEED_PARAM].getValue() + cv(SPEED_INPUT);
 		float smooth = clamp(params[SMOOTH_PARAM].getValue() + cv(SMOOTH_INPUT) / 10.f, 0.f, 1.f);
@@ -439,7 +447,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		if (--untilLights <= 0) {
 			untilLights = shapes::kControlInterval;
 			float blink = blinkPhase < 0.5f ? 1.f : 0.f;
-			lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed ? blink : 0.f);
+			lights[RECORD_LIGHT].setBrightness(step.status == Status::Recording ? 1.f : step.status == Status::Armed || step.status == Status::Cued ? blink : 0.f);
 			lights[REVERSE_LIGHT].setBrightness(c.reverse ? 1.f : 0.f);
 			lights[PUNCH_LIGHT].setBrightness(step.status == Status::Punching ? 1.f : step.status == Status::PunchArmed ? blink : 0.f);
 		}
@@ -572,8 +580,6 @@ struct Lyrebird : Module, MenuUndoFilter {
 		json_object_set_new(rootJ, "startOn", json_integer((int) startOn));
 		json_object_set_new(rootJ, "idleOutput", json_integer((int) idleOutput));
 		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
-		json_object_set_new(rootJ, "sync", json_boolean(sync));
-		json_object_set_new(rootJ, "loop", json_boolean(loop));
 		json_object_set_new(rootJ, "folder", json_string(folder.get().c_str()));
 		// Read while the audio thread may be writing it: at worst a sample or
 		// two of a take being recorded is saved half-updated
@@ -607,10 +613,14 @@ struct Lyrebird : Module, MenuUndoFilter {
 		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 0);
 		json_t* j = json_object_get(rootJ, "pulsesPerCycle");
 		pulsesPerCycle = shapeui::validPulses(j ? (int) json_integer_value(j) : 4);
+		// Time and Play were menu settings before they were switches: a patch
+		// from then carries them here, and its params lack them
 		j = json_object_get(rootJ, "sync");
-		sync = !j || !json_is_false(j);
+		if (j && json_is_boolean(j))
+			params[TIME_PARAM].setValue(json_is_true(j) ? 1.f : 0.f);
 		j = json_object_get(rootJ, "loop");
-		loop = !j || !json_is_false(j);
+		if (j && json_is_boolean(j))
+			params[PLAY_PARAM].setValue(json_is_true(j) ? 1.f : 0.f);
 		j = json_object_get(rootJ, "reversed");
 		reversed = j && json_is_true(j);
 		j = json_object_get(rootJ, "folder");
@@ -1248,7 +1258,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			status = "REC";
 		else if (f.status == Status::Punching)
 			status = "PUNCH";
-		else if (f.status == Status::Armed || f.status == Status::PunchArmed)
+		else if (f.status == Status::Armed || f.status == Status::Cued || f.status == Status::PunchArmed)
 			status = blinkOn ? "ARMED" : "";
 		else if (module) {
 			char text[kMessageChars + 1];
@@ -1351,19 +1361,21 @@ struct LyrebirdWidget : ModuleWidget {
 		addChild(display);
 
 		// PERFORM plate
-		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(14.917, 77.66)), module, Lyrebird::BPM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(25.417, 77.66)), module, Lyrebird::CLOCK_INPUT));
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(46.107, 77.66)), module, Lyrebird::LENGTH_PARAM));
-		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(15.317, 94.15)), module, Lyrebird::RECORD_PARAM, Lyrebird::RECORD_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(23.817, 94.15)), module, Lyrebird::RECORD_INPUT));
-		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(41.649, 94.15)), module, Lyrebird::PUNCH_PARAM, Lyrebird::PUNCH_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(50.149, 94.15)), module, Lyrebird::PUNCH_INPUT));
+		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(10.75, 77.66)), module, Lyrebird::BPM_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(21.25, 77.66)), module, Lyrebird::CLOCK_INPUT));
+		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(38.765, 77.66)), module, Lyrebird::LENGTH_PARAM));
+		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(11.75, 94.15)), module, Lyrebird::RECORD_PARAM, Lyrebird::RECORD_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(20.25, 94.15)), module, Lyrebird::RECORD_INPUT));
+		addParam(createLightParamCentered<VCVLightBezel<RecordLight>>(mm2px(Vec(34.515, 94.15)), module, Lyrebird::PUNCH_PARAM, Lyrebird::PUNCH_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(43.015, 94.15)), module, Lyrebird::PUNCH_INPUT));
+		addParam(createParamCentered<CKSS>(mm2px(Vec(56.68, 83.51)), module, Lyrebird::TIME_PARAM));
 
 		// SOURCE plate
 		addParam(createParamCentered<RoundBigBlackKnob>(mm2px(Vec(12.0, 112.93)), module, Lyrebird::GESTURE_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(28.0, 112.93)), module, Lyrebird::CV_INPUT));
 
 		// PLAYBACK plate
+		addParam(createParamCentered<CKSS>(mm2px(Vec(74.08, 83.51)), module, Lyrebird::PLAY_PARAM));
 		addParam(createParamCentered<TL1105>(mm2px(Vec(77.08, 28.275)), module, Lyrebird::FILE_PREV_PARAM));
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(85.78, 28.275)), module, Lyrebird::SAVE_PARAM));
 		addParam(createParamCentered<TL1105>(mm2px(Vec(94.48, 28.275)), module, Lyrebird::FILE_NEXT_PARAM));
@@ -1373,10 +1385,10 @@ struct LyrebirdWidget : ModuleWidget {
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(94.48, 55.315)), module, Lyrebird::SMOOTH_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 67.315)), module, Lyrebird::SPEED_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 67.315)), module, Lyrebird::SMOOTH_INPUT));
-		addParam(createParamCentered<VCVButton>(mm2px(Vec(77.08, 82.605)), module, Lyrebird::TRIG_PARAM));
-		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(94.48, 82.605)), module, Lyrebird::REVERSE_PARAM, Lyrebird::REVERSE_LIGHT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(77.08, 92.605)), module, Lyrebird::TRIG_INPUT));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(94.48, 92.605)), module, Lyrebird::REVERSE_INPUT));
+		addParam(createParamCentered<VCVButton>(mm2px(Vec(85.78, 82.605)), module, Lyrebird::TRIG_PARAM));
+		addParam(createLightParamCentered<VCVLightButton<MediumSimpleLight<WhiteLight>>>(mm2px(Vec(97.48, 82.605)), module, Lyrebird::REVERSE_PARAM, Lyrebird::REVERSE_LIGHT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(85.78, 92.605)), module, Lyrebird::TRIG_INPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(97.48, 92.605)), module, Lyrebird::REVERSE_INPUT));
 
 		// Output plate
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(78.18, 111.105)), module, Lyrebird::EOC_OUTPUT));
@@ -1407,16 +1419,6 @@ struct LyrebirdWidget : ModuleWidget {
 			return;
 
 		menu->addChild(new MenuSeparator);
-		menu->addChild(createIndexSubmenuItem("Time", {"Sync", "Free"},
-			[=]() { return module->sync ? 0 : 1; },
-			[=](int i) {
-				withMenuUndo(module, "set time", [=]() { module->sync = i == 0; });
-			}));
-		menu->addChild(createIndexSubmenuItem("Play", {"Loop", "Once"},
-			[=]() { return module->loop ? 0 : 1; },
-			[=](int i) {
-				withMenuUndo(module, "set play", [=]() { module->loop = i == 0; });
-			}));
 		menu->addChild(createIndexSubmenuItem("Knob range", {"+-5 V", "0-10 V"},
 			[=]() { return (int) module->knobRange; },
 			[=](int i) {
@@ -1438,7 +1440,7 @@ struct LyrebirdWidget : ModuleWidget {
 					module->reversed = false;
 				});
 			}));
-		menu->addChild(createIndexSubmenuItem("Start recording", {"On press", "On first movement"},
+		menu->addChild(createIndexSubmenuItem("Start recording (Free)", {"On press", "On first movement"},
 			[=]() { return (int) module->startOn; },
 			[=](int i) {
 				withMenuUndo(module, "set recording start", [=]() { module->startOn = (shapes::StartOn) i; });

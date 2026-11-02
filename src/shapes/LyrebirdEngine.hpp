@@ -14,7 +14,8 @@ namespace shapes {
 enum class RecordButtons { Toggle, Hold };
 enum class StartOn { Press, Movement };
 enum class IdleOutput { Last, First, Zero };
-enum class Status { Idle, Armed, Recording, PunchArmed, Punching };
+// Cued: Sync REC waiting for the next grid point (or TRIG)
+enum class Status { Idle, Armed, Recording, PunchArmed, Punching, Cued };
 
 struct LyrebirdControls {
 	double source = 0;  // volts, the selected source
@@ -122,12 +123,13 @@ private:
 	static double finish(double v);
 
 	// Recording
+	void beginRec(const LyrebirdControls& c, const Timebase::Step& tb, double x, double prevX, double src);
+	void cue(const LyrebirdControls& c, const Timebase::Step& tb, double x, double prevX);
 	void startRec(const LyrebirdControls& c, double x);
 	void recordSample(const LyrebirdControls& c, const Timebase::Step& tb, double x, LyrebirdStep& out);
 	void endRec(bool full);
 	void abandonRec();
-	int syncIndex(double x) const;
-	// Sync ONCE: the index recElapsed_ has reached
+	// Sync: the index recElapsed_ has reached
 	int elapsedIndex(const Take& t) const;
 	// Punch-in
 	void startPunch(double raw);
@@ -164,6 +166,9 @@ private:
 	bool prevSyncLoop_ = false;
 	double lastRatio_ = 1.0;
 	double lastBars_ = 0.0;
+	// Sync: transport position (bars) take index 0 plays at. A take's start, or the last TRIG
+	double origin_ = 0.0;
+	double prevX_ = 0.0;  // transport position on the previous sample
 	Status status_ = Status::Idle;
 
 	// Buttons and the live source
@@ -191,7 +196,6 @@ private:
 	double recElapsed_ = 0.0;  // Sync: bars of transport so far
 	double recSegX_ = 0.0;  // Sync: transport position where counting last restarted
 	double recSegBase_ = 0.0;
-	bool recByElapsed_ = false;  // Sync: placed by time since the press (ONCE), not by bar position
 	int64_t recSamples_ = 0;  // Free: audio samples recorded
 	std::vector<uint8_t> written_;  // Sync: indices written, so stop can fill the rest
 

@@ -18,15 +18,13 @@ Lyrebird is one of Robot Boy’s three complex modulators, with [Skylark](Skylar
 - **RECORD**: the button or a gate starts recording a new take, replacing the current one; press again to stop. A Sync take stops by itself at LENGTH.
 - **PUNCH**: the button or a gate starts overwriting the take at the playhead while it keeps playing; press again to stop. Punch works at any speed and in either direction, with a short crossfade at each end. With no take, PUNCH records a new one.
 - **LENGTH**: the length of a new Sync take, 1/4 to 16 bars, default 1.
-
-How a take is recorded depends on the **Time** and **Play** settings:
-
-- **Sync**: recording is placed on the bar grid, counted from the last TRIG. Starting partway through the take wraps around to fill it.
-- **Free**: recording runs from press to press, up to 3 minutes.
-- **Once**: a take starts where RECORD is pressed, so it plays from its beginning on the next TRIG.
+- **SYNC / FREE**: the kind of take RECORD creates.
+    - **Sync** (default): RECORD waits for the next bar, or TRIG, with its light blinking, then records for LENGTH. With LENGTH under a bar it waits for the next quarter or half bar. The take is a whole number of bars, follows the tempo and plays from where it was recorded.
+    - **Free**: recording runs from press to press, up to 3 minutes, and plays at its recorded duration.
 
 ### Playback
 
+- **LOOP / ONCE**: **Loop** (default) plays the take over and over; **Once** plays once. Switching doesn’t change the take.
 - **SPEED**: sets the playback rate, from 1/4 to x4, default x1. In Sync it snaps to powers of two to stay on the bar. SPEED CV is 1 V/octave.
 - **SMOOTH**: smooths playback, up to a 1 s window, without lag. The recording itself is unchanged.
 - **REVERSE**: the button or a gate plays the take backward while held (see [**Settings**](#settings)).
@@ -62,12 +60,10 @@ The display shows the whole take, raw in grey and smoothed in white, with a play
 <a id="settings"> </a>
 ## Settings
 
-- **Time**: **Sync** (default; a take is a whole number of bars and follows the tempo) or **Free** (a take plays at its recorded duration).
-- **Play**: **Loop** (default) or **Once** (one pass per TRIG).
 - **Knob range**: ±5 V (default) or 0–10 V.
 - **Record buttons**: **Latch** (default) or **Press** (records only while held).
 - **Reverse button**: **Press** (default) or **Latch** (each press toggles direction).
-- **Start recording**: **On press** (default) or **On first movement** (arms, then starts when the source moves).
+- **Start recording (Free)**: **On press** (default) or **On first movement** (arms, then starts when the source moves). Sync takes always start on the bar.
 - **Idle output**: what OUT holds between Once passes: **Last value** (default), **First value** or **0 V**.
 - **Clock pulses per cycle**: pulses per bar at the CLOCK input: 1, 2, 4, 8, 16, 24, 32, 48 or 96 (default 4).
 - **Open…**, **Save as…**: file dialogs.

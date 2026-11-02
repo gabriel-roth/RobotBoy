@@ -56,6 +56,17 @@ struct Rig {
 		c.punch = false;
 		return s;
 	}
+	// Runs while the status is st, at most max samples; returns the first step that isn't
+	LyrebirdStep runWhile(Status st, int max, const std::function<void(int)>& edit) {
+		LyrebirdStep s{};
+		for (int i = 0; i < max; i++) {
+			edit(i);
+			s = step();
+			if (s.status != st)
+				break;
+		}
+		return s;
+	}
 	// Runs until the transport has passed bar position x (unwrapped)
 	LyrebirdStep runTo(double x) {
 		LyrebirdStep s{};
@@ -94,99 +105,273 @@ struct Rig {
 	}
 };
 
-static void syncTakeStartsMidBarAndWraps() {
+static void syncCueWaitsForBar() {
 	Rig r;
 	r.c.lengthIndex = 2;  // 1 bar
 	r.runTo(0.5);
 	// Source is the unwrapped bar position, so each sample shows when it was taken
-	LyrebirdStep s = r.run(96000 + 200, [&](int i) {
-		r.c.source = r.tb.position() + 0.5 / 96000.0;
-		r.c.rec = i == 0;
-	});
-	assert(r.eng.take().length == 2000);
+	auto pos = [&](int) { r.c.source = r.tb.position() + 0.5 / 96000.0; };
+	pos(0);
+	assert(r.pressRec().status == Status::Cued);
+	LyrebirdStep s = r.runWhile(Status::Cued, 100000, pos);
+	// Recording starts on the sample that crosses the bar
+	assert(s.status == Status::Recording);
+	assert(r.bars() >= 1.0 && r.bars() < 1.0 + 1.5 / 96000.0);
+	s = r.run(96000 + 200, pos);
 	assert(s.status == Status::Idle);
 	const Take& t = r.eng.take();
+	assert(t.length == 2000);
 	assert(t.mode == TakeMode::Sync && t.bars == 1.0);
 	assert(std::fabs(t.bpm - 120.0) < 1e-6);
 	assert(std::fabs(t.seconds - 2.0) < 1e-6);
-	assert(std::fabs(t.samples[0] - 1.0) < 0.002);
-	for (int i = 0; i < 2000; i++) {
-		double want = i >= 1000 ? 0.5 + (i - 1000) / 2000.0 : 1.0 + i / 2000.0;
-		assert(std::fabs(t.samples[i] - want) < 0.002);
+	for (int i = 0; i < 2000; i++)
+		assert(std::fabs(t.samples[i] - (1.0 + i / 2000.0)) < 0.002);
+}
+
+static void syncShortLengthCuesToItsGrid() {
+	// 1/4 and 1/2 bar takes start on the next quarter or half bar
+	struct Case {
+		int lengthIndex;
+		double press, start;
+	} cases[] = {{0, 0.3, 0.5}, {0, 0.55, 0.75}, {1, 0.3, 0.5}, {1, 0.6, 1.0}};
+	for (const Case& k : cases) {
+		Rig r;
+		r.c.lengthIndex = k.lengthIndex;
+		r.runTo(k.press);
+		auto pos = [&](int) { r.c.source = r.tb.position() + 0.5 / 96000.0; };
+		pos(0);
+		assert(r.pressRec().status == Status::Cued);
+		LyrebirdStep s = r.runWhile(Status::Cued, 100000, pos);
+		assert(s.status == Status::Recording);
+		assert(std::fabs(r.bars() - k.start) < 1.5 / 96000.0);
+		r.runWhile(Status::Recording, 100000, pos);
+		const Take& t = r.eng.take();
+		for (int i = 0; i < t.length; i++)
+			assert(std::fabs(t.samples[i] - (k.start + i / 2000.0)) < 0.002);
 	}
 }
 
-static void syncOnceTakeStartsAtPress() {
-	// In ONCE the take starts where REC is pressed, not where the bar is
+static void syncTrigWhileCuedStarts() {
 	Rig r;
-	r.c.loop = false;
-	r.c.lengthIndex = 2;  // 1 bar
+	r.runTo(0.3);
+	assert(r.pressRec().status == Status::Cued);
+	r.runTo(0.6);
 	r.in.resetButton = true;
-	r.runTo(2.5);
-	int n = 0;
+	long n = 0;
 	r.c.source = 0.5 / 96000.0;
-	LyrebirdStep s = r.pressRec();
-	assert(s.status == Status::Recording);
-	// The transport carries on: the take is placed by time since the press
-	assert(r.tb.position() > 2.5);
-	s = r.run(96000 + 200, [&](int) {
+	// Recording starts on the TRIG, and the take is placed from there
+	assert(r.step().status == Status::Recording);
+	LyrebirdStep s = r.runWhile(Status::Recording, 100000, [&](int) {
 		n++;
 		r.c.source = (n + 0.5) / 96000.0;
 	});
-	assert(s.status == Status::Idle);
+	assert(std::abs(n - 96000) <= 1);
 	const Take& t = r.eng.take();
-	assert(t.length == 2000);
 	for (int i = 0; i < 2000; i++)
 		assert(std::fabs(t.samples[i] - i / 2000.0) < 0.002);
-	// TRIG plays it from the start of the gesture
-	r.in.resetButton = true;
-	s = r.step();
-	// once the declick has settled, it tracks the take's opening
-	s = r.run(2400);
-	assert(std::fabs(s.volts - 2401.0 / 96000.0) < 0.002);
+	// The transport restarted at the take's start: it loops on from bar 1
+	assert(s.playhead < 0.001);
+	s = r.runTo(1.25);
+	assert(std::fabs(s.playhead - 0.25) < 0.001);
 }
 
-static void syncOnceWithClockKeepsStart() {
-	// With a clock in, the take still starts at the press: nothing pulls the
-	// transport back to the next pulse and writes over the opening
+static void syncCueCancels() {
+	// Toggle: a second press cancels
+	Rig r;
+	r.runTo(0.3);
+	assert(r.pressRec().status == Status::Cued);
+	assert(r.runTo(0.5).status == Status::Cued);
+	assert(r.pressRec().status == Status::Idle);
+	assert(r.runTo(1.5).status == Status::Idle);
+	assert(r.eng.take().empty());
+
+	// Hold: releasing before the bar cancels
+	Rig h;
+	h.c.buttons = RecordButtons::Hold;
+	h.runTo(0.3);
+	h.c.rec = true;
+	assert(h.runTo(0.8).status == Status::Cued);
+	h.c.rec = false;
+	assert(h.step().status == Status::Idle);
+	assert(h.runTo(1.5).status == Status::Idle);
+	assert(h.eng.take().empty());
+	// Held over the bar it records, and releasing stops it
+	h.c.source = 2;
+	h.c.rec = true;
+	assert(h.runTo(1.9).status == Status::Cued);
+	assert(h.runTo(2.5).status == Status::Recording);
+	h.c.rec = false;
+	assert(h.step().status == Status::Idle);
+	assert(h.eng.take().samples[500] == 2.f);
+}
+
+static void syncLoopAndOnceRecordAlike() {
+	// The same performance makes the same take whatever Play is set to
+	std::vector<float> takes[2];
+	for (int loop = 0; loop < 2; loop++) {
+		Rig r;
+		r.c.loop = loop;
+		r.c.lengthIndex = 3;  // 2 bars
+		r.in.resetButton = true;
+		r.runTo(2.5);
+		auto pos = [&](int) { r.c.source = std::sin(r.tb.position() * 3.0); };
+		pos(0);
+		r.pressRec();
+		r.runWhile(Status::Cued, 200000, pos);
+		r.runWhile(Status::Recording, 400000, pos);
+		const Take& t = r.eng.take();
+		assert(t.length == 4000);
+		takes[loop].assign(t.samples.begin(), t.samples.begin() + t.length);
+		for (int i = 0; i < 4000; i++)
+			assert(std::fabs(t.samples[i] - std::sin((3.0 + i / 2000.0) * 3.0)) < 0.004);
+	}
+	assert(takes[0] == takes[1]);
+}
+
+static void syncPlaySwitchKeepsTake() {
+	// A ramp recorded on bar 1 plays the same ramp from TRIG in Once and in
+	// Loop, and switching Play mid-pass doesn't jump
 	Rig r;
 	r.c.loop = false;
-	r.c.lengthIndex = 2;  // 1 bar
-	r.in.clockConnected = true;
-	const long pulse = 24000;  // 4 per bar at 120 BPM
+	r.runTo(0.5);
+	r.pressRec();
+	r.runWhile(Status::Cued, 100000, [&](int) {});
 	long n = 0;
-	auto clock = [&](int) {
-		r.in.clockVoltage = (n % pulse) < 48 ? 10.f : 0.f;
-		r.c.source = n / kSr;
+	r.c.source = 0.5 / 96000.0;
+	r.runWhile(Status::Recording, 100000, [&](int) {
 		n++;
+		r.c.source = (n + 0.5) / 96000.0;
+	});
+	r.in.resetButton = true;
+	r.step();
+	LyrebirdStep s = r.runTo(0.25);
+	assert(std::fabs(s.volts - 0.25) < 0.002);
+	r.c.loop = true;
+	LyrebirdStep next = r.step();
+	assert(std::fabs(next.volts - s.volts) < 0.001);
+	s = r.runTo(1.5);
+	assert(std::fabs(s.volts - 0.5) < 0.002);
+	r.c.loop = false;
+	r.in.resetButton = true;
+	r.step();
+	s = r.runTo(0.75);
+	assert(std::fabs(s.volts - 0.75) < 0.002);
+}
+
+static void syncLoopPlaysFromTakeStart() {
+	// A 4-bar take started on bar 3 loops from bar 3: index 0 at 7, 11, ...
+	Rig r;
+	r.c.lengthIndex = 4;  // 4 bars
+	r.runTo(2.5);
+	r.pressRec();
+	r.runWhile(Status::Cued, 200000, [&](int) {});
+	assert(std::fabs(r.bars() - 3.0) < 1.5 / 96000.0);
+	long n = 0;
+	r.c.source = 0.5 / 96000.0;
+	LyrebirdStep s = r.runWhile(Status::Recording, 400000, [&](int) {
+		n++;
+		r.c.source = (n + 0.5) / 96000.0;
+	});
+	assert(std::fabs(r.bars() - 7.0) < 1.5 / 96000.0);
+	assert(s.playhead < 0.001);
+	s = r.runTo(8.0);
+	assert(std::fabs(s.playhead - 0.25) < 0.001);
+	assert(std::fabs(s.volts - 1.0) < 0.003);
+	// The first EOC is at the loop's end, not on the 4-bar grid at 8
+	int at = -1;
+	for (int i = 0; i < 4 * 96000 && at < 0; i++)
+		if (r.step().eoc)
+			at = i;
+	assert(at >= 0 && std::fabs(r.bars() - 11.0) < 1.5 / 96000.0);
+}
+
+static void syncIgnoresMovementArm() {
+	Rig r;
+	r.c.startOn = StartOn::Movement;
+	r.c.source = 1;
+	r.runTo(0.5);
+	assert(r.pressRec().status == Status::Cued);
+	// No movement needed: the bar starts it
+	assert(r.runTo(1.1).status == Status::Recording);
+	// Same for PUNCH with no take (REC over a punch: recDuringPunch)
+	Rig p;
+	p.c.startOn = StartOn::Movement;
+	assert(p.pressPunch().status == Status::Cued);
+	assert(p.runTo(1.1).status == Status::Recording);
+}
+
+static void syncTrigWhileRecordingKeepsContinuity() {
+	// The take starts on bar 1 and TRIG lands 0.4 bars in: it plays on from
+	// where it was performed, so the end of the take meets its start at 0.6
+	Rig r;
+	r.runTo(0.5);
+	r.pressRec();
+	r.runWhile(Status::Cued, 100000, [&](int) {});
+	long n = 0;
+	r.c.source = 0.5 / 96000.0;
+	auto ramp = [&](int) {
+		n++;
+		r.c.source = (n + 0.5) / 96000.0;
 	};
-	r.run(8 * pulse + 7000, clock);
-	long pressAt = n;
-	clock(0);
-	LyrebirdStep s = r.pressRec();
-	assert(s.status == Status::Recording);
-	int recording = 1;
-	for (int i = 0; i < 120000; i++) {
-		clock(0);
-		if (r.step().status == Status::Recording)
-			recording++;
-	}
-	assert(std::abs(recording - 96000) <= 2);
+	r.run(38400 - 1, ramp);
+	ramp(0);
+	r.in.resetButton = true;
+	assert(r.step().status == Status::Recording);
+	LyrebirdStep s = r.runWhile(Status::Recording, 100000, ramp);
+	assert(std::abs(n - 96000) <= 2);
+	assert(std::fabs(r.bars() - 0.6) < 2.0 / 96000.0);
 	const Take& t = r.eng.take();
-	assert(t.length == 2000);
 	for (int i = 0; i < 2000; i++)
-		assert(std::fabs(t.samples[i] - (pressAt / kSr + i / 1000.0)) < 0.002);
+		assert(std::fabs(t.samples[i] - i / 2000.0) < 0.002);
+	assert(s.playhead < 0.002);
+	s = r.runTo(0.85);
+	assert(std::fabs(s.playhead - 0.25) < 0.001);
+	assert(std::fabs(s.volts - 0.25) < 0.002);
+}
+
+static void syncWithClockKeepsOpening() {
+	// With a clock in, the take starts on the bar and keeps its opening:
+	// nothing pulls the transport back to a pulse and writes over it
+	for (int loop = 0; loop < 2; loop++) {
+		Rig r;
+		r.c.loop = loop;
+		r.c.lengthIndex = 2;  // 1 bar
+		r.in.clockConnected = true;
+		const long pulse = 24000;  // 4 per bar at 120 BPM
+		long n = 0;
+		auto clock = [&](int) {
+			r.in.clockVoltage = (n % pulse) < 48 ? 10.f : 0.f;
+			r.c.source = n / kSr;
+			n++;
+		};
+		r.run(8 * pulse + 7000, clock);
+		clock(0);
+		assert(r.pressRec().status == Status::Cued);
+		r.runWhile(Status::Cued, 200000, clock);
+		long startAt = n - 1;
+		// Close to the pulse that marks the bar
+		assert(std::abs(startAt - 12 * pulse) <= 48);
+		int recording = 1;
+		for (int i = 0; i < 120000; i++) {
+			clock(0);
+			if (r.step().status == Status::Recording)
+				recording++;
+		}
+		assert(std::abs(recording - 96000) <= 2);
+		const Take& t = r.eng.take();
+		assert(t.length == 2000);
+		for (int i = 0; i < 2000; i++)
+			assert(std::fabs(t.samples[i] - (startAt / kSr + i / 1000.0)) < 0.002);
+	}
 }
 
 static void syncTakeStopsItself() {
 	Rig r;
 	r.run(100);
 	r.c.source = 1;
+	assert(r.pressRec().status == Status::Cued);
 	int recording = 0;
-	LyrebirdStep s = r.pressRec();
-	assert(s.status == Status::Recording);
-	recording++;
-	for (int i = 0; i < 100000; i++)
+	for (int i = 0; i < 200000; i++)
 		if (r.step().status == Status::Recording)
 			recording++;
 	assert(recording == 96000);
@@ -200,7 +385,7 @@ static void syncTakeFullUnderTempoChange() {
 		r.runTo(0.3);
 		r.c.source = 2;
 		r.pressRec();
-		r.runTo(0.7);
+		r.runTo(1.7);
 		if (variant == 0)
 			r.in.bpm = r.c.bpm = 180.0;
 		else
@@ -221,9 +406,9 @@ static void syncEarlyStopHoldsLast() {
 	Rig r;
 	r.c.source = 1;
 	r.pressRec();
-	r.runTo(0.25);
+	r.runTo(1.25);
 	r.c.source = 4;
-	r.runTo(0.5);
+	r.runTo(1.5);
 	LyrebirdStep s = r.pressRec();
 	assert(s.status == Status::Idle);
 	const Take& t = r.eng.take();
@@ -294,6 +479,7 @@ static void movementStartWaitsForMotion() {
 
 	// A press while armed cancels
 	Rig c;
+	c.c.sync = false;
 	c.c.startOn = StartOn::Movement;
 	assert(c.pressRec().status == Status::Armed);
 	assert(c.step().status == Status::Armed);
@@ -373,8 +559,8 @@ static void punchFastReverseWritesContiguously() {
 static void punchWithoutTakeRecords() {
 	Rig r;
 	r.c.source = 3;
-	assert(r.pressPunch().status == Status::Recording);
-	r.runTo(0.5);
+	assert(r.pressPunch().status == Status::Cued);
+	assert(r.runTo(1.5).status == Status::Recording);
 	assert(r.pressPunch().status == Status::Idle);
 	const Take& t = r.eng.take();
 	assert(t.length == 2000 && t.mode == TakeMode::Sync);
@@ -621,7 +807,7 @@ static void syncRecordTraceSkipsUnwritten() {
 	r.c.source = 1;
 	r.step();
 	r.pressRec();
-	r.runTo(0.5);
+	r.runTo(1.5);
 	assert(r.eng.take().samples[1500] == 9.f);
 	float raw[256], out[256];
 	r.eng.renderTrace(r.c, raw, out, 256);
@@ -636,7 +822,7 @@ static void syncRecordTraceSkipsUnwritten() {
 	}
 	assert(written >= 125 && written <= 130);
 	// Once it's finished, every point is real again
-	r.runTo(1.1);
+	r.runTo(2.1);
 	assert(r.eng.take().samples[1500] == 1.f);
 	r.eng.renderTrace(r.c, raw, out, 256);
 	for (int i = 0; i < 256; i++)
@@ -651,7 +837,7 @@ static void countsFinishedTakes() {
 	r.c.lengthIndex = 0;  // 1/4 bar: stops by itself
 	r.step();
 	r.pressRec();
-	r.runTo(r.bars() + 0.3);
+	r.runTo(r.bars() + 0.6);
 	assert(r.eng.take().mode == TakeMode::Sync && r.eng.recsFinished() == 2);
 	// Undo or load mid-take: no count
 	r.c.sync = false;
@@ -697,8 +883,11 @@ static void undoRequestsAreCounted() {
 
 // A load cancelling an armed PUNCH-as-REC hands PUNCH back to punching
 static void loadClearsPunchOwnedRecord() {
-	for (int viaUndo = 0; viaUndo < 2; viaUndo++) {
+	for (int k = 0; k < 4; k++) {
+		bool viaUndo = k & 1;
+		bool sync = k & 2;  // Sync cues, Free arms for movement
 		Rig r;
+		r.c.sync = sync;
 		if (viaUndo)
 			r.recordFree(1, 200);
 		r.c.startOn = StartOn::Movement;
@@ -708,7 +897,7 @@ static void loadClearsPunchOwnedRecord() {
 			r.step();
 			assert(r.eng.take().empty());
 		}
-		assert(r.pressPunch().status == Status::Armed);
+		assert(r.pressPunch().status == (sync ? Status::Cued : Status::Armed));
 		if (viaUndo) {
 			r.eng.requestUndo();
 			r.step();
@@ -761,27 +950,36 @@ static void punchJumpsDontFill() {
 
 // REC takes over from a punch, or from a punch waiting for movement
 static void recDuringPunch() {
-	for (int armed = 0; armed < 2; armed++) {
-		for (int moveStart = 0; moveStart < 2; moveStart++) {
-			Rig r;
-			r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
-			r.c.source = 1;
-			r.runTo(0.25);
-			r.c.startOn = armed ? StartOn::Movement : StartOn::Press;
-			assert(r.pressPunch().status == (armed ? Status::PunchArmed : Status::Punching));
-			r.run(480);
-			r.c.startOn = moveStart ? StartOn::Movement : StartOn::Press;
-			LyrebirdStep s = r.pressRec();
-			assert(s.status == (moveStart ? Status::Armed : Status::Recording));
-			if (moveStart) {
-				r.c.source = 3;
-				assert(r.step().status == Status::Recording);
-			}
-			// REC owns the stop
-			r.runTo(0.5);
-			assert(r.pressRec().status == Status::Idle);
-			assert(r.eng.take().mode == TakeMode::Sync && r.eng.take().length == 2000);
+	for (int k = 0; k < 8; k++) {
+		bool armed = k & 1, moveStart = k & 2, sync = k & 4;
+		Rig r;
+		r.load(0.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		r.c.source = 1;
+		r.runTo(0.25);
+		r.c.startOn = armed ? StartOn::Movement : StartOn::Press;
+		assert(r.pressPunch().status == (armed ? Status::PunchArmed : Status::Punching));
+		r.run(480);
+		r.c.sync = sync;
+		r.c.startOn = moveStart ? StartOn::Movement : StartOn::Press;
+		LyrebirdStep s = r.pressRec();
+		// Sync cues for the bar whatever the arm setting says
+		assert(s.status == (sync ? Status::Cued : moveStart ? Status::Armed : Status::Recording));
+		if (sync) {
+			// The punch has ended; REC waits for the bar
+			assert(r.runTo(0.75).status == Status::Cued);
+			assert(r.eng.take().samples[1000] == 0.f);
+			assert(r.runTo(1.1).status == Status::Recording);
 		}
+		else if (moveStart) {
+			r.c.source = 3;
+			assert(r.step().status == Status::Recording);
+		}
+		// REC owns the stop
+		r.runTo(sync ? 1.5 : 0.5);
+		assert(r.pressRec().status == Status::Idle);
+		assert(r.eng.take().mode == (sync ? TakeMode::Sync : TakeMode::Free));
+		if (sync)
+			assert(r.eng.take().length == 2000);
 	}
 }
 
@@ -821,9 +1019,16 @@ static void versionsUniqueAcrossBuffers() {
 }
 
 int main() {
-	syncTakeStartsMidBarAndWraps();
-	syncOnceTakeStartsAtPress();
-	syncOnceWithClockKeepsStart();
+	syncCueWaitsForBar();
+	syncShortLengthCuesToItsGrid();
+	syncTrigWhileCuedStarts();
+	syncCueCancels();
+	syncLoopAndOnceRecordAlike();
+	syncPlaySwitchKeepsTake();
+	syncLoopPlaysFromTakeStart();
+	syncIgnoresMovementArm();
+	syncTrigWhileRecordingKeepsContinuity();
+	syncWithClockKeepsOpening();
 	syncTakeStopsItself();
 	syncTakeFullUnderTempoChange();
 	syncEarlyStopHoldsLast();
