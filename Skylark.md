@@ -2,7 +2,7 @@
 
 *The Eurasian skylark sings in flight, rising and hovering high above the fields while it delivers a long song of ever-varied phrases.*
 
-**Skylark** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule), built from recognizable gestures: a bouncing ball, a ratchet, a heartbeat, a spring, an arpeggio. Each bar it plays one of 18 shapes, each with a family of variations, for clocked envelopes, accents and movement that sound performed rather than mechanical. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
+**Skylark** is a tempo-synced modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule) built from recognizable physical and musical gestures. Each bar it plays one of 18 shapes, each with a family of variations, for clocked envelopes, accents and movement that sound performed rather than mechanical. Five transforms bend the shape further, and DRIFT or the random trimpots make successive bars differ. It is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Skylark.png" alt="Skylark module" height="500">
 
