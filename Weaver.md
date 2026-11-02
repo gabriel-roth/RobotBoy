@@ -60,57 +60,48 @@ The **ALGORITHM** **‹ ›** buttons step through the algorithms that combine t
 | BEND | (A bent by B) + C | B pushes A's phase, up to half a cycle, offset by C. |
 | MAX | max(A,B)+C | Higher of A and B, offset by C. |
 | MIN | min(A,B)+C | Lower of A and B, offset by C. |
-| XFADE | (A,B) xfaded by C | C crossfades between A and B. (When C’s LEVEL is at 0, the output is an even mix of A and B.) |
+| XFADE | (A,B) xfaded by C | C crossfades between A and B. |
 | FOLD | fold(A+B)+C | A+B wavefolded, offset by C. |
 | S&H | (A sampled by B) + C | A held each time B starts a cycle, offset by C. (An Input's cycle starts at each rising zero crossing.) |
-| GATE | (A gated by B) + C | A passes while B is positive, or when B’s LEVEL is at 0. |
+| GATE | (A gated by B) + C | A passes while B is high, offset by C. (B’s LEVEL sets the threshold.) |
 
 ### Presets
 
-The **PRESET** buttons step through 15 factory presets, which set every operator control and the algorithm. Tempo, SPEED and menu settings are unchanged.
+A preset sets every operator control and the algorithm; tempo, SPEED and menu settings are unchanged. Presets are JSON files in the current folder, starting with 15 factory presets.
 
-| # | Preset | Algorithm |
-|---|---|---|
-| 1 | Envelope + triangle x16 (default) | MIX |
-| 2 | Ramp switched by square | SCALE |
-| 3 | Swell with gated ripple | SCALE |
-| 4 | Sampled falling ramp | S&H |
-| 5 | Struck ring | RING |
-| 6 | Grouped swells, rising | SCALE 2 |
-| 7 | Bitten sine | MIN |
-| 8 | Square to sine and back | XFADE |
-| 9 | Folded rising ramp | FOLD |
-| 10 | Breathing triangle | BEND |
-| 11 | Phase-bent sine | BEND |
-| 12 | Max with random steps | MAX |
-| 13 | Random accents, fading | SCALE 2 |
-| 14 | Random stutter | GATE |
-| 15 | Random swell | MIX |
+- **‹ ›**: load the previous or next preset in the folder.
+- **SAVE**: saves the current settings to the folder.
+- **DELETE** (red): press twice to delete the current preset's file.
+- The current folder is that of the last preset saved with **Save preset as…** (see [**Settings**](#settings)). In VCV Rack it defaults to `RobotBoy/Weaver` in the Rack user folder, where the factory presets are written on first use.
+- On MetaModule, the default folder is the first of `RobotBoy/Weaver`, `Weaver` or `RobotBoy` found on the SD card, then on a USB drive, then the root of either.
 
-### CLOCK, RESET and SPEED
+### Timing
 
-- **CLOCK**: tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
-- **RESET**: the button or a trigger returns to the cycle start and realigns the operators.
-- **SPEED**: the outer buttons, or triggers at their inputs, halve or double the cycle rate (1/4x to 4x); the center button returns to 1x. A change takes effect at the next point where old and new cycles align, or immediately on RESET.
+- **CLOCK**: sets the tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
+- **RESET**: returns to the start of the cycle and realigns the operators.
+- **SPEED**: 
+    - the left button and trigger input halves the cycle rate. 
+    - the right button and trigger input double the cycle rate. 
+    - the center button returns the cycle rate to 1x.
+
+By default, a **SPEED** change takes effect at the next point where old and new cycles align (or immediately on RESET); see [**Settings**](#settings) to change.
 
 ### Outputs
 
 - **OUT**: the combined shape, ±5 V by default.
 - **INV**: OUT inverted.
 - **EOC**: a trigger at the end of each cycle.
-- **A**, **B**, **C**: each operator's wave at full scale, before LEVEL and the algorithm.
+- **A**, **B**, **C**: each operator's wave at full scale, before LEVEL.
 - The buttons under A, B and C show or hide each operator's trace on the display.
 
 ---
 
 ## Display
 
-- **Main display:** one cycle of OUT, with a playhead, and each operator × LEVEL as a dashed line (A amber, B teal, C pink). The header shows the preset name when the settings match one, the tempo, and SPEED when not x1. On MetaModule it also names the algorithm, and the preset name moves below the trace.
-- **ALGORITHM display:** the algorithm's name and formula.
-- **Operator displays:** one cycle of the wave, with PARAM's function; the RATIO.
+The main display shows one cycle of OUT, with a playhead, and each operator as a dashed line. The header shows the preset name (if any), the tempo, and SPEED when not x1. After SAVE or DELETE, a message replaces the preset name for a few seconds.
 
 ---
-
+<a id="settings"> </a>
 ## Settings
 
 - **Output range**: ±5 V (default), ±10 V, 0–5 V, 0–10 V.
@@ -122,3 +113,5 @@ The **PRESET** buttons step through 15 factory presets, which set every operator
 - **New random loops on reset**: on by default.
 - **Hide traces when operator level at 0**: off by default.
 - **Algorithm** (MetaModule only): choose the algorithm from a list.
+- **Save preset as…**: saves to a name and folder you choose, which becomes the current folder. If a preset in that folder already has these settings, it is renamed instead.
+- **Restore factory presets**: writes the 15 factory presets back to the current folder, replacing any with the same names and leaving other presets alone.
