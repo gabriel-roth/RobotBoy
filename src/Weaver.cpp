@@ -266,9 +266,8 @@ struct Weaver : Module {
 	// A new algorithm waits for the end of the cycle
 	bool algorithmAtCycleEnd = false;
 	// A new ratio waits for a cycle start where it stays lined up with the
-	// cycle (see holdRatios()), and a new SPEED for one the clock shares.
-	// Saved as "ratioAtCycleEnd", its name before it covered SPEED.
-	bool ratioAtCycleEnd = true;
+	// cycle (see holdRatios()), and a new SPEED for one the clock shares
+	bool speedRatioAtCycleEnd = true;
 	int heldRatios[3] = {};
 	int chosenRatios[3] = {};
 	// The main display leaves out operators at LEVEL 0
@@ -422,7 +421,7 @@ struct Weaver : Module {
 		speed.jumpTo(0);
 		settings.reset();
 		algorithmAtCycleEnd = false;
-		ratioAtCycleEnd = true;
+		speedRatioAtCycleEnd = true;
 		newLoopOnReset = true;
 		hideZeroLevelTraces = false;
 	}
@@ -622,7 +621,7 @@ struct Weaver : Module {
 		}
 	}
 
-	// With ratioAtCycleEnd, each operator keeps its running ratio until a
+	// With speedRatioAtCycleEnd, each operator keeps its running ratio until a
 	// cycle start where the change leaves a whole-number phase offset, so the
 	// operator stays lined up with the cycle: the next one for the whole-number
 	// ratios, up to 8 cycles for 1/2, 1/4 and 1/8. Otherwise, or on a preset
@@ -635,7 +634,7 @@ struct Weaver : Module {
 			chosenRatios[i] = chosen;
 			if (chosen == heldRatios[i])
 				continue;
-			if (now || !ratioAtCycleEnd) {
+			if (now || !speedRatioAtCycleEnd) {
 				heldRatios[i] = chosen;
 				continue;
 			}
@@ -694,7 +693,7 @@ struct Weaver : Module {
 		down |= speedDownCv.process(cv(SPEED_DOWN_INPUT), 0.1f, 1.f);
 		bool up = speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f);
 		up |= speedUpCv.process(cv(SPEED_UP_INPUT), 0.1f, 1.f);
-		speed.setImmediate(!ratioAtCycleEnd);
+		speed.setImmediate(!speedRatioAtCycleEnd);
 		if (down)
 			speed.setTarget(speed.targetOctaves() - 1);
 		if (up)
@@ -804,7 +803,7 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "newLoopOnReset", json_boolean(newLoopOnReset));
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
-		json_object_set_new(rootJ, "ratioAtCycleEnd", json_boolean(ratioAtCycleEnd));
+		json_object_set_new(rootJ, "speedRatioAtCycleEnd", json_boolean(speedRatioAtCycleEnd));
 		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		json_object_set_new(rootJ, "presetFolder", json_string(folder.get().c_str()));
@@ -841,9 +840,8 @@ struct Weaver : Module {
 			algorithm = (int) json_integer_value(j);
 		j = json_object_get(rootJ, "algorithmAtCycleEnd");
 		algorithmAtCycleEnd = j && json_is_true(j);
-		// Missing (a patch from before the option): the default
-		j = json_object_get(rootJ, "ratioAtCycleEnd");
-		ratioAtCycleEnd = !j || json_is_true(j);
+		j = json_object_get(rootJ, "speedRatioAtCycleEnd");
+		speedRatioAtCycleEnd = !j || json_is_true(j);
 		j = json_object_get(rootJ, "newLoopOnReset");
 		newLoopOnReset = !j || json_is_true(j);
 		j = json_object_get(rootJ, "hideZeroLevelTraces");
@@ -1857,10 +1855,10 @@ struct WeaverWidget : ModuleWidget {
 			[=](int i) {
 				withMenuUndo(module, "set algorithm change timing", [=]() { module->algorithmAtCycleEnd = i == 1; });
 			}));
-		menu->addChild(createIndexSubmenuItem("Speed and ratio changes", {"Immediately", "At end of cycle"},
-			[=]() { return module->ratioAtCycleEnd ? 1 : 0; },
+		menu->addChild(createIndexSubmenuItem("Speed and Ratio change", {"Immediately", "At end of cycle"},
+			[=]() { return module->speedRatioAtCycleEnd ? 1 : 0; },
 			[=](int i) {
-				withMenuUndo(module, "set speed and ratio change timing", [=]() { module->ratioAtCycleEnd = i == 1; });
+				withMenuUndo(module, "set speed and ratio change timing", [=]() { module->speedRatioAtCycleEnd = i == 1; });
 			}));
 		menu->addChild(createBoolMenuItem("New random loops on reset", "",
 			[=]() { return module->newLoopOnReset; },
