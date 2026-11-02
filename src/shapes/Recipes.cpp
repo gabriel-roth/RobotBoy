@@ -126,11 +126,14 @@ struct Recipe {
 const Recipe kRecipes[kNumRecipes] = {
 	{"Bounce", "Gestures", 140, 0, 1, 3, {P(.35, .85), I(3, 12), P(0, .6)}},
 	{"Spring", "Gestures", 134, 0.075, 1, 3, {P(1.5, 14), P(1, 10), P(0, 1)}},
-	{"Ratchet", "Gestures", 144, 0, 1, 4, {I(3, 16), P(-.8, .8), P(.5, 1), P(3, 20)}},
+	// Fade is the last hit's level, so long bursts don't trail off to nothing.
+	{"Ratchet", "Gestures", 144, 0, 1, 4, {I(3, 16), P(-.8, .8), P(.35, 1), P(1.5, 8)}},
 	{"Flam", "Gestures", 147, 0, 1, 4, {P(.02, .25), I(1, 3), P(.3, .9), P(2, 10)}},
-	{"Bowed", "Gestures", 51, 0.05, 1, 4, {P(.1, .5), I(4, 20), P(0, .3), P(.7, .95)}},
+	{"Bowed", "Gestures", 51, 0.05, 1, 4, {P(.1, .5), I(4, 20), P(.15, .4), P(.7, .95)}},
 	{"Stutter", "Gestures", 60, 0, 1, 3, {I(4, 24), P(.2, .8), P(1, 6)}},
-	{"Heartbeat", "Gestures", 60, 0, 1, 5, {P(.05, .3), P(.006, .018), P(.15, .7), P(.15, .5), P(.2, .45)}},
+	// Beat count follows Variation in equal quarters (1-4 beats); the other
+	// settings repeat their sweep in each quarter.
+	{"Heartbeat", "Gestures", 60, 0, 1, 8, {P(.05, .3), P(.006, .018), P(.15, .7), P(-.35, .5), P(.2, .45), Param{1, 4, true, true, false}, P(0, .4), P(0, .6)}},
 	// Trimmed at 0.75: past it the swings halve and the fundamental takes over.
 	{"Harmonics", "Cycles", 11, 0, 0.75, 6, {I(4, 24), P(2, 18), P(.5, 4), P(-1, 1), P(-1, 1), P(0, 1)}},
 	{"Folded sine", "Cycles", 0, 0, 1, 7, {P(3.5, 8), I(2, 5), P(.2, .8), P(.6, 1), I(2, 4), P(-1, 1), P(-.5, .5)}},
@@ -149,6 +152,17 @@ const Recipe kRecipes[kNumRecipes] = {
 
 int checkRecipe(int recipe) {
 	return recipe < 0 || recipe >= kNumRecipes ? 0 : recipe;
+}
+
+// One ECG beat (P, QRS, T) at x in the beat's own time, its start at 0.
+// Zero well outside the beat, so callers can skip the exps.
+double heartBeat(double x, double pa, double w, double sd, double ta, double td) {
+	if (x < -.15 || x > 1.3)
+		return 0;
+	double r = .2, t = r + td, tw = .045 + .1 * td;
+	// The T wave rises slower than it falls, as on a real trace.
+	double tWave = ta * gauss(x - t, x < t ? tw * 1.4 : tw);
+	return pa * gauss(x - .07, .022) - .25 * sd * gauss(x - (r - 2.2 * w), w) + gauss(x - r, w) - sd * gauss(x - (r + 2.4 * w), 1.2 * w) + tWave;
 }
 
 double devilF(double x, int d, double a, double lean) {
@@ -423,7 +437,7 @@ double RecipeInstance::raw(double p) const {
 			for (int k = 0; k < n; k++) {
 				if (p < on[k + 1]) {
 					double u = (p - on[k]) / (on[k + 1] - on[k]);
-					return E(std::pow(fade, k) * std::min(1.0, u / .03) * std::exp(-snap * u));
+					return E(std::pow(fade, k / (n - 1.0)) * std::min(1.0, u / .03) * std::exp(-snap * u));
 				}
 			}
 			return -1;
@@ -442,21 +456,31 @@ double RecipeInstance::raw(double p) const {
 		case BOWED: {
 			double att = v[0], vf = v[1], dep = v[2], rel = v[3];
 			double env = smooth01(p / att) * (p > rel ? 1 - smooth01((p - rel) / (1 - rel)) : 1);
-			double vib = dep * smooth01((p - att) / (rel - att)) * std::sin(kTau * vf * p);
-			return E(clamp((.8 + vib) * env, 0, 1));
+			// The vibrato dips below the sustain level, so its peaks never clip.
+			double d = dep * smooth01((p - att) / (rel - att));
+			return E(clamp((1 - d + d * std::sin(kTau * vf * p)) * env, 0, 1));
 		}
 		case STUTTER: {
 			double n = v[0], duty = v[1], dec = v[2];
 			return E(frac(p * n) < duty ? std::exp(-dec * p) : 0);
 		}
 		// An ECG trace (P, QRS, T) around a flat baseline, so it swings both
-		// ways and mixes a sharp spike with broad humps.
+		// ways and mixes a sharp spike with broad humps. One to four beats a
+		// cycle: Swing pulls every second beat early, pairing the beats, and
+		// Alternans makes every second beat smaller.
 		case HEART: {
-			double pa = v[0], w = v[1], sd = v[2], ta = v[3], td = v[4];
-			double r = .2, t = r + td, tw = .045 + .1 * td;
-			// The T wave rises slower than it falls, as on a real trace.
-			double tWave = ta * gauss(p - t, p < t ? tw * 1.4 : tw);
-			return pa * gauss(p - .07, .022) - .25 * sd * gauss(p - (r - 2.2 * w), w) + gauss(p - r, w) - sd * gauss(p - (r + 2.4 * w), 1.2 * w) + tWave;
+			int n = (int) v[5];
+			double swing = v[6], alt = v[7], y = 0;
+			// The spike keeps at least 2 of the 512 normalizing points across it.
+			double w = std::max(v[1], .004 * n);
+			for (int k = 0; k < n; k++) {
+				bool odd = k % 2 == 1;
+				double d = frac(p - (k - (odd ? swing : 0)) / n) * n;
+				double a = odd ? 1 - alt : 1;
+				// The same beat a cycle later, for its lead-in at the loop point.
+				y += a * (heartBeat(d, v[0], w, v[2], v[3], v[4]) + heartBeat(d - n, v[0], w, v[2], v[3], v[4]));
+			}
+			return y;
 		}
 		case HARM: {
 			int n = (int) v[0];

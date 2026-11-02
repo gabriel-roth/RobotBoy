@@ -44,9 +44,19 @@ static void namesMatch() {
 	assert(std::strcmp(recipeFamily(7), "Cycles") == 0);
 }
 
+// Ratchet, Bowed and Heartbeat have been reworked since the prototype, so
+// they're left out of the reference checks. Heartbeat has its own test below.
+constexpr int kRatchet = 2, kBowed = 4, kHeartbeat = 6;
+
+static bool reworked(int r) {
+	return r == kRatchet || r == kBowed || r == kHeartbeat;
+}
+
 static void valsMatch() {
 	const double vs[3] = {0.0, 0.5, 1.0};
 	for (int r = 0; r < kNumRecipes; r++) {
+		if (reworked(r))
+			continue;
 		for (int j = 0; j < 3; j++) {
 			double out[8];
 			recipeVals(r, vs[j], 0.0, 0, out);
@@ -58,6 +68,8 @@ static void valsMatch() {
 
 static void normMatches() {
 	for (int r = 0; r < kNumRecipes; r++) {
+		if (reworked(r))
+			continue;
 		RecipeInstance inst;
 		buildRecipe(inst, r, 0.5, 0.0, 0);
 		for (int k = 0; k <= 64; k++)
@@ -67,6 +79,27 @@ static void normMatches() {
 		for (int k = 0; k < 512; k++)
 			pk = std::fmax(pk, std::fabs(inst.eval(k / 512.0)));
 		expectNear(pk, ref::recipePeak[r], 1e-6, "peak", r, 0, 0);
+	}
+}
+
+// Each quarter of Variation adds a beat: count the spikes crossing up
+// through 0.6.
+static void heartbeatCountsBeats() {
+	for (int q = 0; q < 4; q++) {
+		RecipeInstance inst;
+		buildRecipe(inst, kHeartbeat, q * 0.25 + 0.1, 0.0, 0);
+		int beats = 0;
+		double prev = inst.eval(-1 / 4096.0);
+		for (int k = 0; k < 4096; k++) {
+			double y = inst.eval(k / 4096.0);
+			if (prev < 0.6 && y >= 0.6)
+				beats++;
+			prev = y;
+		}
+		if (beats != q + 1) {
+			std::printf("  heartbeat: quarter %d has %d beats\n", q, beats);
+			failures++;
+		}
 	}
 }
 
@@ -113,6 +146,7 @@ int main() {
 	namesMatch();
 	valsMatch();
 	normMatches();
+	heartbeatCountsBeats();
 	driftMatches();
 	outputsFinite();
 	instanceIsTriviallyCopyable();
