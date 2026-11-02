@@ -8,10 +8,7 @@
 
 ## Overview
 
-- One cycle is one bar (four beats) at the **CLOCK** tempo, scaled by **SPEED**.
-- Operators **A**, **B** and **C** each play a wave at a **RATIO** of the cycle, and stay phase-aligned to it.
-- The **ALGORITHM** combines the operators. In most algorithms A and B interact and C is added.
-- **OUT** carries the result, **INV** its inverse, and **A**, **B**, **C** each operator's wave.
+Weaver builds complex modulation by combining simple parts. Three LFO-style operators run in fixed rhythmic relationships to the bar, and an algorithm mixes, multiplies, folds, samples or gates them into a single shape. The result is a tempo-synced modulator with much more character than a single wave, useful for evolving rhythmic patterns, envelope-like shapes and polyrhythmic movement. Any operator can also take an external CV, so Weaver can process modulation from elsewhere in the patch, and its three operators are available as synced outputs of their own.
 
 ---
 

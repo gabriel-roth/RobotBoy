@@ -8,10 +8,7 @@
 
 ## Overview
 
-- One cycle is one bar (four beats) at the **CLOCK** tempo, scaled by **SPEED**. The shape restarts each cycle and **EOC** fires.
-- Each shape is normalized to fill the output range at every VARIATION setting.
-- The transforms have no effect at their defaults.
-- The random shapes (Random nodes, Fractal line, Glitch) repeat exactly each cycle. Only DRIFT and the trimpots' random mode vary cycles.
+Skylark is a source of rhythmic, tempo-synced modulation built from recognizable gestures: a bouncing ball, a ratchet, a heartbeat, a spring, an arpeggio. Instead of a plain LFO wave, each bar it plays a shape with internal structure, which suits it to clocked envelopes, accents and movement that sound performed rather than mechanical. Each shape has a family of variations to choose from, the transforms bend it further, and DRIFT or the random trimpots make successive bars differ.
 
 ---
 
@@ -60,7 +57,7 @@ One cycle of the output, with a playhead. The header shows the shape name (below
 
 ## The shapes
 
-Each image shows one cycle at VARIATION 0%, 50% and 100%, other controls at defaults.
+Each image shows one cycle at VARIATION 0%, 50% and 100%, other controls at defaults. The random shapes repeat exactly each cycle; only DRIFT and the trimpots' random mode vary them.
 
 ### Gestures
 

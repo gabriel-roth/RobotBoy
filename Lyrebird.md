@@ -8,10 +8,7 @@
 
 ## Overview
 
-- Lyrebird holds one *take* of up to 3 minutes. With no take, **OUT** passes the input through.
-- **Time** (context menu): in **Sync** (default) a take is a whole number of bars long and follows the tempo; in **Free** it plays at its recorded duration.
-- **Play** (context menu): **Loop** (default), or **Once**, playing one pass per **TRIG**.
-- One bar is four beats at the **CLOCK** tempo.
+Lyrebird captures a hand-played movement, or any CV, and plays it back as modulation. Turn its knob while recording and the gesture becomes a loop locked to the bar, or a one-shot envelope fired by a trigger. It is for modulation that is easier to perform than to program: filter sweeps, swells, irregular curves, or a stretch of random CV frozen into a repeating pattern. Takes can be edited by punching in, played faster, slower or backward, smoothed, and saved as WAV files to recall later.
 
 ---
 
@@ -42,7 +39,7 @@ SPEED and SMOOTH have CV inputs.
 
 ### Outputs
 
-- **OUT**: the take. While recording, OUT follows the source.
+- **OUT**: the take. While recording, or with no take, OUT follows the source.
 - **EOC**: a trigger at each loop wrap and at the end of each Once pass.
 
 ---
@@ -77,8 +74,8 @@ SPEED and SMOOTH have CV inputs.
 
 ## Context menu
 
-- **Time**: **Sync** (default) or **Free**.
-- **Play**: **Loop** (default) or **Once**.
+- **Time**: **Sync** (default; a take is a whole number of bars and follows the tempo) or **Free** (a take plays at its recorded duration).
+- **Play**: **Loop** (default) or **Once** (one pass per TRIG).
 - **Knob range**: ±5 V (default) or 0–10 V.
 - **Record buttons**: **Latch** (default) or **Press** (records only while held).
 - **Reverse button**: **Press** (default) or **Latch** (each press toggles direction).
