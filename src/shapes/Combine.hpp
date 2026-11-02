@@ -82,6 +82,10 @@ public:
 		changeAt = t;
 		haveChangeAt = true;
 	}
+	// What ratio changes have added to operator i's position, in its cycles
+	double ratioOffset(int i) const {
+		return offset[i];
+	}
 	// Points of the formula peak scan done per sample. 0, the default, does
 	// each scan in one sample; a spread scan takes 256 / pointsPerSample
 	// samples, during which Fit uses the last scan's peak as well.

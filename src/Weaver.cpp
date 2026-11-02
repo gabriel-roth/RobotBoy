@@ -6,6 +6,7 @@
 #include "shapes/OutputStage.hpp"
 #include "shapes/ScreenMessage.hpp"
 #include "shapes/Timebase.hpp"
+#include "shapes/TrimMod.hpp"
 #include "shapes/WeaverPresetFiles.hpp"
 #include "shapes/WeaverPresets.hpp"
 
@@ -283,6 +284,9 @@ struct Weaver : Module {
 	// After a realign the outputs glide to the new shape over this many
 	// samples, counting down
 	int glideLeft = 0;
+	// Each operator's output on the previous sample: the feedback into its
+	// empty CV jacks
+	float lastOpOut[3] = {};
 
 	shapes::Timebase timebase;
 	shapes::CycleSpeed speed;
@@ -435,9 +439,20 @@ struct Weaver : Module {
 		return (float) shapes::sanitize(inputs[in].getVoltage(), 0.0);
 	}
 
-	// Knob plus attenuverted CV (5 V spans the knob's range), unclamped.
-	double modulated(int knob, int in, int trim, double span) {
-		double v = params[knob].getValue() + cv(in) * 0.2 * params[trim].getValue() * span;
+	// Operator i's knob plus attenuverted CV (5 V spans the knob's range),
+	// unclamped. With the jack empty, clockwise feeds the operator's own
+	// output in as if it were patched, and counter-clockwise adds a random
+	// offset that glides from one of the operator's cycles to the next. opT
+	// is the operator's position in its own cycles, its phase left out.
+	double modulated(int i, int knob, int in, int trim, double span, double opT) {
+		double amount = params[trim].getValue();
+		double v = params[knob].getValue();
+		if (inputs[in].isConnected())
+			v += cv(in) * 0.2 * amount * span;
+		else if (amount > 0.0)
+			v += lastOpOut[i] * 0.2 * amount * span;
+		else if (amount < 0.0)
+			v += -amount * span * shapes::trimRandomOffset((uint32_t) trim, opT, shapes::TrimSpread::Bipolar, true);
 		return shapes::sanitize(v, params[knob].getValue());
 	}
 
@@ -515,7 +530,8 @@ struct Weaver : Module {
 	}
 #endif
 
-	shapes::CombineControls controls() {
+	// At t cycles since reset
+	shapes::CombineControls controls(double t) {
 		shapes::CombineControls c;
 		for (int i = 0; i < 3; i++) {
 			shapes::OperatorControls& o = c.op[i];
@@ -526,8 +542,11 @@ struct Weaver : Module {
 			float ratioCv = clamp(cv(input(i, A_RATIO_INPUT)), -100.f, 100.f);
 			int ratio = (int) std::round(params[param(i, A_RATIO_PARAM)].getValue()) + (int) std::round(ratioCv);
 			o.ratio = clamp(ratio, 0, shapes::kNumRatios - 1);
-			o.phase = shapes::frac(modulated(param(i, A_PHASE_PARAM), input(i, A_PHASE_INPUT), param(i, A_PHASE_CV_PARAM), 1.0));
-			o.level = std::clamp(modulated(param(i, A_LEVEL_PARAM), input(i, A_LEVEL_INPUT), param(i, A_LEVEL_CV_PARAM), 2.0), -1.0, 1.0);
+			// The running ratio and the engine's offset from the last
+			// evaluation, so a ratio change doesn't jump the random
+			double opT = t * shapes::ratioValue(heldRatios[i]) + engine.ratioOffset(i);
+			o.phase = shapes::frac(modulated(i, param(i, A_PHASE_PARAM), input(i, A_PHASE_INPUT), param(i, A_PHASE_CV_PARAM), 1.0, opT));
+			o.level = std::clamp(modulated(i, param(i, A_LEVEL_PARAM), input(i, A_LEVEL_INPUT), param(i, A_LEVEL_CV_PARAM), 2.0, opT), -1.0, 1.0);
 			if (o.wave == shapes::Input) {
 				// The PARAM jack is the signal, its trimpot the gain, and the
 				// knob the slew
@@ -536,7 +555,7 @@ struct Weaver : Module {
 				o.inputGain = 1.0 + params[param(i, A_PARAM_CV_PARAM)].getValue();
 			}
 			else {
-				o.param = std::clamp(modulated(param(i, A_PARAM_PARAM), input(i, A_PARAM_INPUT), param(i, A_PARAM_CV_PARAM), 1.0), 0.0, 1.0);
+				o.param = std::clamp(modulated(i, param(i, A_PARAM_PARAM), input(i, A_PARAM_INPUT), param(i, A_PARAM_CV_PARAM), 1.0, opT), 0.0, 1.0);
 			}
 		}
 		return c;
@@ -589,8 +608,10 @@ struct Weaver : Module {
 		if (sped.wrapped)
 			eoc.fire();
 		outputs[EOC_OUTPUT].setVoltage(eoc.process(args.sampleTime));
-		for (int i = 0; i < 3; i++)
-			outputs[A_OUTPUT + i].setVoltage(output(1 + i, ramps[1 + i].next()));
+		for (int i = 0; i < 3; i++) {
+			lastOpOut[i] = output(1 + i, ramps[1 + i].next());
+			outputs[A_OUTPUT + i].setVoltage(lastOpOut[i]);
+		}
 
 		double cycle = std::floor(sped.t);
 		displayPos.store((float) (sped.t - cycle), std::memory_order_relaxed);
@@ -684,7 +705,7 @@ struct Weaver : Module {
 			appliedSlewMs = settings.slewMs;
 		}
 
-		shapes::CombineControls c = controls();
+		shapes::CombineControls c = controls(t);
 		if (algorithmNow.exchange(false, std::memory_order_acquire) || !algorithmAtCycleEnd || cycleStart)
 			heldAlgorithm = targetAlgorithm();
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
@@ -887,9 +908,10 @@ Weaver::Weaver() {
 		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) neutral.param, op + " param", "%", 0.f, 100.f);
 		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) neutral.phase, op + " phase", " deg", 0.f, 360.f);
 		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, 0.f, op + " level", "%", 0.f, 100.f);
-		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount")->description = "With the Input wave: the signal's gain";
-		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount");
-		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount");
+		const char* trimNote = "With the jack empty: clockwise feeds the operator's output back, counter-clockwise adds a random offset each cycle";
+		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount")->description = std::string(trimNote) + ". With the Input wave: the signal's gain";
+		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount")->description = trimNote;
+		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount")->description = trimNote;
 		configInput(input(i, A_RATIO_INPUT), op + " ratio CV");
 		configInput(input(i, A_PARAM_INPUT), op + " param CV")->description = "With the Input wave: the signal";
 		configInput(input(i, A_PHASE_INPUT), op + " phase CV");

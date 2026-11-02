@@ -20,7 +20,12 @@ Weaver is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md
 - **PHASE**: offsets the wave within its cycle.
 - **LEVEL**: attenuates or inverts the waveform.
 
-PARAM, PHASE and LEVEL each have a CV input and an attenuverter. With the attenuverter fully clockwise, 5 V spans the control's range.
+PARAM, PHASE and LEVEL each have a CV input and trimpot. With a cable patched, the trimpot attenuverts the CV; at full trim, 5 V spans the control's range. With no cable:
+
+- **Clockwise:** feeds the operator's own output back into the control.
+- **Counter-clockwise:** adds a random offset that glides to a new value each of the operator's cycles. The sequence repeats after RESET.
+
+With the Input wave, the PARAM trimpot is the input's gain instead (see [**Input operators**](#input-operators)).
 
 ### Waves
 

@@ -44,6 +44,7 @@
 #    the Wave display (14 x 17, from top + 3.89; its PARAM name level with the PARAM knob) over
 #    its button (top + 26.53, level with the jacks). WAVE's tab spans WAVE and PARAM, which share a cell with no divider.
 #    Hairline dividers between the columns, headings through row C.
+#    CV trims: Skylark's end-of-travel glyphs (random left, feedback right), 4.0 out and 1.9 down.
 slug: Weaver
 name: WEAVER
 hp: 35
@@ -232,3 +233,24 @@ glyphs:
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 31.59]}
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 64.42]}
   - {src: glyphs/weaver/param-tri-floating-light.svg, at: [126.97, 97.25]}
+  # CV trims (PARAM, PHASE, LEVEL): with the jack empty, clockwise feeds the operator's own output
+  # back and counter-clockwise adds a random offset that glides each of the operator's cycles.
+  # Skylark's glyphs at each trim's ends of travel, 4.0 out and 1.9 down.
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [130.88, 43.60]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [138.88, 43.60]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [146.78, 43.60]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [154.78, 43.60]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [163.79, 43.60]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [171.79, 43.60]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [130.88, 76.43]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [138.88, 76.43]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [146.78, 76.43]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [154.78, 76.43]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [163.79, 76.43]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [171.79, 76.43]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [130.88, 109.26]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [138.88, 109.26]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [146.78, 109.26]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [154.78, 109.26]}
+  - {src: glyphs/skylark/trim-random-glide.svg, at: [163.79, 109.26]}
+  - {src: glyphs/skylark/trim-feedback.svg, at: [171.79, 109.26]}
