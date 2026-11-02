@@ -43,7 +43,7 @@ With WAVE set to **Input**, the operator plays the signal at its PARAM jack (±5
 
 ### Algorithms
 
-The **ALGORITHM** button steps through the algorithms; in VCV Rack, right-click to choose from a list. ALGORITHM CV adds to the selection, 10 V spanning all eleven.
+The **ALGORITHM** **‹ ›** buttons step through the algorithms; in VCV Rack, right-click either to choose from a list. ALGORITHM CV offsets the selection, 10 V spanning all eleven.
 
 | Algorithm | Formula | Function |
 |---|---|---|

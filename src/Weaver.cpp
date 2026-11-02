@@ -166,7 +166,8 @@ struct Weaver : Module {
 		C_PARAM_CV_PARAM,
 		C_PHASE_CV_PARAM,
 		C_LEVEL_CV_PARAM,
-		ALGORITHM_PARAM,
+		// Next algorithm (the old single ALGORITHM button's slot)
+		ALGORITHM_NEXT_PARAM,
 		// The old ENVELOPE knob: no control, its slot kept so old patches load
 		UNUSED_ENVELOPE_PARAM,
 		PRESET_PREV_PARAM,
@@ -179,6 +180,7 @@ struct Weaver : Module {
 		SPEED_DOWN_PARAM,
 		SPEED_UP_PARAM,
 		SPEED_RESET_PARAM,
+		ALGORITHM_PREV_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -256,7 +258,7 @@ struct Weaver : Module {
 	shapes::CombineEngine engine;
 	shapes::Slew slew[4];  // OUT, then A, B, C
 	shapes::Trigger eoc;
-	dsp::BooleanTrigger waveTriggers[3], algorithmTrigger, speedDownTrigger, speedUpTrigger, speedResetTrigger;
+	dsp::BooleanTrigger waveTriggers[3], algorithmPrevTrigger, algorithmNextTrigger, speedDownTrigger, speedUpTrigger, speedResetTrigger;
 	dsp::SchmittTrigger speedDownCv, speedUpCv;
 #ifdef METAMODULE
 	// MetaModule has no widget events, so the PRESET buttons are read here
@@ -545,7 +547,9 @@ struct Weaver : Module {
 			if (waveTriggers[i].process(params[param(i, A_WAVE_PARAM)].getValue() > 0.5f))
 				selectWave(i, (waves[i] + 1) % shapes::kNumWaves);
 #endif
-		if (algorithmTrigger.process(params[ALGORITHM_PARAM].getValue() > 0.5f))
+		if (algorithmPrevTrigger.process(params[ALGORITHM_PREV_PARAM].getValue() > 0.5f))
+			algorithm = (algorithm + shapes::kNumAlgorithms - 1) % shapes::kNumAlgorithms;
+		if (algorithmNextTrigger.process(params[ALGORITHM_NEXT_PARAM].getValue() > 0.5f))
 			algorithm = (algorithm + 1) % shapes::kNumAlgorithms;
 		// SPEED's jacks do what their buttons do
 		bool down = speedDownTrigger.process(params[SPEED_DOWN_PARAM].getValue() > 0.5f);
@@ -770,7 +774,8 @@ Weaver::Weaver() {
 		configOutput(A_OUTPUT + i, "Operator " + op);
 		configLight(A_WAVE_LIGHT + 3 * i, op + " wave");
 	}
-	configButton<AlgorithmQuantity>(ALGORITHM_PARAM, "Algorithm");
+	configButton<AlgorithmQuantity>(ALGORITHM_PREV_PARAM, "Previous algorithm");
+	configButton<AlgorithmQuantity>(ALGORITHM_NEXT_PARAM, "Next algorithm");
 	configParam(UNUSED_ENVELOPE_PARAM, 0.f, 1.f, 0.f, "Unused")->randomizeEnabled = false;
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
@@ -1080,8 +1085,9 @@ struct PresetButton : TL1105 {
 	}
 };
 
-// Clicking WAVE or ALGORITHM steps to the next choice; right-clicking lists
-// them all below the usual parameter menu.
+// Clicking WAVE steps to the next wave, and ALGORITHM's buttons to the
+// previous or next algorithm; right-clicking lists them all below the usual
+// parameter menu.
 template <typename TBase>
 struct ChoiceMenuButton : TBase {
 	virtual void appendChoices(Menu* menu, Weaver* module) = 0;
@@ -1112,7 +1118,7 @@ struct WaveButton : ChoiceMenuButton<VCVLightBezel<RedGreenBlueLight>> {
 	}
 };
 
-struct AlgorithmButton : ChoiceMenuButton<VCVButton> {
+struct AlgorithmButton : ChoiceMenuButton<TL1105> {
 	void appendChoices(Menu* menu, Weaver* module) override {
 		menu->addChild(createMenuLabel("Algorithm"));
 		for (int a = 0; a < shapes::kNumAlgorithms; a++) {
@@ -1217,17 +1223,18 @@ struct WeaverWidget : ModuleWidget {
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(167.79, 116.69)), module, Weaver::C_LEVEL_INPUT));
 
 		// Algorithm and presets
-		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(38.86, 63.9)), module, Weaver::ALGORITHM_PARAM));
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(47.86, 63.9)), module, Weaver::ALGORITHM_INPUT));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(39.64, 63.9)), module, Weaver::ALGORITHM_PREV_PARAM));
+		addParam(createParamCentered<AlgorithmButton>(mm2px(Vec(46.24, 63.9)), module, Weaver::ALGORITHM_NEXT_PARAM));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(56.74, 63.9)), module, Weaver::ALGORITHM_INPUT));
 #ifdef METAMODULE
 		// Plain buttons: process() steps the presets, as PresetButton never gets events here
-		addParam(createParamCentered<TL1105>(mm2px(Vec(72.66, 63.9)), module, Weaver::PRESET_NEXT_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(66.06, 63.9)), module, Weaver::PRESET_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(77.1, 63.9)), module, Weaver::PRESET_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(70.5, 63.9)), module, Weaver::PRESET_PREV_PARAM));
 #else
-		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(72.66, 63.9)), module, Weaver::PRESET_NEXT_PARAM);
+		PresetButton* next = createParamCentered<PresetButton>(mm2px(Vec(77.1, 63.9)), module, Weaver::PRESET_NEXT_PARAM);
 		next->delta = 1;
 		addParam(next);
-		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(66.06, 63.9)), module, Weaver::PRESET_PREV_PARAM);
+		PresetButton* prev = createParamCentered<PresetButton>(mm2px(Vec(70.5, 63.9)), module, Weaver::PRESET_PREV_PARAM);
 		prev->delta = -1;
 		addParam(prev);
 #endif
@@ -1238,7 +1245,7 @@ struct WeaverWidget : ModuleWidget {
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(36.415, 88.0)), module, Weaver::RESET_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(44.915, 88.0)), module, Weaver::RESET_INPUT));
 
-		// SPEED: plain buttons, read in process() like ALGORITHM, down and up over their trigger jacks
+		// SPEED: plain buttons, read in process() like ALGORITHM's, down and up over their trigger jacks
 		addParam(createParamCentered<TL1105>(mm2px(Vec(60.385, 87.65)), module, Weaver::SPEED_DOWN_PARAM));
 		addParam(createParamCentered<VCVButton>(mm2px(Vec(69.085, 87.65)), module, Weaver::SPEED_RESET_PARAM));
 		addParam(createParamCentered<TL1105>(mm2px(Vec(77.785, 87.65)), module, Weaver::SPEED_UP_PARAM));

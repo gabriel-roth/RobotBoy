@@ -12,7 +12,7 @@
 
 ### SHAPE and VARIATION
 
-- **SHAPE**: selects the shape (default Bounce); **‹ ›** step through them. SHAPE CV adds to the knob, 10 V spanning all 18 shapes, wrapping.
+- **SHAPE**: **‹ ›** step through the shapes (default Bounce). SHAPE CV offsets the selection, 10 V spanning all 18 shapes, wrapping.
 - **VARIATION**: 0–100%, default 50%.
 
 ### Transforms

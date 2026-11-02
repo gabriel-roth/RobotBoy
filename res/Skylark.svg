@@ -14,7 +14,6 @@
     <circle cx="109.34" cy="125.5" r="1.6" fill="#333333"/>
     <rect x="103.55999999999999" y="32.791" width="0.3" height="11.962000000000003" fill="#808080"/>
     <rect x="103.55999999999999" y="44.753" width="0.3" height="9.091000000000001" fill="#808080"/>
-    <rect x="88.41" y="32.791" width="0.3" height="11.962000000000003" fill="#808080"/>
     <rect x="12.734" y="76.868" width="0.3" height="8.911000000000001" fill="#808080"/>
     <rect x="12.734" y="85.779" width="0.3" height="8.533000000000001" fill="#808080"/>
     <rect x="35.502" y="76.868" width="0.3" height="8.911000000000001" fill="#808080"/>
@@ -68,20 +67,19 @@
     <polyline points="99.106,87.829 99.506,87.829 99.506,87.279 99.906,87.279 99.906,88.099 100.306,88.099 100.306,87.559 100.806,87.559" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="108.186,87.2806 108.2643,87.3376 108.3289,87.4097 108.377,87.4937 108.4065,87.586 108.416,87.6823 108.4051,87.7786 108.3743,87.8704 108.325,87.9537 108.2593,88.0248 108.1802,88.0807 108.0911,88.1187 107.9961,88.1372 107.8993,88.1355 107.805,88.1135 107.7174,88.0723 107.6403,88.0136 107.5773,87.9401 107.531,87.855 107.5036,87.7622 107.4962,87.6656 107.5092,87.5697 107.542,87.4786 107.5931,87.3963 107.6603,87.3266" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polygon points="107.7798,87.2263 107.6899,87.5237 107.4714,87.2632" fill="#ffffff" stroke="#ffffff" stroke-width="0.06" stroke-linejoin="round"/>
-    <polyline points="81.135,53.144 80.385,53.844 81.135,54.544" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
-    <polyline points="95.985,53.144 96.735,53.844 95.985,54.544" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="81.135,32.091 80.385,32.791 81.135,33.491" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
+    <polyline points="95.985,32.091 96.735,32.791 95.985,33.491" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="50.689,106.992 49.939,107.692 50.689,108.392" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
     <polyline points="76.339,106.992 77.089,107.692 76.339,108.392" fill="none" stroke="#ffffff" stroke-width="0.15" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
   <g inkscape:label="components" inkscape:groupmode="layer" id="components" style="display:none">
     <rect id="SCREEN#Widget" x="1.5" y="17.0" width="73.43" height="44.5" fill="#ffff00"/>
-    <circle id="SHAPE_PARAM#RoundBlackSnapKnob" cx="88.56" cy="32.791" r="2" fill="#ff0000"/>
     <circle id="VARIATION_PARAM#RoundBlackKnob" cx="103.71" cy="32.791" r="2" fill="#ff0000"/>
     <circle id="SHAPE_INPUT#PJ301MPort" cx="88.56" cy="44.753" r="2" fill="#00ff00"/>
     <circle id="VARIATION_INPUT#PJ301MPort" cx="103.71" cy="44.753" r="2" fill="#00ff00"/>
     <circle id="VARIATION_CV_PARAM#Trimpot" cx="103.71" cy="53.844" r="2" fill="#ff0000"/>
-    <circle id="SHAPE_PREV_PARAM#TL1105" cx="85.26" cy="53.844" r="2" fill="#ff0000"/>
-    <circle id="SHAPE_NEXT_PARAM#TL1105" cx="91.86" cy="53.844" r="2" fill="#ff0000"/>
+    <circle id="SHAPE_PREV_PARAM#TL1105" cx="85.26" cy="32.791" r="2" fill="#ff0000"/>
+    <circle id="SHAPE_NEXT_PARAM#TL1105" cx="91.86" cy="32.791" r="2" fill="#ff0000"/>
     <circle id="TIMING_PARAM#RoundBlackKnob" cx="12.884" cy="76.868" r="2" fill="#ff0000"/>
     <circle id="LIFT_PARAM#RoundBlackKnob" cx="35.652" cy="76.868" r="2" fill="#ff0000"/>
     <circle id="SYMMETRY_PARAM#RoundBlackKnob" cx="58.42" cy="76.868" r="2" fill="#ff0000"/>

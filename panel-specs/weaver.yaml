@@ -6,10 +6,11 @@
 #    fill is its old 55% tint composited over the panel).
 #    - Globals plate (56.7-74.8; controls top + 7.2, labels below at + 15.7):
 #      a display naming the algorithm at its left end (26 x 13.3, inset
-#      2.4); then ALGORITHM (the button that pops up the algorithms + its CV
-#      jack, 9.0 apart, labelled together) and PRESET (previous / next
-#      buttons 6.6 apart, chevrons 4.5 outside), centered in the space after
-#      ALGORITHM's jack (51.875-86.84).
+#      2.4); then ALGORITHM (previous / next buttons 6.6 apart, chevrons
+#      4.5 outside, and its CV jack 10.5 after the next button, labelled
+#      together) and PRESET (previous / next buttons 6.6 apart, chevrons 4.5
+#      outside), in equal 4.56 gaps from the display (29.9) to 86.84,
+#      counting the chevrons (1.36 wide) in the widths.
 #    - Clock plate (76.8-102.9, 26.1 tall): CLOCK (BPM knob + CLOCK jack,
 #      10.5 apart), RESET (button + jack, 8.5 apart) and SPEED, equal 6.275
 #      gaps with SPEED's chevrons counted in its width (27.76). CLOCK and
@@ -146,15 +147,16 @@ elements:
 
   # --- Globals plate.
   # ALGORITHM: a display naming the algorithm at the plate's left end, inset 2.4 like the controls; the
-  # button that pops up the algorithms and its CV jack carry the ALGORITHM label.
+  # previous / next buttons and the CV jack carry the ALGORITHM label, centered on the group (34.46-60.755).
   - {name: ALGORITHM_SCREEN, kind: widget, rect: {x: 3.9, y: 59.10, w: 26.0, h: 13.3}}
-  - {name: ALGORITHM_PARAM, widget: VCVButton, x: 38.86, y: 63.9}
-  - {name: ALGORITHM_INPUT, x: 47.86, y: 63.9}
-  - {text: ALGORITHM, x: 43.36, y: 72.4, size: 3.175}
+  - {name: ALGORITHM_PREV_PARAM, widget: TL1105, x: 39.64, y: 63.9}
+  - {name: ALGORITHM_NEXT_PARAM, widget: TL1105, x: 46.24, y: 63.9}
+  - {name: ALGORITHM_INPUT, x: 56.74, y: 63.9}
+  - {text: ALGORITHM, x: 47.61, y: 72.4, size: 3.175}
   # PRESET steps through the factory presets (the original JS prototype's examples), previous / next.
-  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 66.06, y: 63.9}
-  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 72.66, y: 63.9}
-  - {text: PRESET, x: 69.36, y: 72.4, size: 3.175}
+  - {name: PRESET_PREV_PARAM, widget: TL1105, x: 70.5, y: 63.9}
+  - {name: PRESET_NEXT_PARAM, widget: TL1105, x: 77.1, y: 63.9}
+  - {text: PRESET, x: 73.8, y: 72.4, size: 3.175}
 
   # --- Clock plate.
   - {name: BPM_PARAM, x: 12.575, y: 88.0}
@@ -211,9 +213,11 @@ connectors:
   - [SPEED_UP_PARAM, SPEED_UP_INPUT]
 
 glyphs:
-  # PRESET's and SPEED's directions, outside their buttons.
-  - {src: glyphs/weaver/step-back.svg,    at: [61.56, 63.9]}
-  - {src: glyphs/weaver/step-forward.svg, at: [77.16, 63.9]}
+  # ALGORITHM's, PRESET's and SPEED's directions, outside their buttons.
+  - {src: glyphs/weaver/step-back.svg,    at: [35.14, 63.9]}
+  - {src: glyphs/weaver/step-forward.svg, at: [50.74, 63.9]}
+  - {src: glyphs/weaver/step-back.svg,    at: [66.0, 63.9]}
+  - {src: glyphs/weaver/step-forward.svg, at: [81.6, 63.9]}
   - {src: glyphs/weaver/step-back.svg,    at: [55.885, 87.65]}
   - {src: glyphs/weaver/step-forward.svg, at: [82.285, 87.65]}
   # Arrows from each Wave display's PARAM name to the PARAM knob, level with both.

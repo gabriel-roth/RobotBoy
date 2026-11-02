@@ -76,6 +76,12 @@ struct Skylark : Module {
 		SPEED_RESET_PARAM,
 		PARAMS_LEN
 	};
+	// The shape buttons' tooltips name the shape
+	struct ShapeQuantity : ParamQuantity {
+		std::string getDisplayValueString() override {
+			return module ? shapes::recipeName((int) std::round(module->params[SHAPE_PARAM].getValue())) : "";
+		}
+	};
 	enum InputId {
 		VARIATION_INPUT,
 		SHAPE_INPUT,
@@ -165,9 +171,11 @@ struct Skylark : Module {
 		std::vector<std::string> names;
 		for (int i = 0; i < shapes::kNumRecipes; i++)
 			names.push_back(shapes::recipeName(i));
+		// No control: the buttons step it. Saved in the module's data too, as
+		// the MetaModule doesn't save a param without a control.
 		configSwitch(SHAPE_PARAM, 0.f, shapes::kNumRecipes - 1, 0.f, "Shape", names);
-		configButton(SHAPE_PREV_PARAM, "Previous shape");
-		configButton(SHAPE_NEXT_PARAM, "Next shape");
+		configButton<ShapeQuantity>(SHAPE_PREV_PARAM, "Previous shape");
+		configButton<ShapeQuantity>(SHAPE_NEXT_PARAM, "Next shape");
 		configParam(TIMING_PARAM, -1.f, 1.f, 0.f, "Timing");
 		configParam(LIFT_PARAM, -1.f, 1.f, 0.f, "Lift");
 		configParam(SYMMETRY_PARAM, 0.f, 1.f, 0.f, "Symmetry", "%", 0.f, 100.f);
@@ -365,6 +373,7 @@ struct Skylark : Module {
 		json_object_set_new(rootJ, "cvPerCycle", json_boolean(cvPerCycle));
 		json_object_set_new(rootJ, "shapeAtCycleEnd", json_boolean(shapeAtCycleEnd));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
+		json_object_set_new(rootJ, "shape", json_integer((int) std::round(params[SHAPE_PARAM].getValue())));
 		return rootJ;
 	}
 
@@ -379,6 +388,10 @@ struct Skylark : Module {
 		shapeAtCycleEnd = j && json_is_true(j);
 		j = json_object_get(rootJ, "speed");
 		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
+		// Missing (a patch from when SHAPE was a knob): the saved param stands
+		j = json_object_get(rootJ, "shape");
+		if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumRecipes)
+			params[SHAPE_PARAM].setValue((float) json_integer_value(j));
 	}
 };
 
@@ -520,12 +533,11 @@ struct SkylarkWidget : ModuleWidget {
 		addChild(display);
 
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(103.71, 32.791)), module, Skylark::VARIATION_PARAM));
-		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(88.56, 32.791)), module, Skylark::SHAPE_PARAM));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(103.71, 44.753)), module, Skylark::VARIATION_INPUT));
 		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(88.56, 44.753)), module, Skylark::SHAPE_INPUT));
 		addParam(createParamCentered<Trimpot>(mm2px(Vec(103.71, 53.844)), module, Skylark::VARIATION_CV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(85.26, 53.844)), module, Skylark::SHAPE_PREV_PARAM));
-		addParam(createParamCentered<TL1105>(mm2px(Vec(91.86, 53.844)), module, Skylark::SHAPE_NEXT_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(85.26, 32.791)), module, Skylark::SHAPE_PREV_PARAM));
+		addParam(createParamCentered<TL1105>(mm2px(Vec(91.86, 32.791)), module, Skylark::SHAPE_NEXT_PARAM));
 
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.884, 76.868)), module, Skylark::TIMING_PARAM));
 		addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(35.652, 76.868)), module, Skylark::LIFT_PARAM));
