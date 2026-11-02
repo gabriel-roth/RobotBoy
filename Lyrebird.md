@@ -1,6 +1,6 @@
 # Lyrebird
 
-**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Perform a movement once — on its own big knob, or with any CV you patch in — and Lyrebird plays it back in time with your patch, as a loop or as a triggered one-shot. You can punch in over part of a take, change its speed, reverse it and smooth it, and save takes as WAV files to step through later. It's one of Robot Boy's three modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md), and keeps time the same way they do.
+**Lyrebird** is a gesture and CV recorder for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Perform a movement once — on its own big knob, or with any CV you patch in — and Lyrebird plays it back in time with your patch, as a loop or as a triggered one-shot. You can punch in over part of a take, change its speed, reverse it and smooth it, and save takes as WAV files to step through later. It's one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Weaver](Weaver.md), and keeps time the same way they do.
 
 <img src="screenshots/Lyrebird.png" alt="Lyrebird module" height="500">
 
@@ -24,11 +24,11 @@ Lyrebird keeps its own bar count, from its **CLOCK** knob or a clock patched bes
 ## Quick start
 
 1. **Patch OUT** to whatever you want to move — a filter's cutoff, say.
-2. **Press RECORD** and turn the big **GESTURE** knob. With the default settings, Lyrebird records exactly one bar (2 seconds at 120 BPM) and stops by itself.
+2. **Press RECORD** and turn the big knob on the **INPUT** plate. With the default settings, Lyrebird records exactly one bar (2 seconds at 120 BPM) and stops by itself.
 3. **Listen:** the gesture now repeats every bar. Turn **SMOOTH** to round it off, or **SPEED** to play it at double or half time.
 4. **Patch a clock** into the **CLOCK** jack to follow the rest of your patch. A clock of quarter notes works by default.
 
-To record a CV instead of the knob, patch it into the jack beside **GESTURE**. To save the take, press the button between the chevrons under **FILE**.
+To record a CV instead of the knob, patch it into the jack beside the big knob. To save the take, press the button between the chevrons under **FILE**.
 
 ---
 
@@ -36,7 +36,7 @@ To record a CV instead of the knob, patch it into the jack beside **GESTURE**. T
 
 - **Header, left:** the take's name — its file name in capitals, `NEW TAKE` if it has never been saved, or `EMPTY`. A `*` means the take has changed since it was saved or opened.
 - **Header, right:** `LOOP` or `ONCE`, the speed it plays at (`x1`, `x1/2`, `x1.41`), and the **SMOOTH** width (`SMOOTH OFF`, `SMOOTH 40ms`).
-- **Trace:** the whole take, left to right. The raw recording is dim grey; the output, after **SMOOTH**, is white. A take playing in Sync has faint lines at each bar. The vertical scale is the GESTURE knob's range, widened if the take goes beyond it.
+- **Trace:** the whole take, left to right. The raw recording is dim grey; the output, after **SMOOTH**, is white. A take playing in Sync has faint lines at each bar. The vertical scale is the big knob's range, widened if the take goes beyond it.
 - **Playhead:** a line and a dot show where the take is playing.
 - **While writing:** a new recording draws in magenta as it's written; during a punch-in, the section being replaced turns magenta on a faint magenta band.
 - **Footer, left:** `REC`, `PUNCH`, a blinking `ARMED`, or a file message for 3 seconds (see **Files** below).
@@ -63,13 +63,13 @@ To record a CV instead of the knob, patch it into the jack beside **GESTURE**. T
 
 The context menu changes how both buttons behave: **Record buttons** can make them record only while held, and **Start recording** can make them wait for the source to move. See **Recording** below.
 
-### GESTURE and CV IN
+### INPUT: knob and CV jack
 
 The magenta **INPUT** plate holds the two sources you can record from.
 
-*GESTURE:* The knob you perform on. It covers −5 V to +5 V by default (centered at 0 V), or 0 to 10 V with **Knob range** in the context menu.
+*Knob:* The big knob you perform on. It covers −5 V to +5 V by default (centered at 0 V), or 0 to 10 V with **Knob range** in the context menu.
 
-*CV IN (the jack beside it):* Patch a cable here and Lyrebird records the CV instead of the knob, in volts, between −10 V and +10 V. Unplug it and GESTURE is the source again. The display's footer shows which one is in use.
+*CV jack (beside the knob):* Patch a cable here and Lyrebird records the CV instead of the knob, in volts, between −10 V and +10 V. Unplug it and the knob is the source again. The display's footer shows which one is in use.
 
 Lyrebird records at 1,000 samples per second, which is plenty for hand movements and modulation; very sharp CV edges come out up to 1 ms soft.
 
@@ -184,7 +184,7 @@ You can open other WAV files too — 8-, 16-, 24- or 32-bit integer, or 32- or 6
 
 ### Takes in the patch
 
-The take is also stored inside the patch, so a patch never depends on its WAV file: move or delete the file and the take still loads. The copy in the patch is at 16-bit resolution (about 0.3 mV steps), which is far finer than any destination will notice. A full 3-minute take adds about 480 KB to the patch file; a few bars add only a few KB.
+The take is also stored inside the patch, so a patch never depends on its WAV file: move or delete the file and the take still loads. The copy in the patch is at 16-bit resolution (about 0.3 mV steps). A full 3-minute take adds about 480 KB to the patch file; a few bars add only a few KB.
 
 ---
 
@@ -194,7 +194,7 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 - **Time** — **Sync** (the default) or **Free**: how the take plays, and how the next one is recorded. See **Playback modes** above.
 - **Play** — **Loop** (the default) or **Once**.
-- **Knob range** — **+-5 V** (the default) or **0-10 V**, for the GESTURE knob.
+- **Knob range** — **+-5 V** (the default) or **0-10 V**, for the big INPUT knob.
 - **Record buttons** — **Latch** (the default: press to start, press again to stop) or **Press** (writes while held), for RECORD and PUNCH and their jacks. In Latch the jacks respond to rising edges; in Press, to the gate level.
 - **Reverse button** — **Press** (the default: reversed while held or while the gate is high) or **Latch** (each press or rising gate flips direction; the direction is saved with the patch). Changing it starts playback forward.
 - **Start recording** — **On press** (the default) or **On first movement**.
@@ -210,13 +210,13 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 
 Everything on the panel works on MetaModule, including recording with a mapped knob, saving, opening and stepping through files. The differences:
 
+- **Display:** the header leaves out **SMOOTH** (the traces show it), file messages appear in place of the take's name, and `REC`, `PUNCH` or `ARMED` replaces the source in the footer.
 - **Folders:** MetaModule can't create folders, so make one on your SD card or USB drive from a computer. Lyrebird's default folder is the first of these that exists: `RobotBoy/Lyrebird`, `Lyrebird` or `RobotBoy` on the SD card, then the same three on a USB drive, then the root of the SD card, then the root of the USB drive. It looks again each time, so a card inserted later is found. If a saved folder has gone (a different card, say), Lyrebird falls back to the default folder.
 - **No card or drive:** **SAVE** opens the Save as browser instead. The chevrons and the FILE jacks show `NO FOLDER` and don't open a browser, since a trigger shouldn't pop one up while the module may be off screen.
 - **Internal storage:** you can choose it in Save as…, but it's small and meant for patches; use a card or drive for takes.
 - **Undo:** **Undo last take** works as in VCV, but there's no Ctrl+Z history.
 - **Off screen:** saving, loading and file stepping carry on while Lyrebird isn't on screen.
 - **Patches move both ways:** a patch made in VCV loads on MetaModule with its take and settings, and vice versa. A folder saved on the other platform is ignored in favor of the default.
-- **Large takes:** a long take makes a large patch file (up to about 480 KB for 3 minutes).
 
 ---
 
@@ -224,8 +224,8 @@ Everything on the panel works on MetaModule, including recording with a mapped k
 
 - **Hand-played filter sweep:** Sync + Loop, **LENGTH** at 4 bars, **OUT** into a filter's cutoff. Record a sweep over four bars, then raise **SMOOTH** to iron out the wobbles.
 - **Gestural envelope:** set **Play** to **Once** and patch a sequencer's gate into **TRIG**. Record a swell or a pluck shape on the knob; every note now gets that exact gesture, with **EOC** marking its end.
-- **Freeze a random line:** patch a random or chaotic CV into **CV IN** and record a bar of it. Now the randomness repeats, in time, until you record again.
-- **Living automation:** gate **PUNCH** from a slow clock divider while a random source sits in **CV IN**, so a slice of the loop is rewritten every few bars and it slowly evolves.
+- **Freeze a random line:** patch a random or chaotic CV into the **INPUT** jack and record a bar of it. Now the randomness repeats, in time, until you record again.
+- **Living automation:** gate **PUNCH** from a slow clock divider while a random source sits in the **INPUT** jack, so a slice of the loop is rewritten every few bars and it slowly evolves.
 - **Half-time / double-time:** sequence **SPEED** CV in 1 V steps (in Sync, each volt doubles or halves the speed and the loop stays on the bar), and gate **REVERSE** for palindromes.
 - **A library of gestures:** save a handful of takes, then patch a clock divider into the › jack to load a new one every 16 bars.
 - **Bring in a curve from elsewhere:** draw an automation curve or bounce an audio envelope in a DAW, export it as a WAV, and load it with **Open…**. Switch **Time** to **Sync** to lock it to the bar.

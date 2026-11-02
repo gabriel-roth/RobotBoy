@@ -2,7 +2,7 @@
 
 **Skylark** is a shape modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Once per bar it plays a structured gesture — a bouncing ball, a ratchet, a heartbeat, a chirp, a fractal line — and loops it in time with your tempo or clock. Each of its 18 shapes is a whole family of related forms that the **Variation** knob sweeps through, and five transform controls bend the timing, curve, symmetry and slope of whatever is playing. Use it as a clocked LFO, a repeating envelope, or a slowly evolving modulation source.
 
-Skylark is one of Robot Boy's three modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
+Skylark is one of Robot Boy's three complex modulators, with [Weaver](Weaver.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Skylark.png" alt="Skylark module" height="500">
 
@@ -90,7 +90,7 @@ The **CV and feedback** menu option can sample the CV, or the feedback, once at 
 
 The display draws one full cycle of the output as it currently stands — after Variation, the transforms, the output range and the out-of-range treatment, but before slew — with a vertical playhead and a dot riding the trace. The center line is the middle of the output range: 0 V, 2.5 V (0–5 V) or 5 V (0–10 V). If the end of the cycle doesn't meet its start, the jump is drawn as a vertical line at the left edge, where you hear it.
 
-Along the top: the shape's name on the left; on the right, Variation after CV (**VAR 50%**) and the tempo in BPM, measured from the clock when one is patched, followed by the **SPEED** when it isn't x1 (dim and blinking while a change waits for its cycle start).
+Along the top: the shape's name on the left (below the trace on MetaModule); on the right, Variation after CV (**VAR 50%**) and the tempo in BPM, measured from the clock when one is patched, followed by the **SPEED** when it isn't x1 (dim and blinking while a change waits for its cycle start).
 
 ---
 

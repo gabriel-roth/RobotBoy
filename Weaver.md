@@ -2,7 +2,7 @@
 
 **Weaver** is a shape modulator for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). It runs three *operators* — simple waves, or outside CV — at whole-number ratios of a shared cycle, and weaves them into one modulation shape with one of eleven *algorithms*: mixing, multiplying, bending, folding, sampling, gating. Use it as a tempo-synced LFO with far more character than a single wave, as a rhythmic envelope generator, or as a processor for CV you already have. Fifteen factory presets get you started.
 
-Weaver is one of Robot Boy's three modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
+Weaver is one of Robot Boy's three complex modulators, with [Skylark](Skylark.md) and [Lyrebird](Lyrebird.md).
 
 <img src="screenshots/Weaver.png" alt="Weaver module" height="500">
 
@@ -33,8 +33,8 @@ Finally, the result is brought back into the output range (by default it's scale
 
 The main display shows one full cycle of the output shape as a solid white line, after range and out-of-range handling but before slew. A vertical playhead runs across it, with a dot on the shape at the current value.
 
-- **Operator traces:** each operator, scaled by its LEVEL, is drawn as a dashed line in its color — **A** amber, **B** teal, **C** pink. An operator at LEVEL zero isn't drawn. The trace buttons under the A, B and C outputs hide or show each one.
-- **Header:** the **A B C** legend on the left (a letter dims when its trace is hidden), the preset number and name in the middle when the settings exactly match a preset (blank after any edit), and the tempo on the right, followed by the **SPEED** when it isn't x1 (dim and blinking while a change waits for its cycle start).
+- **Operator traces:** each operator, scaled by its LEVEL, is drawn as a dashed line in its color — **A** amber, **B** teal, **C** pink. An operator at LEVEL zero draws as a flat line, unless **Hide traces when operator level at 0** is on in the context menu. The trace buttons under the A, B and C outputs hide or show each one.
+- **Header:** the **A B C** legend on the left (a letter dims when its trace is hidden; on MetaModule, followed by the algorithm's name), the preset number and name in the middle when the settings exactly match a preset (blank after any edit; below the trace on MetaModule), and the tempo on the right, followed by the **SPEED** when it isn't x1 (dim and blinking while a change waits for its cycle start).
 - **Input operators:** an operator set to the **Input** wave has no formula to draw ahead, so its trace, and the result while any operator is Input, show the last cycle as it actually played.
 
 The ALGORITHM display shows the running algorithm's name, with its formula underneath. Each operator row has two small displays of its own: one cycle of the operator's wave, with the name of what **PARAM** does for that wave above it (with an arrow pointing to the PARAM knob) and the wave's name below; and the **RATIO** readout above the RATIO knob, which shows **IN** for an Input operator.
@@ -99,7 +99,7 @@ The unipolar Envelope wave makes an especially good B in SCALE and SCALE 2, and 
 
 ### Presets
 
-- **PRESET** — the two buttons step backward and forward through the 15 factory presets, wrapping around. If the settings don't match any preset, the forward button loads preset 1 and the back button preset 15. A preset sets every operator's wave, ratio, PARAM, PHASE and LEVEL, and the algorithm (at once, even when the menu holds algorithm or ratio changes). Loading a preset lines the operators up with the cycle, so the preset plays its real shape from wherever the cycle is; the outputs glide to it over 10 ms. It leaves the tempo, SPEED, the context-menu settings and the trace buttons alone. In VCV Rack a preset load can be undone.
+The two **PRESET** buttons step backward and forward through the 15 factory presets, wrapping around; if the settings match no preset, forward loads preset 1 and back loads preset 15. A preset sets every operator's wave, ratio, PARAM, PHASE and LEVEL, and the algorithm, all at once, even when the menu holds algorithm or ratio changes. It lines the operators up with the cycle, so the preset plays its real shape from wherever the cycle is, and the outputs glide to it over 10 ms. The tempo, SPEED, context-menu settings and trace buttons are left alone. In VCV Rack a preset load can be undone.
 
 The presets:
 
@@ -152,7 +152,8 @@ Open the context menu on the panel in VCV Rack, or open Options on MetaModule:
 - **Algorithm changes** — **Immediately** (the default) or **At end of cycle**. At end of cycle, a new algorithm from the button or its CV waits for the start of the next cycle (a reset counts), so the shape never changes mid-bar. Presets and patch loads still switch at once.
 - **Ratio changes** — **At end of cycle** (the default) or **Immediately**. At end of cycle, a new ratio from the knob or its CV waits for a cycle start where the operator stays lined up with the cycle. Immediately, the wave carries on from where it was at the new speed, without a jump, but stays shifted against the cycle until the next reset or preset load.
 - **New random loops on reset** — on by default. When on, every reset gives the Stepped random loop and Smooth random loop operators new patterns; when off, they keep theirs.
-- **A wave**, **B wave**, **C wave**, **Algorithm** (MetaModule only) — lists to pick each operator's wave and the algorithm directly, since MetaModule has no right-click menus on the buttons.
+- **Hide traces when operator level at 0** — off by default. When on, the main display leaves out an operator whose LEVEL is zero.
+- **Algorithm** (MetaModule only) — a list to pick the algorithm directly, since MetaModule has no right-click menu on the button.
 
 In VCV Rack, **Initialize** returns Weaver to preset 1, SPEED to x1, and these settings to their defaults. **Randomize** sets every knob except the tempo, picks new waves for all three operators (never Input, which needs a cable to be heard), and makes new loop patterns; it keeps the current algorithm.
 
