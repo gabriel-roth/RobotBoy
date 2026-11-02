@@ -395,7 +395,35 @@ static void controlRateFollows() {
 	assert(eocsRef == eocsCtl && eocsRef > 0);
 }
 
+// Switching LOOP to ONCE mid-pass finishes that pass, on any pass, then rests
+static void onceSwitchFinishesPass() {
+	for (bool sync : {true, false}) {
+		for (int pass : {0, 2}) {
+			Rig r;
+			r.c.sync = sync;
+			// 1 bar at 120 BPM and 2 s Free: 96000 samples a pass either way
+			r.load(-5.f, 5.f, 2000, sync ? TakeMode::Sync : TakeMode::Free, 1.0, 2.0);
+			for (int i = 0; i < pass * 96000 + 48000; i++)
+				r.step();
+			r.c.loop = false;
+			LyrebirdStep s = r.step();
+			assert(std::fabs(s.playhead - 0.5) < 0.001);
+			int eocAt = -1;
+			for (int i = 1; i < 96000; i++) {
+				s = r.step();
+				if (s.eoc && eocAt < 0)
+					eocAt = i;
+			}
+			assert(std::abs(eocAt - 48000) <= 2);
+			// Rests on the last value until a TRIG
+			assert(std::fabs(s.volts - 5.0) < 1e-3);
+			assert(std::fabs(r.step().volts - 5.0) < 1e-3);
+		}
+	}
+}
+
 int main() {
+	onceSwitchFinishesPass();
 	reversePlayhead();
 	noFalseEoc();
 	freeOnce();

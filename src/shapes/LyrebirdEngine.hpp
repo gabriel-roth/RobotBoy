@@ -160,6 +160,9 @@ private:
 
 	// Playback position
 	bool active_ = false;  // a ONCE pass is running
+	double passBase_ = 0.0;  // Sync ONCE: take passes before the running one
+	bool prevLoop_ = false;
+	bool loopSeen_ = false;  // prevLoop_ holds a real setting, not the default
 	double freePhase_ = 0.0;  // Free: 0..1 through the take
 	double lastWraps_ = 0.0;  // whole wraps already reported
 	bool resync_ = true;

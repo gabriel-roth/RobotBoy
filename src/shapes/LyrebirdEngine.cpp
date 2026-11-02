@@ -66,6 +66,7 @@ double LyrebirdEngine::smoothHalfWidth(const Take& t, double smoothMs) {
 void LyrebirdEngine::restart() {
 	active_ = false;
 	freePhase_ = 0.0;
+	passBase_ = 0.0;
 	// The transport doesn't move with the take, so wrap counting restarts from
 	// wherever it is now rather than from zero
 	resync_ = true;
@@ -429,6 +430,10 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	double src = std::clamp(sanitize(c.source, 0.0), -10.0, 10.0);
 	double prevX = prevX_;
 	prevX_ = x;
+	// Read every sample, so a switch made while recording or empty is used up
+	bool toOnce = loopSeen_ && prevLoop_ && !c.loop;
+	prevLoop_ = c.loop;
+	loopSeen_ = true;
 	// The transport restarts at 0, so takes play from there; a recording
 	// under way moves it again below
 	if (tb.reset)
@@ -545,6 +550,11 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	if (c.sync) {
 		double bars = effectiveBars(t);
 		double xt = (x - origin_) * ratio / bars;  // through the take
+		// LOOP switched to ONCE: the pass under way finishes, whichever it is
+		if (toOnce) {
+			passBase_ = std::floor(xt + 1e-9);
+			active_ = true;
+		}
 		if (c.loop) {
 			double wraps = std::floor(xt + 1e-9);
 			// A new take, TRIG, a mode change or a SPEED change moves xt without
@@ -559,19 +569,21 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 				ph = 0.0;
 		}
 		else if (active_) {
-			if (xt >= 1.0 - 1e-9) {
+			if (xt - passBase_ >= 1.0 - 1e-9) {
 				out.eoc = true;
 				active_ = false;
 				resting = true;
 			}
 			else
-				ph = xt;
+				ph = xt - passBase_;
 		}
 		else
 			resting = true;
 	}
 	else {
 		double step = ratio / (std::max(t.seconds, 1e-3) * sampleRate_);
+		if (toOnce)
+			active_ = true;
 		if (c.loop) {
 			freePhase_ += step;
 			if (freePhase_ >= 1.0 - 1e-9) {
