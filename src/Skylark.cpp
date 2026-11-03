@@ -21,6 +21,7 @@ static constexpr int kTracePoints = 256;
 struct SkylarkFrame {
 	float trace[kTracePoints] = {};  // -1..1 within the output range
 	int shape = 0;
+	int shapeTarget = -1;  // a shape waiting for the end of the cycle, or -1
 	float variation = 0.5f;
 	float bpm = 120.f;
 	int speed = 0;  // SPEED in octaves, running and chosen
@@ -34,6 +35,7 @@ struct SkylarkSnapshot {
 	shapes::SkylarkEngine engine;
 	shapes::Treat treatMode = shapes::Treat::Fit;
 	shapes::Range range = shapes::Range::Bipolar5;
+	int shapeTarget = -1;
 	float variation = 0.5f;
 	float bpm = 120.f;
 	int speed = 0;
@@ -46,6 +48,7 @@ static void buildFrame(SkylarkFrame& f, const SkylarkSnapshot& s) {
 	for (int i = 0; i < kTracePoints; i++)
 		f.trace[i] = (float) shapes::fromVolts(f.trace[i], s.range);
 	f.shape = s.engine.activeShape();
+	f.shapeTarget = s.shapeTarget;
 	f.variation = s.variation;
 	f.bpm = s.bpm;
 	f.speed = s.speed;
@@ -143,6 +146,7 @@ struct Skylark : Module {
 	// the cycle keeps that offset from the clock
 	bool resetOnPulse = true;
 	int heldShape = 0;
+	int chosenShape = 0;  // SHAPE with its CV, before any wait for the cycle end
 
 	shapes::Timebase timebase;
 	shapes::CycleSpeed speed;
@@ -337,6 +341,7 @@ struct Skylark : Module {
 		double shapeCv = clamp(cv(SHAPE_INPUT), -100.f, 100.f);
 		int shape = (int) std::round(params[SHAPE_PARAM].getValue()) + (int) std::round(shapeCv / 10.0 * shapes::kNumRecipes);
 		shape = ((shape % shapes::kNumRecipes) + shapes::kNumRecipes) % shapes::kNumRecipes;
+		chosenShape = shape;
 		if (!shapeAtCycleEnd || cycleStart)
 			heldShape = shape;
 		c.shape = heldShape;
@@ -371,6 +376,7 @@ struct Skylark : Module {
 		s.engine = engine;
 		s.treatMode = settings.treatMode;
 		s.range = settings.range;
+		s.shapeTarget = shapeAtCycleEnd && chosenShape != heldShape ? chosenShape : -1;
 		s.variation = (float) variation;
 		s.bpm = (float) timebase.tempoBpm();
 		s.speed = speed.octaves();
@@ -478,7 +484,10 @@ struct SkylarkDisplay : shapeui::Screen {
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (font) {
 			char title[40];
-			const char* name = shapes::recipeName(f.shape);
+			// A shape waiting for the end of the cycle: its name, dim and
+			// blinking (as SPEED) until it takes over
+			bool shapeWaiting = f.shapeTarget >= 0;
+			const char* name = shapes::recipeName(shapeWaiting ? f.shapeTarget : f.shape);
 			size_t n = 0;
 			for (; name[n] && n < sizeof(title) - 1; n++)
 				title[n] = (char) std::toupper((unsigned char) name[n]);
@@ -489,14 +498,16 @@ struct SkylarkDisplay : shapeui::Screen {
 
 			nvgFontFaceId(vg, font->handle);
 			shapeui::fontSize(vg, mm2px(2.6f * kText));
-			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
-			if (kNameBand > 0.f) {
-				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
-				nvgText(vg, gx + gw / 2, box.size.y - mm2px(1.6f), title, nullptr);
-			}
-			else {
-				nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
-				nvgText(vg, gx, mm2px(4.6f), title, nullptr);
+			nvgFillColor(vg, shapeui::screenColor(shapeWaiting ? shapeui::dividerColor() : shapeui::inkColor()));
+			if (!shapeWaiting || std::fmod(system::getTime(), 0.5) < 0.25) {
+				if (kNameBand > 0.f) {
+					nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
+					nvgText(vg, gx + gw / 2, box.size.y - mm2px(1.6f), title, nullptr);
+				}
+				else {
+					nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
+					nvgText(vg, gx, mm2px(4.6f), title, nullptr);
+				}
 			}
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_BASELINE);
 			shapeui::fontSize(vg, mm2px(2.2f * kText));

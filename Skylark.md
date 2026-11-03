@@ -56,7 +56,7 @@ A **SPEED** change takes effect at the next point where old and new cycles align
 
 ## Display
 
-The display shows one cycle of the waveform at OUT, with a playhead. The header shows the shape name (below the trace on MetaModule), the VARIATION amount after CV, the tempo, and SPEED when not x1. A new SPEED blinks dimly until it takes effect.
+The display shows one cycle of the waveform at OUT, with a playhead. The header shows the shape name (below the trace on MetaModule), the VARIATION amount after CV, the tempo, and SPEED when not x1. A new SPEED, or a new shape with **Shape changes** set to **At end of cycle**, blinks dimly until it takes effect.
 
 ---
 <a id="settings"> </a>
