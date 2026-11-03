@@ -37,7 +37,7 @@ PARAM, PHASE, and LEVEL each have a CV input and a trimpot. With a cable patched
 | Ramp down | violet | CURVE: exponential to logarithmic |
 | Square | red | WIDTH: pulse width |
 | Envelope | orange | ATTACK: attack time. Unipolar. |
-| Stepped random | white | STEPS: 2–16 random levels per cycle |
+| Stepped random | white | STEPS: 4–16 random levels per cycle |
 | Smooth random | pale blue | DENSITY: 6–16 interpolated points per cycle |
 | Stepped random loop | pink | STEPS: 4–16 steps, repeating each cycle |
 | Smooth random loop | aqua | DENSITY: 6–16 points, repeating each cycle |

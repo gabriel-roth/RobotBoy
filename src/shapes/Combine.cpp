@@ -17,10 +17,8 @@ const double kRatioValues[kNumRatios] = {0.125, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 
 const char* const kRatioLabels[kNumRatios] = {"1/8", "1/4", "1/2", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x12", "x16", "x24", "x32"};
 // Steps (segments, for Smooth) per cycle of the random waves. Fewer sound like
 // a square or a sine rather than a random pattern; smoothing hides more, so
-// Smooth needs more segments. The loop waves repeat each cycle, so Stepped
-// loop needs more steps than Stepped random, which changes every cycle.
-constexpr int kMinSteppedRandomSteps = 2;
-constexpr int kMinSteppedLoopSteps = 4;
+// Smooth needs more segments.
+constexpr int kMinSteppedSteps = 4;
 constexpr int kMinSmoothSteps = 6;
 constexpr int kMaxRandomSteps = 16;
 const char* const kParamNames[kNumWaves] = {"SKEW", "SYMMETRY", "CURVE", "CURVE", "WIDTH", "ATTACK", "STEPS", "DENSITY", "STEPS", "DENSITY", "SLEW"};
@@ -172,7 +170,7 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 			return p < a ? 1.0 - std::pow(1.0 - p / a, 2.0) : std::pow(1.0 - (p - a) / (1.0 - a), 3.0);
 		}
 		case SteppedRandom: {
-			double n = kMinSteppedRandomSteps + std::round(sh * (kMaxRandomSteps - kMinSteppedRandomSteps));
+			double n = kMinSteppedSteps + std::round(sh * (kMaxRandomSteps - kMinSteppedSteps));
 			return hash3(seed, std::floor(abs * n), 77) * 2.0 - 1.0;
 		}
 		case SmoothRandom: {
@@ -185,7 +183,7 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 		// As the two above, but within one operator cycle, so the pattern
 		// repeats
 		case SteppedLoop: {
-			double n = kMinSteppedLoopSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSteppedLoopSteps));
+			double n = kMinSteppedSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSteppedSteps));
 			return hash3Bits(op.loopSeed, toInt32(std::floor(p * n)), 77) / 4294967296.0 * 2.0 - 1.0;
 		}
 		case SmoothLoop: {

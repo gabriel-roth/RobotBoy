@@ -567,7 +567,7 @@ static void loopWavesRepeatEachCycle() {
 		int steps = 4 + (int) std::round(param * 12.0);
 		check(changes == steps - 1, "step count", steps, changes);
 	}
-	// Stepped random: 2 + round(14 * param) steps per cycle
+	// Stepped random: 4 + round(12 * param) steps per cycle
 	OperatorControls sr{};
 	sr.wave = SteppedRandom;
 	for (double param : {0.0, 0.5, 1.0}) {
@@ -575,7 +575,7 @@ static void loopWavesRepeatEachCycle() {
 		int changes = 0;
 		for (int k = 1; k < 960; k++)
 			changes += evalOperator(sr, k / 960.0, 0) != evalOperator(sr, (k - 1) / 960.0, 0);
-		int steps = 2 + (int) std::round(param * 14.0);
+		int steps = 4 + (int) std::round(param * 12.0);
 		check(changes == steps - 1, "stepped random step count", steps, changes);
 	}
 	// Smooth random: 6 to 16 points per cycle, at the hashed integers
