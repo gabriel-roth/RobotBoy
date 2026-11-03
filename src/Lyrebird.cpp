@@ -220,6 +220,12 @@ struct Lyrebird : Module, MenuUndoFilter {
 	// can start the Open browser there without touching the card itself
 	shapes::SharedPath<255> lastDefault;
 	bool defaultLooked = false;
+	// File service only: the .wav files stepFile last listed, the folder they
+	// are in and the folder setting they were listed for. Listing is slow
+	// here, so steps reuse them; a save, a patch load or a new folder lists again.
+	std::vector<std::string> listedNames;
+	std::string listedDir, listedFor;
+	std::atomic<bool> listStale{true};
 	// File browser (GUI) to file service: the path chosen, in a single slot.
 	// 0 empty, 1 being written, 2 ready.
 	std::atomic<int> dialogState{0};
@@ -642,6 +648,9 @@ struct Lyrebird : Module, MenuUndoFilter {
 		// The other platform's folder means nothing here: the default instead.
 		// If the file thread reads it mid-set, it gets "" (the default folder) for that pass.
 		folder.set(shapes::usableFolder(j && json_is_string(j) ? json_string_value(j) : "", kOnMetaModule));
+#ifdef METAMODULE
+		listStale.store(true);
+#endif
 		// A menu undo step: settings only
 		j = json_object_get(rootJ, "keepTake");
 		if (j && json_is_true(j))
@@ -911,6 +920,9 @@ static void finishSave(Lyrebird* m) {
 		snprintf(t.name, sizeof t.name, "%s", stem.c_str());
 		t.modified = false;
 	}
+#ifdef METAMODULE
+	m->listStale.store(true);
+#endif
 	m->showMessage("SAVED " + stem);
 }
 
@@ -972,7 +984,14 @@ static void openFile(Lyrebird* m) {
 // Previous / next .wav in the current folder, by name, wrapping
 static void stepFile(Lyrebird* m, int delta) {
 #ifdef METAMODULE
-	std::string dir = m->fileFolder();
+	std::string setting = m->folder.get();
+	if (m->listStale.exchange(false) || setting != m->listedFor || m->listedDir.empty()) {
+		m->listedFor = setting;
+		m->listedDir = m->fileFolder();
+		m->listedNames = m->listedDir.empty() ? std::vector<std::string>()
+		                                      : shapes::sortedWavNames(fileNames(m->listedDir));
+	}
+	const std::string& dir = m->listedDir;
 	if (dir.empty()) {
 #else
 	std::string dir = m->currentFolder();
@@ -986,7 +1005,11 @@ static void stepFile(Lyrebird* m, int delta) {
 #endif
 		return;
 	}
+#ifdef METAMODULE
+	const std::vector<std::string>& names = m->listedNames;
+#else
 	std::vector<std::string> names = shapes::sortedWavNames(fileNames(dir));
+#endif
 	if (names.empty()) {
 		m->showMessage("NO FILES");
 		return;
