@@ -183,8 +183,7 @@ struct Skylark : Module {
 		configParam(DRIFT_PARAM, 0.f, 1.f, 0.f, "Drift", "%", 0.f, 100.f);
 		static const char* const kTrimmedNames[NUM_TRIMMED] = {"Variation", "Timing", "Lift", "Symmetry", "Tilt", "Drift"};
 		for (int i = 0; i < NUM_TRIMMED; i++) {
-			ParamQuantity* trim = configParam(kTrimmed[i].trim, -1.f, 1.f, 0.f, string::f("%s CV amount", kTrimmedNames[i]));
-			trim->description = "With the jack empty: clockwise feeds OUT back, counter-clockwise adds a random offset each cycle";
+			configParam(kTrimmed[i].trim, -1.f, 1.f, 0.f, string::f("%s CV amount", kTrimmedNames[i]));
 			configInput(kTrimmed[i].input, string::f("%s CV", kTrimmedNames[i]));
 		}
 		shapeui::configBpm(this, BPM_PARAM);

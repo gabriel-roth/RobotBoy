@@ -908,12 +908,11 @@ Weaver::Weaver() {
 		configParam<OperatorParamQuantity>(param(i, A_PARAM_PARAM), 0.f, 1.f, (float) neutral.param, op + " param", "%", 0.f, 100.f);
 		configParam(param(i, A_PHASE_PARAM), 0.f, 1.f, (float) neutral.phase, op + " phase", " deg", 0.f, 360.f);
 		configParam(param(i, A_LEVEL_PARAM), -1.f, 1.f, 0.f, op + " level", "%", 0.f, 100.f);
-		const char* trimNote = "With the jack empty: clockwise feeds the operator's output back, counter-clockwise adds a random offset each cycle";
-		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount")->description = std::string(trimNote) + ". With the Input wave: the signal's gain";
-		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount")->description = trimNote;
-		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount")->description = trimNote;
+		configParam(param(i, A_PARAM_CV_PARAM), -1.f, 1.f, 0.f, op + " param CV amount");
+		configParam(param(i, A_PHASE_CV_PARAM), -1.f, 1.f, 0.f, op + " phase CV amount");
+		configParam(param(i, A_LEVEL_CV_PARAM), -1.f, 1.f, 0.f, op + " level CV amount");
 		configInput(input(i, A_RATIO_INPUT), op + " ratio CV");
-		configInput(input(i, A_PARAM_INPUT), op + " param CV")->description = "With the Input wave: the signal";
+		configInput(input(i, A_PARAM_INPUT), op + " param CV");
 		configInput(input(i, A_PHASE_INPUT), op + " phase CV");
 		configInput(input(i, A_LEVEL_INPUT), op + " level CV");
 		configOutput(A_OUTPUT + i, "Operator " + op);
@@ -925,7 +924,7 @@ Weaver::Weaver() {
 	configButton(PRESET_PREV_PARAM, "Previous preset");
 	configButton(PRESET_NEXT_PARAM, "Next preset");
 	configButton(PRESET_SAVE_PARAM, "Save preset");
-	configButton(PRESET_DELETE_PARAM, "Delete preset")->description = "Press twice to delete";
+	configButton(PRESET_DELETE_PARAM, "Delete preset");
 	configButton(SPEED_DOWN_PARAM, "Half speed");
 	configButton(SPEED_UP_PARAM, "Double speed");
 	configButton(SPEED_RESET_PARAM, "Speed x1");
