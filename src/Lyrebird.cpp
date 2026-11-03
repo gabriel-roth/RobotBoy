@@ -88,6 +88,7 @@ struct LyrebirdFrame {
 	float smoothMs = 0.f;
 	char name[64] = "";
 	bool modified = false;
+	bool loadWaiting = false;  // a file waiting for the end of the cycle
 };
 
 struct Lyrebird : Module, MenuUndoFilter {
@@ -142,6 +143,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::StartOn startOn = shapes::StartOn::Press;
 	shapes::IdleOutput idleOutput = shapes::IdleOutput::Zero;
 	int pulsesPerCycle = 4;
+	// A file opened or stepped to waits for the end of the loop or pass
+	bool fileAtCycleEnd = false;
 	bool reversed = false;  // REVERSE's latched state when its button toggles
 	// The folder of the last file opened or saved; empty until one is
 	// chosen, which means the default folder. The file service writes it
@@ -188,6 +191,12 @@ struct Lyrebird : Module, MenuUndoFilter {
 
 	// Footer message: the file service writes it, the display reads it
 	shapes::ScreenMessage<kMessageChars> message;
+
+	// A file load waiting for the end of the cycle, file service only, with
+	// the engine's load count when it was asked for; its name, for the display
+	bool waitingLoad = false;
+	uint32_t waitingFrom = 0;
+	shapes::SharedPath<63> waitingName;
 
 	// A save waiting for its snapshot, file service only. An empty path means
 	// the next free name in saveDir, picked once the snapshot is ready.
@@ -342,6 +351,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		startOn = shapes::StartOn::Press;
 		idleOutput = shapes::IdleOutput::Zero;
 		pulsesPerCycle = 4;
+		fileAtCycleEnd = false;
+		engine.releaseWaitingLoad();
 	}
 
 	bool sync() {
@@ -496,6 +507,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		memcpy(f.name, t.name, sizeof f.name);
 		f.name[sizeof f.name - 1] = 0;
 		f.modified = t.modified;
+		f.loadWaiting = engine.loadWaiting();
 		frontFrame.store(back, std::memory_order_release);
 	}
 
@@ -580,6 +592,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		json_object_set_new(rootJ, "startOn", json_integer((int) startOn));
 		json_object_set_new(rootJ, "idleOutput", json_integer((int) idleOutput));
 		json_object_set_new(rootJ, "pulsesPerCycle", json_integer(pulsesPerCycle));
+		json_object_set_new(rootJ, "fileAtCycleEnd", json_boolean(fileAtCycleEnd));
 		json_object_set_new(rootJ, "folder", json_string(folder.get().c_str()));
 		// Read while the audio thread may be writing it: at worst a sample or
 		// two of a take being recorded is saved half-updated
@@ -613,6 +626,8 @@ struct Lyrebird : Module, MenuUndoFilter {
 		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 2);
 		json_t* j = json_object_get(rootJ, "pulsesPerCycle");
 		pulsesPerCycle = shapeui::validPulses(j ? (int) json_integer_value(j) : 4);
+		j = json_object_get(rootJ, "fileAtCycleEnd");
+		fileAtCycleEnd = j && json_is_true(j);
 		// Time and Play were menu settings before they were switches: a patch
 		// from then carries them here, and its params lack them
 		j = json_object_get(rootJ, "sync");
@@ -736,7 +751,12 @@ struct Lyrebird : Module, MenuUndoFilter {
 
 	// File service: a patch take that had to wait for the engine
 	void applyDeferredTake() {
-		if (!deferredTakeJ.load() || engine.loadPending())
+		if (!deferredTakeJ.load())
+			return;
+		// The patch's take replaces a file waiting for the end of the cycle
+		if (waitingLoad && engine.cancelWaitingLoad())
+			waitingLoad = false;
+		if (engine.loadPending())
 			return;
 		json_t* takeJ = deferredTakeJ.exchange(nullptr);
 		if (!takeJ)
@@ -896,6 +916,9 @@ static void finishSave(Lyrebird* m) {
 
 // Loads a file as the current take, as an undoable step
 static void loadFile(Lyrebird* m, const std::string& path) {
+	// A file still waiting for the end of the cycle gives way to this one
+	if (m->waitingLoad && m->engine.cancelWaitingLoad())
+		m->waitingLoad = false;
 	if (m->engine.loadPending()) {
 		m->showMessage("BUSY");
 		return;
@@ -915,14 +938,27 @@ static void loadFile(Lyrebird* m, const std::string& path) {
 		case shapes::LoadError::Empty: m->showMessage("EMPTY FILE"); return;
 		case shapes::LoadError::None: break;
 	}
-	m->engine.requestLoad();
+	bool wait = m->fileAtCycleEnd;
+	m->engine.requestLoad(wait);
+	if (wait) {
+		// The take changes when the engine takes it: see serviceFiles
+		m->waitingLoad = true;
+		m->waitingFrom = m->engine.loadsTaken();
+		m->waitingName.set(system::getStem(path));
+	}
+	else {
 #ifdef METAMODULE
-	m->takeGen = m->newGen();
+		m->takeGen = m->newGen();
 #else
-	pushTakeSwap(m, "load take", m->newGen());
+		pushTakeSwap(m, "load take", m->newGen());
 #endif
+	}
 	m->folder.set(shapes::usableFolder(system::getDirectory(path), kOnMetaModule));
-	m->showMessage(r.truncated ? "TRUNCATED TO 3 MIN" : "LOADED " + system::getStem(path));
+	// Waiting, the name blinks instead
+	if (r.truncated)
+		m->showMessage("TRUNCATED TO 3 MIN");
+	else if (!wait)
+		m->showMessage("LOADED " + system::getStem(path));
 }
 
 #ifndef METAMODULE
@@ -955,8 +991,9 @@ static void stepFile(Lyrebird* m, int delta) {
 		m->showMessage("NO FILES");
 		return;
 	}
-	// The current take's file, whatever the case of its name on disk
-	std::string current = string::lowercase(std::string(m->engine.take().name) + ".wav");
+	// The current take's file (or the one waiting), whatever the case of its name on disk
+	std::string currentName = m->waitingLoad ? m->waitingName.get() : std::string(m->engine.take().name);
+	std::string current = string::lowercase(currentName + ".wav");
 	for (const std::string& n : names) {
 		if (string::lowercase(n) == current) {
 			current = n;
@@ -972,6 +1009,17 @@ static void stepFile(Lyrebird* m, int delta) {
 // bookkeeping; MetaModule's file thread calls it whether or not the module
 // is on screen
 void Lyrebird::serviceFiles() {
+	// A file that waited for the end of the cycle has loaded, or REC dropped it
+	if (waitingLoad && !engine.loadPending()) {
+		waitingLoad = false;
+		if (engine.loadsTaken() != waitingFrom) {
+#ifdef METAMODULE
+			takeGen = newGen();
+#else
+			pushTakeSwap(this, "load take", newGen());
+#endif
+		}
+	}
 	applyDeferredTake();
 #ifdef METAMODULE
 	// No history here, but each finished take is a new pair all the same
@@ -1235,7 +1283,12 @@ struct LyrebirdDisplay : shapeui::Screen {
 	void drawText(NVGcontext* vg, std::shared_ptr<window::Font> font, const LyrebirdFrame& f, float gx, float gw,
 	              bool blinkOn, double now) {
 		std::string title;
-		if (f.empty)
+		// A file waiting for the end of the cycle: its name, dim and blinking
+		// (as ARMED) until it takes over
+		bool waiting = f.loadWaiting && module;
+		if (waiting)
+			title = blinkOn ? shapes::screenText(module->waitingName.get(), 18) : "";
+		else if (f.empty)
 			title = "EMPTY";
 		else {
 			title = shapes::screenText(f.name, 18);
@@ -1264,8 +1317,10 @@ struct LyrebirdDisplay : shapeui::Screen {
 			char text[kMessageChars + 1];
 			if (module->message.get(text, now)) {
 				// Compact, a message stands in for the name, where it has the room
-				if (kCompact)
+				if (kCompact) {
 					title = text;
+					waiting = false;
+				}
 				else {
 					status = text;
 					statusColor = shapeui::inkColor();
@@ -1287,7 +1342,7 @@ struct LyrebirdDisplay : shapeui::Screen {
 			title.resize(titleChars);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BASELINE);
 		shapeui::fontSize(vg, titlePx);
-		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+		nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::inkColor()));
 		nvgText(vg, gx, mm2px(4.6f), title.c_str(), nullptr);
 
 		// Footer: status or a message, the source, and the take's length and
@@ -1449,6 +1504,16 @@ struct LyrebirdWidget : ModuleWidget {
 			[=]() { return (int) module->idleOutput; },
 			[=](int i) {
 				withMenuUndo(module, "set idle output", [=]() { module->idleOutput = (shapes::IdleOutput) i; });
+			}));
+		menu->addChild(createIndexSubmenuItem("File changes", {"Immediately", "At end of cycle"},
+			[=]() { return module->fileAtCycleEnd ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "set file change timing", [=]() {
+					module->fileAtCycleEnd = i == 1;
+					// One already waiting goes ahead
+					if (i == 0)
+						module->engine.releaseWaitingLoad();
+				});
 			}));
 		menu->addChild(shapeui::createPulsesMenuItem(module, &module->pulsesPerCycle));
 

@@ -66,11 +66,32 @@ public:
 	Take& spare() {
 		return *spare_;
 	}
-	void requestLoad() {
-		loadReq_.store(true);
+	// atCycleEnd: the take playing finishes its loop or pass first; with
+	// nothing playing it loads at once
+	void requestLoad(bool atCycleEnd = false) {
+		loadReq_.store(atCycleEnd ? kLoadAtCycleEnd : kLoadNow);
 	}
 	bool loadPending() const {
-		return loadReq_.load();
+		return loadReq_.load() != kLoadNone;
+	}
+	// A load waiting for the end of the cycle
+	bool loadWaiting() const {
+		return loadReq_.load() == kLoadAtCycleEnd;
+	}
+	// Withdraws a waiting load, so spare() can be filled again; false when
+	// there was none, or the audio thread has started on it
+	bool cancelWaitingLoad() {
+		int req = kLoadAtCycleEnd;
+		return loadReq_.compare_exchange_strong(req, kLoadNone);
+	}
+	// A waiting load goes ahead at the next sample
+	void releaseWaitingLoad() {
+		int req = kLoadAtCycleEnd;
+		loadReq_.compare_exchange_strong(req, kLoadNow);
+	}
+	// Loads taken: a waiting load that ends without one was dropped by REC
+	uint32_t loadsTaken() const {
+		return loadsTaken_.load();
 	}
 	// Counted, so two requests made before the audio thread gets to them
 	// swap twice rather than once
@@ -148,9 +169,15 @@ private:
 	Take* spare_;
 	Take* undo_;
 	Take* snap_;
-	std::atomic<bool> loadReq_{false}, snapReq_{false}, snapReady_{false};
+	// A load: none, now, waiting for the end of the cycle, or being taken
+	static constexpr int kLoadNone = 0, kLoadNow = 1, kLoadAtCycleEnd = 2, kLoadTaking = 3;
+	std::atomic<int> loadReq_{kLoadNone};
+	// Set each sample: nothing is playing, or a loop or pass just ended, so
+	// a waiting load can go ahead
+	bool cycleEnded_ = true;
+	std::atomic<bool> snapReq_{false}, snapReady_{false};
 	std::atomic<int> undoReq_{0};
-	std::atomic<uint32_t> recsDone_{0}, punchesDone_{0};
+	std::atomic<uint32_t> recsDone_{0}, punchesDone_{0}, loadsTaken_{0};
 	bool servicing_ = false;  // writes ended here are the UI's doing, not finished takes
 
 	TakeSmoother smoother_;

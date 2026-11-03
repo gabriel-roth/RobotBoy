@@ -75,7 +75,10 @@ void LyrebirdEngine::restart() {
 // Runs at the start of every sample, so the UI's requests take effect promptly
 void LyrebirdEngine::service() {
 	servicing_ = true;
-	if (loadReq_.load()) {
+	if (cycleEnded_)
+		releaseWaitingLoad();
+	int req = kLoadNow;
+	if (loadReq_.compare_exchange_strong(req, kLoadTaking)) {
 		// A recording or punch in progress is dropped: the take from before
 		// it becomes current again, so it is what the load keeps for undo
 		if (status_ == Status::Recording || status_ == Status::Punching)
@@ -89,7 +92,8 @@ void LyrebirdEngine::service() {
 		spare_ = undo_;
 		undo_ = old;
 		restart();
-		loadReq_.store(false);
+		loadsTaken_.fetch_add(1);
+		loadReq_.store(kLoadNone);
 	}
 	for (int n = undoReq_.exchange(0); n > 0; n--) {
 		// Undo keeps what was recorded so far, so a second undo brings it back
@@ -141,6 +145,9 @@ int LyrebirdEngine::elapsedIndex(const Take& t) const {
 
 // A REC press: Sync waits for the grid, Free starts now or on movement
 void LyrebirdEngine::beginRec(const LyrebirdControls& c, const Timebase::Step& tb, double x, double prevX, double src) {
+	// A new take is on its way: a load waiting for the end of the cycle is dropped
+	int req = kLoadAtCycleEnd;
+	loadReq_.compare_exchange_strong(req, kLoadNone);
 	if (c.sync)
 		cue(c, tb, x, prevX);
 	else if (c.startOn == StartOn::Movement) {
@@ -504,6 +511,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	if (status_ == Status::Recording) {
 		// OUT monitors the live source while the take is written
 		recordSample(c, tb, x, out);
+		cycleEnded_ = true;
 		rampStarted_ = false;
 		lastRaw_ = monitor_.process(src);
 		out.volts = finish(lastRaw_);
@@ -514,6 +522,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	const Take& t = *cur_.load();
 
 	if (t.empty()) {
+		cycleEnded_ = true;
 		rampStarted_ = false;
 		lastRaw_ = src;
 		out.volts = finish(src);
@@ -607,6 +616,7 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			resting = true;
 	}
 
+	cycleEnded_ = out.eoc || resting;
 	prevSyncLoop_ = syncLoop;
 	lastRatio_ = ratio;
 	lastBars_ = c.sync ? effectiveBars(t) : 0.0;

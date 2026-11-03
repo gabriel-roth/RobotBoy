@@ -424,8 +424,74 @@ static void onceSwitchFinishesPass() {
 	}
 }
 
+// A load at the end of the cycle waits for the take's wrap, then plays
+static void loadWaitsForCycleEnd() {
+	auto fillConstant = [](Rig& r, float v) {
+		Take& t = r.eng.spare();
+		t.clear();
+		t.length = 100;
+		for (int i = 0; i < 100; i++)
+			t.samples[i] = v;
+		t.mode = TakeMode::Sync;
+		t.bars = 1.0;
+		t.seconds = 2.0;
+		t.bpm = 120.0;
+	};
+	{
+		Rig r;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		for (int i = 0; i < 144000; i++)  // 1.5 bars
+			r.step();
+		fillConstant(r, 9.f);
+		r.eng.requestLoad(true);
+		uint32_t taken = r.eng.loadsTaken();
+		// The old take plays out to the bar boundary, 48000 samples on
+		for (int i = 0; i < 47999; i++) {
+			LyrebirdStep s = r.step();
+			assert(!s.eoc && std::fabs(s.volts - 9.0) > 0.5);
+			assert(r.eng.loadWaiting());
+		}
+		assert(r.step().eoc);
+		LyrebirdStep s = r.step();
+		assert(!r.eng.loadPending() && r.eng.loadsTaken() == taken + 1);
+		assert(std::fabs(s.volts - 9.0) < 1e-6);
+	}
+	// Withdrawn while waiting: the spare can be filled again
+	{
+		Rig r;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		fillConstant(r, 9.f);
+		r.eng.requestLoad(true);
+		r.step();
+		assert(r.eng.cancelWaitingLoad() && !r.eng.loadPending());
+		assert(!r.eng.cancelWaitingLoad());
+	}
+	// Nothing playing (no take): loads at once
+	{
+		Rig r;
+		r.step();
+		fillConstant(r, 9.f);
+		r.eng.requestLoad(true);
+		r.step();
+		assert(!r.eng.loadPending() && r.eng.loadsTaken() == 1);
+	}
+	// REC drops a waiting load
+	{
+		Rig r;
+		r.load(-5.f, 5.f, 2000, TakeMode::Sync, 1.0, 2.0);
+		uint32_t taken = r.eng.loadsTaken();
+		fillConstant(r, 9.f);
+		r.eng.requestLoad(true);
+		r.step();
+		r.c.rec = true;
+		r.step();
+		assert(!r.eng.loadPending() && r.eng.loadsTaken() == taken);
+	}
+}
+
 int main() {
 	onceSwitchFinishesPass();
+	loadWaitsForCycleEnd();
 	reversePlayhead();
 	noFalseEoc();
 	freeOnce();

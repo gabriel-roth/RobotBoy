@@ -37,7 +37,7 @@ Lyrebird’s controls are divided into four groups.
 - **REVERSE:** the button or a gate plays the take backward while held (see [**Settings**](#settings)).
 - **FILE:**
     - **SAVE** (the center FILE button)**:** saves the take to the current folder.
-    - **‹ ›:** load the previous or next WAV file in the current folder.
+    - **‹ ›:** load the previous or next WAV file in the current folder. By default, changes take effect immediately (see [**Settings**](#settings)).
 
 ### OUT
 
@@ -63,6 +63,7 @@ If you save a patch, the active take is also stored in the patch.
 - **Reverse button:** **Press** (default) or **Latch** (each press toggles direction).
 - **Start recording (Free):** **On press** (default) or **On first movement** (arms, then starts when the source moves). When Sync is enabled, recording always waits for the grid (see **Sync**).
 - **Idle output:** what OUT holds between Once passes: **0 V** (default), **Last value**, or **First value**.
+- **File changes:** **Immediately** (default) or **At end of cycle**: a file opened or stepped to waits for the loop to wrap or the Once pass to end, its name blinking dimly on the display. With nothing playing it loads at once; RECORD cancels it.
 - **Clock pulses per cycle:** pulses per bar at the CLOCK input: 1, 2, 4, 8, 16, 24, 32, 48, or 96 (default 4).
 - **Open…, Save as…:** file dialogs.
 - **Undo last take:** swaps back to the take before the last record, punch, or file load.
