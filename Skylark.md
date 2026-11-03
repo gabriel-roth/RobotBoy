@@ -73,6 +73,7 @@ The display shows one cycle of the waveform at OUT, with a playhead. The header 
 - **Clock pulses per cycle:** 1, 2, 4, 8, 16, 24, 32, 48, or 96 (default 4).
 - **CV and feedback:** **Continuous** (default) or **Sample once per cycle**.
 - **Shape changes:** **Immediately** (default) or **At end of cycle**.
+- **Speed changes:** **At end of cycle** (default) or **Immediately**.
 
 ---
 <a id="shapes"> </a>

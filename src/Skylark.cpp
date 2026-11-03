@@ -137,6 +137,8 @@ struct Skylark : Module {
 	bool cvPerCycle = false;
 	// A new shape waits for the end of the cycle
 	bool shapeAtCycleEnd = false;
+	// A new SPEED waits for a cycle start it shares with the old one
+	bool speedAtCycleEnd = true;
 	int heldShape = 0;
 
 	shapes::Timebase timebase;
@@ -225,6 +227,7 @@ struct Skylark : Module {
 		settings.reset();
 		cvPerCycle = false;
 		shapeAtCycleEnd = false;
+		speedAtCycleEnd = true;
 	}
 
 	float cv(int input) {
@@ -310,6 +313,7 @@ struct Skylark : Module {
 		down |= speedDownCv.process(cv(SPEED_DOWN_INPUT), 0.1f, 1.f);
 		bool up = speedUpTrigger.process(params[SPEED_UP_PARAM].getValue() > 0.5f);
 		up |= speedUpCv.process(cv(SPEED_UP_INPUT), 0.1f, 1.f);
+		speed.setImmediate(!speedAtCycleEnd);
 		if (down)
 			speed.setTarget(speed.targetOctaves() - 1);
 		if (up)
@@ -374,6 +378,7 @@ struct Skylark : Module {
 		settings.toJson(rootJ);
 		json_object_set_new(rootJ, "cvPerCycle", json_boolean(cvPerCycle));
 		json_object_set_new(rootJ, "shapeAtCycleEnd", json_boolean(shapeAtCycleEnd));
+		json_object_set_new(rootJ, "speedAtCycleEnd", json_boolean(speedAtCycleEnd));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		json_object_set_new(rootJ, "shape", json_integer((int) std::round(params[SHAPE_PARAM].getValue())));
 		return rootJ;
@@ -388,6 +393,8 @@ struct Skylark : Module {
 		cvPerCycle = j && json_is_true(j);
 		j = json_object_get(rootJ, "shapeAtCycleEnd");
 		shapeAtCycleEnd = j && json_is_true(j);
+		j = json_object_get(rootJ, "speedAtCycleEnd");
+		speedAtCycleEnd = !j || json_is_true(j);
 		j = json_object_get(rootJ, "speed");
 		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
 		// Missing (a patch from when SHAPE was a knob): the saved param stands
@@ -587,6 +594,11 @@ struct SkylarkWidget : ModuleWidget {
 			[=]() { return module->shapeAtCycleEnd ? 1 : 0; },
 			[=](int i) {
 				withMenuUndo(module, "set shape change timing", [=]() { module->shapeAtCycleEnd = i == 1; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Speed changes", {"Immediately", "At end of cycle"},
+			[=]() { return module->speedAtCycleEnd ? 1 : 0; },
+			[=](int i) {
+				withMenuUndo(module, "set speed change timing", [=]() { module->speedAtCycleEnd = i == 1; });
 			}));
 	}
 };
