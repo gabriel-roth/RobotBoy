@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <string>
@@ -23,6 +24,68 @@ inline const std::vector<std::string> kWeaverMetaModuleFolders = {
 // Written beside the factory presets once they're in a folder, so deleting
 // them all doesn't bring them back
 inline const char* const kFactoryMarker = ".weaver-factory-presets";
+
+// Bump when a factory preset changes: a folder written by an older version
+// gets the new files, except ones the user has edited or deleted
+inline constexpr int kFactoryPresetsVersion = 2;
+
+// FNV-1a, to tell whether a factory file is still as Weaver wrote it
+inline uint32_t textHash(const std::string& s) {
+	uint32_t h = 2166136261u;
+	for (char c : s)
+		h = (h ^ (uint8_t) c) * 16777619u;
+	return h;
+}
+
+// The marker's contents: the version that wrote the factory files and each
+// file's hash as written. 0 is never a match, so that file is left alone.
+struct FactoryMarker {
+	int version = 1;  // version 1 markers have no version line and no hashes
+	std::vector<std::pair<std::string, uint32_t>> files;
+};
+
+inline std::string formatFactoryMarker(const FactoryMarker& m) {
+	std::string s = "Weaver's factory presets were written to this folder.\nversion " + std::to_string(m.version) + "\n";
+	char hex[16];
+	for (const auto& f : m.files) {
+		snprintf(hex, sizeof hex, "%08x ", (unsigned) f.second);
+		s += hex + f.first + "\n";
+	}
+	return s;
+}
+
+inline FactoryMarker parseFactoryMarker(const std::string& text) {
+	FactoryMarker m;
+	size_t start = 0;
+	while (start < text.size()) {
+		size_t end = text.find('\n', start);
+		if (end == std::string::npos)
+			end = text.size();
+		std::string line = text.substr(start, end - start);
+		start = end + 1;
+		if (line.compare(0, 8, "version ") == 0) {
+			m.version = atoi(line.c_str() + 8);
+		} else if (line.size() > 9 && line[8] == ' ' && std::all_of(line.begin(), line.begin() + 8, [](char c) {
+			           return std::isxdigit((unsigned char) c);
+		           })) {
+			m.files.emplace_back(line.substr(9), (uint32_t) strtoul(line.substr(0, 8).c_str(), nullptr, 16));
+		}
+	}
+	return m;
+}
+
+// Whether to write a factory preset's file into a folder whose marker is
+// older: a file still as written is replaced, a missing one only if the
+// marker doesn't list it (a new factory preset), an edited one never. Version 1
+// came before release and has no hashes; its files are taken as unedited.
+inline bool shouldWriteFactoryFile(const FactoryMarker& m, const std::string& file, bool exists, uint32_t hashNow) {
+	if (m.version <= 1)
+		return exists;
+	for (const auto& f : m.files)
+		if (f.first == file)
+			return exists && f.second != 0 && f.second == hashNow;
+	return !exists;
+}
 
 // "sdc:/" or "sdc:": the factory presets are never written to a volume root
 inline bool isVolumeRoot(const std::string& p) {

@@ -50,11 +50,34 @@ static void roots() {
 	assert(!isVolumeRoot(""));
 }
 
+static void factoryMarker() {
+	// Version 1 markers are one line with no version and no hashes
+	FactoryMarker v1 = parseFactoryMarker("Weaver's factory presets were written to this folder.\n");
+	assert(v1.version == 1 && v1.files.empty());
+	assert(shouldWriteFactoryFile(v1, "01 Sine.json", true, 123));
+	assert(!shouldWriteFactoryFile(v1, "01 Sine.json", false, 0));
+
+	FactoryMarker m;
+	m.version = 2;
+	m.files = {{"01 Envelope + triangle x16.json", textHash("as written")}, {"02 Deleted.json", 0x0000abcd},
+	           {"03 Edited.json", 0}};
+	FactoryMarker r = parseFactoryMarker(formatFactoryMarker(m));
+	assert(r.version == 2 && r.files == m.files);
+	assert(shouldWriteFactoryFile(r, "01 Envelope + triangle x16.json", true, textHash("as written")));
+	assert(!shouldWriteFactoryFile(r, "01 Envelope + triangle x16.json", true, textHash("edited")));
+	assert(!shouldWriteFactoryFile(r, "02 Deleted.json", false, 0));
+	assert(!shouldWriteFactoryFile(r, "03 Edited.json", true, 0));
+	assert(shouldWriteFactoryFile(r, "16 New preset.json", false, 0));
+	assert(!shouldWriteFactoryFile(r, "16 New preset.json", true, 1));
+	assert(textHash("a") != textHash("b"));
+}
+
 int main() {
 	presetFiles();
 	nextNames();
 	factoryNames();
 	roots();
+	factoryMarker();
 	printf("weaver preset file tests passed\n");
 	return 0;
 }

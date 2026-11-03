@@ -999,7 +999,7 @@ static const char* algorithmNameOf(int a) {
 
 // Waves, ratios and the algorithm go by name, so a file still loads if
 // their order changes
-static bool writePresetFile(const std::string& path, const PresetEntry& p) {
+static std::string presetText(const PresetEntry& p) {
 	json_t* rootJ = json_object();
 	json_object_set_new(rootJ, "weaverPreset", json_integer(1));
 	json_object_set_new(rootJ, "algorithm", json_string(algorithmNameOf(p.controls.algorithm)));
@@ -1019,17 +1019,36 @@ static bool writePresetFile(const std::string& path, const PresetEntry& p) {
 	json_object_set_new(rootJ, "operators", opsJ);
 	char* text = json_dumps(rootJ, JSON_INDENT(2) | JSON_REAL_PRECISION(9));
 	json_decref(rootJ);
-	if (!text)
-		return false;
-	FILE* f = std::fopen(path.c_str(), "wb");
-	bool ok = false;
-	if (f) {
-		size_t n = strlen(text);
-		ok = std::fwrite(text, 1, n, f) == n;
-		ok = std::fclose(f) == 0 && ok;
-	}
+	std::string s = text ? text : "";
 	std::free(text);
-	return ok;
+	return s;
+}
+
+static bool writeText(const std::string& path, const std::string& text) {
+	FILE* f = std::fopen(path.c_str(), "wb");
+	if (!f)
+		return false;
+	bool ok = std::fwrite(text.data(), 1, text.size(), f) == text.size();
+	return std::fclose(f) == 0 && ok;
+}
+
+// At most 64 KB, which is far more than any preset
+static bool readText(const std::string& path, std::string& text) {
+	FILE* f = std::fopen(path.c_str(), "rb");
+	if (!f)
+		return false;
+	text.clear();
+	char buf[1024];
+	size_t n;
+	while ((n = std::fread(buf, 1, sizeof buf, f)) > 0 && text.size() < 65536)
+		text.append(buf, n);
+	std::fclose(f);
+	return true;
+}
+
+static bool writePresetFile(const std::string& path, const PresetEntry& p) {
+	std::string text = presetText(p);
+	return !text.empty() && writeText(path, text);
 }
 
 static double numberIn(json_t* objJ, const char* key, double lo, double hi, bool& ok) {
@@ -1049,15 +1068,9 @@ static const char* stringIn(json_t* objJ, const char* key) {
 // False for anything that isn't a whole preset (a deleted one on MetaModule
 // is an empty file)
 static bool readPresetFile(const std::string& path, PresetEntry& p) {
-	FILE* f = std::fopen(path.c_str(), "rb");
-	if (!f)
-		return false;
 	std::string text;
-	char buf[1024];
-	size_t n;
-	while ((n = std::fread(buf, 1, sizeof buf, f)) > 0 && text.size() < 65536)
-		text.append(buf, n);
-	std::fclose(f);
+	if (!readText(path, text))
+		return false;
 	json_error_t error;
 	json_t* rootJ = json_loads(text.c_str(), 0, &error);
 	if (!rootJ)
@@ -1097,18 +1110,44 @@ static PresetEntry factoryEntry(int n) {
 	return p;
 }
 
-// The factory presets as files, and the marker that says they've been written
-static bool writeFactoryPresets(const std::string& dir) {
+// The factory presets as files, and the marker that says they've been written.
+// With an older marker, only the files shouldWriteFactoryFile() picks.
+static bool writeFactoryPresets(const std::string& dir, const shapes::FactoryMarker* older = nullptr) {
 	bool ok = true;
+	shapes::FactoryMarker m;
+	m.version = shapes::kFactoryPresetsVersion;
 	for (int n = 0; n < shapes::kNumWeaverPresets; n++) {
 		PresetEntry p = factoryEntry(n);
-		ok = writePresetFile(system::join(dir, p.name + ".json"), p) && ok;
+		std::string file = p.name + ".json", path = system::join(dir, file), now;
+		// A deleted preset on MetaModule is an empty file
+		bool exists = readText(path, now) && !now.empty();
+		uint32_t hash = 0;
+		if (older)
+			for (const auto& f : older->files)
+				if (f.first == file)
+					hash = f.second;
+		if (!older || shapes::shouldWriteFactoryFile(*older, file, exists, shapes::textHash(now))) {
+			std::string text = presetText(p);
+			bool written = !text.empty() && writeText(path, text);
+			ok = written && ok;
+			hash = written ? shapes::textHash(text) : 0;
+		}
+		m.files.emplace_back(file, hash);
 	}
-	FILE* f = std::fopen(system::join(dir, shapes::kFactoryMarker).c_str(), "wb");
-	if (!f)
+	return writeText(system::join(dir, shapes::kFactoryMarker), shapes::formatFactoryMarker(m)) && ok;
+}
+
+// Brings a folder's factory files up to date if an older Weaver wrote them;
+// true if it did
+static bool updateFactoryPresets(const std::string& dir) {
+	std::string text;
+	if (!readText(system::join(dir, shapes::kFactoryMarker), text))
 		return false;
-	std::fputs("Weaver's factory presets were written to this folder.\n", f);
-	return std::fclose(f) == 0 && ok;
+	shapes::FactoryMarker m = shapes::parseFactoryMarker(text);
+	if (m.version >= shapes::kFactoryPresetsVersion)
+		return false;
+	writeFactoryPresets(dir, &m);
+	return true;
 }
 
 static std::string defaultPresetFolder() {
@@ -1142,6 +1181,8 @@ void Weaver::scanPresets() {
 	auto hasMarker = [&]() { return std::find(names.begin(), names.end(), shapes::kFactoryMarker) != names.end(); };
 	if (!dir.empty() && !hasMarker() && !shapes::isVolumeRoot(dir) && dir == defaultPresetFolder()) {
 		writeFactoryPresets(dir);
+		names = fileNames(dir);
+	} else if (!dir.empty() && hasMarker() && !shapes::isVolumeRoot(dir) && updateFactoryPresets(dir)) {
 		names = fileNames(dir);
 	}
 	presets.clear();
