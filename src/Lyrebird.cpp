@@ -140,7 +140,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 	shapes::RecordButtons recordButtons = shapes::RecordButtons::Toggle;
 	shapes::RecordButtons reverseButton = shapes::RecordButtons::Hold;
 	shapes::StartOn startOn = shapes::StartOn::Press;
-	shapes::IdleOutput idleOutput = shapes::IdleOutput::Last;
+	shapes::IdleOutput idleOutput = shapes::IdleOutput::Zero;
 	int pulsesPerCycle = 4;
 	bool reversed = false;  // REVERSE's latched state when its button toggles
 	// The folder of the last file opened or saved; empty until one is
@@ -340,7 +340,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		reverseButton = shapes::RecordButtons::Hold;
 		reversed = false;
 		startOn = shapes::StartOn::Press;
-		idleOutput = shapes::IdleOutput::Last;
+		idleOutput = shapes::IdleOutput::Zero;
 		pulsesPerCycle = 4;
 	}
 
@@ -610,7 +610,7 @@ struct Lyrebird : Module, MenuUndoFilter {
 		recordButtons = (shapes::RecordButtons) intOf(rootJ, "recordButtons", 0, 1, 0);
 		reverseButton = (shapes::RecordButtons) intOf(rootJ, "reverseButton", 0, 1, 1);
 		startOn = (shapes::StartOn) intOf(rootJ, "startOn", 0, 1, 0);
-		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 0);
+		idleOutput = (shapes::IdleOutput) intOf(rootJ, "idleOutput", 0, 2, 2);
 		json_t* j = json_object_get(rootJ, "pulsesPerCycle");
 		pulsesPerCycle = shapeui::validPulses(j ? (int) json_integer_value(j) : 4);
 		// Time and Play were menu settings before they were switches: a patch

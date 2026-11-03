@@ -18,6 +18,8 @@ struct Rig {
 		eng.setSampleRate(kSr);
 		tb.setSampleRate(kSr);
 		in.bpm = 120.0;
+		// The tests that rest after a Once pass expect the last value
+		c.idle = IdleOutput::Last;
 	}
 	// resetNow fires TRIG on this sample
 	LyrebirdStep step(bool resetNow = false) {

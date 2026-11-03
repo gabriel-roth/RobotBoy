@@ -31,7 +31,7 @@ struct LyrebirdControls {
 	bool punch = false;  // button OR gate, level
 	RecordButtons buttons = RecordButtons::Toggle;
 	StartOn startOn = StartOn::Press;
-	IdleOutput idle = IdleOutput::Last;
+	IdleOutput idle = IdleOutput::Zero;
 };
 
 struct LyrebirdStep {
