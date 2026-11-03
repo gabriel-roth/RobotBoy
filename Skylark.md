@@ -15,7 +15,7 @@ Skylark is one of Robot Boy’s three complex modulators, with [Weaver](Weaver.m
 ### Shape
 
 - **SHAPE:** the **‹ ›** buttons step through the shapes (see [**Shapes**](#shapes)). SHAPE CV offsets the selection, with 10 V spanning all 18 shapes. By default, changes take effect immediately (see [**Settings**](#settings)).
-- **VARIATION:** sweeps the shape through a series of changes. 0–100%, default 50%.
+- **VARIATION:** sweeps the shape through a series of changes, 0–100%. Default is 50%.
 
 ### Transforms
 
@@ -38,7 +38,7 @@ By default, CV and feedback are followed continuously; they can instead be sampl
 
 ### Timing
 
-- **CLOCK:** sets the tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
+- **CLOCK:** sets the tempo in BPM; default is 120. A clock signal at the input overrides the knob.
 - **RESET:** returns to the start of the cycle and restarts the DRIFT and random sequences, so the same cycles play again. With a clock patched, it waits for the next clock pulse.
 - **SPEED:** sets the cycle rate, from 1/4 to x4.
     - The left button and trigger input halve the cycle rate.

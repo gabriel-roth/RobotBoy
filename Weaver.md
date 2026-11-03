@@ -83,7 +83,7 @@ A preset sets every operator control and the algorithm; tempo, SPEED, CV trimpot
 
 ### Timing
 
-- **CLOCK:** sets the tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
+- **CLOCK:** sets the tempo in BPM; default is 120. A clock signal at the input overrides the knob.
 - **RESET:** returns to the start of the cycle and realigns the operators. With a clock patched, it waits for the next clock pulse.
 - **SPEED:** sets the cycle rate, from 1/4 to x4.
     - The left button and trigger input halve the cycle rate.

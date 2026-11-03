@@ -31,7 +31,7 @@ Lyrebird’s controls are divided into four groups.
 ### PLAY
 
 - **LOOP / ONCE:** **Loop** (default) plays the take repeatedly; **Once** plays once.
-- **SPEED:** sets the playback rate, from 1/4 to x4, default x1. In Sync it snaps to powers of two to stay on the bar. SPEED CV is 1 V/octave.
+- **SPEED:** sets the playback rate, from 1/4 to x4. Default is x1. In Sync it snaps to powers of two to stay on the bar. SPEED CV is 1 V/octave.
 - **SMOOTH:** smooths playback, up to a 1 s window, without lag. The recording itself is unchanged.
 - **TRIG:** the button or a trigger restarts the take and the bar count. In Once, it plays a pass. With a clock patched, it waits for the next clock pulse.
 - **REVERSE:** the button or a gate plays the take backward while held (see [**Settings**](#settings)).
