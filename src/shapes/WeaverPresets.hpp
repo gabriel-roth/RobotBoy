@@ -34,8 +34,8 @@ inline constexpr WeaverPreset kWeaverPresets[kNumWeaverPresets] = {
 	{"Breathing triangle", {{detail::op(Triangle, 6, 0.5, 1), detail::op(Sine, 3, 0.5, 0.8), detail::op(Sine, 3, 0.5, 0)}, Bend}},
 	{"Phase-bent sine", {{detail::op(Sine, 3, 0.5, 1), detail::op(Triangle, 5, 0.5, 0.8), detail::op(SmoothRandom, 4, 0.0, 0.15)}, Bend}},
 	{"Max with random steps", {{detail::op(Sine, 3, 0.3, 1), detail::op(Triangle, 5, 0.8, 0.8), detail::op(SteppedRandom, 4, 0.2, 0.25)}, Max}},
-	{"Random accents, fading", {{detail::op(Sine, 12, 0.5, 1), detail::op(SteppedRandom, 3, 0.2, 0.6), detail::op(Envelope, 3, 0.02, 0.5)}, Scale2}},
-	{"Random stutter", {{detail::op(Triangle, 13, 0.5, 1), detail::op(SteppedRandom, 4, 0.2, 0.5), detail::op(Sine, 3, 0.5, 0)}, Gate}},
+	{"Random accents, fading", {{detail::op(Sine, 12, 0.5, 1), detail::op(SteppedRandom, 3, 0.2, 0.6), detail::op(Envelope, 3, 0.02, 1)}, Scale2}},
+	{"Random stutter", {{detail::op(Triangle, 13, 0.5, 1), detail::op(SteppedRandom, 4, 0.2, 1), detail::op(Sine, 3, 0.5, 0)}, Gate}},
 	{"Random swell", {{detail::op(SmoothRandom, 6, 0.0, 1), detail::op(SteppedRandom, 4, 0.2, 0.5), detail::op(Sine, 12, 0.5, 0.2)}, Mix}},
 };
 

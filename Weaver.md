@@ -69,7 +69,7 @@ The **ALGORITHM** **‹ ›** buttons step through the algorithms that combine t
 | XFADE | (A,B) xfaded by C | C crossfades between A and B. |
 | FOLD | fold(A+B)+C | A+B wavefolded, offset by C. |
 | S&H | (A sampled by B) + C | A held each time B starts a cycle, offset by C. (An Input’s cycle starts at each rising zero crossing.) |
-| GATE | (A gated by B) + C | A passes while B is high, offset by C. (B’s LEVEL sets the threshold.) |
+| GATE | (A gated by B) + C | A passes while B reaches half of full scale, offset by C. |
 
 ### Presets
 

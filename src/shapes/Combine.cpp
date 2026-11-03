@@ -11,6 +11,7 @@ namespace shapes {
 namespace {
 
 constexpr double kTau = 2.0 * M_PI;
+constexpr double kGateThreshold = 0.5;
 
 const double kRatioValues[kNumRatios] = {0.125, 0.25, 0.5, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 24, 32};
 const char* const kRatioLabels[kNumRatios] = {"1/8", "1/4", "1/2", "x1", "x2", "x3", "x4", "x5", "x6", "x7", "x8", "x12", "x16", "x24", "x32"};
@@ -54,10 +55,11 @@ double uni(double rv, Wave w) {
 	return w == Input ? std::clamp(u, 0.0, 1.0) : u;
 }
 
-// Positive depth pulls toward zero at the modulator's low points; negative
-// depth at its high points.
-double depthMod(double rv, Wave w, double d) {
-	return d >= 0.0 ? 1.0 - d * (1.0 - uni(rv, w)) : 1.0 + d * uni(rv, w);
+// A gain from an operator at its LEVEL: the scaled wave moved to 0..1, so
+// LEVEL 0 gives a steady half. The envelope is already unipolar and isn't moved.
+double gainOf(double rv, Wave w, double level) {
+	double g = w == Envelope ? rv * level : (1.0 + rv * level) / 2.0;
+	return w == Input ? std::clamp(g, 0.0, 1.0) : g;
 }
 
 int clampRatio(int index) {
@@ -74,23 +76,18 @@ double mix(const CombineControls& c, const double* r, double bentA, double heldA
 	double y;
 	switch (c.algorithm) {
 		case Mix: y = sa + sb + sc; break;
-		case Scale: y = sa * depthMod(r[1], B.wave, B.level) + sc; break;
-		case Scale2: y = sa * depthMod(r[1], B.wave, B.level) * depthMod(r[2], C.wave, C.level); break;
+		case Scale: y = sa * gainOf(r[1], B.wave, B.level) + sc; break;
+		case Scale2: y = sa * gainOf(r[1], B.wave, B.level) * gainOf(r[2], C.wave, C.level); break;
 		case Ring: y = sa * sb + sc; break;
 		case Bend: y = bentA * A.level + sc; break;
 		case Max: y = std::max(sa, sb) + sc; break;
 		case Min: y = std::min(sa, sb) + sc; break;
-		// C's LEVEL narrows the sweep around the midpoint; negative reverses it
+		// C at its LEVEL sweeps around the midpoint; negative reverses it
 		case Xfade: y = lerp(sa, sb, uni(r[2], C.wave) * C.level + (1.0 - C.level) * 0.5); break;
 		case Fold: y = foldTri(sa + sb) + sc; break;
 		case SampleHold: y = heldA * A.level + sc; break;
-		// B's LEVEL is a threshold across B's range: A passes while B is at or
-		// above it, or with negative LEVEL at or below its mirror; 0 always passes
-		case Gate: {
-			double u = uni(r[1], B.wave);
-			y = ((B.level >= 0.0 ? u : 1.0 - u) >= std::fabs(B.level) ? sa : 0.0) + sc;
-			break;
-		}
+		// A passes while B at its LEVEL is at or above the threshold
+		case Gate: y = (sb >= kGateThreshold ? sa : 0.0) + sc; break;
 		default: y = sa + sb + sc;
 	}
 	return y;

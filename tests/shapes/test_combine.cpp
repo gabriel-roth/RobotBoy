@@ -102,11 +102,14 @@ static void presetsMatchReference() {
 		check(c.algorithm == (Algorithm) (int) v[15], "preset algorithm", n);
 		check(v[16] == 0.0, "preset window", n);
 
+		// The prototype used LEVEL as depth in these; Weaver uses it as amplitude,
+		// so only the operators are compared
+		bool sameAlgorithm = c.algorithm != Scale && c.algorithm != Scale2 && c.algorithm != Gate;
 		CombineEngine e;
 		e.setSampleRate(48000.0);
 		for (int k = 0; k < 129; k++) {
 			CombineFrame f = e.process(c, k / 64.0 * T, false);
-			if (!(std::fabs(f.result - ref::presetRaw[m][k]) <= 1e-6)) {
+			if (sameAlgorithm && !(std::fabs(f.result - ref::presetRaw[m][k]) <= 1e-6)) {
 				if (failures < 20)
 					std::printf("  preset %d k %d: got %.17g want %.17g\n", n, k, f.result, ref::presetRaw[m][k]);
 				failures++;
@@ -419,7 +422,7 @@ static void hotInputDoesNotOvershoot() {
 	check(std::fabs(g.process(x, 0.25, false).result - sa2) <= 1e-12, "xfade clamped at A");
 }
 
-static void xfadeAndGateFollowLevelSign() {
+static void algorithmsFollowLevel() {
 	// A = +1 and B = -1 nearly all cycle; the controlling operator is a ramp,
 	// so its 0..1 value at time t is t
 	CombineControls c = quiet();
@@ -445,16 +448,25 @@ static void xfadeAndGateFollowLevelSign() {
 	c.op[0].level = 1.0;
 	c.op[1].wave = RampUp;
 	c.algorithm = Gate;
-	c.op[1].level = 0.5;
-	check(e.resultAt(c, 0.4, false) == 0.0, "gate closed below threshold");
-	check(e.resultAt(c, 0.6, false) == 1.0, "gate open above threshold");
-	c.op[1].level = -0.5;
-	check(e.resultAt(c, 0.4, false) == 1.0, "negative level opens below");
-	check(e.resultAt(c, 0.6, false) == 0.0, "negative level closes above");
-	c.op[1].level = 0.0;
-	check(e.resultAt(c, 0.01, false) == 1.0, "gate level 0 always open");
 	c.op[1].level = 1.0;
-	check(e.resultAt(c, 0.9, false) == 0.0, "gate level 1 opens only at B's peak");
+	check(e.resultAt(c, 0.7, false) == 0.0, "gate closed below half scale");
+	check(e.resultAt(c, 0.8, false) == 1.0, "gate open above half scale");
+	c.op[1].level = -1.0;
+	check(e.resultAt(c, 0.2, false) == 1.0, "negative level opens on B's low part");
+	check(e.resultAt(c, 0.3, false) == 0.0, "negative level closes above");
+	c.op[1].level = 0.5;
+	check(e.resultAt(c, 0.95, false) == 0.0, "gate at half level never reaches the threshold");
+	c.op[1].level = 0.0;
+	check(e.resultAt(c, 0.99, false) == 0.0, "gate level 0 stays closed");
+
+	// Scale: B at its LEVEL, moved to 0..1, is A's gain
+	c.algorithm = Scale;
+	c.op[1].level = 1.0;
+	check(std::fabs(e.resultAt(c, 0.9, false) - 0.9) <= 1e-9, "scale follows B");
+	c.op[1].level = -1.0;
+	check(std::fabs(e.resultAt(c, 0.9, false) - 0.1) <= 1e-9, "negative level inverts B");
+	c.op[1].level = 0.0;
+	check(std::fabs(e.resultAt(c, 0.9, false) - 0.5) <= 1e-9, "scale level 0 is a steady half");
 }
 
 static void displayAccessorsMatchProcess() {
@@ -636,7 +648,7 @@ int main() {
 	outputsAreFinite();
 	reverseMirrorsTime();
 	hotInputDoesNotOvershoot();
-	xfadeAndGateFollowLevelSign();
+	algorithmsFollowLevel();
 	displayAccessorsMatchProcess();
 	presetsAreAscii();
 	presetMatchFindsDefault();
