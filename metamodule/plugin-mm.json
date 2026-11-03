@@ -43,6 +43,12 @@
     { "slug": "Lucarne", "name": "Lucarne", "displayName": "Lucarne",
       "names": { "Display 0": "Display" } },
     { "slug": "Skylark", "name": "Skylark", "displayName": "Skylark",
+      "order": ["Previous shape", "Next shape", "Variation", "Variation CV amount",
+                "Timing", "Lift", "Symmetry", "Tilt", "Drift",
+                "Timing CV amount", "Lift CV amount", "Symmetry CV amount", "Tilt CV amount", "Drift CV amount",
+                "Tempo", "Reset", "Half speed", "Double speed", "Speed x1",
+                "Shape CV In", "Variation CV In", "Timing CV In", "Lift CV In", "Symmetry CV In", "Tilt CV In", "Drift CV In",
+                "Clock In", "Reset In", "Half speed In", "Double speed In", "End of cycle Out", "Main Out"],
       "names": { "Display 0": "Display" } },
     { "slug": "Weaver", "name": "Weaver", "displayName": "Weaver",
       "groups": {
@@ -50,6 +56,11 @@
         "Operator B": ["B ratio", "B wave", "B param", "B phase", "B level", "B param CV amount", "B phase CV amount", "B level CV amount", "B trace on the display", "B ratio CV In", "B param CV In", "B phase CV In", "B level CV In", "Operator B Out", "Display 3", "Display 6"],
         "Operator C": ["C ratio", "C wave", "C param", "C phase", "C level", "C param CV amount", "C phase CV amount", "C level CV amount", "C trace on the display", "C ratio CV In", "C param CV In", "C phase CV In", "C level CV In", "Operator C Out", "Display 4", "Display 7"]
       },
+      "order": ["Operator A", "Operator B", "Operator C",
+                "Previous algorithm", "Next algorithm", "Previous preset", "Next preset", "Save preset", "Delete preset",
+                "Tempo", "Reset", "Half speed", "Double speed", "Speed x1",
+                "Clock In", "Reset In", "Half speed In", "Double speed In", "Algorithm CV In",
+                "End of cycle Out", "Inverted Out", "Main Out"],
       "names": {
         "A ratio": "Ratio",
         "A wave": "Wave",
@@ -104,7 +115,11 @@
       }
     },
     { "slug": "Lyrebird", "name": "Lyrebird", "displayName": "Lyrebird",
-      "names": { "Display 1": "Display" } }
+      "order": ["Gesture", "Record", "Punch in", "Tempo", "Length", "Time",
+                "Save", "Previous file", "Next file", "Speed", "Smooth", "Play", "Trigger", "Reverse",
+                "CV In", "Record gate In", "Punch gate In", "Clock In", "Previous file In", "Next file In",
+                "Speed CV In", "Smooth CV In", "Trigger In", "Reverse gate In", "End of cycle Out", "Main Out"],
+      "names": { "Time": "Record mode", "Save": "Save file", "Play": "Play mode", "Display 1": "Display" } }
 
   ]
 }
