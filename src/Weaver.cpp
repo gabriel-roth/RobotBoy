@@ -268,6 +268,9 @@ struct Weaver : Module {
 	// A new ratio waits for a cycle start where it stays lined up with the
 	// cycle (see holdRatios()), and a new SPEED for one the clock shares
 	bool speedRatioAtCycleEnd = true;
+	// With a clock, RESET waits for the next pulse; off, it acts at once and
+	// the cycle keeps that offset from the clock
+	bool resetOnPulse = true;
 	int heldRatios[3] = {};
 	int chosenRatios[3] = {};
 	// The main display leaves out operators at LEVEL 0
@@ -422,6 +425,8 @@ struct Weaver : Module {
 		settings.reset();
 		algorithmAtCycleEnd = false;
 		speedRatioAtCycleEnd = true;
+		resetOnPulse = true;
+		timebase.setClockOffset(0.0);
 		newLoopOnReset = true;
 		hideZeroLevelTraces = false;
 	}
@@ -580,6 +585,7 @@ struct Weaver : Module {
 		tin.clockVoltage = cv(CLOCK_INPUT);
 		tin.resetVoltage = cv(RESET_INPUT);
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
+		tin.resetOnPulse = resetOnPulse;
 		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
 		// From here on a cycle is SPEED's
@@ -804,6 +810,8 @@ struct Weaver : Module {
 		json_object_set_new(rootJ, "algorithm", json_integer(algorithm));
 		json_object_set_new(rootJ, "algorithmAtCycleEnd", json_boolean(algorithmAtCycleEnd));
 		json_object_set_new(rootJ, "speedRatioAtCycleEnd", json_boolean(speedRatioAtCycleEnd));
+		json_object_set_new(rootJ, "resetOnPulse", json_boolean(resetOnPulse));
+		json_object_set_new(rootJ, "clockOffset", json_real(timebase.clockOffset()));
 		json_object_set_new(rootJ, "hideZeroLevelTraces", json_boolean(hideZeroLevelTraces));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		json_object_set_new(rootJ, "presetFolder", json_string(folder.get().c_str()));
@@ -842,6 +850,10 @@ struct Weaver : Module {
 		algorithmAtCycleEnd = j && json_is_true(j);
 		j = json_object_get(rootJ, "speedRatioAtCycleEnd");
 		speedRatioAtCycleEnd = !j || json_is_true(j);
+		j = json_object_get(rootJ, "resetOnPulse");
+		resetOnPulse = !j || json_is_true(j);
+		j = json_object_get(rootJ, "clockOffset");
+		timebase.setClockOffset(j && json_is_number(j) ? json_number_value(j) : 0.0);
 		j = json_object_get(rootJ, "newLoopOnReset");
 		newLoopOnReset = !j || json_is_true(j);
 		j = json_object_get(rootJ, "hideZeroLevelTraces");
@@ -1862,6 +1874,11 @@ struct WeaverWidget : ModuleWidget {
 			[=]() { return module->speedRatioAtCycleEnd ? 1 : 0; },
 			[=](int i) {
 				withMenuUndo(module, "set speed and ratio change timing", [=]() { module->speedRatioAtCycleEnd = i == 1; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Reset", {"On clock pulse", "Immediately"},
+			[=]() { return module->resetOnPulse ? 0 : 1; },
+			[=](int i) {
+				withMenuUndo(module, "set reset timing", [=]() { module->resetOnPulse = i == 0; });
 			}));
 		menu->addChild(createBoolMenuItem("New random loops on reset", "",
 			[=]() { return module->newLoopOnReset; },

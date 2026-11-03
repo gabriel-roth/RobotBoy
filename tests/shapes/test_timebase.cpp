@@ -224,25 +224,90 @@ static void cuedResetFiresOnUnplug() {
 	assert(s.reset && s.pos == 0.0);
 }
 
-// Reset on clock pulse off: a reset restarts at once, and the next pulse aligns hard
-static void resetImmediateWithClock() {
+// Reset on clock pulse off: a reset restarts at once and the cycle keeps
+// that offset from the clock's, with no snap back at the next pulse
+static void resetImmediateKeepsOffset() {
 	Timebase tb;
 	tb.setSampleRate(kSr);
+	// 4 ppc at 12000 samples: locked at 240 BPM, 1 cycle a second
 	runClock(tb, 4, 12000, 3 * 48000);
 	TimebaseInput in = bpmInput(120.0);
 	in.clockConnected = true;
 	in.resetOnPulse = false;
-	for (int i = 0; i < 3000; i++)
+	in.clockVoltage = 10.f;
+	tb.process(in);
+	in.clockVoltage = 0.f;
+	for (int i = 0; i < 3000 - 1; i++)
 		tb.process(in);
+	// 3000 samples past a pulse: a sixteenth of a cycle
 	in.resetButton = true;
 	Timebase::Step s = tb.process(in);
 	assert(s.reset && s.pos == 0.0 && s.cycle == 0);
 	in.resetButton = false;
-	for (int i = 0; i < 5000; i++)
+	// Four cycles of pulses: each lands a pulse less a sixteenth on, no jump
+	double prev = 0.0;
+	for (int k = 1; k <= 16; k++) {
+		for (int i = 0; i < 9000 + (k > 1 ? 3000 : 0) - 1; i++) {
+			s = tb.process(in);
+			assert(!s.reset);
+			double step = s.pos - prev + (s.wrapped ? 1.0 : 0.0);
+			assert(step > 0.0 && step < 1e-3);
+			prev = s.pos;
+		}
+		in.clockVoltage = 10.f;
+		s = tb.process(in);
+		double expect = std::fmod(0.25 * k - 0.0625, 1.0);
+		double err = s.pos - expect;
+		err -= std::round(err);
+		assert(std::fabs(err) < 1e-3);
+		double step = s.pos - prev + (s.wrapped ? 1.0 : 0.0);
+		assert(step > 0.0 && step < 1e-3);
+		prev = s.pos;
+		in.clockVoltage = 0.f;
+	}
+}
+
+// A saved offset comes back: the first pulse after a load aligns to it; a
+// replugged clock clears it
+static void clockOffsetRestoresAndReplugClears() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	tb.setClockOffset(0.375);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	for (int i = 0; i < 1000; i++)
 		tb.process(in);
 	in.clockVoltage = 10.f;
+	Timebase::Step s = tb.process(in);
+	assert(std::fabs(s.pos - 0.375) < 1e-3);
+	in.clockVoltage = 0.f;
+	tb.process(in);
+	in.clockConnected = false;
+	tb.process(in);
+	assert(tb.clockOffset() == 0.0);
+	in.clockConnected = true;
+	tb.process(in);
+	in.clockVoltage = 10.f;
 	s = tb.process(in);
-	assert(s.pos < 1e-3 && !s.wrapped);  // aligned to 0, then one sample of advance
+	assert(s.pos < 1e-3);
+}
+
+// An on-pulse reset clears the offset
+static void cuedResetClearsOffset() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	runClock(tb, 4, 12000, 2 * 48000);
+	tb.setClockOffset(0.5);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	for (int i = 0; i < 4000; i++)
+		tb.process(in);
+	in.resetButton = true;
+	tb.process(in);
+	in.resetButton = false;
+	in.clockVoltage = 10.f;
+	assert(tb.process(in).reset);
+	assert(tb.clockOffset() == 0.0);
 }
 
 // Pulse k arrives at times[k] samples; returns per-pulse phase error and max per-sample jump.
@@ -425,7 +490,9 @@ int main() {
 	resetWithClockWaitsForPulse();
 	resetJustAfterPulseIsImmediate();
 	cuedResetFiresOnUnplug();
-	resetImmediateWithClock();
+	resetImmediateKeepsOffset();
+	clockOffsetRestoresAndReplugClears();
+	cuedResetClearsOffset();
 	softLockConvergesWithoutJumps();
 	hardAlignWrapsOnce();
 	clockGapReacquires();

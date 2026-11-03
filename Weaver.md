@@ -84,7 +84,7 @@ A preset sets every operator control and the algorithm; tempo, SPEED, CV trimpot
 ### Timing
 
 - **CLOCK:** sets the tempo in BPM; default is 120. A clock signal at the input overrides the knob.
-- **RESET:** returns to the start of the cycle and realigns the operators. With a clock patched, it waits for the next clock pulse.
+- **RESET:** returns to the start of the cycle and realigns the operators. With a clock patched, by default it waits for the next clock pulse (see [**Settings**](#settings)).
 - **SPEED:** sets the cycle rate, from 1/4 to x4.
     - The left button and trigger input halve the cycle rate.
     - The right button and trigger input double the cycle rate.
@@ -121,6 +121,7 @@ The main display shows one cycle of OUT, with a playhead, and each operator as a
 - **Clock pulses per cycle:** 1, 2, 4, 8, 16, 24, 32, 48, or 96 (default 4).
 - **Algorithm changes:** **Immediately** (default) or **At end of cycle**.
 - **Speed and Ratio change:** **At end of cycle** (default) or **Immediately**.
+- **Reset:** with a clock patched, **On clock pulse** (default) waits for the next pulse; **Immediately** restarts at once, and the cycle stays offset from the clock.
 - **New random loops on reset:** on by default.
 - **Hide traces when operator level at 0:** off by default.
 - **Algorithm** (MetaModule only)**:** choose the algorithm from a list.

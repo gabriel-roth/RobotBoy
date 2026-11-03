@@ -15,6 +15,7 @@ struct TimebaseInput {
 	bool resetButton = false;
 	int pulsesPerCycle = 4;
 	// With a clock, a reset waits for the next pulse; off, it acts at once
+	// and the cycle keeps that offset from the clock's
 	bool resetOnPulse = true;
 };
 
@@ -44,10 +45,20 @@ public:
 		bool resetEdge = jackEdge || buttonEdge;
 		bool cue = in.clockConnected && in.resetOnPulse;
 		if (resetEdge && !cue) {
+			if (in.clockConnected && havePrev) {
+				// The lock carries on, aimed at a grid shifted by how far
+				// past the last pulse the reset came
+				double sincePulse = (double) (sampleCount - lastPulseSample) / sampleRate;
+				double grid = (double) pulseIndex / ppc + std::min(sincePulse * tempo, 1.0 / ppc);
+				phaseOffset = wrap01(-grid);
+			}
+			else {
+				phaseOffset = 0.0;
+				pulseIndex = 0;
+				havePrev = false;  // the next pulse aligns hard
+			}
 			pos = 0.0;
 			cycle = 0;
-			pulseIndex = 0;
-			havePrev = false;  // the next pulse aligns hard
 			s = {0.0, 0, false, true};
 		}
 		// With a clock, a reset waits for the next pulse, so it lands on the
@@ -59,6 +70,7 @@ public:
 			locked = false;
 			havePrev = false;
 			measured = false;
+			phaseOffset = 0.0;
 		}
 		// The BPM setting runs the ramp until a clock has given a tempo
 		if (!measured) {
@@ -81,6 +93,7 @@ public:
 			bool justPulsed = in.clockConnected && havePrev && sincePulse <= kResetWindow;
 			if (pulse || justPulsed || !cue) {
 				resetCued = false;
+				phaseOffset = 0.0;
 				// The pulse's lock nudge was measured against the old phase
 				rate = tempo;
 				pos = cue ? std::min(sincePulse * rate, 0.5) : 0.0;
@@ -125,6 +138,16 @@ public:
 		pulseIndex = 0;
 		havePrev = false;
 		resetCued = false;
+		phaseOffset = 0.0;
+	}
+
+	// Where the cycle starts relative to the clock's, in cycles (0..1), after
+	// an immediate reset; saved with the patch so a reload keeps it
+	double clockOffset() const {
+		return phaseOffset;
+	}
+	void setClockOffset(double offset) {
+		phaseOffset = std::isfinite(offset) ? wrap01(offset) : 0.0;
 	}
 
 private:
@@ -143,10 +166,22 @@ private:
 		}
 	};
 
+	static double wrap01(double x) {
+		x -= std::floor(x);
+		return x >= 1.0 ? 0.0 : x;
+	}
+
+	// Pulse k's place in the cycle
+	double pulseTarget(int k, int ppc) const {
+		return wrap01((double) k / ppc + phaseOffset);
+	}
+
 	// Hard align. A forward jump onto the cycle start counts as the wrap;
-	// a backward jump doesn't, so one boundary never reports twice.
+	// a backward jump doesn't, so one boundary never reports twice. With an
+	// offset the target is anywhere, so a jump of more than half a cycle
+	// back is the forward one.
 	bool alignTo(double target) {
-		bool w = target == 0.0 && pos > 0.5;
+		bool w = phaseOffset == 0.0 ? target == 0.0 && pos > 0.5 : pos - target > 0.5;
 		if (w)
 			cycle++;
 		pos = target;
@@ -165,7 +200,7 @@ private:
 			havePrev = true;
 			locked = false;
 			intervalCount = 0;
-			return alignTo(0.0);
+			return alignTo(pulseTarget(0, ppc));
 		}
 		// The tempo is the average of the last ppc intervals (one cycle's
 		// worth), so a swung clock doesn't wobble the shape or the display
@@ -178,7 +213,7 @@ private:
 			sum += intervals[(intervalWrite - k + kMaxIntervals) % kMaxIntervals];
 		double cycleLen = std::clamp(sum / n * ppc, 0.05, 60.0);
 		pulseIndex = (pulseIndex + 1) % ppc;
-		double expected = (double) pulseIndex / ppc;
+		double expected = pulseTarget(pulseIndex, ppc);
 		if (!locked) {
 			// Second pulse: take the tempo and align hard
 			tempo = 1.0 / cycleLen;
@@ -218,6 +253,7 @@ private:
 	bool measured = false;  // a clock tempo has been read since connecting
 	bool wasConnected = false;
 	bool resetCued = false;  // a reset is waiting for the next clock pulse
+	double phaseOffset = 0.0;  // the clock grid's shift after an immediate reset
 	Schmitt clockGate, resetGate, resetBtn;
 };
 

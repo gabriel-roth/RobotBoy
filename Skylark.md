@@ -74,7 +74,7 @@ The display shows one cycle of the waveform at OUT, with a playhead. The header 
 - **CV and feedback:** **Continuous** (default) or **Sample once per cycle**.
 - **Shape changes:** **Immediately** (default) or **At end of cycle**.
 - **Speed changes:** **At end of cycle** (default) or **Immediately**.
-- **Reset:** with a clock patched, **On clock pulse** (default) or **Immediately**.
+- **Reset:** with a clock patched, **On clock pulse** (default) waits for the next pulse; **Immediately** restarts at once, and the cycle stays offset from the clock.
 
 ---
 <a id="shapes"> </a>
