@@ -76,10 +76,13 @@ struct Skylark : Module {
 		SPEED_RESET_PARAM,
 		PARAMS_LEN
 	};
-	// The shape buttons' tooltips name the shape
+	// The shape buttons' tooltips name the shape each one steps to
 	struct ShapeQuantity : ParamQuantity {
 		std::string getDisplayValueString() override {
-			return module ? shapes::recipeName((int) std::round(module->params[SHAPE_PARAM].getValue())) : "";
+			if (!module)
+				return "";
+			int i = (int) std::round(module->params[SHAPE_PARAM].getValue()) + (paramId == SHAPE_PREV_PARAM ? -1 : 1);
+			return shapes::recipeName((i + shapes::kNumRecipes) % shapes::kNumRecipes);
 		}
 	};
 	enum InputId {

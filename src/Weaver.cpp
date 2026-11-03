@@ -858,7 +858,7 @@ struct Weaver : Module {
 	}
 };
 
-// Tooltips name the chosen wave and algorithm.
+// The wave button names the chosen wave
 struct WaveQuantity : ParamQuantity {
 	std::string getDisplayValueString() override {
 		Weaver* m = dynamic_cast<Weaver*>(module);
@@ -866,10 +866,14 @@ struct WaveQuantity : ParamQuantity {
 	}
 };
 
+// The algorithm buttons name the algorithm each one steps to
 struct AlgorithmQuantity : ParamQuantity {
 	std::string getDisplayValueString() override {
 		Weaver* m = dynamic_cast<Weaver*>(module);
-		return m ? shapes::algorithmName((shapes::Algorithm) m->algorithm) : "";
+		if (!m)
+			return "";
+		int a = m->algorithm + (paramId == Weaver::ALGORITHM_PREV_PARAM ? shapes::kNumAlgorithms - 1 : 1);
+		return shapes::algorithmName((shapes::Algorithm) (a % shapes::kNumAlgorithms));
 	}
 };
 
