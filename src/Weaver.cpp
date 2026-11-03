@@ -1950,14 +1950,16 @@ struct WeaverWidget : ModuleWidget {
 		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(82.03, 110.18)), module, Weaver::C_OUTPUT));
 	}
 
-	// MetaModule runs the file service on its own thread
+	// MetaModule runs the file service on its own thread. It also counts a
+	// widget step() as the first display, which would shift the names in
+	// plugin-mm.json, so there's no override there at all.
+#ifndef METAMODULE
 	void step() override {
 		ModuleWidget::step();
-#ifndef METAMODULE
 		if (Weaver* module = getModule<Weaver>())
 			module->serviceFiles();
-#endif
 	}
+#endif
 
 	void appendContextMenu(Menu* menu) override {
 		Weaver* module = getModule<Weaver>();

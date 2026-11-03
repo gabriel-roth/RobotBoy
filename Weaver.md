@@ -41,7 +41,7 @@ PARAM, PHASE, and LEVEL each have a CV input and a trimpot. With a cable patched
 | Smooth random | pale blue | DENSITY: 6–16 interpolated points per cycle |
 | Stepped random loop | pink | STEPS: 4–16 steps, repeating each cycle |
 | Smooth random loop | aqua | DENSITY: 6–16 points, repeating each cycle |
-| Flat | grey | None: a steady level set by LEVEL, for an offset on C |
+| Flat | grey | None: a steady level set by LEVEL, for an offset |
 | Input | magenta | SLEW: see [**Input operators**](#input-operators) |
 
 <a id="input-operators"></a>
