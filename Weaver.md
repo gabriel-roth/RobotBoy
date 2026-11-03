@@ -104,7 +104,7 @@ By default, a **SPEED** change takes effect at the next point where old and new 
 
 ## Display
 
-The main display shows one cycle of OUT, with a playhead, and each operator as a dashed line. The header shows the preset name (if any), the tempo, and SPEED when not x1. After SAVE or DELETE, a message replaces the preset name for a few seconds.
+The main display shows one cycle of OUT, with a playhead, and each operator as a dashed line. The header shows the preset name (if any), the tempo, and SPEED when not x1. After SAVE or DELETE, a message replaces the preset name for a few seconds. A new SPEED, or a new algorithm with **Algorithm changes** set to **At end of cycle**, blinks dimly until it takes effect.
 
 ---
 <a id="settings"> </a>

@@ -73,6 +73,7 @@ struct WeaverFrame {
 	bool shown[3] = {};  // LEVEL != 0
 	bool traceOn[3] = {true, true, true};  // the TRACE buttons
 	int algorithm = 0;  // the one running
+	int algorithmTarget = -1;  // one waiting for the end of the cycle, or -1
 	float bpm = 120.f;
 	int speed = 0;  // SPEED in octaves, running and chosen
 	int speedTarget = 0;
@@ -88,6 +89,7 @@ struct WeaverSnapshot {
 	double cycle = 0.0;
 	shapes::Treat treatMode = shapes::Treat::Fit;
 	bool traceOn[3] = {true, true, true};
+	int algorithmTarget = -1;
 	float bpm = 120.f;
 	int speed = 0;
 	int speedTarget = 0;
@@ -137,6 +139,7 @@ static void buildFrame(WeaverFrame& f, const WeaverSnapshot& s) {
 	renderFormulas(f, s.engine, s.controls, s.cycle, s.treatMode);
 	for (int i = 0; i < 3; i++)
 		f.traceOn[i] = s.traceOn[i];
+	f.algorithmTarget = s.algorithmTarget;
 	bool anyInput = false;
 	for (int i = 0; i < 3; i++) {
 		if (s.controls.op[i].wave != shapes::Input)
@@ -276,6 +279,7 @@ struct Weaver : Module {
 	// The main display leaves out operators at LEVEL 0
 	bool hideZeroLevelTraces = false;
 	int heldAlgorithm = 0;
+	int chosenAlgorithm = 0;  // ALGORITHM with its CV, before any wait for the cycle end
 	// Take the algorithm now even when waiting (preset, load). Set from the
 	// UI thread after the choices it publishes.
 	std::atomic<bool> algorithmNow{true};
@@ -713,8 +717,9 @@ struct Weaver : Module {
 		}
 
 		shapes::CombineControls c = controls(t);
+		chosenAlgorithm = targetAlgorithm();
 		if (algorithmNow.exchange(false, std::memory_order_acquire) || !algorithmAtCycleEnd || cycleStart)
-			heldAlgorithm = targetAlgorithm();
+			heldAlgorithm = chosenAlgorithm;
 		c.algorithm = (shapes::Algorithm) heldAlgorithm;
 		bool realign = realignNow.exchange(false, std::memory_order_acquire);
 		holdRatios(c, t, cycleStart, realign || ratiosNow.exchange(false, std::memory_order_acquire));
@@ -784,6 +789,7 @@ struct Weaver : Module {
 		if (anyInput)
 			std::copy(historyResult, historyResult + kTracePoints, s.historyResult);
 		s.historyWrite = historyWrite;
+		s.algorithmTarget = algorithmAtCycleEnd && chosenAlgorithm != heldAlgorithm ? chosenAlgorithm : -1;
 		s.bpm = (float) timebase.tempoBpm();
 		s.speed = speed.octaves();
 		s.speedTarget = speed.targetOctaves();
@@ -1454,10 +1460,13 @@ struct WeaverMainDisplay : shapeui::Screen {
 			}
 #ifdef METAMODULE
 			// Full screen hides the algorithm display, so name it here too
-			nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+			// One waiting for the end of the cycle: dim and blinking until it takes over
+			bool algorithmWaiting = f.algorithmTarget >= 0;
+			nvgFillColor(vg, shapeui::screenColor(algorithmWaiting ? shapeui::dividerColor() : shapeui::inkColor()));
 			shapeui::fontSize(vg, mm2px(2.2f * kText));
-			nvgText(vg, gx + mm2px(10.2f * kText), baseline,
-			        shapes::algorithmName((shapes::Algorithm) clamp(f.algorithm, 0, shapes::kNumAlgorithms - 1)), nullptr);
+			if (!algorithmWaiting || std::fmod(system::getTime(), 0.5) < 0.25)
+				nvgText(vg, gx + mm2px(10.2f * kText), baseline,
+				        shapes::algorithmName((shapes::Algorithm) clamp(algorithmWaiting ? f.algorithmTarget : f.algorithm, 0, shapes::kNumAlgorithms - 1)), nullptr);
 #endif
 			// The preset the settings match, or for a while a message in its place
 			char text[kMessageChars + 1];
@@ -1514,12 +1523,18 @@ struct WeaverMainDisplay : shapeui::Screen {
 	}
 };
 
-// The running algorithm's name, as large as fits, over its formula.
+// The running algorithm's name, as large as fits, over its formula. One
+// waiting for the end of the cycle shows instead, dim and blinking (as SPEED)
+// until it takes over.
 struct AlgorithmDisplay : shapeui::Screen {
 	Weaver* module = nullptr;
 
 	void drawScreen(NVGcontext* vg) override {
-		int a = clamp(frameOf(module).algorithm, 0, shapes::kNumAlgorithms - 1);
+		const WeaverFrame& f = frameOf(module);
+		bool waiting = f.algorithmTarget >= 0;
+		if (waiting && std::fmod(system::getTime(), 0.5) >= 0.25)
+			return;
+		int a = clamp(waiting ? f.algorithmTarget : f.algorithm, 0, shapes::kNumAlgorithms - 1);
 		std::shared_ptr<window::Font> font = shapeui::loadFont();
 		if (!font)
 			return;
@@ -1539,10 +1554,10 @@ struct AlgorithmDisplay : shapeui::Screen {
 		nvgFontFaceId(vg, font->handle);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_BASELINE);
 		shapeui::fontSize(vg, mm2px(ns));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::inkColor()));
+		nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::inkColor()));
 		nvgText(vg, box.size.x / 2, mm2px(nameBaseline), name, nullptr);
 		shapeui::fontSize(vg, mm2px(fs));
-		nvgFillColor(vg, shapeui::screenColor(shapeui::mutedColor()));
+		nvgFillColor(vg, shapeui::screenColor(waiting ? shapeui::dividerColor() : shapeui::mutedColor()));
 		nvgText(vg, box.size.x / 2, mm2px(formulaBaseline), formula, nullptr);
 	}
 };
