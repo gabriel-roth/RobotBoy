@@ -358,6 +358,10 @@ struct Weaver : Module {
 	// a DELETE waiting for its second press
 	std::vector<PresetEntry> presets;
 	std::string presetsDir;
+	// The settings presetTitle was last worked out for, and whether the list
+	// or the current preset has changed since
+	shapes::CombineControls titleControls;
+	bool titleStale = true;
 	std::string deleteArmed;
 	double deleteArmedUntil = 0.0;
 
@@ -1237,6 +1241,7 @@ void Weaver::scanPresets() {
 		presets.push_back(p);
 	}
 	presetsDir = dir;
+	titleStale = true;
 }
 
 // The listed preset the settings match, the current one if it does; -1 for none
@@ -1267,6 +1272,7 @@ void Weaver::loadListed(const PresetEntry& p) {
 	applyPreset(p);
 #endif
 	currentPreset.set(p.name);
+	titleStale = true;
 	// The new preset's name shows at once, and a DELETE waiting for its
 	// second press is called off
 	message.set("", 0.0);
@@ -1274,10 +1280,16 @@ void Weaver::loadListed(const PresetEntry& p) {
 }
 
 // Steps through the presets; from settings that match none, Next starts at
-// the first and Previous at the last. The folder is listed again first, so
-// files added since show up.
+// the first and Previous at the last. VCV lists the folder again first, so
+// files added since show up. MetaModule keeps the list it has, as listing is
+// slow there; SAVE, DELETE, Restore and a patch load list it again.
 void Weaver::stepPreset(int delta) {
+#ifdef METAMODULE
+	if (presets.empty())
+		scanPresets();
+#else
 	scanPresets();
+#endif
 	if (presets.empty()) {
 		showMessage("NO PRESETS");
 		return;
@@ -1311,6 +1323,7 @@ void Weaver::saveTo(std::string path, bool named) {
 		const PresetEntry& m = presets[match];
 		if (!named || m.file.empty()) {
 			currentPreset.set(m.name);
+			titleStale = true;
 			showMessage("ALREADY SAVED: " + m.name);
 			return;
 		}
@@ -1461,6 +1474,13 @@ void Weaver::serviceFiles() {
 	int delta = presetStepRequest.exchange(0);
 	if (delta != 0)
 		stepPreset(delta);
+	// The preset the settings match, for the display, worked out again only
+	// when something changed, so a pass with nothing to do allocates nothing
+	shapes::CombineControls c = panelControls();
+	if (!titleStale && shapes::sameSettings(c, titleControls))
+		return;
+	titleControls = c;
+	titleStale = false;
 	int i = matchingPreset();
 	presetTitle.set(i >= 0 ? presets[i].name : "");
 }
