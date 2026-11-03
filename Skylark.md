@@ -39,7 +39,7 @@ By default, CV and feedback are followed continuously; they can instead be sampl
 ### Timing
 
 - **CLOCK:** sets the tempo in BPM; default is 120. A clock signal at the input overrides the knob.
-- **RESET:** returns to the start of the cycle and restarts the DRIFT and random sequences, so the same cycles play again. With a clock patched, it waits for the next clock pulse.
+- **RESET:** returns to the start of the cycle and restarts the DRIFT and random sequences, so the same cycles play again. With a clock patched, by default it waits for the next clock pulse (see [**Settings**](#settings)).
 - **SPEED:** sets the cycle rate, from 1/4 to x4.
     - The left button and trigger input halve the cycle rate.
     - The right button and trigger input double the cycle rate.
@@ -74,6 +74,7 @@ The display shows one cycle of the waveform at OUT, with a playhead. The header 
 - **CV and feedback:** **Continuous** (default) or **Sample once per cycle**.
 - **Shape changes:** **Immediately** (default) or **At end of cycle**.
 - **Speed changes:** **At end of cycle** (default) or **Immediately**.
+- **Reset:** with a clock patched, **On clock pulse** (default) or **Immediately**.
 
 ---
 <a id="shapes"> </a>

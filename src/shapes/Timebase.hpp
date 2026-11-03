@@ -14,6 +14,8 @@ struct TimebaseInput {
 	float resetVoltage = 0.f;
 	bool resetButton = false;
 	int pulsesPerCycle = 4;
+	// With a clock, a reset waits for the next pulse; off, it acts at once
+	bool resetOnPulse = true;
 };
 
 // Phase ramp for the shape modulators. One cycle is four beats. Runs from a
@@ -40,11 +42,12 @@ public:
 		bool jackEdge = resetGate.process(in.resetVoltage);
 		bool buttonEdge = resetBtn.process(in.resetButton ? 10.f : 0.f);
 		bool resetEdge = jackEdge || buttonEdge;
-		if (resetEdge && !in.clockConnected) {
+		bool cue = in.clockConnected && in.resetOnPulse;
+		if (resetEdge && !cue) {
 			pos = 0.0;
 			cycle = 0;
 			pulseIndex = 0;
-			havePrev = false;  // a clock patched later aligns hard
+			havePrev = false;  // the next pulse aligns hard
 			s = {0.0, 0, false, true};
 		}
 		// With a clock, a reset waits for the next pulse, so it lands on the
@@ -76,19 +79,19 @@ public:
 			// with; that pulse was the downbeat, so restart from it now
 			double sincePulse = (double) (sampleCount - lastPulseSample) / sampleRate;
 			bool justPulsed = in.clockConnected && havePrev && sincePulse <= kResetWindow;
-			if (pulse || justPulsed || !in.clockConnected) {
+			if (pulse || justPulsed || !cue) {
 				resetCued = false;
 				// The pulse's lock nudge was measured against the old phase
 				rate = tempo;
-				pos = in.clockConnected ? std::min(sincePulse * rate, 0.5) : 0.0;
+				pos = cue ? std::min(sincePulse * rate, 0.5) : 0.0;
 				cycle = 0;
 				pulseIndex = 0;
 				// The pulse that placed the reset counts as the cycle's first
-				havePrev = in.clockConnected;
+				havePrev = cue;
 				return {pos, 0, false, true};
 			}
 		}
-		if (resetEdge && !in.clockConnected)
+		if (resetEdge && !cue)
 			return s;
 
 		rate = shapes::sanitize(rate, 0.5);

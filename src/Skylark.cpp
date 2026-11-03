@@ -139,6 +139,8 @@ struct Skylark : Module {
 	bool shapeAtCycleEnd = false;
 	// A new SPEED waits for a cycle start it shares with the old one
 	bool speedAtCycleEnd = true;
+	// With a clock, RESET waits for the next pulse
+	bool resetOnPulse = true;
 	int heldShape = 0;
 
 	shapes::Timebase timebase;
@@ -228,6 +230,7 @@ struct Skylark : Module {
 		cvPerCycle = false;
 		shapeAtCycleEnd = false;
 		speedAtCycleEnd = true;
+		resetOnPulse = true;
 	}
 
 	float cv(int input) {
@@ -270,6 +273,7 @@ struct Skylark : Module {
 		tin.clockConnected = inputs[CLOCK_INPUT].isConnected();
 		tin.clockVoltage = cv(CLOCK_INPUT);
 		tin.resetVoltage = cv(RESET_INPUT);
+		tin.resetOnPulse = resetOnPulse;
 		tin.resetButton = params[RESET_PARAM].getValue() > 0.5f;
 		tin.pulsesPerCycle = settings.pulsesPerCycle;
 		shapes::Timebase::Step step = timebase.process(tin);
@@ -379,6 +383,7 @@ struct Skylark : Module {
 		json_object_set_new(rootJ, "cvPerCycle", json_boolean(cvPerCycle));
 		json_object_set_new(rootJ, "shapeAtCycleEnd", json_boolean(shapeAtCycleEnd));
 		json_object_set_new(rootJ, "speedAtCycleEnd", json_boolean(speedAtCycleEnd));
+		json_object_set_new(rootJ, "resetOnPulse", json_boolean(resetOnPulse));
 		json_object_set_new(rootJ, "speed", json_integer(speed.targetOctaves()));
 		json_object_set_new(rootJ, "shape", json_integer((int) std::round(params[SHAPE_PARAM].getValue())));
 		return rootJ;
@@ -395,6 +400,8 @@ struct Skylark : Module {
 		shapeAtCycleEnd = j && json_is_true(j);
 		j = json_object_get(rootJ, "speedAtCycleEnd");
 		speedAtCycleEnd = !j || json_is_true(j);
+		j = json_object_get(rootJ, "resetOnPulse");
+		resetOnPulse = !j || json_is_true(j);
 		j = json_object_get(rootJ, "speed");
 		speed.jumpTo(j && json_is_integer(j) ? (int) json_integer_value(j) : 0);
 		// Missing (a patch from when SHAPE was a knob): the saved param stands
@@ -599,6 +606,11 @@ struct SkylarkWidget : ModuleWidget {
 			[=]() { return module->speedAtCycleEnd ? 1 : 0; },
 			[=](int i) {
 				withMenuUndo(module, "set speed change timing", [=]() { module->speedAtCycleEnd = i == 1; });
+			}));
+		menu->addChild(createIndexSubmenuItem("Reset", {"On clock pulse", "Immediately"},
+			[=]() { return module->resetOnPulse ? 0 : 1; },
+			[=](int i) {
+				withMenuUndo(module, "set reset timing", [=]() { module->resetOnPulse = i == 0; });
 			}));
 	}
 };

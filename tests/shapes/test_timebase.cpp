@@ -224,6 +224,27 @@ static void cuedResetFiresOnUnplug() {
 	assert(s.reset && s.pos == 0.0);
 }
 
+// Reset on clock pulse off: a reset restarts at once, and the next pulse aligns hard
+static void resetImmediateWithClock() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	runClock(tb, 4, 12000, 3 * 48000);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	in.resetOnPulse = false;
+	for (int i = 0; i < 3000; i++)
+		tb.process(in);
+	in.resetButton = true;
+	Timebase::Step s = tb.process(in);
+	assert(s.reset && s.pos == 0.0 && s.cycle == 0);
+	in.resetButton = false;
+	for (int i = 0; i < 5000; i++)
+		tb.process(in);
+	in.clockVoltage = 10.f;
+	s = tb.process(in);
+	assert(s.pos < 1e-3 && !s.wrapped);  // aligned to 0, then one sample of advance
+}
+
 // Pulse k arrives at times[k] samples; returns per-pulse phase error and max per-sample jump.
 struct LockRun {
 	std::vector<double> err;  // phase minus expected, in cycles, at each pulse
@@ -404,6 +425,7 @@ int main() {
 	resetWithClockWaitsForPulse();
 	resetJustAfterPulseIsImmediate();
 	cuedResetFiresOnUnplug();
+	resetImmediateWithClock();
 	softLockConvergesWithoutJumps();
 	hardAlignWrapsOnce();
 	clockGapReacquires();
