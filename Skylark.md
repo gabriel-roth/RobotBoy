@@ -39,7 +39,7 @@ By default, CV and feedback are followed continuously; they can instead be sampl
 ### Timing
 
 - **CLOCK**: sets the tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
-- **RESET**: returns to the start of the cycle and restarts the DRIFT and random sequences, so the same cycles play again.
+- **RESET**: returns to the start of the cycle and restarts the DRIFT and random sequences, so the same cycles play again. With a clock patched, it waits for the next clock pulse.
 - **SPEED**: sets the cycle rate, from 1/4 to x4.
     - The left button and trigger input halve the cycle rate.
     - The right button and trigger input double the cycle rate.

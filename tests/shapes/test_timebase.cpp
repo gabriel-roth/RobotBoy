@@ -139,20 +139,89 @@ static void clockTempoClamped() {
 	assert(std::isfinite(fast.tempoBpm()));
 }
 
-static void resetThenClockAlignsHard() {
+// With a clock, a reset waits for the next pulse instead of restarting at
+// once and then jumping back to 0 when that pulse comes
+static void resetWithClockWaitsForPulse() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	// 4 ppc at 12000 samples: locked at 240 BPM; the next pulse is due now
+	runClock(tb, 4, 12000, 3 * 48000);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	in.clockVoltage = 10.f;
+	tb.process(in);
+	in.clockVoltage = 0.f;
+	// Mid-beat, well past the window after that pulse
+	for (int i = 0; i < 3000 - 1; i++)
+		tb.process(in);
+	double before = tb.position();
+	in.resetButton = true;
+	Timebase::Step s = tb.process(in);
+	assert(!s.reset && s.pos > 0.0);
+	in.resetButton = false;
+	double prev = s.pos;
+	for (int i = 0; i < 9000 - 1; i++) {
+		s = tb.process(in);
+		assert(!s.reset && s.pos > prev);  // keeps running, no restart yet
+		prev = s.pos;
+	}
+	assert(tb.position() > before);
+	in.clockVoltage = 10.f;
+	s = tb.process(in);
+	assert(s.reset && !s.wrapped && s.pos == 0.0 && s.cycle == 0);
+	// The cued pulse is the cycle's first: the next is a quarter cycle on, not a hard align
+	in.clockVoltage = 0.f;
+	for (int i = 0; i < 12000 - 1; i++) {
+		s = tb.process(in);
+		assert(!s.reset);
+	}
+	in.clockVoltage = 10.f;
+	s = tb.process(in);
+	assert(!s.reset && std::fabs(s.pos - 0.25) < 1e-3);
+}
+
+// A reset arriving just after its pulse, as from a sequencer, restarts at
+// once from that pulse
+static void resetJustAfterPulseIsImmediate() {
 	Timebase tb;
 	tb.setSampleRate(kSr);
 	runClock(tb, 4, 12000, 3 * 48000);
 	TimebaseInput in = bpmInput(120.0);
 	in.clockConnected = true;
-	in.resetButton = true;
-	tb.process(in);
-	in.resetButton = false;
-	for (int i = 0; i < 5000; i++)
-		tb.process(in);
 	in.clockVoltage = 10.f;
+	tb.process(in);  // pulse
+	for (int i = 0; i < 47; i++)
+		tb.process(in);  // 1 ms later, still within the window
+	in.clockVoltage = 0.f;
+	in.resetButton = true;
 	Timebase::Step s = tb.process(in);
-	assert(s.pos < 1e-3 && !s.wrapped);  // aligned to 0, then one sample of advance
+	assert(s.reset && s.cycle == 0);
+	// Already the time since the pulse into the cycle: 48 samples at 1 cycle/s
+	assert(std::fabs(s.pos - 48.0 / kSr) < 1e-6);
+	// Same sample as the pulse
+	runClock(tb, 4, 12000, 12000 * 4);
+	in.resetButton = false;
+	tb.process(in);
+	in.resetButton = true;
+	in.clockVoltage = 10.f;
+	s = tb.process(in);
+	assert(s.reset && s.pos == 0.0);
+}
+
+// Unplugging the clock while a reset waits fires it straight away
+static void cuedResetFiresOnUnplug() {
+	Timebase tb;
+	tb.setSampleRate(kSr);
+	runClock(tb, 4, 12000, 2 * 48000);
+	TimebaseInput in = bpmInput(120.0);
+	in.clockConnected = true;
+	for (int i = 0; i < 4000; i++)
+		tb.process(in);
+	in.resetButton = true;
+	assert(!tb.process(in).reset);
+	in.clockConnected = false;
+	Timebase::Step s = tb.process(in);
+	assert(s.reset && s.pos == 0.0);
 }
 
 // Pulse k arrives at times[k] samples; returns per-pulse phase error and max per-sample jump.
@@ -332,7 +401,9 @@ int main() {
 	clockSetsTempo();
 	clockStopKeepsLastTempo();
 	clockTempoClamped();
-	resetThenClockAlignsHard();
+	resetWithClockWaitsForPulse();
+	resetJustAfterPulseIsImmediate();
+	cuedResetFiresOnUnplug();
 	softLockConvergesWithoutJumps();
 	hardAlignWrapsOnce();
 	clockGapReacquires();

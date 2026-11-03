@@ -40,13 +40,17 @@ public:
 		bool jackEdge = resetGate.process(in.resetVoltage);
 		bool buttonEdge = resetBtn.process(in.resetButton ? 10.f : 0.f);
 		bool resetEdge = jackEdge || buttonEdge;
-		if (resetEdge) {
+		if (resetEdge && !in.clockConnected) {
 			pos = 0.0;
 			cycle = 0;
 			pulseIndex = 0;
-			havePrev = false;  // next pulse aligns hard
+			havePrev = false;  // a clock patched later aligns hard
 			s = {0.0, 0, false, true};
 		}
+		// With a clock, a reset waits for the next pulse, so it lands on the
+		// beat rather than starting and then jumping back when the pulse comes
+		else if (resetEdge)
+			resetCued = true;
 
 		if (!in.clockConnected && wasConnected) {
 			locked = false;
@@ -67,7 +71,24 @@ public:
 		if (pulse && in.clockConnected)
 			alignWrap = onPulse(ppc);
 
-		if (resetEdge)
+		if (resetCued) {
+			// A sequencer may send its reset just after the clock pulse it goes
+			// with; that pulse was the downbeat, so restart from it now
+			double sincePulse = (double) (sampleCount - lastPulseSample) / sampleRate;
+			bool justPulsed = in.clockConnected && havePrev && sincePulse <= kResetWindow;
+			if (pulse || justPulsed || !in.clockConnected) {
+				resetCued = false;
+				// The pulse's lock nudge was measured against the old phase
+				rate = tempo;
+				pos = in.clockConnected ? std::min(sincePulse * rate, 0.5) : 0.0;
+				cycle = 0;
+				pulseIndex = 0;
+				// The pulse that placed the reset counts as the cycle's first
+				havePrev = in.clockConnected;
+				return {pos, 0, false, true};
+			}
+		}
+		if (resetEdge && !in.clockConnected)
 			return s;
 
 		rate = shapes::sanitize(rate, 0.5);
@@ -100,6 +121,7 @@ public:
 		cycle = 0;
 		pulseIndex = 0;
 		havePrev = false;
+		resetCued = false;
 	}
 
 private:
@@ -172,6 +194,8 @@ private:
 	}
 
 	static constexpr double kLockGain = 0.1;
+	// How long after a pulse a reset still counts as arriving with it
+	static constexpr double kResetWindow = 0.01;
 	// The largest pulses-per-cycle choice
 	static constexpr int kMaxIntervals = 96;
 
@@ -190,6 +214,7 @@ private:
 	bool locked = false;
 	bool measured = false;  // a clock tempo has been read since connecting
 	bool wasConnected = false;
+	bool resetCued = false;  // a reset is waiting for the next clock pulse
 	Schmitt clockGate, resetGate, resetBtn;
 };
 

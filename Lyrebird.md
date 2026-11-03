@@ -34,7 +34,7 @@ SPEED and SMOOTH have CV inputs.
 ### Timing
 
 - **CLOCK**: sets the tempo, 20–300 BPM, default 120. A clock at the input overrides the knob.
-- **TRIG**: the button or a trigger restarts the take and the bar count. In Once, it plays a pass.
+- **TRIG**: the button or a trigger restarts the take and the bar count. In Once, it plays a pass. With a clock patched, it waits for the next clock pulse.
 
 ### Files
 
