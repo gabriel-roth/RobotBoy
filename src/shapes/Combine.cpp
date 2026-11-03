@@ -140,6 +140,24 @@ const char* paramName(Wave wave) {
 	return wave >= 0 && wave < kNumWaves ? kParamNames[wave] : "";
 }
 
+double randomSegments(Wave wave, double param) {
+	double sh = std::clamp(param, 0.0, 1.0);
+	switch (wave) {
+		case SteppedRandom:
+		case SteppedLoop: return kMinSteppedSteps + std::round(sh * (kMaxRandomSteps - kMinSteppedSteps));
+		case SmoothRandom: return kMinSmoothSteps + sh * (kMaxRandomSteps - kMinSmoothSteps);
+		case SmoothLoop: return kMinSmoothSteps + std::round(sh * (kMaxRandomSteps - kMinSmoothSteps));
+		default: return 0.0;
+	}
+}
+
+double paramForSegments(Wave wave, double count) {
+	int lo = wave == SteppedRandom || wave == SteppedLoop ? kMinSteppedSteps : kMinSmoothSteps;
+	if (randomSegments(wave, 0.0) == 0.0)
+		return -1.0;
+	return std::clamp((count - lo) / (kMaxRandomSteps - lo), 0.0, 1.0);
+}
+
 const char* algorithmName(Algorithm algorithm) {
 	return algorithm >= 0 && algorithm < kNumAlgorithms ? kAlgorithmNames[algorithm] : "";
 }
@@ -170,11 +188,11 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 			return p < a ? 1.0 - std::pow(1.0 - p / a, 2.0) : std::pow(1.0 - (p - a) / (1.0 - a), 3.0);
 		}
 		case SteppedRandom: {
-			double n = kMinSteppedSteps + std::round(sh * (kMaxRandomSteps - kMinSteppedSteps));
+			double n = randomSegments(SteppedRandom, sh);
 			return hash3(seed, std::floor(abs * n), 77) * 2.0 - 1.0;
 		}
 		case SmoothRandom: {
-			double u = abs * (kMinSmoothSteps + sh * (kMaxRandomSteps - kMinSmoothSteps));
+			double u = abs * randomSegments(SmoothRandom, sh);
 			double i = std::floor(u);
 			double f = u - i;
 			double s = f * f * (3.0 - 2.0 * f);
@@ -183,12 +201,12 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 		// As the two above, but within one operator cycle, so the pattern
 		// repeats
 		case SteppedLoop: {
-			double n = kMinSteppedSteps + std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSteppedSteps));
+			double n = randomSegments(SteppedLoop, sh);
 			return hash3Bits(op.loopSeed, toInt32(std::floor(p * n)), 77) / 4294967296.0 * 2.0 - 1.0;
 		}
 		case SmoothLoop: {
 			// A whole number of segments, so the loop joins up
-			int n = kMinSmoothSteps + (int) std::round(std::clamp(sh, 0.0, 1.0) * (kMaxRandomSteps - kMinSmoothSteps));
+			int n = (int) randomSegments(SmoothLoop, sh);
 			double u = std::isfinite(p) ? p * n : 0.0;
 			int i = std::clamp((int) u, 0, n - 1);
 			double f = u - i;

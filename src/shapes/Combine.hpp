@@ -24,6 +24,11 @@ double ratioValue(int index);
 const char* ratioLabel(int index);
 // What the PARAM knob does for this wave, as the wave display shows it.
 const char* paramName(Wave wave);
+// The random waves' steps (Stepped) or points (Smooth) per cycle at this
+// PARAM, and the PARAM for a count; 0 and -1 for the other waves. Smooth
+// random's count can be fractional; the rest are whole numbers.
+double randomSegments(Wave wave, double param);
+double paramForSegments(Wave wave, double count);
 const char* algorithmName(Algorithm algorithm);
 const char* algorithmFormula(Algorithm algorithm);
 

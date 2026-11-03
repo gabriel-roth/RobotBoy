@@ -895,15 +895,50 @@ struct AlgorithmQuantity : ParamQuantity {
 	}
 };
 
-// PARAM is named for what it does to the chosen wave ("A attack").
+// PARAM is named for what it does to the chosen wave ("A attack"); the
+// random waves show their steps or points per cycle.
 struct OperatorParamQuantity : ParamQuantity {
+	int op() {
+		return (paramId - Weaver::A_PARAM_PARAM) / Weaver::kOpParams;
+	}
+	// The random wave PARAM counts for, or -1
+	int countedWave() {
+		Weaver* m = dynamic_cast<Weaver*>(module);
+		if (!m)
+			return -1;
+		shapes::Wave w = (shapes::Wave) m->waves[op()];
+		return shapes::randomSegments(w, 0.0) > 0.0 ? w : -1;
+	}
 	std::string getLabel() override {
 		Weaver* m = dynamic_cast<Weaver*>(module);
-		int op = (paramId - Weaver::A_PARAM_PARAM) / Weaver::kOpParams;
-		std::string letter(1, (char) ('A' + op));
+		std::string letter(1, (char) ('A' + op()));
 		if (!m)
 			return letter + " param";
-		return letter + " " + string::lowercase(shapes::paramName((shapes::Wave) m->waves[op]));
+		return letter + " " + string::lowercase(shapes::paramName((shapes::Wave) m->waves[op()]));
+	}
+	float getDisplayValue() override {
+		int w = countedWave();
+		return w < 0 ? ParamQuantity::getDisplayValue() : (float) shapes::randomSegments((shapes::Wave) w, getValue());
+	}
+	void setDisplayValue(float v) override {
+		int w = countedWave();
+		if (w < 0)
+			ParamQuantity::setDisplayValue(v);
+		else
+			setValue((float) shapes::paramForSegments((shapes::Wave) w, v));
+	}
+	// Smooth random's count isn't whole, so it gets a decimal
+	std::string getDisplayValueString() override {
+		int w = countedWave();
+		if (w < 0)
+			return ParamQuantity::getDisplayValueString();
+		return string::f(w == shapes::SmoothRandom ? "%.1f" : "%.0f", getDisplayValue());
+	}
+	std::string getUnit() override {
+		int w = countedWave();
+		if (w < 0)
+			return ParamQuantity::getUnit();
+		return w == shapes::SteppedRandom || w == shapes::SteppedLoop ? " steps" : " points";
 	}
 };
 

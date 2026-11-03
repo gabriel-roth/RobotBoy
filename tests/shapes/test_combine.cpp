@@ -567,6 +567,12 @@ static void loopWavesRepeatEachCycle() {
 		int steps = 4 + (int) std::round(param * 12.0);
 		check(changes == steps - 1, "step count", steps, changes);
 	}
+	// The tooltip's counts and their inverse
+	check(randomSegments(SteppedRandom, 0.0) == 4.0 && randomSegments(SteppedLoop, 1.0) == 16.0, "stepped counts");
+	check(randomSegments(SmoothLoop, 0.5) == 11.0 && randomSegments(Sine, 0.5) == 0.0, "smooth loop count");
+	check(std::fabs(randomSegments(SmoothRandom, 0.25) - 8.5) <= 1e-12, "smooth random count");
+	check(randomSegments(SteppedLoop, paramForSegments(SteppedLoop, 9.0)) == 9.0, "count round trip");
+	check(paramForSegments(Square, 9.0) == -1.0, "no count for square");
 	// Stepped random: 4 + round(12 * param) steps per cycle
 	OperatorControls sr{};
 	sr.wave = SteppedRandom;
