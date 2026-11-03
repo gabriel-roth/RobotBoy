@@ -139,6 +139,8 @@ struct TraceStyle {
 	// Dash and gap lengths in mm; 0 draws a solid line
 	float dashMm = 0.f;
 	float gapMm = 0.f;
+	// How far into the dash pattern the trace starts, in mm
+	float dashOffsetMm = 0.f;
 	// Closed: one more point repeats the first, so the trace spans the box
 	// and loops back to its start. Open: the n points span the box.
 	bool closed = true;

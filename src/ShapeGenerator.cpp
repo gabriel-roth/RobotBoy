@@ -192,8 +192,9 @@ void drawTrace(NVGcontext* vg, const float* values, int n, float x, float y, flo
 	else {
 		// nanovg has no dashes: walk the polyline, drawing only the dash parts
 		float dash = mm2px(style.dashMm), gap = mm2px(style.gapMm);
-		bool on = true;
-		float left = dash;  // of the current dash or gap
+		float into = std::fmod(std::max(mm2px(style.dashOffsetMm), 0.f), dash + gap);
+		bool on = into < dash;
+		float left = on ? dash - into : dash + gap - into;  // of the current dash or gap
 		Vec a = pointAt(0);
 		nvgMoveTo(vg, a.x, a.y);
 		for (int k = 1; k < points; k++) {

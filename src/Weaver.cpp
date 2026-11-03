@@ -1501,24 +1501,29 @@ struct WeaverMainDisplay : shapeui::Screen {
 			nvgText(vg, right, baseline, bpm, nullptr);
 		}
 
-		shapeui::TraceStyle dashed;
-		dashed.widthMm = 0.22f;
-		dashed.limit = kOperatorLimit;
-		dashed.dashMm = 0.9f;
-		dashed.gapMm = 0.6f;
-		dashed.closed = false;
-		for (int i = 0; i < 3; i++) {
-			if (!f.traceOn[i] || (!f.shown[i] && module && module->hideZeroLevelTraces))
-				continue;
-			dashed.color = shapeui::operatorColor(i);
-			shapeui::drawTrace(vg, f.scaled[i], kTracePoints, gx, gy, gw, gh, dashed);
-		}
+		// The result goes underneath, so an operator with the same shape still
+		// shows on top of it
 		shapeui::TraceStyle solid;
 		solid.color = shapeui::signalColor();
 		// A jump at the loop point shows at the end of the cycle
 		solid.closed = false;
 		solid.leadOut = true;
 		shapeui::drawTrace(vg, f.result, kTracePoints, gx, gy, gw, gh, solid);
+		// Each operator's dashes fill a different third of the pattern, so
+		// operators with the same shape interleave instead of covering each other
+		shapeui::TraceStyle dashed;
+		dashed.widthMm = 0.22f;
+		dashed.limit = kOperatorLimit;
+		dashed.dashMm = 0.5f;
+		dashed.gapMm = 1.f;
+		dashed.closed = false;
+		for (int i = 0; i < 3; i++) {
+			if (!f.traceOn[i] || (!f.shown[i] && module && module->hideZeroLevelTraces))
+				continue;
+			dashed.color = shapeui::operatorColor(i);
+			dashed.dashOffsetMm = i * dashed.dashMm;
+			shapeui::drawTrace(vg, f.scaled[i], kTracePoints, gx, gy, gw, gh, dashed);
+		}
 		shapeui::drawPlayhead(vg, gx, gy, gw, gh, pos, shapeui::traceAt(f.result, kTracePoints, pos, false));
 	}
 };
