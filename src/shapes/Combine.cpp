@@ -21,7 +21,7 @@ const char* const kRatioLabels[kNumRatios] = {"1/8", "1/4", "1/2", "x1", "x2", "
 constexpr int kMinSteppedSteps = 4;
 constexpr int kMinSmoothSteps = 6;
 constexpr int kMaxRandomSteps = 16;
-const char* const kParamNames[kNumWaves] = {"SKEW", "SYMMETRY", "CURVE", "CURVE", "WIDTH", "ATTACK", "STEPS", "DENSITY", "STEPS", "DENSITY", "SLEW"};
+const char* const kParamNames[kNumWaves] = {"SKEW", "SYMMETRY", "CURVE", "CURVE", "WIDTH", "ATTACK", "STEPS", "DENSITY", "STEPS", "DENSITY", "", "SLEW"};
 const char* const kAlgorithmNames[kNumAlgorithms] = {"MIX", "SCALE", "SCALE 2", "RING", "BEND", "MAX", "MIN", "XFADE", "FOLD", "S&H", "GATE"};
 const char* const kAlgorithmFormulas[kNumAlgorithms] = {
 	"A+B+C",
@@ -215,6 +215,8 @@ double evalOperator(const OperatorControls& op, double abs, int opIndex) {
 			double b = hash3Bits(op.loopSeed, (uint32_t) ((i + 1) % n), 31) / 4294967296.0;
 			return lerp(a, b, s) * 2.0 - 1.0;
 		}
+		// A steady full scale, so LEVEL alone sets it: an offset on C
+		case Flat: return 1.0;
 		case Input: return op.inputVolts / 5.0 * op.inputGain;
 		default: return 0.0;
 	}

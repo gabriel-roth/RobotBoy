@@ -528,7 +528,21 @@ static void presetMatchFindsDefault() {
 
 static void loopWavesRepeatEachCycle() {
 	check(isLoop(SteppedLoop) && isLoop(SmoothLoop) && !isLoop(SteppedRandom) && !isLoop(Input), "isLoop");
-	check(Input == 10 && kNumWaves == 11, "Input stays last");
+	check(Flat == 10 && Input == 11 && kNumWaves == 12, "Flat, then Input last");
+	OperatorControls flat{};
+	flat.wave = Flat;
+	for (double param : {0.0, 1.0})
+		for (double t : {0.0, 0.3, 0.99}) {
+			flat.param = param;
+			check(evalOperator(flat, t, 2) == 1.0, "flat stays at full scale");
+		}
+	CombineControls off = quiet();
+	off.op[0].level = 0.0;
+	off.op[1].level = 0.0;
+	off.op[2].wave = Flat;
+	off.op[2].level = -0.4;
+	CombineEngine oe;
+	check(std::fabs(oe.resultAt(off, 0.37, false) + 0.4) <= 1e-12, "flat C is a steady offset");
 	check(std::strcmp(paramName(SteppedLoop), "STEPS") == 0 && std::strcmp(paramName(SmoothLoop), "DENSITY") == 0, "loop param names");
 	for (Wave w : {SteppedLoop, SmoothLoop}) {
 		for (double param : {0.0, 0.3, 1.0}) {

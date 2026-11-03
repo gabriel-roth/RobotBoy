@@ -8,8 +8,9 @@
 // never allocates or locks.
 namespace shapes {
 
-// Saved by index: Weaver's file loading maps the pre-loop Input index (8) to Input
-enum Wave { Sine, Triangle, RampUp, RampDown, Square, Envelope, SteppedRandom, SmoothRandom, SteppedLoop, SmoothLoop, Input, kNumWaves };
+// Saved by index: Weaver's file loading maps Input's older indices (8 before
+// the loop waves, 10 before Flat) to Input
+enum Wave { Sine, Triangle, RampUp, RampDown, Square, Envelope, SteppedRandom, SmoothRandom, SteppedLoop, SmoothLoop, Flat, Input, kNumWaves };
 
 // The random waves that repeat each operator cycle.
 inline bool isLoop(Wave wave) {

@@ -44,7 +44,7 @@ static constexpr bool kOnMetaModule = false;
 #endif
 
 static const char* const kWaveNames[shapes::kNumWaves] = {
-	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Stepped random loop", "Smooth random loop", "Input",
+	"Sine", "Triangle", "Ramp up", "Ramp down", "Square", "Envelope", "Stepped random", "Smooth random", "Stepped random loop", "Smooth random loop", "Flat", "Input",
 };
 
 // The WAVE bezel's colour for each wave.
@@ -59,6 +59,7 @@ static constexpr float kWaveColors[shapes::kNumWaves][3] = {
 	{0.6f, 0.85f, 1.f},
 	{1.f, 0.55f, 0.6f},
 	{0.f, 1.f, 0.85f},
+	{0.45f, 0.45f, 0.45f},
 	{1.f, 0.f, 1.f},
 };
 
@@ -435,12 +436,13 @@ struct Weaver : Module {
 		hideZeroLevelTraces = false;
 	}
 
-	// Picks new waves and loop patterns too; never Input, which needs a cable to be heard
+	// Picks new waves and loop patterns too; never Flat, which doesn't move, or
+	// Input, which needs a cable to be heard
 	void onRandomize(const RandomizeEvent& e) override {
 		Module::onRandomize(e);
-		// Input is the last wave
+		// Flat and Input are the last waves
 		for (int i = 0; i < 3; i++)
-			waves[i] = (int) (random::u32() % shapes::Input);
+			waves[i] = (int) (random::u32() % shapes::Flat);
 		newLoops();
 	}
 
@@ -806,8 +808,8 @@ struct Weaver : Module {
 		for (int i = 0; i < 3; i++)
 			json_array_append_new(wavesJ, json_integer(waves[i]));
 		json_object_set_new(rootJ, "waves", wavesJ);
-		// 2: the loop waves sit before Input
-		json_object_set_new(rootJ, "wavesVersion", json_integer(2));
+		// 2: the loop waves sit before Input; 3: so does Flat
+		json_object_set_new(rootJ, "wavesVersion", json_integer(3));
 		json_t* seedsJ = json_array();
 		for (int i = 0; i < 3; i++)
 			json_array_append_new(seedsJ, json_integer(loopSeeds[i]));
@@ -835,14 +837,15 @@ struct Weaver : Module {
 		// Missing or unknown values fall back to the first preset
 		resetChoices();
 		json_t* wavesJ = json_object_get(rootJ, "waves");
-		bool beforeLoops = !json_object_get(rootJ, "wavesVersion");
+		json_t* versionJ = json_object_get(rootJ, "wavesVersion");
+		int wavesVersion = versionJ && json_is_integer(versionJ) ? (int) json_integer_value(versionJ) : 1;
 		json_t* seedsJ = json_object_get(rootJ, "loopSeeds");
 		for (int i = 0; i < 3; i++) {
 			json_t* j = json_array_get(wavesJ, i);
 			if (j && json_is_integer(j) && json_integer_value(j) >= 0 && json_integer_value(j) < shapes::kNumWaves) {
 				waves[i] = (int) json_integer_value(j);
-				// Input was 8 before the loop waves were added
-				if (beforeLoops && waves[i] == 8)
+				// Input was 8 before the loop waves were added, 10 before Flat
+				if ((wavesVersion == 1 && waves[i] == 8) || (wavesVersion == 2 && waves[i] == 10))
 					waves[i] = shapes::Input;
 			}
 			j = json_array_get(seedsJ, i);
@@ -914,7 +917,8 @@ struct OperatorParamQuantity : ParamQuantity {
 		std::string letter(1, (char) ('A' + op()));
 		if (!m)
 			return letter + " param";
-		return letter + " " + string::lowercase(shapes::paramName((shapes::Wave) m->waves[op()]));
+		std::string name = shapes::paramName((shapes::Wave) m->waves[op()]);
+		return letter + " " + (name.empty() ? "param" : string::lowercase(name));
 	}
 	float getDisplayValue() override {
 		int w = countedWave();
