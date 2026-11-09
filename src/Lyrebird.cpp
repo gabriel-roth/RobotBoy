@@ -884,8 +884,12 @@ static void quickSave(Lyrebird* m) {
 	if (m->saving)
 		return;
 #ifdef METAMODULE
-	// Nothing to save to (no card, say), and no making a folder here
-	std::string dir = m->fileFolder();
+	// RobotBoy/Lyrebird, made if the firmware can, rather than a drive's root
+	std::string dir = m->fileFolder(), f = m->folder.get();
+	std::string make = shapes::folderToMake(!f.empty() && f == dir, dir, shapes::kLyrebirdOwnFolders, isFolder);
+	if (!make.empty() && ensureDirectory(make))
+		dir = m->fileFolder();
+	// Nothing to save to (no card, say)
 	bool usable = !dir.empty();
 #else
 	std::string dir = m->currentFolder();

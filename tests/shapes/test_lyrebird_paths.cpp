@@ -104,11 +104,27 @@ static void sharedPathConcurrent() {
 	writer.join();
 }
 
+static void foldersToMake() {
+	auto any = [](std::vector<std::string> ds) {
+		return [ds](const std::string& p) { return std::find(ds.begin(), ds.end(), p) != ds.end(); };
+	};
+	const std::vector<std::string> own = {"sdc:/RobotBoy/Lyrebird", "usb:/RobotBoy/Lyrebird"};
+	// Only a drive's root, or nothing, to save to: the first drive that's there
+	assert(folderToMake(false, "sdc:/", own, any({"sdc:/", "usb:/"})) == "sdc:/RobotBoy/Lyrebird");
+	assert(folderToMake(false, "usb:/", own, any({"usb:/"})) == "usb:/RobotBoy/Lyrebird");
+	assert(folderToMake(false, "", own, any({})) == "");
+	// A chosen folder, even a root, is kept
+	assert(folderToMake(true, "sdc:/", own, any({"sdc:/"})) == "");
+	// A named folder is already there
+	assert(folderToMake(false, "sdc:/Lyrebird", own, any({"sdc:/", "sdc:/Lyrebird"})) == "");
+}
+
 int main() {
 	volumePaths();
 	usableFolders();
 	repeatedVolumes();
 	pickedFolders();
+	foldersToMake();
 	sharedPaths();
 	sharedPathConcurrent();
 	printf("lyrebird path tests passed\n");

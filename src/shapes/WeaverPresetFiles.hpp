@@ -21,6 +21,10 @@ inline const std::vector<std::string> kWeaverMetaModuleFolders = {
 	"sdc:/", "usb:/",
 };
 
+// The folder SAVE and Restore make on MetaModule, on the card or else USB,
+// when there's only a drive's root to write to
+inline const std::vector<std::string> kWeaverOwnFolders = {"sdc:/RobotBoy/Weaver", "usb:/RobotBoy/Weaver"};
+
 // Written beside the factory presets once they're in a folder, so deleting
 // them all doesn't bring them back
 inline const char* const kFactoryMarker = ".weaver-factory-presets";
@@ -85,11 +89,6 @@ inline bool shouldWriteFactoryFile(const FactoryMarker& m, const std::string& fi
 		if (f.first == file)
 			return exists && f.second != 0 && f.second == hashNow;
 	return !exists;
-}
-
-// "sdc:/" or "sdc:": the factory presets are never written to a volume root
-inline bool isVolumeRoot(const std::string& p) {
-	return isVolumePath(p) && (p.size() == 4 || (p.size() == 5 && p[4] == '/'));
 }
 
 inline std::string lowerCase(std::string s) {

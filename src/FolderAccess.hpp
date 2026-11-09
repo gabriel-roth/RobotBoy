@@ -73,16 +73,15 @@ inline std::vector<std::string> fileNames(const std::string& dir) {
 	return names;
 }
 
-#ifndef METAMODULE
-// MetaModule can't create folders, so this is VCV only
+// Makes dir if need be; whether it's there. MetaModule firmware 2.4.1 and
+// earlier can't make folders: createDirectories returns false there.
 inline bool ensureDirectory(const std::string& dir) {
 	try {
-		if (!system::isDirectory(dir))
+		if (!isFolder(dir))
 			system::createDirectories(dir);
-		return system::isDirectory(dir);
+		return isFolder(dir);
 	}
 	catch (std::exception&) {
 		return false;
 	}
 }
-#endif

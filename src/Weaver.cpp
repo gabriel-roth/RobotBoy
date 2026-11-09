@@ -533,6 +533,7 @@ struct Weaver : Module {
 	void deletePress();
 	void restoreFactory();
 #ifdef METAMODULE
+	std::string writeFolder();
 	// GUI context: the file browser's choice, for the file service
 	void postDialogPath(const char* path) {
 		int expected = 0;
@@ -1380,13 +1381,24 @@ void Weaver::saveAs() {
 #endif
 }
 
+#ifdef METAMODULE
+// The folder SAVE and Restore write to: RobotBoy/Weaver, made if the
+// firmware can, rather than a drive's root
+std::string Weaver::writeFolder() {
+	std::string dir = presetFolder(), f = folder.get();
+	std::string make = shapes::folderToMake(!f.empty() && f == dir, dir, shapes::kWeaverOwnFolders, isFolder);
+	return !make.empty() && ensureDirectory(make) ? presetFolder() : dir;
+}
+#endif
+
 // SAVE: no dialog, the next free name in the current folder
 void Weaver::quickSave() {
-	std::string dir = presetFolder();
 #ifdef METAMODULE
-	// Nothing to save to (no card, say), and no making a folder here
+	std::string dir = writeFolder();
+	// Nothing to save to (no card, say)
 	bool usable = !dir.empty();
 #else
+	std::string dir = presetFolder();
 	bool usable = ensureDirectory(dir);
 #endif
 	if (usable)
@@ -1431,8 +1443,10 @@ void Weaver::deletePress() {
 // Writes the factory presets back, over any of the same name, leaving the
 // rest alone
 void Weaver::restoreFactory() {
+#ifdef METAMODULE
+	std::string dir = writeFolder();
+#else
 	std::string dir = presetFolder();
-#ifndef METAMODULE
 	if (!ensureDirectory(dir))
 		dir = "";
 #endif
