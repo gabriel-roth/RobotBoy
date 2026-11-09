@@ -909,6 +909,24 @@ static void finishSave(Lyrebird* m) {
 	std::string path = m->savePath.empty() ? system::join(m->saveDir, shapes::nextTakeName(fileNames(m->saveDir)))
 	                                       : m->savePath;
 	bool ok = shapes::writeTakeWav(path, snap);
+#ifdef METAMODULE
+	if (!ok) {
+		staleDrives.add(path);
+		// The drive may be gone though its root still opens (see
+		// StaleDrives): SAVE to a folder the user didn't choose gives way to
+		// the next one there is
+		std::string f = m->folder.get();
+		if (m->savePath.empty() && (f.empty() || f != m->saveDir)) {
+			std::string dir = m->fileFolder();
+			if (!dir.empty() && dir != m->saveDir) {
+				path = system::join(dir, shapes::nextTakeName(fileNames(dir)));
+				ok = shapes::writeTakeWav(path, snap);
+			}
+		}
+	}
+	if (ok)
+		staleDrives.remove(path);
+#endif
 	uint32_t version = snap.version;
 	m->engine.releaseSnapshot();
 	if (!ok) {

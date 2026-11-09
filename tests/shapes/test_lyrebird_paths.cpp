@@ -119,12 +119,29 @@ static void foldersToMake() {
 	assert(folderToMake(false, "sdc:/Lyrebird", own, any({"sdc:/", "sdc:/Lyrebird"})) == "");
 }
 
+static void staleDrives() {
+	assert(driveBit("sdc:/") == 1 && driveBit("sdc:/RobotBoy/Weaver/x.json") == 1);
+	assert(driveBit("usb:") == 2 && driveBit("usb:/a.wav") == 2);
+	assert(driveBit("nor:/") == 0 && driveBit("/Users/me") == 0 && driveBit("") == 0);
+	StaleDrives d;
+	assert(!d.has("sdc:/"));
+	d.add("sdc:/RobotBoy/Weaver/Preset 001.json");
+	assert(d.has("sdc:/") && d.has("sdc:/Lyrebird") && !d.has("usb:/"));
+	d.add("usb:/x.wav");
+	d.remove("sdc:/RobotBoy");
+	assert(!d.has("sdc:/") && d.has("usb:/"));
+	// Paths off the drives are never stale
+	d.add("/Users/me/x.json");
+	assert(!d.has("/Users/me/x.json"));
+}
+
 int main() {
 	volumePaths();
 	usableFolders();
 	repeatedVolumes();
 	pickedFolders();
 	foldersToMake();
+	staleDrives();
 	sharedPaths();
 	sharedPathConcurrent();
 	printf("lyrebird path tests passed\n");

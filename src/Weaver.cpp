@@ -529,7 +529,7 @@ struct Weaver : Module {
 	void loadListed(const PresetEntry& p);
 	void quickSave();
 	void saveAs();
-	void saveTo(std::string path, bool named);
+	bool saveTo(std::string path, bool named);
 	void deletePress();
 	void restoreFactory();
 #ifdef METAMODULE
@@ -1312,8 +1312,8 @@ static bool removePresetFile(const std::string& path) {
 
 // Saves the settings to path, unless a preset in the same folder already
 // has them: SAVE then just names it, and Save as (named) renames its file
-// to the name chosen. A built-in can't be renamed.
-void Weaver::saveTo(std::string path, bool named) {
+// to the name chosen. A built-in can't be renamed. False if the write failed.
+bool Weaver::saveTo(std::string path, bool named) {
 	if (shapes::lowerCase(system::getExtension(path)) != ".json")
 		path += ".json";
 	scanPresets();
@@ -1326,7 +1326,7 @@ void Weaver::saveTo(std::string path, bool named) {
 			currentPreset.set(m.name);
 			titleStale = true;
 			showMessage("ALREADY SAVED: " + m.name);
-			return;
+			return true;
 		}
 		if (shapes::lowerCase(m.file) != shapes::lowerCase(system::getFilename(path)))
 			replaced = system::join(presetsDir, m.file);
@@ -1337,15 +1337,18 @@ void Weaver::saveTo(std::string path, bool named) {
 	for (int i = 0; i < 3; i++)
 		p.seeds[i] = loopSeeds[i];
 	if (!writePresetFile(path, p)) {
+		staleDrives.add(path);
 		showMessage("SAVE FAILED");
-		return;
+		return false;
 	}
+	staleDrives.remove(path);
 	if (!replaced.empty())
 		removePresetFile(replaced);
 	std::string stem = system::getStem(path);
 	currentPreset.set(stem);
 	showMessage("SAVED " + stem);
 	scanPresets();
+	return true;
 }
 
 #ifdef METAMODULE
@@ -1401,10 +1404,22 @@ void Weaver::quickSave() {
 	std::string dir = presetFolder();
 	bool usable = ensureDirectory(dir);
 #endif
-	if (usable)
-		saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))), false);
-	else
+	if (!usable) {
 		saveAs();
+		return;
+	}
+	if (saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))), false))
+		return;
+#ifdef METAMODULE
+	// The drive may be gone though its root still opens (see StaleDrives): a
+	// folder the user didn't choose gives way to the next one there is
+	std::string f = folder.get();
+	if (!f.empty() && f == dir)
+		return;
+	std::string next = writeFolder();
+	if (!next.empty() && next != dir)
+		saveTo(system::join(next, shapes::nextPresetName(fileNames(next))), false);
+#endif
 }
 
 // The first press asks for a second within kMessageSeconds; the second

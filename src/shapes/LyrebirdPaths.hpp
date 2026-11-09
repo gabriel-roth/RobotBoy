@@ -84,6 +84,34 @@ inline std::string folderToMake(bool chosen, const std::string& current, const s
 	return "";
 }
 
+// A MetaModule drive as a bit: 1 the card, 2 USB, 0 anything else
+inline unsigned driveBit(const std::string& p) {
+	if (p.compare(0, 4, "sdc:") == 0)
+		return 1;
+	if (p.compare(0, 4, "usb:") == 0)
+		return 2;
+	return 0;
+}
+
+// Drives that look present but aren't. MetaModule 2.4.1 keeps a removed card
+// or USB drive mounted, so its root still opens though nothing on it can be
+// read or written. A failed write adds the drive; reaching it for real
+// removes it.
+struct StaleDrives {
+	void add(const std::string& p) {
+		bits_.fetch_or(driveBit(p));
+	}
+	void remove(const std::string& p) {
+		bits_.fetch_and(~driveBit(p));
+	}
+	bool has(const std::string& p) const {
+		return bits_.load() & driveBit(p);
+	}
+
+private:
+	std::atomic<unsigned> bits_{0};
+};
+
 // A path one thread writes while others read it, with no lock to wait on: a
 // thread may interrupt another mid-write, so nobody spins. Fixed size, so
 // nothing is freed under a reader. A read that keeps meeting a write, or a

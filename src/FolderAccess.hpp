@@ -35,14 +35,25 @@ inline DIR* openFolder(const std::string& path) {
 }
 #endif
 
+// Shared by every module, as it's the drive that's gone. A no-op on VCV,
+// whose paths aren't on a MetaModule drive.
+inline shapes::StaleDrives staleDrives;
+
 // Whether a folder exists. MetaModule's stat() calls everything a file (and
 // fails on volume roots), so system::isDirectory is always false there:
 // open it as a folder instead.
 inline bool isFolder(const std::string& path) {
 #ifdef METAMODULE
+	// A stale drive's root opens though the drive is gone; a folder below it
+	// has to be read from the drive, so its opening means the drive is back
+	bool stale = staleDrives.has(path);
+	if (stale && shapes::isVolumeRoot(path))
+		return false;
 	DIR* d = openFolder(path);
 	if (d)
 		closedir(d);
+	if (d && stale)
+		staleDrives.remove(path);
 	return d != nullptr;
 #else
 	return system::isDirectory(path);
