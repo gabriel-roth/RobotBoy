@@ -5,7 +5,7 @@
 
 // Tune: a tuner and scope. The pitch tracking and the scope's trigger are
 // the CV Funk Tuner's (src/tune/, see its NOTICE.md), one channel of it with
-// its OFFSET and GAIN knobs fixed at their defaults. Its WIDTH knob is DIV.
+// its OFFSET and GAIN knobs fixed at their defaults. Its WIDTH knob is kept.
 
 struct Tune : Module {
 	enum ParamId {
@@ -27,7 +27,7 @@ struct Tune : Module {
 
 	// CV Funk's knob defaults: OFFSET at 0 (it subtracts 0.05 V). GAIN was 1.
 	static constexpr float kOffset = -0.05f;
-	// Cycles across the scope with DIV at its default
+	// Cycles across the scope with WIDTH at its default
 	static constexpr float kDefaultCycles = 2.f;
 	static constexpr int kScopePoints = 1024;
 	// Samples between checks of the input and updates of V/OCT and the readout
@@ -39,7 +39,7 @@ struct Tune : Module {
 
 	DualRangeTracker tracker;
 	PhaseAccumulatorTrigger scopeTrigger;
-	// The input in volts / 2, as many cycles of it as DIV sets. Written by the audio thread and
+	// The input in volts / 2, as many cycles of it as WIDTH sets. Written by the audio thread and
 	// drawn by the UI without a lock: a torn frame is one bad picture.
 	CircularBuffer<float, kScopePoints> scope;
 	// The tracked frequency for the readout; below 0 when there's no lock

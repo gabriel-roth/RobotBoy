@@ -2,7 +2,7 @@
 # (see panel-specs/README.md for setup):
 #   ~/Dev/vcv-panel-gen/.venv/bin/python ~/Dev/vcv-panel-gen/panelgen.py panel-specs/tune.yaml --out res/Tune.svg
 #
-# Tune is a tuner and scope: two windows, the audio input, DIV (how many
+# Tune is a tuner and scope: two windows, the audio input, WIDTH (how many
 # cycles the scope shows), the V/oct output and OUT, a copy of the input for
 # patching the tuner inline.
 #
@@ -20,7 +20,7 @@
 #    SCOPE, the waveform. 4:3 is the MetaModule full-screen shape. Keep both
 #    rects in sync with src/Tune.cpp.
 #  - Control plate (1.5-59.46, 101.5-121), 1.5 mm from the panel edges: IN,
-#    DIV, V/OCT, OUT in four equal columns (plate width / 8 from each edge,
+#    WIDTH, V/OCT, OUT in four equal columns (plate width / 8 from each edge,
 #    then / 4 apart: 8.745 / 23.235 / 37.725 / 52.215), controls at 109,
 #    labels below at 117.5 (the knob's too, as in Skylark's bottom row).
 slug: Tune
@@ -47,7 +47,7 @@ elements:
   - {name: AUDIO_INPUT, x: 8.745, y: 109.0}
   - {text: IN, x: 8.745, y: 117.5}
   - {name: WIDTH_PARAM, widget: RoundBlackSnapKnob, x: 23.235, y: 109.0}
-  - {text: DIV, x: 23.235, y: 117.5}
+  - {text: WIDTH, x: 23.235, y: 117.5}
   - {name: FREQ_OUTPUT, x: 37.725, y: 109.0}
   - {text: V/OCT, x: 37.725, y: 117.5}
   - {name: AUDIO_OUTPUT, x: 52.215, y: 109.0}

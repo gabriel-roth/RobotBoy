@@ -12,7 +12,7 @@
 ## Controls
 
 - **IN:** the signal to tune. On a polyphonic cable, the first channel is measured.
-- **DIV:** how many cycles the scope shows: 2 (default), 4, 6, 8, 10 or 12.
+- **WIDTH:** how many cycles the scope shows: 2 (default), 4, 6, 8, 10 or 12.
 - **V/OCT:** the tracked pitch as a voltage, 0 V = C4. 0 V when no pitch is found.
 - **OUT:** a copy of IN, so Tune can be patched between two modules. Polyphonic if IN is.
 
