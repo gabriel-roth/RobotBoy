@@ -1,0 +1,34 @@
+# Tuner: code from CV Funk
+
+`Tuner.cpp` and `digital_display.hpp`, with `res/Tuner.svg`, `res/Tuner-dark.svg` and `res/fonts/DejaVuSansMono.ttf`, come from the CV Funk **Tuner** module, written by Cody Geary.
+
+- Upstream: <https://github.com/codygeary/CVfunk-Modules>, commit `25718429e90c7c4402eb3188a1bc93249dfe1295`.
+- Licence: MIT, reproduced below. The font has its own licence, in `res/fonts/DejaVu Fonts License.txt`.
+
+## Licence
+
+MIT License
+
+Copyright (c) 2024 Cody Geary / CV funk 
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+## Local changes
+
+1. `Tuner.cpp` no longer includes `rack.hpp` before `plugin.hpp`: with `-Isrc`, Rack's own `#include <plugin.hpp>` resolves to RobotBoy's header, which then has to come first.
