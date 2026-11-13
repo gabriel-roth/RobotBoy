@@ -35,7 +35,7 @@ struct Tune : Module {
 	// Autocorrelation lags per tracker call, as in every CV Funk speed setting
 	static constexpr int kLagsPerCall = 8;
 	// Analysis samples skipped between tracker calls, in menu order
-	static constexpr int kSkipChoices[4] = {0, 1, 3, 7};
+	static constexpr int kSkipChoices[3] = {0, 1, 3};
 
 	DualRangeTracker tracker;
 	PhaseAccumulatorTrigger scopeTrigger;
@@ -176,7 +176,7 @@ struct Tune : Module {
 	}
 };
 
-constexpr int Tune::kSkipChoices[4];
+constexpr int Tune::kSkipChoices[3];
 
 namespace {
 
@@ -359,9 +359,9 @@ struct TuneWidget : ModuleWidget {
 
 		menu->addChild(new MenuSeparator);
 		menu->addChild(createIndexSubmenuItem("Analysis speed",
-			{"Precise: fastest lock, most CPU", "Balanced", "Light: slower lock, less CPU", "Minimal: slowest lock, least CPU"},
+			{"Precise: faster lock, more CPU", "Balanced", "Light: slower lock, less CPU"},
 			[=]() {
-				for (int i = 0; i < 4; i++)
+				for (int i = 0; i < 3; i++)
 					if (module->analysisSkip == Tune::kSkipChoices[i])
 						return i;
 				return 1;
