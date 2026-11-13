@@ -1,15 +1,14 @@
 # Tuner panel spec (vcv-panel-gen): SKETCH, not yet generated into res/Tuner.svg.
 # res/Tuner.svg and res/Tuner-dark.svg are still CV Funk's dual-tuner panels.
 #
-# Single-channel version of the CV Funk Tuner: one display, the three scope
-# knobs (OFFSET, GAIN, WIDTH), the audio input and the V/oct output.
+# Single-channel version of the CV Funk Tuner: one display, the audio input and
+# the V/oct output. CV Funk's scope knobs (OFFSET, GAIN, WIDTH) are gone.
 # Positions are sketch-grade (nearest half millimetre); the layout is being
 # chosen in design rounds (local/panel-mockups/tuner/).
 #
 # 12 HP, in the Lucarne layout: title in the top band, the display on the bare
-# panel (54 x 60, centered: (60.96 - 54) / 2 = 3.48), then tinted plates 1.5 mm
+# panel (54 x 83, centered: (60.96 - 54) / 2 = 3.48), then tinted plates 1.5 mm
 # from the panel edges with 2.0 mm between them.
-#  - Scope plate (79-99.5): three knobs at 13 / 30.48 / 48, labels above.
 #  - Input plate (1.5-29.48) and gray output plate (31.48-59.46), 101.5-121:
 #    jacks at 109, labels below at 117.5.
 slug: Tuner
@@ -25,19 +24,11 @@ title:
   dy: 1.211
 
 zones:
-  - {x: 1.5, y: 79.0, w: 57.96, h: 20.5, rx: 2, fill: "#7f9fb3", opacity: 0.55}
   - {x: 1.5, y: 101.5, w: 27.98, h: 19.5, rx: 2, fill: "#9aa883", opacity: 0.55}
   - {x: 31.48, y: 101.5, w: 27.98, h: 19.5, rx: 2, fill: "#9a9a9a", opacity: 0.55}
 
 elements:
-  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 60}}
-
-  - {text: OFFSET, x: 13.0, y: 86.0}
-  - {text: GAIN, x: 30.48, y: 86.0}
-  - {text: WIDTH, x: 48.0, y: 86.0}
-  - {name: OFFSET_PARAM, x: 13.0, y: 92.0}
-  - {name: GAIN_PARAM, x: 30.48, y: 92.0}
-  - {name: WIDTH_PARAM, x: 48.0, y: 92.0}
+  - {name: SCREEN, kind: widget, rect: {x: 3.48, y: 14, w: 54, h: 83}}
 
   - {name: AUDIO_INPUT, x: 15.5, y: 109.0}
   - {text: IN, x: 15.5, y: 117.5}
