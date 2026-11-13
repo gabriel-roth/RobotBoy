@@ -7,6 +7,7 @@ What's new in Robot Boy, newest first. For how anything works, see the module ma
 - New module: Skylark, a tempo-synced modulator that loops structured gestures and bends them with transforms.
 - New module: Weaver, a tempo-synced modulator that combines three simple operators into one shape.
 - New module: Lyrebird, a gesture and CV recorder.
+- New module: Tune, a tuner and scope.
 
 ## [2.4.1] — 2026-10-23
 

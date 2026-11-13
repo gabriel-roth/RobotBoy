@@ -18,6 +18,7 @@ extern Model* modelLucarne;
 extern Model* modelSkylark;
 extern Model* modelWeaver;
 extern Model* modelLyrebird;
+extern Model* modelTune;
 
 // A module whose menu-undo snapshots should leave something out (content that
 // a settings change mustn't bring back) edits them here.

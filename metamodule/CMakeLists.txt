@@ -42,6 +42,8 @@ target_sources(RobotBoy PRIVATE
     ${SRC}/src/shapes/LyrebirdEngine.cpp
     ${SRC}/src/shapes/TakeFile.cpp
     ${SRC}/src/shapes/TakeSmoother.cpp
+    # Tune (pitch tracking from the CV Funk Tuner, see src/tune/NOTICE.md)
+    ${SRC}/src/Tune.cpp
     # Native Loooop/Löp cores
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LoooopCore.cc
     ${CMAKE_CURRENT_LIST_DIR}/loooop/LopCore.cc
