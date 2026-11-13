@@ -13,18 +13,6 @@
 // Weaver's preset files: where they live and how they're named.
 namespace shapes {
 
-// Where MetaModule looks for presets, in order: a Weaver or RobotBoy folder
-// on the card, then on a USB drive, then either root
-inline const std::vector<std::string> kWeaverMetaModuleFolders = {
-	"sdc:/RobotBoy/Weaver", "sdc:/Weaver", "sdc:/RobotBoy",
-	"usb:/RobotBoy/Weaver", "usb:/Weaver", "usb:/RobotBoy",
-	"sdc:/", "usb:/",
-};
-
-// The folder SAVE and Restore make on MetaModule, on the card or else USB,
-// when there's only a drive's root to write to
-inline const std::vector<std::string> kWeaverOwnFolders = {"sdc:/RobotBoy/Weaver", "usb:/RobotBoy/Weaver"};
-
 // Written beside the factory presets once they're in a folder, so deleting
 // them all doesn't bring them back
 inline const char* const kFactoryMarker = ".weaver-factory-presets";

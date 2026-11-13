@@ -35,25 +35,14 @@ inline DIR* openFolder(const std::string& path) {
 }
 #endif
 
-// Shared by every module, as it's the drive that's gone. A no-op on VCV,
-// whose paths aren't on a MetaModule drive.
-inline shapes::StaleDrives staleDrives;
-
 // Whether a folder exists. MetaModule's stat() calls everything a file (and
 // fails on volume roots), so system::isDirectory is always false there:
 // open it as a folder instead.
 inline bool isFolder(const std::string& path) {
 #ifdef METAMODULE
-	// A stale drive's root opens though the drive is gone; a folder below it
-	// has to be read from the drive, so its opening means the drive is back
-	bool stale = staleDrives.has(path);
-	if (stale && shapes::isVolumeRoot(path))
-		return false;
 	DIR* d = openFolder(path);
 	if (d)
 		closedir(d);
-	if (d && stale)
-		staleDrives.remove(path);
 	return d != nullptr;
 #else
 	return system::isDirectory(path);
@@ -84,8 +73,8 @@ inline std::vector<std::string> fileNames(const std::string& dir) {
 	return names;
 }
 
-// Makes dir if need be; whether it's there. MetaModule firmware 2.4.1 and
-// earlier can't make folders: createDirectories returns false there.
+// Makes dir if need be; whether it's there. MetaModule firmware before
+// 2.4.2 can't make folders: createDirectories returns false there.
 inline bool ensureDirectory(const std::string& dir) {
 	try {
 		if (!isFolder(dir))
@@ -95,4 +84,23 @@ inline bool ensureDirectory(const std::string& dir) {
 	catch (std::exception&) {
 		return false;
 	}
+}
+
+#ifdef METAMODULE
+// A module's folder ("RobotBoy/Weaver") on the card, or on a USB drive when
+// there's no card; "" with neither
+inline std::string driveFolder(const std::string& folder) {
+	for (const char* root : {"sdc:/", "usb:/"})
+		if (isFolder(root))
+			return root + folder;
+	return "";
+}
+#endif
+
+// Where a Save as dialog opens: dir, made if need be. A MetaModule that
+// can't make folders opens at the drive's root instead.
+inline std::string dialogFolder(const std::string& dir) {
+	if (dir.empty() || ensureDirectory(dir))
+		return dir;
+	return shapes::isVolumePath(dir) ? dir.substr(0, 5) : dir;
 }

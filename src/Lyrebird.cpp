@@ -521,11 +521,10 @@ struct Lyrebird : Module, MenuUndoFilter {
 		message.set(text, system::getTime() + kMessageSeconds);
 	}
 
-	// MetaModule can't create folders: the first of these that exists, looked
-	// up each time so a card put in later is found. "" when there's none.
+	// Looked up each time on MetaModule, so a card put in later is found
 	static std::string defaultFolder() {
 #ifdef METAMODULE
-		return shapes::pickFolder(shapes::kMetaModuleFolders, isFolder);
+		return driveFolder("RobotBoy/Lyrebird");
 #else
 		return asset::user("RobotBoy/Lyrebird");
 #endif
@@ -865,9 +864,9 @@ static void saveAs(Lyrebird* m) {
 	if (m->saving)
 		return;
 #ifdef METAMODULE
-	std::string dir = m->fileFolder();
+	std::string dir = dialogFolder(m->fileFolder());
 #else
-	std::string dir = m->currentFolder();
+	std::string dir = dialogFolder(m->currentFolder());
 #endif
 	std::string name = shapes::nextTakeName(fileNames(dir));
 #ifdef METAMODULE
@@ -884,18 +883,12 @@ static void quickSave(Lyrebird* m) {
 	if (m->saving)
 		return;
 #ifdef METAMODULE
-	// RobotBoy/Lyrebird, made if the firmware can, rather than a drive's root
-	std::string dir = m->fileFolder(), f = m->folder.get();
-	std::string make = shapes::folderToMake(!f.empty() && f == dir, dir, shapes::kLyrebirdOwnFolders, isFolder);
-	if (!make.empty() && ensureDirectory(make))
-		dir = m->fileFolder();
-	// Nothing to save to (no card, say)
-	bool usable = !dir.empty();
+	std::string dir = m->fileFolder();
 #else
 	std::string dir = m->currentFolder();
-	bool usable = ensureDirectory(dir);
 #endif
-	if (usable)
+	// Nothing to save to (no card, say, or a MetaModule that can't make folders)
+	if (!dir.empty() && ensureDirectory(dir))
 		startSave(m, "", dir);
 	else
 		saveAs(m);
@@ -909,24 +902,6 @@ static void finishSave(Lyrebird* m) {
 	std::string path = m->savePath.empty() ? system::join(m->saveDir, shapes::nextTakeName(fileNames(m->saveDir)))
 	                                       : m->savePath;
 	bool ok = shapes::writeTakeWav(path, snap);
-#ifdef METAMODULE
-	if (!ok) {
-		staleDrives.add(path);
-		// The drive may be gone though its root still opens (see
-		// StaleDrives): SAVE to a folder the user didn't choose gives way to
-		// the next one there is
-		std::string f = m->folder.get();
-		if (m->savePath.empty() && (f.empty() || f != m->saveDir)) {
-			std::string dir = m->fileFolder();
-			if (!dir.empty() && dir != m->saveDir) {
-				path = system::join(dir, shapes::nextTakeName(fileNames(dir)));
-				ok = shapes::writeTakeWav(path, snap);
-			}
-		}
-	}
-	if (ok)
-		staleDrives.remove(path);
-#endif
 	uint32_t version = snap.version;
 	m->engine.releaseSnapshot();
 	if (!ok) {

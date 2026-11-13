@@ -80,7 +80,7 @@ A preset sets every operator control and the algorithm; tempo, SPEED, CV trimpot
 - **SAVE:** saves the current settings to the folder.
 - **DELETE** (red)**:** press twice to delete the current preset’s file.
 - The current folder is that of the last preset saved with **Save preset as…** (see [**Settings**](#settings)). In VCV Rack it defaults to `RobotBoy/Weaver` in the Rack user folder, where the factory presets are written on first use.
-- On MetaModule, the default folder is the first of `RobotBoy/Weaver`, `Weaver`, or `RobotBoy` found on the SD card, then on a USB drive, then the root of either.
+- On MetaModule, the default folder is `RobotBoy/Weaver` on the SD card, or on a USB drive if there’s no card, where the factory presets are written on first use (firmware 2.4.2 or later).
 
 ### Timing
 

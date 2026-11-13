@@ -2,9 +2,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <string>
-#include <vector>
 
 namespace shapes {
 
@@ -48,69 +46,6 @@ inline std::string withVolumeRepeated(const std::string& p) {
 	std::string vol = p.substr(0, 4) + "/";
 	return vol + vol + (p.size() > 5 ? p.substr(5) : "");
 }
-
-// Where MetaModule looks for takes, in order: a Lyrebird or RobotBoy folder
-// on the card, then on a USB drive, then either root
-inline const std::vector<std::string> kMetaModuleFolders = {
-	"sdc:/RobotBoy/Lyrebird", "sdc:/Lyrebird", "sdc:/RobotBoy",
-	"usb:/RobotBoy/Lyrebird", "usb:/Lyrebird", "usb:/RobotBoy",
-	"sdc:/", "usb:/",
-};
-
-// The folder SAVE makes on MetaModule, on the card or else USB, when
-// there's only a drive's root to save to
-inline const std::vector<std::string> kLyrebirdOwnFolders = {"sdc:/RobotBoy/Lyrebird", "usb:/RobotBoy/Lyrebird"};
-
-// The first candidate that is a directory, or "" when none is
-inline std::string pickFolder(const std::vector<std::string>& candidates,
-                              const std::function<bool(const std::string&)>& isDirectory) {
-	for (const std::string& c : candidates)
-		if (isDirectory(c))
-			return c;
-	return "";
-}
-
-// The module's own folder for SAVE to make on MetaModule: with no folder
-// chosen and only a drive's root (or nothing) to save to, the first of
-// folders whose drive is there; else "". Firmware 2.4.1 and earlier can't
-// make folders, so there it isn't made.
-inline std::string folderToMake(bool chosen, const std::string& current, const std::vector<std::string>& folders,
-                                const std::function<bool(const std::string&)>& isDirectory) {
-	if (chosen || !(current.empty() || isVolumeRoot(current)))
-		return "";
-	for (const std::string& f : folders)
-		if (isVolumePath(f) && isDirectory(f.substr(0, 5)))
-			return f;
-	return "";
-}
-
-// A MetaModule drive as a bit: 1 the card, 2 USB, 0 anything else
-inline unsigned driveBit(const std::string& p) {
-	if (p.compare(0, 4, "sdc:") == 0)
-		return 1;
-	if (p.compare(0, 4, "usb:") == 0)
-		return 2;
-	return 0;
-}
-
-// Drives that look present but aren't. MetaModule 2.4.1 keeps a removed card
-// or USB drive mounted, so its root still opens though nothing on it can be
-// read or written. A failed write adds the drive; reaching it for real
-// removes it.
-struct StaleDrives {
-	void add(const std::string& p) {
-		bits_.fetch_or(driveBit(p));
-	}
-	void remove(const std::string& p) {
-		bits_.fetch_and(~driveBit(p));
-	}
-	bool has(const std::string& p) const {
-		return bits_.load() & driveBit(p);
-	}
-
-private:
-	std::atomic<unsigned> bits_{0};
-};
 
 // A path one thread writes while others read it, with no lock to wait on: a
 // thread may interrupt another mid-write, so nobody spins. Fixed size, so

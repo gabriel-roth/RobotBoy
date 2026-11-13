@@ -1,5 +1,5 @@
 // Lyrebird's folder rules: volume paths, which saved folder a platform keeps,
-// and MetaModule's default folder.
+// and the path shared between threads.
 #include "shapes/LyrebirdPaths.hpp"
 #include <algorithm>
 #include <cassert>
@@ -48,33 +48,6 @@ static void repeatedVolumes() {
 	assert(withVolumeRepeated("") == "");
 }
 
-static void pickedFolders() {
-	auto only = [](std::string d) { return [d](const std::string& p) { return p == d; }; };
-	std::vector<std::string> c = {"sdc:/RobotBoy/Lyrebird", "sdc:/", "usb:/"};
-	assert(pickFolder(c, only("sdc:/RobotBoy/Lyrebird")) == "sdc:/RobotBoy/Lyrebird");
-	assert(pickFolder(c, only("sdc:/")) == "sdc:/");
-	assert(pickFolder(c, only("usb:/")) == "usb:/");
-	assert(pickFolder(c, only("nor:/")) == "");
-	// The first that exists wins
-	assert(pickFolder(c, [](const std::string&) { return true; }) == "sdc:/RobotBoy/Lyrebird");
-	assert(pickFolder({}, [](const std::string&) { return true; }) == "");
-
-	// MetaModule's search order: named folders on the card, then on USB,
-	// then the card root, then the USB root
-	const std::vector<std::string>& m = kMetaModuleFolders;
-	assert(pickFolder(m, only("sdc:/Lyrebird")) == "sdc:/Lyrebird");
-	assert(pickFolder(m, only("usb:/RobotBoy")) == "usb:/RobotBoy");
-	auto any = [](std::vector<std::string> ds) {
-		return [ds](const std::string& p) { return std::find(ds.begin(), ds.end(), p) != ds.end(); };
-	};
-	assert(pickFolder(m, any({"sdc:/RobotBoy", "sdc:/Lyrebird"})) == "sdc:/Lyrebird");
-	assert(pickFolder(m, any({"usb:/Lyrebird", "sdc:/RobotBoy"})) == "sdc:/RobotBoy");
-	assert(pickFolder(m, any({"sdc:/", "usb:/RobotBoy/Lyrebird"})) == "usb:/RobotBoy/Lyrebird");
-	assert(pickFolder(m, any({"usb:/", "sdc:/"})) == "sdc:/");
-	assert(pickFolder(m, only("usb:/")) == "usb:/");
-	assert(m.size() == 8 && m.front() == "sdc:/RobotBoy/Lyrebird" && m.back() == "usb:/");
-}
-
 static void sharedPaths() {
 	SharedPath<16> p;
 	assert(p.get() == "");
@@ -104,44 +77,10 @@ static void sharedPathConcurrent() {
 	writer.join();
 }
 
-static void foldersToMake() {
-	auto any = [](std::vector<std::string> ds) {
-		return [ds](const std::string& p) { return std::find(ds.begin(), ds.end(), p) != ds.end(); };
-	};
-	const std::vector<std::string> own = {"sdc:/RobotBoy/Lyrebird", "usb:/RobotBoy/Lyrebird"};
-	// Only a drive's root, or nothing, to save to: the first drive that's there
-	assert(folderToMake(false, "sdc:/", own, any({"sdc:/", "usb:/"})) == "sdc:/RobotBoy/Lyrebird");
-	assert(folderToMake(false, "usb:/", own, any({"usb:/"})) == "usb:/RobotBoy/Lyrebird");
-	assert(folderToMake(false, "", own, any({})) == "");
-	// A chosen folder, even a root, is kept
-	assert(folderToMake(true, "sdc:/", own, any({"sdc:/"})) == "");
-	// A named folder is already there
-	assert(folderToMake(false, "sdc:/Lyrebird", own, any({"sdc:/", "sdc:/Lyrebird"})) == "");
-}
-
-static void staleDrives() {
-	assert(driveBit("sdc:/") == 1 && driveBit("sdc:/RobotBoy/Weaver/x.json") == 1);
-	assert(driveBit("usb:") == 2 && driveBit("usb:/a.wav") == 2);
-	assert(driveBit("nor:/") == 0 && driveBit("/Users/me") == 0 && driveBit("") == 0);
-	StaleDrives d;
-	assert(!d.has("sdc:/"));
-	d.add("sdc:/RobotBoy/Weaver/Preset 001.json");
-	assert(d.has("sdc:/") && d.has("sdc:/Lyrebird") && !d.has("usb:/"));
-	d.add("usb:/x.wav");
-	d.remove("sdc:/RobotBoy");
-	assert(!d.has("sdc:/") && d.has("usb:/"));
-	// Paths off the drives are never stale
-	d.add("/Users/me/x.json");
-	assert(!d.has("/Users/me/x.json"));
-}
-
 int main() {
 	volumePaths();
 	usableFolders();
 	repeatedVolumes();
-	pickedFolders();
-	foldersToMake();
-	staleDrives();
 	sharedPaths();
 	sharedPathConcurrent();
 	printf("lyrebird path tests passed\n");

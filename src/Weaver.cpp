@@ -529,11 +529,10 @@ struct Weaver : Module {
 	void loadListed(const PresetEntry& p);
 	void quickSave();
 	void saveAs();
-	bool saveTo(std::string path, bool named);
+	void saveTo(std::string path, bool named);
 	void deletePress();
 	void restoreFactory();
 #ifdef METAMODULE
-	std::string writeFolder();
 	// GUI context: the file browser's choice, for the file service
 	void postDialogPath(const char* path) {
 		int expected = 0;
@@ -1196,9 +1195,8 @@ static bool updateFactoryPresets(const std::string& dir) {
 
 static std::string defaultPresetFolder() {
 #ifdef METAMODULE
-	// MetaModule can't create folders: the first of these that exists,
-	// looked up each time so a card put in later is found. "" when there's none.
-	return shapes::pickFolder(shapes::kWeaverMetaModuleFolders, isFolder);
+	// Looked up each time, so a card put in later is found
+	return driveFolder("RobotBoy/Weaver");
 #else
 	return asset::user("RobotBoy/Weaver");
 #endif
@@ -1217,10 +1215,8 @@ std::string Weaver::presetFolder() {
 // them first, built in.
 void Weaver::scanPresets() {
 	std::string dir = presetFolder();
-#ifndef METAMODULE
-	if (dir == defaultPresetFolder() && !ensureDirectory(dir))
+	if (!dir.empty() && dir == defaultPresetFolder() && !ensureDirectory(dir))
 		dir = "";
-#endif
 	std::vector<std::string> names = dir.empty() ? std::vector<std::string>() : fileNames(dir);
 	auto hasMarker = [&]() { return std::find(names.begin(), names.end(), shapes::kFactoryMarker) != names.end(); };
 	if (!dir.empty() && !hasMarker() && !shapes::isVolumeRoot(dir) && dir == defaultPresetFolder()) {
@@ -1312,8 +1308,8 @@ static bool removePresetFile(const std::string& path) {
 
 // Saves the settings to path, unless a preset in the same folder already
 // has them: SAVE then just names it, and Save as (named) renames its file
-// to the name chosen. A built-in can't be renamed. False if the write failed.
-bool Weaver::saveTo(std::string path, bool named) {
+// to the name chosen. A built-in can't be renamed.
+void Weaver::saveTo(std::string path, bool named) {
 	if (shapes::lowerCase(system::getExtension(path)) != ".json")
 		path += ".json";
 	scanPresets();
@@ -1326,7 +1322,7 @@ bool Weaver::saveTo(std::string path, bool named) {
 			currentPreset.set(m.name);
 			titleStale = true;
 			showMessage("ALREADY SAVED: " + m.name);
-			return true;
+			return;
 		}
 		if (shapes::lowerCase(m.file) != shapes::lowerCase(system::getFilename(path)))
 			replaced = system::join(presetsDir, m.file);
@@ -1337,18 +1333,15 @@ bool Weaver::saveTo(std::string path, bool named) {
 	for (int i = 0; i < 3; i++)
 		p.seeds[i] = loopSeeds[i];
 	if (!writePresetFile(path, p)) {
-		staleDrives.add(path);
 		showMessage("SAVE FAILED");
-		return false;
+		return;
 	}
-	staleDrives.remove(path);
 	if (!replaced.empty())
 		removePresetFile(replaced);
 	std::string stem = system::getStem(path);
 	currentPreset.set(stem);
 	showMessage("SAVED " + stem);
 	scanPresets();
-	return true;
 }
 
 #ifdef METAMODULE
@@ -1367,7 +1360,7 @@ static void presetDialog(Weaver* m, const std::string& dir, const char* name) {
 #endif
 
 void Weaver::saveAs() {
-	std::string dir = presetFolder();
+	std::string dir = dialogFolder(presetFolder());
 	std::string name = shapes::nextPresetName(fileNames(dir));
 #ifdef METAMODULE
 	presetDialog(this, dir, name.c_str());
@@ -1384,42 +1377,14 @@ void Weaver::saveAs() {
 #endif
 }
 
-#ifdef METAMODULE
-// The folder SAVE and Restore write to: RobotBoy/Weaver, made if the
-// firmware can, rather than a drive's root
-std::string Weaver::writeFolder() {
-	std::string dir = presetFolder(), f = folder.get();
-	std::string make = shapes::folderToMake(!f.empty() && f == dir, dir, shapes::kWeaverOwnFolders, isFolder);
-	return !make.empty() && ensureDirectory(make) ? presetFolder() : dir;
-}
-#endif
-
 // SAVE: no dialog, the next free name in the current folder
 void Weaver::quickSave() {
-#ifdef METAMODULE
-	std::string dir = writeFolder();
-	// Nothing to save to (no card, say)
-	bool usable = !dir.empty();
-#else
+	// Nothing to save to (no card, say, or a MetaModule that can't make folders)
 	std::string dir = presetFolder();
-	bool usable = ensureDirectory(dir);
-#endif
-	if (!usable) {
+	if (!dir.empty() && ensureDirectory(dir))
+		saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))), false);
+	else
 		saveAs();
-		return;
-	}
-	if (saveTo(system::join(dir, shapes::nextPresetName(fileNames(dir))), false))
-		return;
-#ifdef METAMODULE
-	// The drive may be gone though its root still opens (see StaleDrives): a
-	// folder the user didn't choose gives way to the next one there is
-	std::string f = folder.get();
-	if (!f.empty() && f == dir)
-		return;
-	std::string next = writeFolder();
-	if (!next.empty() && next != dir)
-		saveTo(system::join(next, shapes::nextPresetName(fileNames(next))), false);
-#endif
 }
 
 // The first press asks for a second within kMessageSeconds; the second
@@ -1458,15 +1423,11 @@ void Weaver::deletePress() {
 // Writes the factory presets back, over any of the same name, leaving the
 // rest alone
 void Weaver::restoreFactory() {
-#ifdef METAMODULE
-	std::string dir = writeFolder();
-#else
 	std::string dir = presetFolder();
-	if (!ensureDirectory(dir))
+	if (!dir.empty() && !ensureDirectory(dir))
 		dir = "";
-#endif
 	if (dir.empty()) {
-		showMessage(kOnMetaModule ? "NO CARD" : "NO FOLDER");
+		showMessage("NO FOLDER");
 		return;
 	}
 	if (shapes::isVolumeRoot(dir)) {

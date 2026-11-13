@@ -48,7 +48,7 @@ Lyrebird’s controls are divided into four groups.
 
 ## Files
 
-The current folder is that of the last file opened or saved. In VCV Rack it defaults to `RobotBoy/Lyrebird` in the Rack user folder. On MetaModule, the default folder is the first of `RobotBoy/Lyrebird`, `Lyrebird`, or `RobotBoy` found on the SD card, then on a USB drive, then the root directory of the SD card, then the root of the USB drive. (MetaModule can’t create folders; you might want to make one on a computer.)
+The current folder is that of the last file opened or saved. In VCV Rack it defaults to `RobotBoy/Lyrebird` in the Rack user folder. On MetaModule, it defaults to `RobotBoy/Lyrebird` on the SD card, or on a USB drive if there’s no card, made on the first save (firmware 2.4.2 or later).
 
 Takes are saved as mono 32-bit float WAV files at 1 kHz, with ±10 V as full scale. Files not created by Lyrebird will load as Free takes from their first channel, up to 3 minutes.
 
