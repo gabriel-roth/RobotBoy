@@ -5,10 +5,11 @@
 
 // Tune: a tuner and scope. The pitch tracking and the scope's trigger are
 // the CV Funk Tuner's (src/tune/, see its NOTICE.md), one channel of it with
-// its OFFSET, GAIN and WIDTH knobs fixed at their defaults.
+// its OFFSET and GAIN knobs fixed at their defaults. Its WIDTH knob is DIV.
 
 struct Tune : Module {
 	enum ParamId {
+		WIDTH_PARAM,
 		PARAMS_LEN
 	};
 	enum InputId {
@@ -24,10 +25,10 @@ struct Tune : Module {
 		LIGHTS_LEN
 	};
 
-	// CV Funk's knob defaults: OFFSET at 0 (it subtracts 0.05 V) and WIDTH at
-	// two cycles across the scope. GAIN was 1.
+	// CV Funk's knob defaults: OFFSET at 0 (it subtracts 0.05 V). GAIN was 1.
 	static constexpr float kOffset = -0.05f;
-	static constexpr float kCycles = 2.f;
+	// Cycles across the scope with DIV at its default
+	static constexpr float kDefaultCycles = 2.f;
 	static constexpr int kScopePoints = 1024;
 	// Samples between checks of the input and updates of V/OCT and the readout
 	static constexpr int kControlInterval = 100;
@@ -38,7 +39,7 @@ struct Tune : Module {
 
 	DualRangeTracker tracker;
 	PhaseAccumulatorTrigger scopeTrigger;
-	// Two cycles of the input in volts / 2. Written by the audio thread and
+	// The input in volts / 2, as many cycles of it as DIV sets. Written by the audio thread and
 	// drawn by the UI without a lock: a torn frame is one bad picture.
 	CircularBuffer<float, kScopePoints> scope;
 	// The tracked frequency for the readout; below 0 when there's no lock
@@ -47,6 +48,7 @@ struct Tune : Module {
 	float sampleRate = 48000.f;
 	int controlCounter = 0;
 	bool inputConnected = false;
+	float cycles = kDefaultCycles;
 	float prevIn = 0.f;
 	bool capturing = false;
 	float captureProgress = 0.f;
@@ -57,6 +59,8 @@ struct Tune : Module {
 
 	Tune() {
 		config(PARAMS_LEN, INPUTS_LEN, OUTPUTS_LEN, LIGHTS_LEN);
+		configSwitch(WIDTH_PARAM, 0.f, 5.f, 0.f, "Scope width",
+			{"2 cycles", "4 cycles", "6 cycles", "8 cycles", "10 cycles", "12 cycles"});
 		configInput(AUDIO_INPUT, "Audio");
 		configOutput(FREQ_OUTPUT, "Frequency (V/oct)");
 		configOutput(AUDIO_OUTPUT, "Audio");
@@ -113,6 +117,7 @@ struct Tune : Module {
 		if (control) {
 			controlCounter = 0;
 			inputConnected = audio.isConnected();
+			cycles = 2.f * (1.f + std::round(params[WIDTH_PARAM].getValue()));
 		}
 
 		float in = 0.f;
@@ -127,9 +132,9 @@ struct Tune : Module {
 			displayHz.store(hz, std::memory_order_relaxed);
 		}
 
-		// The scope: a capture starts once per kCycles periods, lined up with
+		// The scope: a capture starts once per `cycles` periods, lined up with
 		// a rising zero crossing, and writes those periods across the buffer.
-		scopeTrigger.update(hz, sampleRate, kCycles, in, prevIn);
+		scopeTrigger.update(hz, sampleRate, cycles, in, prevIn);
 		prevIn = in;
 
 		if (scopeTrigger.triggered) {
@@ -139,7 +144,7 @@ struct Tune : Module {
 		}
 
 		if (capturing) {
-			float inc = hz > 0.f ? kScopePoints * hz / (kCycles * sampleRate) : 1.f;
+			float inc = hz > 0.f ? kScopePoints * hz / (cycles * sampleRate) : 1.f;
 			// Saturate one slot past the end, so the last slot is always
 			// reached before the next trigger restarts the frame
 			captureProgress = std::min(captureProgress + inc, (float) kScopePoints);
@@ -278,7 +283,7 @@ struct TuneReadout : shapeui::Screen {
 	}
 };
 
-// The lower window: two cycles of the input, +-10 V top to bottom.
+// The lower window: a few cycles of the input, +-10 V top to bottom.
 struct TuneScope : shapeui::Screen {
 	Tune* module = nullptr;
 
@@ -311,7 +316,7 @@ struct TuneScope : shapeui::Screen {
 				values[k] = module->scope[kSkip + k * kStep] / 5.f;
 			else
 				// The module browser's picture: a 5 V sine
-				values[k] = 0.5f * std::sin(2.f * M_PI * Tune::kCycles * k / (kPoints - 1));
+				values[k] = 0.5f * std::sin(2.f * M_PI * Tune::kDefaultCycles * k / (kPoints - 1));
 		}
 
 		shapeui::TraceStyle style;
@@ -341,9 +346,10 @@ struct TuneWidget : ModuleWidget {
 		scope->module = module;
 		addChild(scope);
 
-		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(11.16, 109.0)), module, Tune::AUDIO_INPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(30.48, 109.0)), module, Tune::FREQ_OUTPUT));
-		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(49.8, 109.0)), module, Tune::AUDIO_OUTPUT));
+		addInput(createInputCentered<PJ301MPort>(mm2px(Vec(8.745, 109.0)), module, Tune::AUDIO_INPUT));
+		addParam(createParamCentered<RoundBlackSnapKnob>(mm2px(Vec(23.235, 109.0)), module, Tune::WIDTH_PARAM));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(37.725, 109.0)), module, Tune::FREQ_OUTPUT));
+		addOutput(createOutputCentered<PJ301MPort>(mm2px(Vec(52.215, 109.0)), module, Tune::AUDIO_OUTPUT));
 	}
 
 	void appendContextMenu(Menu* menu) override {
