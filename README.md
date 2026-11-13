@@ -6,7 +6,7 @@
 * Three [complex modulators](#modulators).
 * A [stereo looper](#loopers) with four independent playheads, and its smaller sibling.
 * Three characterful [filter emulations](#filters).
-* And a tuner, [Tune](Tune.md).
+* And a [tuner](#tune).
 
 ---
 <a id="beads"></a>
@@ -59,7 +59,10 @@ Three stereo filters, each modeled on original circuits. [**[Manual]**](Filters.
 - **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The Soviet Polivoks filter.
 - **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The buzzy EDP Wasp filter, in its original British or reimplemented German flavors.
 
+<a id="tune"></a>
 ## Tune
+
+<img src="screenshots/Tune.png" alt="Tune module" height="300">
 
 A tuner and scope with a V/oct output and an audio thru. [**[Manual]**](Tune.md)
 

@@ -2,6 +2,8 @@
 
 **Tune** is a tuner and scope for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its pitch tracking is adapted from the [CV Funk](https://github.com/codygeary/CVfunk-Modules) Tuner by Cody Geary.
 
+<img src="screenshots/Tune.png" alt="Tune module" height="500">
+
 ---
 
 ## Displays
