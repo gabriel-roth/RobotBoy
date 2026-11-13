@@ -5,13 +5,17 @@
 //   written by Cody Geary
 //   Copyright 2025, MIT License
 //
-//   Unmodified from CV Funk's Tuner.cpp apart from this header; the module
+//   From CV Funk's Tuner.cpp; changes are marked "RobotBoy:". The module
 //   and its widget are in src/Tune.cpp. See NOTICE.md.
 //
 ////////////////////////////////////////////////////////////
 
 #pragma once
+// RobotBoy: tests/tune builds this without Rack and supplies its own float_4
+#ifndef TUNE_TRACKER_NO_RACK
 #include "plugin.hpp"
+#endif
+#include <cstring>
 #include <cmath>
 #include <string>
 
@@ -89,6 +93,9 @@ struct DecimatedFrequencyTracker {
     int     acGlobalPeakLag = 1;
     float   acThreshold     = 0.f;
     int     acCandidateLag  = 0;
+    // RobotBoy: the first lag where the autocorrelation has fallen below
+    // acThreshold, i.e. left the lobe around lag 0 (0 until it has).
+    int     acDipLag        = 0;
 
     // lagsPerCall scales the per-sample work budget; 8 is the baseline where
     // a full analysis completes in about half the buffer refill time.
@@ -232,6 +239,41 @@ struct DecimatedFrequencyTracker {
         chunkPos    = 0;
     }
 
+    // RobotBoy: refine a period (in lags) found from one autocorrelation peak.
+    // Parabolic interpolation places a peak to within a fraction of a lag
+    // however long the period is, so a short period comes out several cents
+    // off (3.4 lags at 3.5 kHz: 27 cents), and a bright waveform's narrow
+    // peaks fit a parabola worse still.  A periodic signal also peaks at
+    // every multiple of its period, and the peak at k periods, placed just as
+    // precisely, gives the period k times as precisely.  So follow the peaks
+    // outwards, doubling k while the estimate is good enough to predict the
+    // next one to within a lag, and finish on the last multiple that fits.
+    // Stops at the first multiple with no clear peak (a pitch that moved
+    // within the frame) and keeps the estimate it has.
+    float refinePeriod(float period, float basePeak) const {
+        int k = 1;
+        for (;;) {
+            int kMax = (int)((float)(acHalf - 3) / period);
+            int k2   = std::min(k * 2, kMax);
+            if (k2 <= k) break;
+            int lag = (int)lroundf(period * k2);
+            if (lag < 2 || lag >= acHalf - 2) break;
+            // The highest of the predicted lag and its neighbours
+            if (ac[lag - 1] > ac[lag] && ac[lag - 1] >= ac[lag + 1]) lag--;
+            else if (ac[lag + 1] > ac[lag])                          lag++;
+            if (lag < 2 || lag >= acHalf - 2) break;
+            float y0 = ac[lag - 1];
+            float y1 = ac[lag];
+            float y2 = ac[lag + 1];
+            if (y1 < y0 || y1 < y2 || y1 < 0.5f * basePeak) break;
+            float denom = y0 - 2.f * y1 + y2;
+            float shift = (fabsf(denom) > 1e-12f) ? (0.5f * (y0 - y2) / denom) : 0.f;
+            period = ((float)lag + shift) / (float)k2;
+            k      = k2;
+        }
+        return period;
+    }
+
     // Incremental analysis engine.  Called once per full-rate sample while an
     // analysis is in flight.  Each call consumes at most workBudget units of
     // work (1 unit = one float_4 iteration = 4 element operations), crossing
@@ -340,6 +382,7 @@ struct DecimatedFrequencyTracker {
                         acThreshold = std::min(0.88f, std::max(confidenceFloor + 0.10f,
                                           0.55f + 0.1f * (acGlobalPeak - 0.8f)));
                         acCandidateLag = 0;
+                        acDipLag       = (ac[1] < acThreshold) ? 1 : 0;
                         chunkPos       = 2;
                         acState        = 5;
                     }
@@ -350,6 +393,14 @@ struct DecimatedFrequencyTracker {
                     int last = std::min(acHalf - 1, chunkPos + budget * 4);
                     int lag  = chunkPos;
                     for (; lag < last; ++lag) {
+                        // RobotBoy: peaks only count beyond the lobe around lag 0.
+                        // A signal slower than this tracker's range is a ramp across
+                        // the frame; its autocorrelation falls slowly away from 1, and
+                        // any noise ripples it into "peaks" at lags of a few samples.
+                        if (acDipLag == 0) {
+                            if (ac[lag] < acThreshold) acDipLag = lag;
+                            continue;
+                        }
                         if (ac[lag] > ac[lag-1] && ac[lag] >= ac[lag+1]
                             && ac[lag] >= acThreshold) {
                             acCandidateLag = lag;
@@ -363,6 +414,17 @@ struct DecimatedFrequencyTracker {
                     // Finalize: constant-time selection and refinement.
                     int bestLag = (acCandidateLag >= 2) ? acCandidateLag
                                                         : std::max(2, acGlobalPeakLag);
+
+                    // RobotBoy: with no candidate, the global peak only counts if it is
+                    // a peak beyond the lobe around lag 0.  For a ramp it is lag 1,
+                    // and interpolating there gave a confident, meaningless frequency
+                    // that outvoted the LFO tracker.
+                    if (acCandidateLag < 2
+                        && !(acDipLag > 0 && bestLag > acDipLag && bestLag < acHalf - 1
+                             && ac[bestLag] > ac[bestLag - 1] && ac[bestLag] >= ac[bestLag + 1])) {
+                        finishAnalysis(-1.f);
+                        break;
+                    }
 
                     // Sub-harmonic correction: harmonic-rich waveforms (square, pulse, saw) produce
                     // strong AC peaks at sub-multiples of the true period (lag/2, lag/3, lag/4).
@@ -385,8 +447,11 @@ struct DecimatedFrequencyTracker {
                         float denom = y0 - 2.f * y1 + y2;
                         float shift = (fabsf(denom) > 1e-12f) ? (0.5f * (y0 - y2) / denom) : 0.f;
                         float refinedLag = (float)bestLag + shift;
-                        if (refinedLag > 1.f)
+                        if (refinedLag > 1.f) {
+                            // RobotBoy: one peak is only as precise as the lag grid allows
+                            refinedLag = refinePeriod(refinedLag, y1);
                             freq = decimatedSampleRate / refinedLag;
+                        }
                     }
                     if (!(std::isfinite(freq) && freq > 0.f)) {
                         freq = decimatedSampleRate / (float)bestLag;
