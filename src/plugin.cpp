@@ -5,9 +5,9 @@
 #ifdef METAMODULE_BUILTIN
 // Combined MetaModule build (both the .mmplugin build and the simulator
 // built-in build enter through init_RobotBoy). Loooop/Löp are provided by native
-// SmartCore cores; MF-20/Onbetap/Vespid/Particules/Ondes/Retours/Lucarne and the
-// shape modulators (Skylark, Weaver, Lyrebird) by
-// the VCV adapter. This one function registers all twelve so the same code path
+// SmartCore cores; MF-20/Onbetap/Vespid/Particules/Ondes/Retours/Lucarne, the
+// shape modulators (Skylark, Weaver, Lyrebird) and Tune by
+// the VCV adapter. This one function registers all thirteen so the same code path
 // works whether it is called by metamodule/register.cc's init() (.mmplugin)
 // or by the simulator's generated init_RobotBoy dispatch (built-in). The VCV
 // Model* modelLoooop/modelLop are not compiled into the MM build, so they are
@@ -33,9 +33,10 @@ void init_RobotBoy(Plugin* p) {
 	p->addModel(modelSkylark);
 	p->addModel(modelWeaver);
 	p->addModel(modelLyrebird);
+	p->addModel(modelTune);
 }
 #else
-// VCV Rack build: standard single init() registering all twelve modules.
+// VCV Rack build: standard single init() registering all thirteen modules.
 Plugin* pluginInstance;
 void init(Plugin* p) {
 	pluginInstance = p;
@@ -51,6 +52,7 @@ void init(Plugin* p) {
 	p->addModel(modelSkylark);
 	p->addModel(modelWeaver);
 	p->addModel(modelLyrebird);
+	p->addModel(modelTune);
 }
 
 // Rack's settings.json carries the Lucarne "Make default" schemes.

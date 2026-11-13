@@ -2,7 +2,7 @@
   "MetaModuleBrandName": "Robot Boy",
   "MetaModuleBrandSlug": "RobotBoy",
   "MetaModulePluginMaintainer": "Gabriel Roth",
-  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, Lucarne display expander for Particules and Retours, and Skylark, Weaver and Lyrebird shape modulators.",
+  "MetaModuleDescription": "Combined plugin: Loooop and Löp loopers, MF-20, Onbetap, and Vespid filters, Particules granular texture synth, Ondes wavetable oscillator, Retours delay, Lucarne display expander for Particules and Retours, Skylark, Weaver and Lyrebird shape modulators, and Tune tuner.",
   "MetaModuleIncludedModules": [
     {
       "slug": "Loooop", "name": "Loooop", "displayName": "Loooop",
@@ -119,7 +119,9 @@
                 "Save", "Previous file", "Next file", "Speed", "Smooth", "Play", "Trigger", "Reverse",
                 "CV In", "Record gate In", "Punch gate In", "Clock In", "Previous file In", "Next file In",
                 "Speed CV In", "Smooth CV In", "Trigger In", "Reverse gate In", "End of cycle Out", "Main Out"],
-      "names": { "Time": "Record mode", "Save": "Save file", "Play": "Play mode", "Display 1": "Display" } }
+      "names": { "Time": "Record mode", "Save": "Save file", "Play": "Play mode", "Display 1": "Display" } },
+    { "slug": "Tune", "name": "Tune", "displayName": "Tune",
+      "names": { "Display 0": "Readout", "Display 1": "Scope" } }
 
   ]
 }

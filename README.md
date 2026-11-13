@@ -5,7 +5,8 @@
 * [Mutable Instruments Beads](#beads), split into three modules plus a visualizer.
 * Three [complex modulators](#modulators).
 * A [stereo looper](#loopers) with four independent playheads, and its smaller sibling.
-* And three characterful [filter emulations](#filters).
+* Three characterful [filter emulations](#filters).
+* And a tuner, [Tune](Tune.md).
 
 ---
 <a id="beads"></a>
@@ -57,6 +58,10 @@ Three stereo filters, each modeled on original circuits. [**[Manual]**](Filters.
 - **[MF-20](Filters.md#mf-20--the-korg-ms-20-filter):** The Korg MS-20 filter, switchable between the OTA and Korg35 revisions.
 - **[Onbetap](Filters.md#onbetap--the-formanta-polivoks-filter):** The Soviet Polivoks filter.
 - **[Vespid](Filters.md#vespid--the-edp-wasp-filter):** The buzzy EDP Wasp filter, in its original British or reimplemented German flavors.
+
+## Tune
+
+A tuner and scope with a V/oct output and an audio thru. [**[Manual]**](Tune.md)
 
 ## To install
 
