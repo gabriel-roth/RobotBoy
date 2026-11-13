@@ -17,7 +17,7 @@
 
 ## Range
 
-Tune follows pitches from about 16 Hz to 6 kHz, and slower periodic signals down to about 0.5 Hz.
+Tune follows pitches from about 16 Hz to 6.5 kHz, and slower periodic signals down to about 0.5 Hz, which take several seconds to register.
 
 ## Settings
 

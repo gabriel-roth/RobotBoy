@@ -10,7 +10,7 @@
 1. `FrequencyTracker.hpp` is `Tuner.cpp` up to the end of `PhaseAccumulatorTrigger`, with a new header comment and includes and the changes in 3, each marked `// RobotBoy:`. With `-Isrc`, Rack's own `#include <plugin.hpp>` resolves to RobotBoy's header, so that has to come first.
 2. The module and widget are RobotBoy's (`../Tune.cpp`): one channel instead of two, CV Funk's OFFSET, GAIN and WIDTH knobs fixed at their defaults, an audio thru output, and new displays. CV Funk's panels, `digital_display.hpp` and font are not used.
 
-3. Tracker fixes, tested by `tests/tune/test_tracker.cpp`: the period is refined from the autocorrelation peaks at later multiples of it (`refinePeriod`; one peak was several cents off for bright or high signals), and a peak only counts beyond the lobe around lag 0 (slow signals gave the audio tracker a confident, meaningless frequency that outvoted the LFO tracker).
+3. Tracker fixes, tested by `tests/tune/test_tracker.cpp`: the period is refined from the autocorrelation peaks at later multiples of it (`refinePeriod`; one peak was several cents off for bright or high signals), and a peak only counts beyond the lobe around lag 0 (slow signals gave the audio tracker a confident, meaningless frequency that outvoted the LFO tracker). `DualRangeTracker` gains a third tracker at 24 kHz for pitches above 3 kHz, where the audio tracker's 12 kHz is too coarse; it runs only while the audio tracker reads above 1.5 kHz.
 
 ## Licence
 

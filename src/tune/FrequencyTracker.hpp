@@ -163,6 +163,21 @@ struct DecimatedFrequencyTracker {
         analysisSkipCounter = 0;
     }
 
+    // RobotBoy: forget everything heard so far, keeping the settings.  For a
+    // tracker that has been switched off for a while.
+    void reset() {
+        acState      = 0;
+        bufferReady  = false;
+        chunkPos     = 0;
+        writeIndex   = 0;
+        decimAccum   = 0.f;
+        decimCount   = 0;
+        analysisSkipCounter = 0;
+        lastFreq     = -1.f;
+        smoothedFreq = -1.f;
+        acPeakValue  = 0.f;
+    }
+
     void setConfidenceFloor(float floor) { confidenceFloor = floor; }
     void setLagsPerCall(int lags) {
         lagsPerCall = std::max(1, lags);
@@ -487,6 +502,18 @@ struct DualRangeTracker {
     DecimatedFrequencyTracker audioTracker;
     DecimatedFrequencyTracker lfoTracker;
 
+    // RobotBoy: a third tracker for the top of the range.  The audio tracker's
+    // 12 kHz leaves under 3.5 lags per period above about 3.4 kHz: too few to
+    // pick the right peak (it reads cents out, or an octave low), and a bright
+    // waveform's harmonics alias onto it.  This one runs at twice the rate
+    // with a short frame, and only while the audio tracker reads above
+    // HIGH_ENABLE_HZ, so pitches below that cost nothing extra.  Its answer
+    // is used when it reads above HIGH_USE_HZ.
+    DecimatedFrequencyTracker highTracker;
+    bool highRunning = false;
+    static constexpr float HIGH_ENABLE_HZ = 1500.f;   // an octave under HIGH_USE_HZ: the audio tracker's octave-low readings still enable it
+    static constexpr float HIGH_USE_HZ    = 3000.f;
+
     // Nyquist ceiling of the audio tracker, computed in setSampleRate.
     // Results this close to the ceiling are considered spurious alias locks.
     float audioNyquist = 6000.f;
@@ -504,16 +531,26 @@ struct DualRangeTracker {
 
         // Nyquist = effectiveRate / 2 = (sr / decimation) / 2
         audioNyquist = audioTracker.decimatedSampleRate / 2.f;
+
+        // RobotBoy: high tracker: 2x decimation -> 24kHz effective.
+        // buffer = 2*24000/100 = 480 samples, 240 lags: about 40 periods of
+        // the pitches it is used for.
+        highTracker.setDecimation(2, sr, 100.f);
+        highTracker.setConfidenceFloor(0.25f);
+        highTracker.reset();
+        highRunning = false;
     }
 
     void setLagsPerCall(int lags) {
         audioTracker.setLagsPerCall(lags);
         lfoTracker.setLagsPerCall(lags);
+        highTracker.setLagsPerCall(lags);
     }
 
     void setAnalysisSkip(int skip) {
         audioTracker.setAnalysisSkip(skip);
         lfoTracker.setAnalysisSkip(skip);
+        highTracker.setAnalysisSkip(skip);
     }
 
     float process(float in) {
@@ -523,8 +560,22 @@ struct DualRangeTracker {
         bool audioValid = (audioFreq > 0.f && audioTracker.acPeakValue > 0.35f);
         bool lfoValid   = (lfoFreq   > 0.f && lfoTracker.acPeakValue   > 0.25f);
 
+        // RobotBoy: the high tracker, while the pitch is high enough to need it
+        float audioPeak = audioTracker.acPeakValue;
+        if (audioValid && audioFreq > HIGH_ENABLE_HZ) {
+            highRunning = true;
+            float highFreq = highTracker.process(in);
+            if (highFreq > HIGH_USE_HZ && highTracker.acPeakValue > 0.35f) {
+                audioFreq = highFreq;
+                audioPeak = highTracker.acPeakValue;
+            }
+        } else if (highRunning) {
+            highTracker.reset();
+            highRunning = false;
+        }
+
         if (audioValid && lfoValid)
-            return (audioTracker.acPeakValue >= lfoTracker.acPeakValue - 0.15f)
+            return (audioPeak >= lfoTracker.acPeakValue - 0.15f)
                    ? audioFreq : lfoFreq;
         if (audioValid) return audioFreq;
         if (lfoValid)   return lfoFreq;

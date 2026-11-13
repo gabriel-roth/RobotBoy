@@ -99,10 +99,8 @@ struct Tune : Module {
 		tracker.setAnalysisSkip(analysisSkip);
 	}
 
-	// A lock within 2 Hz of the audio tracker's Nyquist is an alias of a slow
-	// signal, not a pitch: the readout treats it as no lock.
 	bool locked(float hz) const {
-		return hz > 0.0001f && hz < tracker.audioNyquist - 2.f;
+		return hz > 0.0001f;
 	}
 
 	void process(const ProcessArgs& args) override {

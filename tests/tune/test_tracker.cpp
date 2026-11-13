@@ -120,6 +120,14 @@ int main() {
 	expectWithin(BandLimitedSaw, 2093.0, 1.0);
 	expectWithin(Square, 440.0, 1.0);
 	expectWithin(Square, 1244.51, 1.0);
+	// The top octave, which needs the high tracker: up to C8 and a little over
+	expectWithin(Saw, 3445.57, 1.0);
+	expectWithin(BandLimitedSaw, 3951.07, 1.0);
+	expectWithin(Saw, 4186.01, 1.0);
+	expectWithin(Square, 4186.01, 1.0);
+	expectWithin(Sine, 4358.73, 1.0);
+	expectWithin(Saw, 4500.0, 1.0);
+	expectWithin(Sine, 4500.0, 1.0, 2.0, 0.02f);
 	// An LFO: the audio tracker's alias lock mustn't win over the LFO tracker
 	expectWithin(Sine, 2.0, 5.0, 12.0);
 	expectWithin(Saw, 5.0, 5.0, 12.0);
