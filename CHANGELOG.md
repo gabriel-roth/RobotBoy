@@ -2,11 +2,11 @@
 
 What's new in Robot Boy, newest first. For how anything works, see the module manuals linked from the [README](README.md).
 
-## [Unreleased]
+## [2.5.0] — 2026-11-14
 
 On MetaModule, firmware 2.4.2 or later is recommended.
 
-- New module: Skylark, a tempo-synced modulator that loops structured gestures and bends them with transforms.
+- New module: Skylark, a tempo-synced modulator that loops and bends structured gestures.
 - New module: Weaver, a tempo-synced modulator that combines three simple operators into one shape.
 - New module: Lyrebird, a gesture and CV recorder.
 - New module: Tune, a tuner and scope.
