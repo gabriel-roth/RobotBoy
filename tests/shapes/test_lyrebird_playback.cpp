@@ -1,6 +1,7 @@
 // Lyrebird playback tests: transport, speed, idle output, smoothing.
 #include "shapes/LyrebirdEngine.hpp"
 #include <cassert>
+#include <cstring>
 #include <cmath>
 #include <cstdio>
 #include <vector>
@@ -228,6 +229,39 @@ static void loadUndoSnapshot() {
 	assert(r.eng.snapshotReady() && r.eng.snapshot().length == 100);
 	r.eng.releaseSnapshot();
 	assert(!r.eng.snapshotReady());
+}
+
+// A long take is copied for saving a slice per sample, so no one sample
+// pays for the whole copy
+static void snapshotSpreadOver() {
+	Rig r;
+	r.load(-5.f, 5.f, kMaxTakeSamples, TakeMode::Free, 1.0, 180.0);
+	r.eng.requestSnapshot();
+	r.step();
+	assert(!r.eng.snapshotReady());
+	int n = 1;
+	while (!r.eng.snapshotReady() && n < kMaxTakeSamples)
+		r.step(), n++;
+	assert(r.eng.snapshotReady() && n > 100);
+	const Take& s = r.eng.snapshot();
+	assert(s.length == kMaxTakeSamples && s.version == r.eng.take().version);
+	assert(std::memcmp(s.samples.data(), r.eng.take().samples.data(), sizeof(float) * kMaxTakeSamples) == 0);
+}
+
+// A load while the copy is under way: the snapshot is whole, of the take
+// current when it finishes
+static void snapshotSurvivesLoad() {
+	Rig r;
+	r.load(-5.f, 5.f, kMaxTakeSamples, TakeMode::Free, 1.0, 180.0);
+	r.eng.requestSnapshot();
+	for (int i = 0; i < 10; i++)
+		r.step();
+	r.load(1.f, 2.f, 5000, TakeMode::Free, 1.0, 5.0);
+	while (!r.eng.snapshotReady())
+		r.step();
+	const Take& s = r.eng.snapshot();
+	assert(s.length == 5000 && s.version == r.eng.take().version);
+	assert(std::memcmp(s.samples.data(), r.eng.take().samples.data(), sizeof(float) * 5000) == 0);
 }
 
 static void traceMatches() {
@@ -508,6 +542,8 @@ int main() {
 	smoothingCentred();
 	outputsNeverNonFinite();
 	loadUndoSnapshot();
+	snapshotSpreadOver();
+	snapshotSurvivesLoad();
 	traceMatches();
 	controlRateFollows();
 	printf("lyrebird playback tests passed\n");

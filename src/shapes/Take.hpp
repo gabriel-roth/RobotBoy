@@ -56,7 +56,20 @@ struct Take {
 	void copyFrom(const Take& o) {
 		if (this == &o)
 			return;
-		std::copy(o.samples.begin(), o.samples.begin() + std::max(o.length, 0), samples.begin());
+		copySamples(o, 0, o.length);
+		copyInfo(o);
+	}
+
+	// Samples [from, to) of o, within its length
+	void copySamples(const Take& o, int from, int to) {
+		from = std::max(from, 0);
+		to = std::min(to, std::max(o.length, 0));
+		if (from < to)
+			std::copy(o.samples.begin() + from, o.samples.begin() + to, samples.begin() + from);
+	}
+
+	// Everything but the samples
+	void copyInfo(const Take& o) {
 		length = o.length;
 		mode = o.mode;
 		bars = o.bars;

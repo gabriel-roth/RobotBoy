@@ -176,6 +176,10 @@ private:
 	// a waiting load can go ahead
 	bool cycleEnded_ = true;
 	std::atomic<bool> snapReq_{false}, snapReady_{false};
+	// The copy for a save, made a slice per sample: the take it's from and
+	// how far it has got; null when there's none under way
+	const Take* snapSrc_ = nullptr;
+	int snapPos_ = 0;
 	std::atomic<int> undoReq_{0};
 	std::atomic<uint32_t> recsDone_{0}, punchesDone_{0}, loadsTaken_{0};
 	bool servicing_ = false;  // writes ended here are the UI's doing, not finished takes

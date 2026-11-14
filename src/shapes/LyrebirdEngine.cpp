@@ -5,7 +5,11 @@
 
 namespace shapes {
 
-static constexpr int kRebuildBudget = 512;
+// Smoothing sums rebuilt per sample after a take changes: a 3-minute take
+// in about 60 ms, so no one sample pays for the whole rebuild
+static constexpr int kRebuildBudget = 64;
+// Samples copied per sample for a save: a 3-minute take in about 30 ms
+static constexpr int kSnapshotSlice = 128;
 // Movement start: 0.5% of the knob's 10 V span, the same for CV
 static constexpr double kMoveThreshold = 0.05;
 // Crossfades at punch edges, in what is written and in OUT
@@ -103,12 +107,29 @@ void LyrebirdEngine::service() {
 		undo_ = old;
 		restart();
 	}
-	if (snapReq_.load()) {
-		// Deliberate: one full copy per save request, so the UI can write the
-		// file without racing the audio thread
-		snap_->copyFrom(*cur_.load());
-		snapReq_.store(false);
-		snapReady_.store(true);
+	// One full copy per save request, so the UI can write the file without
+	// racing the audio thread. It's made a slice per sample, so no one
+	// sample pays for a long take; a take being written, or a different
+	// take, is copied whole at once, so the copy is always of one moment.
+	if (snapReq_.exchange(false)) {
+		snapSrc_ = cur_.load();
+		snapPos_ = 0;
+	}
+	if (snapSrc_) {
+		const Take* t = cur_.load();
+		if (t != snapSrc_ || writing()) {
+			snap_->copySamples(*t, 0, t->length);
+			snapPos_ = t->length;
+		}
+		else {
+			snap_->copySamples(*t, snapPos_, snapPos_ + kSnapshotSlice);
+			snapPos_ += kSnapshotSlice;
+		}
+		if (snapPos_ >= t->length) {
+			snap_->copyInfo(*t);
+			snapSrc_ = nullptr;
+			snapReady_.store(true);
+		}
 	}
 	servicing_ = false;
 }
