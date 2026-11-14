@@ -8,7 +8,8 @@ namespace shapes {
 // Smoothing sums rebuilt per sample after a take changes: a 3-minute take
 // in about 60 ms, so no one sample pays for the whole rebuild
 static constexpr int kRebuildBudget = 64;
-// Samples copied per sample for a save: a 3-minute take in about 30 ms
+// Samples copied per sample for a save, or PUNCH's undo: a 3-minute take in
+// about 30 ms
 static constexpr int kSnapshotSlice = 128;
 // Movement start: 0.5% of the knob's 10 V span, the same for CV
 static constexpr double kMoveThreshold = 0.05;
@@ -23,6 +24,7 @@ LyrebirdEngine::LyrebirdEngine() {
 	undo_ = pool_[2].get();
 	snap_ = pool_[3].get();
 	written_.assign(kMaxTakeSamples, 0);
+	undoDone_.assign((kMaxTakeSamples + kSnapshotSlice - 1) / kSnapshotSlice, 1);
 }
 
 void LyrebirdEngine::setSampleRate(double sr) {
@@ -95,6 +97,7 @@ void LyrebirdEngine::service() {
 		cur_.store(spare_);
 		spare_ = undo_;
 		undo_ = old;
+		undoLeft_ = 0;  // the old take is whole: it was current
 		restart();
 		loadsTaken_.fetch_add(1);
 		loadReq_.store(kLoadNone);
@@ -102,6 +105,7 @@ void LyrebirdEngine::service() {
 	for (int n = undoReq_.exchange(0); n > 0; n--) {
 		// Undo keeps what was recorded so far, so a second undo brings it back
 		finishWrites();
+		completeUndo();
 		Take* old = cur_.load();
 		cur_.store(undo_);
 		undo_ = old;
@@ -131,7 +135,30 @@ void LyrebirdEngine::service() {
 			snapReady_.store(true);
 		}
 	}
+	if (undoLeft_ > 0)
+		copyUndoNext();
 	servicing_ = false;
+}
+
+void LyrebirdEngine::copyUndoSlice(int k) {
+	int s = k / kSnapshotSlice;
+	if (undoLeft_ <= 0 || k < 0 || s >= (int) undoDone_.size() || undoDone_[s])
+		return;
+	undo_->copySamples(*cur_.load(), s * kSnapshotSlice, (s + 1) * kSnapshotSlice);
+	undoDone_[s] = 1;
+	undoLeft_--;
+}
+
+void LyrebirdEngine::copyUndoNext() {
+	// Every slice before undoNext_ is done, so one after it is still to do
+	while (undoLeft_ > 0 && undoDone_[undoNext_])
+		undoNext_++;
+	copyUndoSlice(undoNext_ * kSnapshotSlice);
+}
+
+void LyrebirdEngine::completeUndo() {
+	while (undoLeft_ > 0)
+		copyUndoNext();
 }
 
 // Ends whatever is being written as if its button had been released
@@ -148,6 +175,7 @@ void LyrebirdEngine::finishWrites() {
 // Drops a recording or punch: REC and PUNCH both left the take from before
 // them in the undo slot, so swapping it back discards the partial one
 void LyrebirdEngine::abandonRec() {
+	completeUndo();
 	Take* partial = cur_.load();
 	cur_.store(undo_);
 	undo_ = partial;
@@ -202,6 +230,7 @@ void LyrebirdEngine::startRec(const LyrebirdControls& c, double x) {
 	// The new take is written into the old undo buffer; the current take becomes the undo
 	Take* old = cur_.load();
 	Take* t = undo_;
+	undoLeft_ = 0;
 	t->clear();
 	t->modified = true;
 	t->bpm = std::clamp(sanitize(c.bpm, 120.0), 1.0, 1000.0);
@@ -353,9 +382,16 @@ void LyrebirdEngine::startPunch(double raw) {
 		status_ = Status::Punching;
 		return;
 	}
-	// One copy per punch, so undo can bring back the take from before it
+	// One copy per punch, so undo can bring back the take from before it.
+	// It's made a slice at a time (see copyUndoSlice), so no one sample
+	// pays for a long take.
 	Take* t = cur_.load();
-	undo_->copyFrom(*t);
+	undo_->copyInfo(*t);
+	int slices = (std::max(t->length, 0) + kSnapshotSlice - 1) / kSnapshotSlice;
+	std::fill(undoDone_.begin(), undoDone_.begin() + slices, 0);
+	std::fill(undoDone_.begin() + slices, undoDone_.end(), 1);
+	undoLeft_ = slices;
+	undoNext_ = 0;
 	t->modified = true;
 	status_ = Status::Punching;
 	punchGain_ = 0.0;
@@ -368,6 +404,7 @@ void LyrebirdEngine::startPunch(double raw) {
 }
 
 void LyrebirdEngine::punchWrite(Take& t, int k, double v) {
+	copyUndoSlice(k);
 	double old = t.samples[k];
 	t.samples[k] = (float) std::clamp(old + (v - old) * punchGain_, -10.0, 10.0);
 }
@@ -563,8 +600,12 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 	// data that isn't being overwritten under it
 	bool wasWriting = writing();
 	const Take& before = wasWriting ? *undo_ : t;
-	if (!smoother_.ready())
+	if (!smoother_.ready()) {
+		// Rare: a punch straight after a load, before the sums are rebuilt
+		if (wasWriting)
+			completeUndo();
 		smoother_.rebuildStep(before, kRebuildBudget);
+	}
 
 	double ratio = speedRatio(c);
 	if (tb.reset) {
@@ -663,6 +704,13 @@ LyrebirdStep LyrebirdEngine::process(const LyrebirdControls& c, const Timebase::
 			ph = c.loop ? frac(1.0 - ph) : 1.0 - ph;
 	}
 	out.playhead = ph;
+	if (wasWriting && undoLeft_ > 0 && t.length > 0) {
+		// Playback reads the undo copy at the playhead: those slices first
+		double span = c.loop ? (double) t.length : (double) (t.length - 1);
+		int i = (int) std::floor(std::clamp(ph, 0.0, 1.0) * span);
+		copyUndoSlice(i % t.length);
+		copyUndoSlice((i + 1) % t.length);
+	}
 	bool zero = resting && c.idle == IdleOutput::Zero;
 	double v;
 	if (controlInterval_ <= 1)

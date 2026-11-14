@@ -108,6 +108,11 @@ public:
 		return punchesDone_.load();
 	}
 
+	// PUNCH's copy of the take from before it, for undo, still being made
+	bool undoCopying() const {
+		return undoLeft_ > 0;
+	}
+
 	// A copy of the current take the UI can save without racing the audio thread
 	void requestSnapshot() {
 		snapReady_.store(false);
@@ -162,6 +167,11 @@ private:
 	}
 	void endPunch();
 	void finishWrites();
+	// PUNCH's undo copy: the slice holding take sample k, before it's
+	// written or read; the next slice not yet copied; everything left
+	void copyUndoSlice(int k);
+	void copyUndoNext();
+	void completeUndo();
 
 	double sampleRate_ = 48000.0;
 	std::unique_ptr<Take> pool_[4];
@@ -180,6 +190,12 @@ private:
 	// how far it has got; null when there's none under way
 	const Take* snapSrc_ = nullptr;
 	int snapPos_ = 0;
+	// PUNCH's undo copy, made a slice per sample, and before the punch
+	// writes or playback reads a slice: which slices are done, how many are
+	// left (0 when there's no copy under way) and where the next is looked for
+	std::vector<uint8_t> undoDone_;
+	int undoLeft_ = 0;
+	int undoNext_ = 0;
 	std::atomic<int> undoReq_{0};
 	std::atomic<uint32_t> recsDone_{0}, punchesDone_{0}, loadsTaken_{0};
 	bool servicing_ = false;  // writes ended here are the UI's doing, not finished takes

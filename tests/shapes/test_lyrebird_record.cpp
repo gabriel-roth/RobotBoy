@@ -1018,6 +1018,63 @@ static void versionsUniqueAcrossBuffers() {
 			assert(seen[i] != seen[j]);
 }
 
+// A long take of distinct values, loaded without moving the transport
+static void loadRamp(Rig& r) {
+	Take& t = r.eng.spare();
+	t.clear();
+	t.length = kMaxTakeSamples;
+	for (int i = 0; i < kMaxTakeSamples; i++)
+		t.samples[i] = (float) (i % 1000) / 100.f - 5.f;
+	t.mode = TakeMode::Free;
+	t.seconds = kMaxTakeSamples / (double) kTakeRate;
+	r.eng.requestLoad();
+	r.eng.process(r.c, Timebase::Step{r.last.pos, r.last.cycle, false, false});
+}
+
+// PUNCH keeps the take from before it for undo, copied a slice per sample
+// rather than all at once; undo still brings back exactly that take
+static void punchUndoCopiedInSlices() {
+	Rig r;
+	r.c.sync = false;
+	loadRamp(r);
+	auto before = std::make_unique<Take>();
+	before->copyFrom(r.eng.take());
+	r.c.source = 7;
+	r.run(4800);
+	assert(r.pressPunch().status == Status::Punching);
+	assert(r.eng.undoCopying());
+	r.run(100);
+	assert(r.eng.undoCopying());
+	r.run(4000);
+	assert(!r.eng.undoCopying());
+	r.pressPunch();
+	r.run(4800);
+	r.eng.requestUndo();
+	r.step();
+	assert(std::memcmp(r.eng.take().samples.data(), before->samples.data(), sizeof(float) * kMaxTakeSamples) == 0);
+}
+
+// Undo straight after a punch that jumped (REVERSE) to data not yet copied
+static void punchUndoAfterJump() {
+	Rig r;
+	r.c.sync = false;
+	loadRamp(r);
+	auto before = std::make_unique<Take>();
+	before->copyFrom(r.eng.take());
+	r.c.source = 7;
+	r.run(48000 * 60);
+	r.pressPunch();
+	r.run(200);
+	r.c.reverse = true;
+	r.run(200);
+	assert(r.eng.undoCopying());
+	r.pressPunch();
+	r.run(50);
+	r.eng.requestUndo();
+	r.step();
+	assert(std::memcmp(r.eng.take().samples.data(), before->samples.data(), sizeof(float) * kMaxTakeSamples) == 0);
+}
+
 int main() {
 	syncCueWaitsForBar();
 	syncShortLengthCuesToItsGrid();
@@ -1057,6 +1114,8 @@ int main() {
 	recDuringPunch();
 	punchEndKeepsLastBlock();
 	versionsUniqueAcrossBuffers();
+	punchUndoCopiedInSlices();
+	punchUndoAfterJump();
 	printf("lyrebird record tests passed\n");
 	return 0;
 }
