@@ -1,6 +1,6 @@
 # Tune
 
-**Tune** is a tuner and scope for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule). Its pitch tracking is adapted from the [CV Funk](https://github.com/codygeary/CVfunk-Modules) Tuner by Cody Geary.
+**Tune** is a tuner and scope for [VCV Rack](https://vcvrack.com) and the [4ms MetaModule](https://4mscompany.com/metamodule).
 
 <img src="screenshots/Tune.png" alt="Tune module" height="500">
 
@@ -27,3 +27,7 @@ Tune follows pitches from about 16 Hz to 6.5 kHz, and slower periodic signals do
 In the options menu:
 
 - **Analysis speed:** Precise, Balanced (default) or Light. Light takes longer to find the pitch and uses less CPU; Precise is the reverse.
+
+<hr>
+
+<em>Tune’s pitch tracking code is adapted from the [CV Funk](https://github.com/codygeary/CVfunk-Modules) Tuner by Cody Geary.</em>
