@@ -29,6 +29,8 @@ SOURCES += src/beads/vendor/beads/dsp/delay_clock.cc \
 SOURCES += $(wildcard src/beads/host/*.cpp)
 
 DISTRIBUTABLES += res
+# The licences: Robot Boy's, and the Beads and CV Funk code's
+DISTRIBUTABLES += LICENSE src/beads/vendor/LICENSE src/beads/vendor/NOTICE.md src/tune/NOTICE.md
 
 include $(RACK_DIR)/plugin.mk
 

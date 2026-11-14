@@ -92,10 +92,25 @@ target_compile_options(RobotBoy PRIVATE
     $<$<COMPILE_LANGUAGE:CXX>:-std=c++20>
     -funsafe-math-optimizations)
 
+# The plugin file carries the licences too (Robot Boy's, and the Beads and
+# CV Funk code's), so the assets are gathered with them at each build. The
+# firmware loads only the images; the rest just travels in the file.
+set(STAGED_ASSETS ${CMAKE_CURRENT_BINARY_DIR}/staged-assets)
+add_custom_target(stage_assets
+    COMMAND ${CMAKE_COMMAND} -E rm -rf ${STAGED_ASSETS}
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_LIST_DIR}/assets ${STAGED_ASSETS}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${STAGED_ASSETS}/licenses
+    COMMAND ${CMAKE_COMMAND} -E copy ${SRC}/LICENSE ${STAGED_ASSETS}/licenses/LICENSE
+    COMMAND ${CMAKE_COMMAND} -E copy ${SRC}/src/beads/vendor/LICENSE ${STAGED_ASSETS}/licenses/Beads-LICENSE
+    COMMAND ${CMAKE_COMMAND} -E copy ${SRC}/src/beads/vendor/NOTICE.md ${STAGED_ASSETS}/licenses/Beads-NOTICE.md
+    COMMAND ${CMAKE_COMMAND} -E copy ${SRC}/src/tune/NOTICE.md ${STAGED_ASSETS}/licenses/CVFunk-NOTICE.md
+    VERBATIM)
+
 create_plugin(
     SOURCE_LIB    RobotBoy
     PLUGIN_NAME   RobotBoy
     PLUGIN_JSON   ${SRC}/plugin.json
-    SOURCE_ASSETS ${CMAKE_CURRENT_LIST_DIR}/assets
+    SOURCE_ASSETS ${STAGED_ASSETS}
     DESTINATION   ${CMAKE_CURRENT_LIST_DIR}/metamodule-plugins
 )
+add_dependencies(plugin stage_assets)
