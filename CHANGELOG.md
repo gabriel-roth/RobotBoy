@@ -2,6 +2,11 @@
 
 What's new in Robot Boy, newest first. For how anything works, see the module manuals linked from the [README](README.md).
 
+## [2.5.1] — 2026-11-19
+
+- Fixed an issue where Vespid could blow up when its cutoff was modulated hard.
+- Fixed an issue where Vespid, MF-20, Loooop and Löp could output voltages beyond Eurorack levels.
+
 ## [2.5.0] — 2026-11-14
 
 On MetaModule, firmware 2.4.2 or later is recommended.
