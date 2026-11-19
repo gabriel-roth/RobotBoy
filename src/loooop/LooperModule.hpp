@@ -114,7 +114,9 @@ struct LooperModule : Module {
 	}
 
 	// Dry/wet to the Mix outputs. While the first pass records there is
-	// nothing to play back yet, so the wet side monitors the input.
+	// nothing to play back yet, so the wet side monitors the input. Overdubs
+	// in Add mode stack without bound and Loooop sums four heads, so the
+	// output saturates toward the Eurorack ceiling.
 	void writeMix(loooop::StereoInput in, float wetL, float wetR) {
 		if (loooop::monitorDryWhileEmpty(engine.isRecording(), engine.hasLoop())) {
 			wetL = in.l;
@@ -122,8 +124,8 @@ struct LooperModule : Module {
 		}
 		float w = mixSmoother.process(loooop::normalizedControl(
 			params[M::DRYWET_PARAM].getValue(), inputs[M::DRYWET_CV_INPUT].getVoltage()));
-		outputs[M::MIX_L_OUTPUT].setVoltage(loooop::dryWet(in.l, wetL, w) * 5.f);
-		outputs[M::MIX_R_OUTPUT].setVoltage(loooop::dryWet(in.r, wetR, w) * 5.f);
+		outputs[M::MIX_L_OUTPUT].setVoltage(robotboy::outputSaturate(loooop::dryWet(in.l, wetL, w) * 5.f));
+		outputs[M::MIX_R_OUTPUT].setVoltage(robotboy::outputSaturate(loooop::dryWet(in.r, wetR, w) * 5.f));
 	}
 
 	// The Record light, and the Overdub LED's state color (Lock pulses).

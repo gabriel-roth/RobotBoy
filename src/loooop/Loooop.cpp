@@ -131,11 +131,12 @@ struct Loooop : LooperModule<Loooop> {
 		engine.process(in.l, in.r, heads);
 
 		// The head outputs carry each head at full level; Level and Pan
-		// shape only its contribution to the mix.
+		// shape only its contribution to the mix. Head outputs saturate
+		// like the Mix outputs (see writeMix).
 		float wetL = 0.f, wetR = 0.f;
 		for (int h = 0; h < LoopEngine::NUM_HEADS; ++h) {
-			outputs[HEAD1_L_OUTPUT + 2 * h].setVoltage(heads[h].l * 5.f);
-			outputs[HEAD1_R_OUTPUT + 2 * h].setVoltage(heads[h].r * 5.f);
+			outputs[HEAD1_L_OUTPUT + 2 * h].setVoltage(robotboy::outputSaturate(heads[h].l * 5.f));
+			outputs[HEAD1_R_OUTPUT + 2 * h].setVoltage(robotboy::outputSaturate(heads[h].r * 5.f));
 			float pan = panSmoother[h].process(loooop::panControl(
 				params[PAN1_PARAM + HEAD_PARAMS * h].getValue(),
 				inputs[PAN1_CV_INPUT + HEAD_INPUTS * h].getVoltage()));
