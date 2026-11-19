@@ -7,7 +7,7 @@
 //
 // One WaspFilter per audio channel. No Rack includes. The caller pre-warps the
 // cutoff and computes kC2eff for the self-oscillation mechanism:
-//     fcInt = clamp(fc*wcComp, 0.25, 0.45*fsInt)
+//     fcInt = clamp(fc*wcComp, 0.25, kMaxCutoffRatio*fsInt)   (engine.hpp)
 //     g     = tan(pi*fcInt/fsInt)                       (per-sample slewed)
 //     wcInt = 2*pi*fcInt
 //     kC2   = R3*C2*wcInt - kR2*wcInt/(2*pi*fPole)       (MAY be negative)

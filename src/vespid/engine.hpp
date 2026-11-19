@@ -11,6 +11,15 @@ namespace wasp {
 constexpr int kOversample = 4;
 constexpr float kDcBlockHz = 8.f;
 
+// Cutoff ceilings. Frequency CV can't take the cutoff past the knob's own
+// maximum, and the internal (post-wcComp) cutoff never passes
+// kMaxCutoffRatio*fsInt: the core's bp/lp outputs aren't rail-bounded, and
+// with g much above tan(pi/8) a full-drive signal makes them run away to
+// tens or hundreds of volts. At host rates >= 44.1 kHz the ratio ceiling
+// sits above kMaxCutoffHz*wcComp, so it only bites at low host rates.
+constexpr float kMaxCutoffHz = 20000.f;
+constexpr float kMaxCutoffRatio = 0.125f;
+
 // Output-select mask for Channel::process, one bit per output jack. Only
 // selected signals pay for decimation and DC blocking.
 enum : int {

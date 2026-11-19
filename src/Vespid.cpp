@@ -162,11 +162,11 @@ struct Vespid : Module {
 			eng.r.filt.setMode(mode);
 
 			// Frequency: 1 V/oct CV on the log2 knob value, then to Hz,
-			// clamped [1 Hz, 0.45*fsInt] before the wcComp/internal clamps.
+			// clamped [1 Hz, kMaxCutoffHz] before the wcComp/internal clamps.
 			float fcLog = freqLog;
 			if (freqCvConnected)
 				fcLog += freqCvAtten * inputs[FREQ_INPUT].getPolyVoltage(c);
-			float fc = clamp(std::exp2(fcLog), 1.f, 0.45f * fsInt);
+			float fc = clamp(std::exp2(fcLog), 1.f, wasp::kMaxCutoffHz);
 
 			float fcInt = fc * mode.wcComp;
 
@@ -180,7 +180,7 @@ struct Vespid : Module {
 				fcInt *= 1.f + (1.f / 0.72f - 1.f) * s;
 			}
 
-			fcInt = clamp(fcInt, 0.25f, 0.45f * fsInt);
+			fcInt = clamp(fcInt, 0.25f, wasp::kMaxCutoffRatio * fsInt);
 			eng.gTarget = std::tan(float(M_PI) * fcInt / fsInt);
 
 			// kC2eff may legitimately go negative (the self-oscillation
