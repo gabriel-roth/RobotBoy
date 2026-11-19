@@ -140,8 +140,9 @@ public:
         const float wetR = monitorDry ? inR : hs[0].r;
         float w = mixSm_.process(loooop::normalizedControl(
             getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
-        setOutput<OutL>(loooop::dryWet(inL, wetL, w) * 5.f);
-        setOutput<OutR>(loooop::dryWet(inR, wetR, w) * 5.f);
+        // Add overdubs stack without bound: saturate toward the Eurorack ceiling.
+        setOutput<OutL>(robotboy::outputSaturate(loooop::dryWet(inL, wetL, w) * 5.f));
+        setOutput<OutR>(robotboy::outputSaturate(loooop::dryWet(inR, wetR, w) * 5.f));
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 

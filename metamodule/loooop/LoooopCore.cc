@@ -123,12 +123,13 @@ public:
 
         std::array<LoopEngine::HeadOut, LoopEngine::NUM_HEADS> hs;
         engine_.process(inL, inR, hs);
-        setOutput<Head1OutL>(hs[0].l * 5.f); setOutput<Head1OutR>(hs[0].r * 5.f);
-        setOutput<Head2OutL>(hs[1].l * 5.f); setOutput<Head2OutR>(hs[1].r * 5.f);
-        setOutput<Head3OutL>(hs[2].l * 5.f); setOutput<Head3OutR>(hs[2].r * 5.f);
-        setOutput<Head4OutL>(hs[3].l * 5.f); setOutput<Head4OutR>(hs[3].r * 5.f);
+        setOutput<Head1OutL>(robotboy::outputSaturate(hs[0].l * 5.f)); setOutput<Head1OutR>(robotboy::outputSaturate(hs[0].r * 5.f));
+        setOutput<Head2OutL>(robotboy::outputSaturate(hs[1].l * 5.f)); setOutput<Head2OutR>(robotboy::outputSaturate(hs[1].r * 5.f));
+        setOutput<Head3OutL>(robotboy::outputSaturate(hs[2].l * 5.f)); setOutput<Head3OutR>(robotboy::outputSaturate(hs[2].r * 5.f));
+        setOutput<Head4OutL>(robotboy::outputSaturate(hs[3].l * 5.f)); setOutput<Head4OutR>(robotboy::outputSaturate(hs[3].r * 5.f));
         // Level and Pan apply to the mix only; the head outs above carry the
-        // full-level signal.
+        // full-level signal. All outputs saturate toward the Eurorack ceiling
+        // (Add overdubs stack without bound; the mix sums four heads).
         const float lv0 = engine_.smoothedLevel(0), lv1 = engine_.smoothedLevel(1),
                     lv2 = engine_.smoothedLevel(2), lv3 = engine_.smoothedLevel(3);
         float wetL = hs[0].l*g0.l*lv0 + hs[1].l*g1.l*lv1 + hs[2].l*g2.l*lv2 + hs[3].l*g3.l*lv3;
@@ -139,8 +140,8 @@ public:
         }
         float w = mixSm_.process(loooop::normalizedControl(
             getState<DryWetKnob>(), getInput<DryWetCvIn>().value_or(0.f)));
-        setOutput<MixOutL>(loooop::dryWet(inL, wetL, w) * 5.f);
-        setOutput<MixOutR>(loooop::dryWet(inR, wetR, w) * 5.f);
+        setOutput<MixOutL>(robotboy::outputSaturate(loooop::dryWet(inL, wetL, w) * 5.f));
+        setOutput<MixOutR>(robotboy::outputSaturate(loooop::dryWet(inR, wetR, w) * 5.f));
         setLED<RecordButton>(engine_.isRecording() ? 1.f : 0.f);
     }
 
