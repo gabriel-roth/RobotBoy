@@ -38,7 +38,7 @@ enum : int {
 //
 // Output makeup and the DC blockers are linear and time-invariant, so they
 // commute with the decimators and run at host rate, once per selected output.
-// Output saturation (outputSaturate) follows them, also at host rate: it's
+// Output saturation (robotboy::outputSaturate) follows them, also at host rate: it's
 // the identity below its 8 V knee, so it only colors full-drive peaks.
 struct Channel {
 	WaspFilter filt;
@@ -79,19 +79,19 @@ struct Channel {
 
 		Out out{0.f, 0.f, 0.f, 0.f};
 		if (mask & kOutLp)
-			out.lp = outputSaturate(makeup * dcLp.process(downLp.process(
+			out.lp = robotboy::outputSaturate(makeup * dcLp.process(downLp.process(
 				downLp4a.process(o[0].lp, o[1].lp), downLp4a.process(o[2].lp, o[3].lp))));
 		if (mask & kOutBp)
-			out.bp = outputSaturate(makeup * dcBp.process(downBp.process(
+			out.bp = robotboy::outputSaturate(makeup * dcBp.process(downBp.process(
 				downBp4a.process(o[0].bp, o[1].bp), downBp4a.process(o[2].bp, o[3].bp))));
 		if (mask & kOutHp)
-			out.hp = outputSaturate(makeup * dcHp.process(downHp.process(
+			out.hp = robotboy::outputSaturate(makeup * dcHp.process(downHp.process(
 				downHp4a.process(o[0].hp, o[1].hp), downHp4a.process(o[2].hp, o[3].hp))));
 		if (mask & kOutMix) {
 			float b[4];
 			for (int i = 0; i < 4; i++)
 				b[i] = (1.f - m) * o[i].lp + m * o[i].hp;
-			out.mix = outputSaturate(makeup * dcMix.process(downMix.process(
+			out.mix = robotboy::outputSaturate(makeup * dcMix.process(downMix.process(
 				downMix4a.process(b[0], b[1]), downMix4a.process(b[2], b[3]))));
 		}
 		return out;

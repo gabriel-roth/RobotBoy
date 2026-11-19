@@ -593,7 +593,7 @@ static void test_output_saturate() {
     // Identity inside the +/-8 V knee.
     const float insideVals[] = { 0.f, 1.f, -1.f, 5.f, -5.f, 7.99f, -7.99f, 8.f, -8.f };
     for (float v : insideVals) {
-        float out = wasp::outputSaturate(v);
+        float out = robotboy::outputSaturate(v);
         char buf[64];
         snprintf(buf, sizeof(buf), "outputSaturate(%.2f)=%.6f (want == input)", v, out);
         report(out == v, "outputSaturate is identity within the 8 V knee", buf);
@@ -602,7 +602,7 @@ static void test_output_saturate() {
     // Output never exceeds the 11.7 V ceiling, even far outside.
     const float outsideVals[] = { 10.f, 12.f, 17.5f, 100.f, 1000.f, -10.f, -12.f, -17.5f, -100.f, -1000.f };
     for (float v : outsideVals) {
-        float out = wasp::outputSaturate(v);
+        float out = robotboy::outputSaturate(v);
         char buf[64];
         snprintf(buf, sizeof(buf), "outputSaturate(%.2f)=%.6f (want within +/-11.7)", v, out);
         report(std::fabs(out) <= 11.7f, "outputSaturate output never exceeds 11.7 V", buf);
@@ -610,9 +610,9 @@ static void test_output_saturate() {
 
     // Monotone across the range.
     bool monotone = true;
-    float prev = wasp::outputSaturate(-40.f);
+    float prev = robotboy::outputSaturate(-40.f);
     for (int i = -399; i <= 400; ++i) {
-        float out = wasp::outputSaturate((float)i / 10.f);   // -39.9 .. 40.0
+        float out = robotboy::outputSaturate((float)i / 10.f);   // -39.9 .. 40.0
         if (out < prev - 1e-6f) monotone = false;
         prev = out;
     }

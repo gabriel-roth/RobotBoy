@@ -30,4 +30,21 @@ struct DcBlocker {
 	float process(float x) { float y = x - state; state += a * y; return y; }
 };
 
+// Output saturation toward the Eurorack ceiling (+/-12 V rails less the
+// protection-diode drop, per VCV's voltage standards): identity up to
+// +/-8 V, a tanh knee approaching +/-11.7 V beyond. Normal levels pass
+// untouched; only hot, high-drive or high-resonance peaks are rounded off.
+inline float outputSaturate(float v) {
+	constexpr float knee = 8.f, w = 11.7f - knee, invW = 1.f / w;
+	// Rational tanh, exact +/-1 beyond |x| = 3 (monotone, so the knee is too).
+	auto tanhKnee = [](float x) {
+		if (x > 3.f) return 1.f;
+		float x2 = x * x;
+		return x * (27.f + x2) / (27.f + 9.f * x2);
+	};
+	if (v >  knee) return  knee + w * tanhKnee((v - knee) * invW);
+	if (v < -knee) return -knee - w * tanhKnee((-knee - v) * invW);
+	return v;
+}
+
 } // namespace robotboy

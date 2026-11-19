@@ -218,7 +218,9 @@ struct MF20Filter : Module {
 		     : d;
 	}
 
-	// One HP→LP pass through a side's filter pair; returns the LP output.
+	// One HP→LP pass through a side's filter pair; returns the LP output,
+	// saturated toward the Eurorack ceiling (high drive and resonance
+	// otherwise peak near 23 V).
 	float processSide(mf20::MF20Filter& hp, mf20::MF20Filter& lp, float in,
 	                  float gHp, float gLp, float hpRes, float lpRes) {
 		hp.setDriveCharacter(clipThresh, driveSqrt);
@@ -227,7 +229,7 @@ struct MF20Filter : Module {
 		lp.setFbThreshold(fbThresh);
 		float x = otaPreGain(in + dither);
 		auto hpStage = hp.processVCVG(x, gHp, hpRes);
-		return lp.processVCVG(hpStage.hp, gLp, lpRes).lp;
+		return robotboy::outputSaturate(lp.processVCVG(hpStage.hp, gLp, lpRes).lp);
 	}
 
 	void process(const ProcessArgs& args) override {
