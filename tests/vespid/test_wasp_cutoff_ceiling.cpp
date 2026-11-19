@@ -5,12 +5,15 @@
  * outputs aren't rail-bounded, so a cutoff pushed near Nyquist by frequency
  * CV (or by the knob alone at a low host rate) made a full-drive signal run
  * away: British mode measured ~180 V peak on LP with the old 0.45*fsInt
- * ceiling, ~10 V with the current one.
+ * ceiling, ~10 V with the current one. The outputs now also pass through
+ * outputSaturate (11.7 V ceiling), which would hide a runaway as a pinned
+ * 11.7 V, so the British limit sits below that: British never reaches
+ * the saturation ceiling unless the core runs away.
  *
  * Method: one VoiceEngine at full drive, resonance 0.5, a 110 Hz +/-5 V saw,
  * and a retriggered 10 V envelope summed onto a 750 Hz knob (1 V/oct),
- * mirroring Vespid::modulate's cutoff math, for 4 s. Peak makeup'd output
- * across LP/BP/HP/Mix must stay under 15 V.
+ * mirroring Vespid::modulate's cutoff math, for 4 s. Peak output across
+ * LP/BP/HP/Mix must stay under each case's limit.
  *
  * Compile & run (or via tests/run.sh):
  *   g++ -std=c++20 -O2 -I../src -o test_wasp_cutoff_ceiling test_wasp_cutoff_ceiling.cpp && ./test_wasp_cutoff_ceiling
@@ -88,22 +91,23 @@ static float peakOutput(const wasp::ModeConfig& mode, float fPole, float fs,
 int main() {
     printf("Wasp cutoff ceiling: full-drive peak output under cutoff CV\n");
     char detail[128];
-    const float maxV = 15.f;
-
     struct Case { const char* name; const wasp::ModeConfig& mode; float fPole;
-                  float fs, knobHz, envV; };
+                  float fs, knobHz, envV, maxV; };
     const Case cases[] = {
         // Old ceiling measured ~180 V (British) / ~20 V (German) at 48 kHz,
         // and ~225 V for the British knob alone at 20 kHz, 11.025 kHz host.
-        { "British 48 kHz, 10 V envelope",    wasp::kBritish, 60000.f, 48000.f,   750.f, 10.f },
-        { "British 44.1 kHz, 10 V envelope",  wasp::kBritish, 60000.f, 44100.f,   750.f, 10.f },
-        { "British 11.025 kHz, knob at max",  wasp::kBritish, 60000.f, 11025.f, 20000.f,  0.f },
-        { "British 11.025 kHz, 10 V envelope", wasp::kBritish, 60000.f, 11025.f,  750.f, 10.f },
+        { "British 48 kHz, 10 V envelope",     wasp::kBritish, 60000.f, 48000.f,   750.f, 10.f, 11.f },
+        { "British 44.1 kHz, 10 V envelope",   wasp::kBritish, 60000.f, 44100.f,   750.f, 10.f, 11.f },
+        { "British 11.025 kHz, knob at max",   wasp::kBritish, 60000.f, 11025.f, 20000.f,  0.f, 11.f },
+        { "British 11.025 kHz, 10 V envelope", wasp::kBritish, 60000.f, 11025.f,   750.f, 10.f, 11.f },
+        // German full drive sits in the saturation knee by design (~17.5 V
+        // before outputSaturate); this checks the 11.7 V ceiling end to end.
+        { "German 48 kHz, 10 V envelope",      wasp::kGerman,  50000.f, 48000.f,   750.f, 10.f, 11.7f },
     };
     for (const Case& c : cases) {
         float peak = peakOutput(c.mode, c.fPole, c.fs, c.knobHz, c.envV);
-        snprintf(detail, sizeof detail, "peak %.1f V, limit %.0f V", peak, maxV);
-        report(peak < maxV, c.name, detail);
+        snprintf(detail, sizeof detail, "peak %.2f V, limit %.1f V", peak, c.maxV);
+        report(peak < c.maxV, c.name, detail);
     }
 
     printf("\n%d passed, %d failed\n", sPassed, sFailed);

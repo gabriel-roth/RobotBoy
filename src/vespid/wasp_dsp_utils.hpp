@@ -227,4 +227,16 @@ inline float railClamp(float v, float vHi, float vLo) {
 	return v;
 }
 
+// Output saturation toward the Eurorack ceiling (+/-12 V rails less the
+// protection-diode drop, per VCV's voltage standards): identity up to
+// +/-8 V, tanh knee approaching +/-11.7 V beyond. Drive-0 levels sit below
+// the knee in both modes; full drive in German mode (~17.5 V raw) lands
+// just under the ceiling.
+inline float outputSaturate(float v) {
+	constexpr float knee = 8.f, w = 11.7f - knee, invW = 1.f / w;
+	if (v >  knee) return  knee + w*tanhApprox((v - knee)*invW);
+	if (v < -knee) return -knee - w*tanhApprox((-knee - v)*invW);
+	return v;
+}
+
 } // namespace wasp

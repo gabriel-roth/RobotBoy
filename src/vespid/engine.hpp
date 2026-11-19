@@ -38,6 +38,8 @@ enum : int {
 //
 // Output makeup and the DC blockers are linear and time-invariant, so they
 // commute with the decimators and run at host rate, once per selected output.
+// Output saturation (outputSaturate) follows them, also at host rate: it's
+// the identity below its 8 V knee, so it only colors full-drive peaks.
 struct Channel {
 	WaspFilter filt;
 	HalfbandUp up;                                          // host -> 2x
@@ -49,8 +51,8 @@ struct Channel {
 
 	struct Out { float lp, bp, hp, mix; };
 
-	// Returns host-rate, makeup'd and DC-blocked outputs for every signal
-	// selected in `mask` (the others read 0). g/h1/kC2 are already slewed by
+	// Returns host-rate, makeup'd, DC-blocked and saturated outputs for every
+	// signal selected in `mask` (the others read 0). g/h1/kC2 are already slewed by
 	// the caller and held across the sub-samples of one host sample, as is
 	// `m`, the Mix blend (0 = LP, 1 = HP).
 	Out process(float in, float g, const H1Coeffs& h1, float kC2,
@@ -77,20 +79,20 @@ struct Channel {
 
 		Out out{0.f, 0.f, 0.f, 0.f};
 		if (mask & kOutLp)
-			out.lp = makeup * dcLp.process(downLp.process(
-				downLp4a.process(o[0].lp, o[1].lp), downLp4a.process(o[2].lp, o[3].lp)));
+			out.lp = outputSaturate(makeup * dcLp.process(downLp.process(
+				downLp4a.process(o[0].lp, o[1].lp), downLp4a.process(o[2].lp, o[3].lp))));
 		if (mask & kOutBp)
-			out.bp = makeup * dcBp.process(downBp.process(
-				downBp4a.process(o[0].bp, o[1].bp), downBp4a.process(o[2].bp, o[3].bp)));
+			out.bp = outputSaturate(makeup * dcBp.process(downBp.process(
+				downBp4a.process(o[0].bp, o[1].bp), downBp4a.process(o[2].bp, o[3].bp))));
 		if (mask & kOutHp)
-			out.hp = makeup * dcHp.process(downHp.process(
-				downHp4a.process(o[0].hp, o[1].hp), downHp4a.process(o[2].hp, o[3].hp)));
+			out.hp = outputSaturate(makeup * dcHp.process(downHp.process(
+				downHp4a.process(o[0].hp, o[1].hp), downHp4a.process(o[2].hp, o[3].hp))));
 		if (mask & kOutMix) {
 			float b[4];
 			for (int i = 0; i < 4; i++)
 				b[i] = (1.f - m) * o[i].lp + m * o[i].hp;
-			out.mix = makeup * dcMix.process(downMix.process(
-				downMix4a.process(b[0], b[1]), downMix4a.process(b[2], b[3])));
+			out.mix = outputSaturate(makeup * dcMix.process(downMix.process(
+				downMix4a.process(b[0], b[1]), downMix4a.process(b[2], b[3]))));
 		}
 		return out;
 	}
